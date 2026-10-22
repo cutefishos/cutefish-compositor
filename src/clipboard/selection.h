@@ -7,6 +7,7 @@
 
 #pragma once
 
+#include <cstdint>
 #include <deque>
 #include <memory>
 #include <string>
