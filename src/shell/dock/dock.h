@@ -12,6 +12,7 @@
 #include "base/dbus.h"
 #include "base/geometry.h"
 #include "base/signal.h"
+#include "shell/common/running_applications.h"
 #include "shell/dock/dock_model.h"
 #include "shell/dock/dock_settings.h"
 #include "shell/dock/minimized_windows.h"
@@ -51,6 +52,7 @@ public:
 private:
     base::dbus::Connection *m_bus;
     DockSettings m_settings;
+    RunningApplications m_running;
     DockModel m_applications;
     MinimizedWindows m_minimizedWindows;
     std::unique_ptr<TrashMonitor> m_trash;

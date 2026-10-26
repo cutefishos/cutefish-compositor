@@ -20,6 +20,7 @@
 namespace cutefish::shell {
 
 class ApplicationLauncher;
+class RunningApplications;
 class TaskManager;
 class TaskWindows;
 
@@ -46,6 +47,8 @@ struct DockItem {
     std::string desktopPath;
     // Its task-list windows, in the order they opened.
     std::vector<uint64_t> windows;
+    // It has windows, or keeps running without one.
+    bool running = false;
     // Which window a click shows next.
     size_t currentActive = 0;
     bool isActive = false;
@@ -74,8 +77,10 @@ public:
     // An upgrade can remove a desktop file and put it back seconds later.
     static constexpr std::chrono::milliseconds kUninstallGrace{3000};
 
-    // `pinsPath` is shell.conf. Everything must outlive the model.
-    DockModel(TaskManager &tasks, ApplicationLauncher &launcher, std::string pinsPath);
+    // `pinsPath` is shell.conf. Everything must outlive the model; without
+    // `running`, applications run while they have windows.
+    DockModel(TaskManager &tasks, ApplicationLauncher &launcher, std::string pinsPath,
+              RunningApplications *running = nullptr);
     ~DockModel();
 
     DockModel(const DockModel &) = delete;
@@ -168,6 +173,7 @@ private:
     TaskWindows &m_windows;
     Applications &m_applications;
     ApplicationLauncher &m_launcher;
+    RunningApplications *m_running;
     std::string m_pinsPath;
     std::vector<std::unique_ptr<DockItem>> m_items;
     bool m_loaded = false;

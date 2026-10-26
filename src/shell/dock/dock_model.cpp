@@ -12,6 +12,7 @@
 #include "base/settings.h"
 #include "shell/common/app_launcher.h"
 #include "shell/common/file_thread.h"
+#include "shell/common/running_applications.h"
 #include "shell/common/task_manager.h"
 #include "shell/common/task_windows.h"
 #include "shell/common/text_match.h"
@@ -54,11 +55,13 @@ static std::string absolutePath(const std::string &path)
     return std::filesystem::absolute(path, error).lexically_normal().string();
 }
 
-DockModel::DockModel(TaskManager &tasks, ApplicationLauncher &launcher, std::string pinsPath)
+DockModel::DockModel(TaskManager &tasks, ApplicationLauncher &launcher, std::string pinsPath,
+                     RunningApplications *running)
     : m_tasks(tasks)
     , m_windows(tasks.taskWindows())
     , m_applications(tasks.applicationSource())
     , m_launcher(launcher)
+    , m_running(running)
     , m_pinsPath(std::move(pinsPath))
 {
     m_installedTimer.setSingleShot(true);
@@ -72,6 +75,10 @@ DockModel::DockModel(TaskManager &tasks, ApplicationLauncher &launcher, std::str
     m_subscriptions.push_back(
             m_tasks.applicationChanged.connect([this](const std::string &a) { syncApplication(a); }));
     m_subscriptions.push_back(m_windows.activeWindowChanged.connect([this](uint64_t id) { onActiveChanged(id); }));
+    if (m_running) {
+        m_subscriptions.push_back(
+                m_running->changed.connect([this](const std::string &a) { syncApplication(a); }));
+    }
     // The task manager was connected first, so windows are matched to a new
     // scan before the pins are.
     m_subscriptions.push_back(m_applications.changed.connect([this] { onApplicationsChanged(); }));
@@ -340,6 +347,13 @@ void DockModel::quit(const std::string &id)
     if (!item)
         return;
 
+    // Running without a window, it quits itself.
+    if (item->windows.empty()) {
+        if (item->running && m_running)
+            m_running->quit(item->id);
+        return;
+    }
+
     // Quit is the window manager's, as for the menu bar and Command+Q: it
     // closes the application's windows and later ends what keeps running
     // without one. One request per application id among the windows.
@@ -405,7 +419,7 @@ void DockModel::unPinAt(int from, int row)
 
     DockItem *item = m_items[size_t(from)].get();
     item->isPinned = false;
-    if (item->windows.empty()) {
+    if (!item->running) {
         m_items.erase(m_items.begin() + from);
         rowsRemoved(from, 1);
         sectionsChanged();
@@ -536,6 +550,10 @@ void DockModel::load()
     loadPins(*m_savedPins);
     for (const std::string &application : std::vector<std::string>(m_tasks.applications()))
         syncApplication(application);
+    if (m_running) {
+        for (const std::string &application : m_running->applications())
+            syncApplication(application);
+    }
 
     // Saved pins are checked at once; later changes may be an upgrade in
     // progress.
@@ -668,12 +686,14 @@ void DockModel::syncApplication(const std::string &application)
 
     const std::vector<uint64_t> windows = m_tasks.windows(application);
     DockItem *item = findById(application);
+    const bool runsWithoutWindows = windows.empty() && m_running && m_running->showsInDock(application);
 
-    if (windows.empty()) {
+    if (windows.empty() && !runsWithoutWindows) {
         if (!item || item->fixed)
             return;
         if (item->isPinned) {
             item->windows.clear();
+            item->running = false;
             item->currentActive = 0;
             item->isActive = false;
             changed(item);
@@ -694,6 +714,7 @@ void DockModel::syncApplication(const std::string &application)
     }
 
     item->windows = windows;
+    item->running = true;
     const uint64_t active = m_windows.activeWindow();
     const auto activeIt = std::find(windows.begin(), windows.end(), active);
     item->isActive = activeIt != windows.end();
@@ -702,8 +723,16 @@ void DockModel::syncApplication(const std::string &application)
     else if (item->currentActive >= windows.size())
         item->currentActive = 0;
 
-    if (const DesktopEntryPtr entry = m_tasks.entry(application)) {
+    DesktopEntryPtr entry = m_tasks.entry(application);
+    if (!entry && runsWithoutWindows)
+        entry = m_running->entry(application);
+    if (entry) {
         updateFromEntry(item, *entry);
+    } else if (runsWithoutWindows) {
+        if (item->visibleName.empty())
+            item->visibleName = application;
+        if (item->iconName.empty())
+            item->iconName = toLower(application);
     } else if (item->desktopPath.empty()) {
         // No entry names it, so its window does. One that had an entry keeps
         // its name through an upgrade; checkInstalled() decides if it is gone.

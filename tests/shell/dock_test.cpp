@@ -56,6 +56,36 @@ public:
     std::vector<std::string> quit;
 };
 
+// An application that keeps running without a window, on a connection of
+// its own.
+class WindowlessApplication
+{
+public:
+    WindowlessApplication(const std::string &name, const std::string &appId)
+        : object(client.connection.get(), shell::RunningApplications::kPath, shell::RunningApplications::kInterface)
+    {
+        object.addProperty("AppId", [appId] { return appId; });
+        object.addProperty("ShowsInDock", [this] { return showsInDock; });
+        object.addMethod("Quit", [this] {
+            ++quits;
+            return true;
+        });
+        EXPECT_TRUE(object.publish());
+        EXPECT_TRUE(client.connection->requestName(name));
+    }
+
+    void setShowsInDock(bool shows)
+    {
+        showsInDock = shows;
+        object.emitPropertiesChanged({"ShowsInDock"});
+    }
+
+    test::DBusTestClient client;
+    dbus::Object object;
+    bool showsInDock = true;
+    int quits = 0;
+};
+
 class DockTest : public testing::Test
 {
 protected:
@@ -208,6 +238,45 @@ TEST_F(DockTest, FollowsRunningApplications)
     windows.remove(second);
     EXPECT_EQ(ids(), (std::vector<std::string>{DockModel::kLauncherId, "files"}));
     EXPECT_TRUE(model().at(1).windows.empty());
+}
+
+TEST_F(DockTest, KeepsApplicationsThatRunWithoutWindows)
+{
+    start("[Dock]\nPinned=files\n");
+    auto editor = std::make_unique<WindowlessApplication>("org.cutefish.Application.editor", "editor");
+    ASSERT_TRUE(test::runUntil([&] { return model().indexOf("editor") >= 0; }));
+    auto item = [&]() -> const shell::DockItem & { return model().at(model().indexOf("editor")); };
+    EXPECT_TRUE(item().running);
+    EXPECT_TRUE(item().windows.empty());
+    EXPECT_EQ(item().visibleName, "Editor");
+
+    // Its last window going leaves it running.
+    const uint64_t window = open("editor");
+    ASSERT_TRUE(test::runUntil([&] { return item().windows.size() == 1; }));
+    windows.remove(window);
+    ASSERT_TRUE(test::runUntil([&] { return item().windows.empty(); }));
+    EXPECT_TRUE(item().running);
+
+    // A click opens it again through the runtime; Quit goes to it.
+    model().clicked("editor");
+    ASSERT_TRUE(test::runUntil([&] { return !runtime.launched.empty(); }));
+    EXPECT_EQ(runtime.launched.front(), "editor");
+    model().quit("editor");
+    ASSERT_TRUE(test::runUntil([&] { return editor->quits == 1; }));
+
+    // Unpinned, it stays while it runs.
+    model().pin("editor");
+    EXPECT_TRUE(item().isPinned);
+    model().unPin("editor");
+    EXPECT_GE(model().indexOf("editor"), 0);
+
+    // An application kept out of the dock does not show; ending, it leaves.
+    editor->setShowsInDock(false);
+    ASSERT_TRUE(test::runUntil([&] { return model().indexOf("editor") < 0; }));
+    editor->setShowsInDock(true);
+    ASSERT_TRUE(test::runUntil([&] { return model().indexOf("editor") >= 0; }));
+    editor.reset();
+    ASSERT_TRUE(test::runUntil([&] { return model().indexOf("editor") < 0; }));
 }
 
 TEST_F(DockTest, LaunchesAndQuitsThroughTheRuntime)

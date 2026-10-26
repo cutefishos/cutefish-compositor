@@ -17,6 +17,8 @@ add_library(cutefish-shell-common STATIC
     pending_calls.h
     process_info.cpp
     process_info.h
+    running_applications.cpp
+    running_applications.h
     sender_filter.h
     synced_list.h
     task_manager.cpp

@@ -493,7 +493,7 @@ void DockWindow::rebuild()
         else
             icon->setIcon(item.iconName.empty() ? "application-x-desktop" : item.iconName);
         icon->setToolTip(item.visibleName);
-        icon->setRunning(!item.windows.empty());
+        icon->setRunning(item.running);
         icon->setCount(m_shell->badges().count(item.id));
         icons[item.id] = icon;
     }
@@ -1112,7 +1112,7 @@ void DockWindow::iconMenuRequested(DockIcon *icon)
         }
         if (!windows.empty())
             menu->addSeparator();
-        if (windows.empty())
+        if (!item.running)
             menu->addItem(tr("Open"), [&model, id] { model.openNewInstance(id); });
         // A missing bundle keeps its place until it is unpinned.
         if (item.pinnable() || (item.missing && item.isPinned)) {
@@ -1121,7 +1121,7 @@ void DockWindow::iconMenuRequested(DockIcon *icon)
                 pinned ? model.unPin(id) : model.pin(id);
             });
         }
-        if (!windows.empty())
+        if (item.running)
             menu->addItem(tr("Quit"), [&model, id] { model.quit(id); });
         break;
     }

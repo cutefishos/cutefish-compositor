@@ -18,7 +18,8 @@ Dock::Dock(dbus::Connection *bus, TaskManager &tasks, ApplicationLauncher &launc
            std::unique_ptr<TrashMonitor> trash)
     : m_bus(bus)
     , m_settings(settingsPath)
-    , m_applications(tasks, launcher, settingsPath)
+    , m_running(bus, tasks)
+    , m_applications(tasks, launcher, settingsPath, &m_running)
     , m_minimizedWindows(tasks.taskWindows(), m_applications, m_settings)
     , m_trash(trash ? std::move(trash) : std::make_unique<TrashMonitor>())
 {
