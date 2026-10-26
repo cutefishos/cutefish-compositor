@@ -15,18 +15,27 @@ namespace cutefish::shell {
 // bus's half minute.
 static constexpr std::chrono::seconds kRuntimeTimeout(5);
 
-ApplicationLauncher::ApplicationLauncher(base::dbus::Connection *bus)
+ApplicationLauncher::ApplicationLauncher(base::dbus::Connection *bus, TokenSource createToken)
     : m_runtime(bus, "org.cutefish.AppRuntime", "/AppRuntime", "org.cutefish.AppRuntime")
+    , m_createToken(std::move(createToken))
 {
     m_runtime.setTimeout(kRuntimeTimeout);
 }
 
-static bool startHere(const std::vector<std::string> &command, const std::string &workingDirectory)
+std::string ApplicationLauncher::newToken() const
+{
+    return m_createToken ? m_createToken() : std::string();
+}
+
+static bool startHere(const std::vector<std::string> &command, const std::string &workingDirectory,
+                      const std::string &token)
 {
     if (command.empty() || command.front().empty())
         return false;
     const std::vector<std::string> arguments(command.begin() + 1, command.end());
-    return base::Process::startDetached(command.front(), arguments, workingDirectory) > 0;
+    const std::vector<std::string> environment = token.empty() ? std::vector<std::string>()
+                                                               : std::vector<std::string> {"XDG_ACTIVATION_TOKEN=" + token};
+    return base::Process::startDetached(command.front(), arguments, workingDirectory, environment) > 0;
 }
 
 void ApplicationLauncher::launch(const base::DesktopEntry &entry, const std::vector<std::string> &arguments,
@@ -52,7 +61,7 @@ void ApplicationLauncher::launch(const base::DesktopEntry &entry, const std::vec
                     }
                     finished();
                 },
-                id, arguments, std::string());
+                id, arguments, newToken());
     });
 }
 
@@ -65,7 +74,7 @@ void ApplicationLauncher::launchCommand(const std::vector<std::string> &command,
         return;
     }
     if (!m_runtime.isValid()) {
-        const bool started = startHere(command, workingDirectory);
+        const bool started = startHere(command, workingDirectory, newToken());
         if (done)
             done(started);
         return;
@@ -74,14 +83,14 @@ void ApplicationLauncher::launchCommand(const std::vector<std::string> &command,
     m_calls.track([&](std::function<void()> finished) {
         return m_runtime.callAsync(
                 "launchCommand",
-                [command, workingDirectory, done, finished](const base::dbus::Reply &reply) {
-                    const bool started =
-                            reply.value<uint32_t>().value_or(0) != 0 || startHere(command, workingDirectory);
+                [this, command, workingDirectory, done, finished](const base::dbus::Reply &reply) {
+                    const bool started = reply.value<uint32_t>().value_or(0) != 0
+                                         || startHere(command, workingDirectory, newToken());
                     if (done)
                         done(started);
                     finished();
                 },
-                appId, command, workingDirectory, std::string());
+                appId, command, workingDirectory, newToken());
     });
 }
 

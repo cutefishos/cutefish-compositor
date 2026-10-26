@@ -26,8 +26,12 @@ class ApplicationLauncher
 {
 public:
     using Done = std::function<void(bool started)>;
+    using TokenSource = std::function<std::string()>;
 
-    explicit ApplicationLauncher(base::dbus::Connection *bus = base::dbus::Connection::session());
+    // Every start carries a token from `createToken`, when given, for the
+    // application, or its instance already running, to come forward with.
+    explicit ApplicationLauncher(base::dbus::Connection *bus = base::dbus::Connection::session(),
+                                 TokenSource createToken = {});
 
     // The entry by its id, as DesktopEntry::launch() did: the runtime starts
     // it and ties it to the entry; its command is the fallback.
@@ -44,7 +48,10 @@ public:
                               const std::vector<std::string> &environment = {});
 
 private:
+    std::string newToken() const;
+
     base::dbus::Proxy m_runtime;
+    TokenSource m_createToken;
     PendingCalls m_calls;
 };
 

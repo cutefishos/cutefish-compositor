@@ -30,14 +30,16 @@ public:
     explicit FakeAppRuntime(dbus::Connection *bus)
         : object(bus, "/AppRuntime", "org.cutefish.AppRuntime")
     {
-        object.addMethod("launchApplication",
-                         [this](const std::string &id, const std::vector<std::string> &, const std::string &) {
-                             launched.push_back(id);
-                             return uint32_t(1);
-                         });
-        object.addMethod("launchCommand", [this](const std::string &id, const std::vector<std::string> &,
-                                                 const std::string &, const std::string &) {
+        object.addMethod("launchApplication", [this](const std::string &id, const std::vector<std::string> &,
+                                                     const std::string &token) {
             launched.push_back(id);
+            tokens.push_back(token);
+            return uint32_t(1);
+        });
+        object.addMethod("launchCommand", [this](const std::string &id, const std::vector<std::string> &,
+                                                 const std::string &, const std::string &token) {
+            launched.push_back(id);
+            tokens.push_back(token);
             return uint32_t(1);
         });
         object.addMethod("quitApplication", [this](const std::string &id) {
@@ -50,6 +52,7 @@ public:
 
     dbus::Object object;
     std::vector<std::string> launched;
+    std::vector<std::string> tokens;
     std::vector<std::string> quit;
 };
 
@@ -107,7 +110,8 @@ protected:
     shell::TaskManager tasks{windows, applications, [](int64_t) { return shell::ProcessCommand(); }};
     test::DBusTestClient runtimeClient;
     FakeAppRuntime runtime{runtimeClient.connection.get()};
-    shell::ApplicationLauncher launcher{dbus::Connection::session(core::mainLoop())};
+    shell::ApplicationLauncher launcher{dbus::Connection::session(core::mainLoop()),
+                                        [] { return std::string("launch-token"); }};
     std::unique_ptr<shell::Dock> dock;
 };
 
@@ -215,6 +219,8 @@ TEST_F(DockTest, LaunchesAndQuitsThroughTheRuntime)
     EXPECT_TRUE(hidden);
     ASSERT_TRUE(test::runUntil([&] { return !runtime.launched.empty(); }));
     EXPECT_EQ(runtime.launched.front(), "editor");
+    // The application, or its instance already running, comes forward with it.
+    EXPECT_EQ(runtime.tokens.front(), "launch-token");
 
     bool toggled = false;
     model().toggleLauncher = [&] { toggled = true; };

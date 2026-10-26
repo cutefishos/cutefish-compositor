@@ -178,7 +178,7 @@ TaskManager &Shell::tasks()
 ApplicationLauncher &Shell::launcher()
 {
     if (!m_launcher)
-        m_launcher = std::make_unique<ApplicationLauncher>(bus());
+        m_launcher = std::make_unique<ApplicationLauncher>(bus(), m_environment.createActivationToken);
     return *m_launcher;
 }
 
