@@ -204,11 +204,20 @@ void setOpacity(wl_client *, wl_resource *resource, wl_resource *surface, wl_fix
     getUserDataAs<compositor::Surface>(surface)->setOpacity(float(opacity));
 }
 
+void hideApplication(wl_client *, wl_resource *resource, wl_resource *surface)
+{
+    auto *manager = static_cast<Manager *>(wl_resource_get_user_data(resource));
+    if (!manager->windows)
+        return;
+    manager->windows->hideApplication(
+            manager->windows->windowForSurface(getUserDataAs<compositor::Surface>(surface)));
+}
+
 const struct cutefish_window_hints_v1_interface implementation = {
         destroy, setSkipTaskbar, setAlwaysOnTop, setResizeAnchor,
         setServerResize, setRestoreId, setRestoreSize, setPlacementAnchor,
         unsetPlacementAnchor, setBodyShape, unsetBodyShape, setShadow,
-        setOpacity};
+        setOpacity, hideApplication};
 
 void unbind(wl_resource *resource)
 {

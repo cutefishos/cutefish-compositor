@@ -390,6 +390,14 @@ TEST_F(WindowHintsProtocolTest, OpacityIsImmediateAndBetweenZeroAndOne)
     wl_surface_destroy(surface);
 }
 
+TEST_F(WindowHintsProtocolTest, HideApplicationOnASurfaceWithoutAWindowIsHarmless)
+{
+    auto *surface = wl_compositor_create_surface(clientCompositor);
+    cutefish_window_hints_v1_hide_application(hints, surface);
+    EXPECT_GE(roundtrip(), 0);
+    wl_surface_destroy(surface);
+}
+
 TEST_F(WindowHintsProtocolTest, InvalidBooleanIsAProtocolError)
 {
     auto *surface = wl_compositor_create_surface(clientCompositor);
