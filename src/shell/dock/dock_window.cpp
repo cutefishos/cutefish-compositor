@@ -321,6 +321,10 @@ DockWindow::DockWindow(Shell *shell, std::unique_ptr<Dock> dock)
             resize(false);
     }));
 
+    m_shell->windowManager()->setApplicationQuit([this](wm::Window *window) {
+        return m_dock->running().quitAppId(window->applicationId());
+    });
+
     TaskWindows &windows = m_shell->taskWindows();
     m_subscriptions.push_back(windows.windowAdded.connect([this](uint64_t) {
         updateMinimizeTargets();
@@ -353,6 +357,7 @@ DockWindow::DockWindow(Shell *shell, std::unique_ptr<Dock> dock)
 DockWindow::~DockWindow()
 {
     *m_alive = false;
+    m_shell->windowManager()->setApplicationQuit({});
     m_subscriptions.clear();
     m_retired.clear();
     m_dock->primaryGeometry = nullptr;

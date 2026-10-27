@@ -226,10 +226,11 @@ public:
     // An application is the task-list windows of one application id, as the
     // dock groups them, or of one process for windows without an id.
 
-    // Asks the application's top-level windows to close; dialogs are left
-    // alone, so a second Quit asks again rather than dismissing a prompt. Their
-    // processes that have no task-list window left after the grace period are
-    // terminated through setTerminateProcess().
+    // Hands the request to an application that quits itself, through
+    // setApplicationQuit(). Otherwise asks the application's top-level windows
+    // to close; dialogs are left alone, so a second Quit asks again rather than
+    // dismissing a prompt. Their processes that have no task-list window left
+    // after the grace period are terminated through setTerminateProcess().
     void quitApplication(Window *window);
 
     // Whether `candidate` is one of `window`'s application's windows, as Quit
@@ -253,6 +254,14 @@ public:
     }
 
     void setQuitGracePeriod(std::chrono::milliseconds period) { m_quitGracePeriod = period; }
+
+    // Asks the application of `window`, a task-list window, to quit as a
+    // whole, with its windows left to it: returns whether it takes such a
+    // request. The shell's running applications in production.
+    void setApplicationQuit(std::function<bool(Window *)> quit)
+    {
+        m_applicationQuit = std::move(quit);
+    }
 
     // Ends `window`'s client at once, without asking it, and the rest of the
     // application through setForceQuitProcess().
@@ -630,6 +639,7 @@ private:
     // Touch points that went down on a window's frame.
     std::map<int32_t, Window *> m_frameTouches;
     std::function<void(int64_t pid)> m_terminateProcess;
+    std::function<bool(Window *)> m_applicationQuit;
     std::function<void(int64_t pid)> m_forceQuitProcess;
     std::function<bool(Window *)> m_notRespondingPrompt;
     std::chrono::milliseconds m_quitGracePeriod {3000};

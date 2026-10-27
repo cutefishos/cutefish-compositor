@@ -37,6 +37,7 @@ public:
     bool registerService();
 
     DockModel &applications() { return m_applications; }
+    RunningApplications &running() { return m_running; }
     DockSettings &settings() { return m_settings; }
     MinimizedWindows &minimizedWindows() { return m_minimizedWindows; }
     TrashMonitor &trash() { return *m_trash; }

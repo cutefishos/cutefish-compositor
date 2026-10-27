@@ -1223,6 +1223,8 @@ void WindowManager::quitApplication(Window *window)
         window = window->transientParent();
     if (!window || window->skipTaskbar())
         return;
+    if (m_applicationQuit && m_applicationQuit(window))
+        return;
 
     std::vector<Window *> windows;
     std::set<int64_t> processes;

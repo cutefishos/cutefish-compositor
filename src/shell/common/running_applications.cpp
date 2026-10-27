@@ -6,6 +6,7 @@
 
 #include <algorithm>
 
+#include "base/strings.h"
 #include "shell/common/task_manager.h"
 
 namespace cutefish::shell {
@@ -95,6 +96,20 @@ void RunningApplications::quit(const std::string &application) const
         if (instance.application == application)
             instance.proxy.send("Quit");
     }
+}
+
+bool RunningApplications::quitAppId(const std::string &appId) const
+{
+    if (appId.empty())
+        return false;
+    bool found = false;
+    for (const auto &[name, instance] : m_instances) {
+        if (base::strings::equalsIgnoreAsciiCase(instance.appId, appId)) {
+            instance.proxy.send("Quit");
+            found = true;
+        }
+    }
+    return found;
 }
 
 void RunningApplications::add(const std::string &name)

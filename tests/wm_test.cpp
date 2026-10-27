@@ -174,6 +174,40 @@ TEST_F(WmTest, QuitClosesTheApplicationsWindowsAndTerminatesWhatStaysBehind)
     EXPECT_EQ(std::vector<int64_t>({11}), terminated);
 }
 
+TEST_F(WmTest, QuitLeavesAnApplicationThatQuitsItselfItsWindows)
+{
+    bool closed = false;
+    Window *editor = manager.createWindow(makeSurface({200, 100}),
+                                          {.requestedSize = {200, 100},
+                                           .applicationId = "editor",
+                                           .processId = 10,
+                                           .closeCallback = [&closed] {
+                                               closed = true;
+                                           }});
+    Window *sheet = manager.createWindow(makeSurface({100, 50}),
+                                         {.requestedSize = {100, 50},
+                                          .applicationId = "editor",
+                                          .processId = 10,
+                                          .transientParent = editor});
+    std::vector<Window *> asked;
+    manager.setApplicationQuit([&asked](Window *window) {
+        asked.push_back(window);
+        return window->applicationId() == "editor";
+    });
+    std::vector<int64_t> terminated;
+    manager.setTerminateProcess([&terminated](int64_t pid) {
+        terminated.push_back(pid);
+    });
+    manager.setQuitGracePeriod(std::chrono::milliseconds(0));
+
+    // Asked about the application's top-level window, from a dialog too.
+    manager.quitApplication(sheet);
+    test::processPendingEvents();
+    EXPECT_EQ(std::vector<Window *>({editor}), asked);
+    EXPECT_FALSE(closed);
+    EXPECT_TRUE(terminated.empty());
+}
+
 class QuitAllTest : public WmTest
 {
 protected:
