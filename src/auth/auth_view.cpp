@@ -10,13 +10,12 @@
 #include <string>
 #include <vector>
 
-#include <unicode/uchar.h>
-#include <unicode/utf8.h>
 #include <xkbcommon/xkbcommon-keysyms.h>
 
 #include "auth/auth_controller.h"
 #include "base/i18n.h"
 #include "base/locale.h"
+#include "cutefish/accounts/account_picture.h"
 #include "ui/animation.h"
 #include "ui/application.h"
 #include "ui/image_view.h"
@@ -42,21 +41,6 @@ constexpr ui::Color kBlack {0, 0, 0, 255};
 ui::Color white(double alpha)
 {
     return kWhite.withAlpha(alpha);
-}
-
-// The name's first character in upper case, for the picture's initial.
-std::string initialOf(const std::string &name)
-{
-    int32_t offset = 0;
-    UChar32 character = 0;
-    U8_NEXT(name.data(), offset, int32_t(name.size()), character);
-    if (character < 0)
-        return name.substr(0, size_t(offset));
-    char buffer[U8_MAX_LENGTH];
-    int32_t length = 0;
-    UBool error = false;
-    U8_APPEND(buffer, length, U8_MAX_LENGTH, u_toupper(character), error);
-    return std::string(buffer, size_t(length));
 }
 
 // A colour animation step: each channel, alpha included, straight.
@@ -207,9 +191,9 @@ private:
     bool m_pressed = false;
 };
 
-// The account's picture cut to a circle on a light disc, or the account's
-// initial where there is none. Where another account can be picked, hovering
-// dims it and shows the swap arrows, and a click opens the accounts.
+// The account's picture cut to a circle, or the account's colour where there
+// is none. Where another account can be picked, hovering dims it and shows the
+// swap arrows, and a click opens the accounts.
 class Avatar final : public Clickable
 {
 public:
@@ -217,8 +201,6 @@ public:
 
     explicit Avatar(ui::Window *window)
         : m_hover(window, 140, ui::Animation::Easing::Linear, numberInterpolation(), [this] {
-            // A picture shows through the dim; an initial would cross the arrows.
-            m_initial->setOpacity(1 - m_hover.value());
             m_overlay->requestPaint();
         })
     {
@@ -226,27 +208,19 @@ public:
         m_picture = addChild<ui::ImageView>();
         m_picture->setFillMode(ui::ImageView::FillMode::PreserveAspectCrop);
         m_picture->setCornerRadius(kSize / 2);
-        m_picture->onStatusChanged = [this](ui::ImageView::Status) { updateInitial(); };
-        m_initial = addChild<ui::Label>();
-        m_initial->setFontSize(28);
-        m_initial->setWeight(300);
-        m_initial->setColor(kWhite);
-        m_initial->setElide(ui::Label::Elide::None);
-        m_initial->setFadesWhenDisabled(false);
         m_overlay = addChild<SwapOverlay>(this);
         onHoverChanged = [this] { updateHover(); };
         m_hover.setTarget(0);
     }
 
-    void setUser(const std::string &displayName, const std::string &icon)
+    // The colour shows until the picture is decoded.
+    void setUser(const std::string &userName, const std::string &icon)
     {
-        m_initial->setText(displayName.empty() ? std::string("?") : initialOf(displayName));
+        m_disc->setColor(ui::Color::rgb(accounts::pictureColor(userName)));
         if (icon != m_icon) {
             m_icon = icon;
             m_picture->setSource(m_icon);
         }
-        updateInitial();
-        requestLayout();
     }
 
     void setSwappable(bool swappable)
@@ -269,20 +243,28 @@ protected:
         m_disc->setGeometry(rect);
         m_picture->setGeometry(rect);
         m_overlay->setGeometry(rect);
-        const ui::SizeF initial = m_initial->sizeHint();
-        m_initial->setGeometry({centeredStart(rect.width, initial.width),
-                                centeredStart(rect.height, initial.height), initial.width,
-                                initial.height});
     }
 
 private:
     class Disc final : public ui::View
     {
+    public:
+        void setColor(ui::Color color)
+        {
+            if (color == m_color)
+                return;
+            m_color = color;
+            requestPaint();
+        }
+
     protected:
         void paint(ui::Painter &painter) override
         {
-            drawPanelRect(painter, localRect(), geometry().width / 2, white(0.16));
+            drawPanelRect(painter, localRect(), geometry().width / 2, m_color);
         }
+
+    private:
+        ui::Color m_color;
     };
 
     class SwapOverlay final : public ui::View
@@ -319,12 +301,6 @@ private:
         Avatar *m_avatar;
     };
 
-    void updateInitial()
-    {
-        // As an asynchronous Image: the initial until the picture is ready.
-        m_initial->setVisible(m_picture->status() != ui::ImageView::Status::Ready);
-    }
-
     void updateHover()
     {
         m_hover.setTarget(m_swappable && containsMouse() ? 1 : 0);
@@ -333,7 +309,6 @@ private:
     NumberBehavior m_hover;
     Disc *m_disc;
     ui::ImageView *m_picture;
-    ui::Label *m_initial;
     SwapOverlay *m_overlay;
     std::string m_icon;
     bool m_swappable = false;
@@ -353,10 +328,10 @@ public:
 
     Avatar *avatar() const { return m_avatar; }
 
-    void setUser(const std::string &displayName, const std::string &icon)
+    void setUser(const std::string &displayName, const std::string &userName, const std::string &icon)
     {
         m_name->setText(displayName);
-        m_avatar->setUser(displayName, icon);
+        m_avatar->setUser(userName, icon);
         requestLayout();
     }
 
@@ -390,11 +365,12 @@ public:
     static constexpr double kWidth = 96;
     static constexpr double kHalo = 6;
 
-    UserTile(ui::Window *window, const std::string &displayName, const std::string &icon)
+    UserTile(ui::Window *window, const std::string &displayName, const std::string &userName,
+             const std::string &icon)
     {
         setCursorShape(ui::CursorShape::Pointer);
         m_avatar = addChild<Avatar>(window);
-        m_avatar->setUser(displayName, icon);
+        m_avatar->setUser(userName, icon);
         m_name = addChild<RaisedLabel>(13, 400, kWhite, kBlack.withAlpha(0.3));
         m_name->setText(displayName);
         m_name->setElidedCentred();
@@ -458,13 +434,15 @@ public:
     std::function<void(int index)> onActivated;
     std::function<void()> onCancelled;
 
-    void setUsers(const std::vector<std::string> &names, const std::vector<std::string> &icons)
+    void setUsers(const std::vector<std::string> &names, const std::vector<std::string> &logins,
+                  const std::vector<std::string> &icons)
     {
         while (!children().empty())
             takeChild(children().back().get());
         m_tiles.clear();
         for (size_t i = 0; i < names.size(); ++i) {
-            auto *tile = addChild<UserTile>(m_window, names[i], i < icons.size() ? icons[i] : std::string());
+            auto *tile = addChild<UserTile>(m_window, names[i], i < logins.size() ? logins[i] : std::string(),
+                                            i < icons.size() ? icons[i] : std::string());
             tile->setName("user-tile-" + std::to_string(i));
             tile->onClicked = [this, i] {
                 if (onActivated)
@@ -1293,7 +1271,7 @@ AuthScreen::AuthScreen(ui::Window *window, AuthController *controller)
     };
 
     const auto userChanged = [this] {
-        m_user->setUser(m_controller->displayName(), m_controller->iconSource());
+        m_user->setUser(m_controller->displayName(), m_controller->userName(), m_controller->iconSource());
         m_picker->setCurrentIndex(m_controller->userIndex());
         NameInput *input = m_userName->input();
         const std::string text = m_controller->userName();
@@ -1301,7 +1279,7 @@ AuthScreen::AuthScreen(ui::Window *window, AuthController *controller)
             input->setText(text);
     };
     const auto usersChanged = [this] {
-        m_picker->setUsers(m_controller->userNames(), m_controller->userIcons());
+        m_picker->setUsers(m_controller->userNames(), m_controller->userLogins(), m_controller->userIcons());
         m_userName->setVisible(m_controller->typesUserName());
         updateSwappable();
     };

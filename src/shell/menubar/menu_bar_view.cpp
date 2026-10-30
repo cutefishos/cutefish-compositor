@@ -4,14 +4,18 @@
 
 #include "shell/menubar/menu_bar_view.h"
 
+#include <pwd.h>
+#include <unistd.h>
+
 #include "core/main_loop.h"
+#include "cutefish/accounts/account_picture.h"
 #include "cutefish/accounts/user_account.h"
 #include "shell/shell.h"
 #include "shell/statusbar/bar_item.h"
 #include "shell/statusbar/status_bar.h"
-#include "ui/icon.h"
 #include "ui/image_view.h"
 #include "ui/menu.h"
+#include "ui/painter.h"
 #include "ui/window.h"
 
 namespace cutefish::shell {
@@ -30,6 +34,9 @@ public:
             setInsets(BarContext::kEdgeMargin - (BarContext::kItemGap - BarContext::kHighlightGap) / 2,
                       BarContext::kHighlightGap / 2);
             setGlyphWidth(BarContext::kIconSize);
+            // The account's colour until the picture is decoded, or where
+            // there is none.
+            m_disc = addChild<Disc>();
             // A circular avatar decoded at its device size, as the Image
             // with sourceSize and an OpacityMask of a circle.
             m_avatar = addChild<ui::ImageView>();
@@ -37,6 +44,9 @@ public:
             m_avatar->setMipmap(true);
             m_avatar->setCornerRadius(BarContext::kIconSize / 2);
             m_avatar->setRendering(ui::ImageView::Rendering::MaskedLayer);
+            m_avatar->onStatusChanged = [this](ui::ImageView::Status status) {
+                m_disc->setVisible(status != ui::ImageView::Status::Ready);
+            };
         } else {
             setInsets(BarContext::kHighlightGap / 2, BarContext::kHighlightGap / 2);
             m_label = addChild<BarLabel>();
@@ -55,10 +65,13 @@ public:
         return BarContext::kItemGap + m_label->sizeHint().width + BarContext::kSmallSpacing * 2;
     }
 
-    void setAvatar(const std::string &file)
+    void setAvatar(const std::string &file, ui::Color color)
     {
-        if (m_avatar)
-            m_avatar->setSource(file);
+        if (!m_avatar)
+            return;
+        m_disc->setColor(color);
+        m_avatar->setSource(file);
+        m_disc->setVisible(m_avatar->status() != ui::ImageView::Status::Ready);
     }
 
     void updateLook()
@@ -77,15 +90,36 @@ public:
 protected:
     void layout() override
     {
-        if (m_avatar)
+        if (m_avatar) {
+            m_disc->setGeometry(centred({BarContext::kIconSize, BarContext::kIconSize}));
             m_avatar->setGeometry(centred({BarContext::kIconSize, BarContext::kIconSize}));
+        }
         if (m_label)
             m_label->setGeometry(centred(m_label->sizeHint()));
     }
 
 private:
+    class Disc final : public ui::View
+    {
+    public:
+        void setColor(ui::Color color)
+        {
+            if (color == m_color)
+                return;
+            m_color = color;
+            requestPaint();
+        }
+
+    protected:
+        void paint(ui::Painter &painter) override { painter.fillEllipse(localRect(), m_color); }
+
+    private:
+        ui::Color m_color;
+    };
+
     const MenuBarModel::Row m_row;
     BarLabel *m_label = nullptr;
+    Disc *m_disc = nullptr;
     ui::ImageView *m_avatar = nullptr;
 };
 
@@ -108,6 +142,8 @@ MenuBarView::MenuBarView(Shell *shell, StatusBarMenuBarHost host)
             m_model->activationRequested.connect([this](size_t row) { open(int(row), true); }));
     m_subscriptions.push_back(m_model->menuClosed.connect([this] { onMenuClosed(); }));
 
+    if (const passwd *entry = getpwuid(getuid()))
+        m_userColor = ui::Color::rgb(accounts::pictureColor(entry->pw_name));
     setUserIcon({});
     if (shell->bus()) {
         if (base::dbus::Connection *system = base::dbus::Connection::system(core::mainLoop())) {
@@ -136,10 +172,9 @@ BarItem *MenuBarView::entry(size_t index) const
 
 void MenuBarView::setUserIcon(const std::string &file)
 {
-    // The theme's picture stands in for an account without one.
-    m_userIcon = file.empty() ? ui::themeIconPath("default-user", int(BarContext::kIconSize)) : file;
+    m_userIcon = file;
     if (!m_entries.empty())
-        m_entries.front()->setAvatar(m_userIcon);
+        m_entries.front()->setAvatar(m_userIcon, m_userColor);
 }
 
 void MenuBarView::barChanged()
@@ -185,7 +220,7 @@ void MenuBarView::rebuildEntries()
         m_entries.push_back(entry);
     }
     if (!m_entries.empty())
-        m_entries.front()->setAvatar(m_userIcon);
+        m_entries.front()->setAvatar(m_userIcon, m_userColor);
 
     // The open menu stays while its entry does.
     if (m_currentIndex >= 0) {

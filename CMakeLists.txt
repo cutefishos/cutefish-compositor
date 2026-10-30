@@ -883,8 +883,9 @@ add_library(cutefish-auth STATIC
 target_include_directories(cutefish-auth PUBLIC src)
 # The status bar's items and backdrop rules come from the shell's libraries,
 # defined further down.
+find_package(CutefishClients REQUIRED COMPONENTS accounts)
 target_link_libraries(cutefish-auth PUBLIC cutefish-session cutefish-toolkit-host
-    cutefish-shell-bar-items cutefish-shell-wallpaper PRIVATE PkgConfig::TitleText)
+    cutefish-shell-bar-items cutefish-shell-wallpaper PRIVATE PkgConfig::TitleText Cutefish::AccountsClient)
 target_compile_definitions(cutefish-auth PRIVATE
     CUTEFISH_AUTH_HELPER="${CMAKE_INSTALL_FULL_LIBEXECDIR}/cutefish-auth-helper")
 

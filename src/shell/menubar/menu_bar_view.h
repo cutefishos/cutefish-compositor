@@ -12,6 +12,7 @@
 #include "base/signal.h"
 #include "shell/menubar/menu_bar_model.h"
 #include "shell/statusbar/status_bar_menu_bar.h"
+#include "ui/geometry.h"
 
 namespace cutefish::accounts {
 class UserAccount;
@@ -59,7 +60,7 @@ public:
     ui::Menu *openMenu() const { return m_openMenu; }
     MenuBarModel &model() { return *m_model; }
     BarItem *entry(size_t index) const;
-    // The avatar's file; empty takes the theme's default-user picture.
+    // The avatar's file; empty shows the account's colour.
     void setUserIcon(const std::string &file);
 
 protected:
@@ -76,6 +77,7 @@ private:
     std::unique_ptr<accounts::UserAccount> m_account;
     std::vector<Entry *> m_entries;
     std::string m_userIcon;
+    ui::Color m_userColor;
     int m_currentIndex = -1;
     ui::Menu *m_openMenu = nullptr;
     // A switch closes one menu to open the next: that close is not the

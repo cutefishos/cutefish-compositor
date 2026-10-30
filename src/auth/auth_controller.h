@@ -53,6 +53,8 @@ public:
     // With a single account there is nothing to pick; with none found the
     // name is typed instead.
     std::vector<std::string> userNames() const;
+    // Their login names, in the same order.
+    std::vector<std::string> userLogins() const { return m_users; }
     // Their pictures, in the same order; empty where an account has none.
     std::vector<std::string> userIcons() const;
     int userIndex() const;
