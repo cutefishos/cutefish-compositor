@@ -37,6 +37,7 @@
 #include "core/main_loop.h"
 #include "fake_renderer.h"
 #include "input/input_manager.h"
+#include "input/key_translator.h"
 #include "input/keyboard.h"
 #include "input/keyboard_delegate.h"
 #include "input/seat.h"
@@ -1169,6 +1170,12 @@ TEST_F(AcceleratorTest, SendPasteTypesTheApplicationsPasteShortcut)
     input::Keyboard keyboard(std::move(delegateOwner), &seat);
     wm::Window *window = makeWindow(base::Rect(100, 100, 300, 200));
     manager.activation()->activate(window);
+    // As the shell tells the translator which focus is a terminal.
+    seat.keyTranslator()->setTerminalProvider([this] {
+        compositor::Surface *focus = seat.focusedSurface();
+        const wm::Window *focused = focus ? manager.windowForSurface(focus) : nullptr;
+        return focused && input::isTerminal(focused->applicationId());
+    });
 
     // Under the Command convention too: the keys go out as clients see them.
     seat.setShortcutConvention(input::ShortcutConvention::Command);

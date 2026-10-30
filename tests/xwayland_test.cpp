@@ -3055,11 +3055,16 @@ TEST_F(XwaylandTest, WaylandDragFollowsXdndProxyAndCancelsWhenRefused)
                         proxyPeer["XdndAware"], XCB_ATOM_ATOM, 32, 1, &version);
     xcb_change_property(proxyPeer.c, XCB_PROP_MODE_REPLACE, proxyPeer.window,
                         proxyPeer["XdndProxy"], XCB_ATOM_WINDOW, 32, 1, &proxyPeer.window);
-    xcb_flush(proxyPeer.c);
     x.create(base::Rect(0, 0, 300, 200));
     xcb_change_property(x.c, XCB_PROP_MODE_REPLACE, x.window, x["XdndProxy"], XCB_ATOM_WINDOW, 32,
                         1, &proxyPeer.window);
-    xcb_flush(x.c);
+    // Answered once the server has the properties, which it may otherwise
+    // take after the bridge has already read them.
+    for (auto *peer : {&proxyPeer, &x}) {
+        free(xcbReply([&] {
+            return xcb_get_input_focus_reply(peer->c, xcb_get_input_focus(peer->c), nullptr);
+        }));
+    }
     ASSERT_TRUE(until([&] {
         return manager->windows().size() == 1;
     }));
