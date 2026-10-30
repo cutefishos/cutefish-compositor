@@ -77,7 +77,7 @@ private:
     int m_repeatDelay = 0;
     int m_repeatInterval = 0;
     std::string m_layout;
-    ShortcutConvention m_shortcutConvention = ShortcutConvention::Pc;
+    ShortcutConvention m_shortcutConvention = ShortcutConvention::Command;
     std::unique_ptr<DBusExport> m_object;
 };
 

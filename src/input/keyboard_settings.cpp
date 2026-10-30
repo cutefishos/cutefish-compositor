@@ -51,8 +51,8 @@ KeyboardSettings::KeyboardSettings(const std::string &settingsFile)
                                           kDefaultKeyRepeatIntervalMs, kMinRepeatIntervalMs,
                                           kMaxRepeatIntervalMs);
     m_layout = m_settings.stringValue("Keyboard/layout");
-    if (m_settings.stringValue("Keyboard/shortcutConvention") == commandConvention)
-        m_shortcutConvention = ShortcutConvention::Command;
+    if (m_settings.stringValue("Keyboard/shortcutConvention") == pcConvention)
+        m_shortcutConvention = ShortcutConvention::Pc;
 }
 
 KeyboardSettings::~KeyboardSettings() = default;
@@ -187,7 +187,7 @@ bool KeyboardSettings::setShortcutConvention(const std::string &name)
         return true;
     m_shortcutConvention = convention;
     save("shortcutConvention",
-         convention == ShortcutConvention::Pc ? std::nullopt : std::optional(name));
+         convention == ShortcutConvention::Command ? std::nullopt : std::optional(name));
     notify(shortcutConventionChanged, "shortcutConventionChanged");
     return true;
 }

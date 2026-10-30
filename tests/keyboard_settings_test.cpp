@@ -128,26 +128,26 @@ TEST(KeyboardSettings, ASavedLayoutThatNoLongerAppliesFallsBack)
     EXPECT_NE(settings.layout(), "broken");
 }
 
-TEST(KeyboardSettings, TheShortcutConventionIsSavedAndStartsAsPc)
+TEST(KeyboardSettings, TheShortcutConventionIsSavedAndStartsAsCommand)
 {
     TemporaryDirectory directory;
     ASSERT_TRUE(directory.isValid());
     const std::string file = directory.filePath("compositor.conf");
     {
         KeyboardSettings settings(file);
-        EXPECT_EQ(settings.shortcutConvention(), ShortcutConvention::Pc);
+        EXPECT_EQ(settings.shortcutConvention(), ShortcutConvention::Command);
         int changes = 0;
         auto changesCounter = settings.shortcutConventionChanged.connect([&changes] { ++changes; });
         EXPECT_FALSE(settings.setShortcutConvention("mac"));
-        EXPECT_TRUE(settings.setShortcutConvention("command"));
-        EXPECT_TRUE(settings.setShortcutConvention("command"));
+        EXPECT_TRUE(settings.setShortcutConvention("pc"));
+        EXPECT_TRUE(settings.setShortcutConvention("pc"));
         EXPECT_EQ(changes, 1);
     }
     {
         KeyboardSettings restored(file);
-        EXPECT_EQ(restored.shortcutConvention(), ShortcutConvention::Command);
-        EXPECT_EQ(restored.shortcutConventionName(), "command");
-        EXPECT_TRUE(restored.setShortcutConvention("pc"));
+        EXPECT_EQ(restored.shortcutConvention(), ShortcutConvention::Pc);
+        EXPECT_EQ(restored.shortcutConventionName(), "pc");
+        EXPECT_TRUE(restored.setShortcutConvention("command"));
     }
     Settings stored(file);
     EXPECT_FALSE(stored.contains("Keyboard/shortcutConvention"));
@@ -176,12 +176,12 @@ TEST(KeyboardSettings, DBusPropertiesAndMethods)
     invoke("setRepeatInterval", int32_t(25));
     EXPECT_EQ(invoke("setLayout", std::string("broken")).value<bool>(), false);
     EXPECT_EQ(invoke("setLayout", std::string("fr")).value<bool>(), true);
-    EXPECT_EQ(invoke("setShortcutConvention", std::string("command")).value<bool>(), true);
+    EXPECT_EQ(invoke("setShortcutConvention", std::string("pc")).value<bool>(), true);
     EXPECT_EQ(proxy.property<bool>("repeatEnabled"), false);
     EXPECT_EQ(proxy.property<int32_t>("repeatDelay"), 250);
     EXPECT_EQ(proxy.property<int32_t>("repeatInterval"), 25);
     EXPECT_EQ(proxy.property<std::string>("layout"), "fr");
-    EXPECT_EQ(proxy.property<std::string>("shortcutConvention"), "command");
+    EXPECT_EQ(proxy.property<std::string>("shortcutConvention"), "pc");
 }
 
 // The argument names are the methods' parameter names, kept for existing
