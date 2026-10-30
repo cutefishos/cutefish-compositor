@@ -23,21 +23,14 @@ const Palette kLight {
     rgb(255, 255, 255), // titleBar
     rgb(56, 56, 56), // captionActive   #383838
     rgb(127, 127, 127), // captionInactive #7F7F7F
-    rgb(224, 224, 225), // FishUI backgroundColor.darker(110)
-    rgb(205, 205, 206), // FishUI backgroundColor.darker(120)
-    rgb(40, 40, 40), // FishUI light control artwork
 };
 
 // kwin-plugins: m_titleBarBgDarkColor / m_titleBarFgDarkColor /
-// m_unfocusedFgDarkColor. The hover and pressed alphas are the light ones
-// inverted, as the old Button::paint had them.
+// m_unfocusedFgDarkColor.
 const Palette kDark {
     rgb(44, 44, 45), // titleBar        #2C2C2D
     rgb(202, 203, 206), // captionActive   #CACBCE
     rgb(112, 112, 112), // captionInactive #707070
-    rgb(56, 56, 58), // FishUI backgroundColor.lighter(200)
-    rgb(42, 42, 43), // FishUI backgroundColor.lighter(150)
-    rgb(255, 255, 255), // FishUI dark control artwork
 };
 
 } // namespace
@@ -125,7 +118,7 @@ WindowVisualStyle Theme::visualStyle() const
 }
 
 render::Texture* Theme::texture(render::Renderer& renderer, const std::string& key,
-                                const std::function<Image()>& make)
+                                const std::function<ui::Bitmap()>& make)
 {
     if (m_renderer != &renderer) {
         m_textures.clear();
@@ -136,12 +129,14 @@ render::Texture* Theme::texture(render::Renderer& renderer, const std::string& k
     if (existing != m_textures.end())
         return existing->second.get();
 
-    const Image image = make();
-    if (image.size().isEmpty())
+    const ui::Bitmap image = make();
+    if (image.isNull())
         return nullptr;
 
     std::unique_ptr<render::Texture> texture = renderer.createTexture(
-        image.size(), image.bits(), image.stride(), render::PixelFormat::Rgba8888);
+        image.size(), image.bits(), int(image.stride()),
+        image.format() == ui::Bitmap::Format::Rgba8888Premultiplied ? render::PixelFormat::Rgba8888
+                                                                    : render::PixelFormat::Bgra8888);
     render::Texture* result = texture.get();
     m_textures.emplace(key, std::move(texture));
     return result;

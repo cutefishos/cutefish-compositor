@@ -48,9 +48,9 @@ Decoration::Decoration(wm::Window *window, Theme *theme)
     : m_window(window)
     , m_theme(theme)
 {
+    m_buttons.emplace_back(CaptionButtonType::Close);
     m_buttons.emplace_back(CaptionButtonType::Minimize);
     m_buttons.emplace_back(CaptionButtonType::Maximize);
-    m_buttons.emplace_back(CaptionButtonType::Close);
 
     if (scene::Node *windowNode = m_window->visualNode()) {
         auto node = std::make_unique<DecorationNode>(this, m_theme);
@@ -152,13 +152,15 @@ base::Rect Decoration::captionArea() const
 {
     const Metrics &metrics = m_theme->metrics();
     const base::Rect area = titleBarRect();
-    int buttonsWidth = 0;
-    if (!m_buttons.empty()) {
-        buttonsWidth = static_cast<int>(m_buttons.size()) * metrics.buttonSize
-                + (static_cast<int>(m_buttons.size()) - 1) * metrics.buttonSpacing
-                + metrics.buttonsRightMargin;
-    }
-    return area.adjusted(metrics.captionMargin, 0, -(buttonsWidth + metrics.captionMargin), 0);
+    const int start = m_buttons.empty() ? 0 : controlsRect().right() - area.left();
+    return area.adjusted(start + metrics.captionMargin, 0, -metrics.captionMargin, 0);
+}
+
+base::Rect Decoration::controlsRect() const
+{
+    if (m_buttons.empty())
+        return base::Rect();
+    return m_buttons.front().geometry().united(m_buttons.back().geometry());
 }
 
 void Decoration::layout()
@@ -166,14 +168,11 @@ void Decoration::layout()
     const Metrics &metrics = m_theme->metrics();
     const base::Rect titleBar = titleBarRect();
 
-    // The group is right-aligned, in the order the Cutefish KWin configuration
-    // lists it: minimize, maximize, close.
-    int right = titleBar.right() - metrics.buttonsRightMargin;
+    int left = titleBar.left() + metrics.buttonsMargin;
     const int top = titleBar.top() + std::max(0, (titleBar.height() - metrics.buttonSize) / 2);
-    for (auto button = m_buttons.rbegin(); button != m_buttons.rend(); ++button) {
-        const int left = right - metrics.buttonSize;
-        button->setGeometry(base::Rect(left, top, metrics.buttonSize, metrics.buttonSize));
-        right = left - metrics.buttonSpacing;
+    for (CaptionButton &button : m_buttons) {
+        button.setGeometry(base::Rect(left, top, metrics.buttonSize, metrics.buttonSize));
+        left += metrics.buttonSize + metrics.buttonSpacing;
     }
 }
 
@@ -205,6 +204,10 @@ base::Point Decoration::toFrame(const base::PointF &location) const
 
 int Decoration::buttonIndexAt(const base::Point &framePoint) const
 {
+    // The close button sits in the rounded corner, whose resize band reaches
+    // into the button's empty corner.
+    if (resizeEdgeAt(framePoint) != ResizeEdge::None)
+        return -1;
     for (size_t index = 0; index < m_buttons.size(); ++index) {
         if (m_buttons[index].geometry().contains(framePoint))
             return static_cast<int>(index);
@@ -269,6 +272,14 @@ bool Decoration::setHoveredButton(int index)
     return true;
 }
 
+void Decoration::setControlsHovered(bool hovered)
+{
+    if (hovered == m_controlsHovered)
+        return;
+    m_controlsHovered = hovered;
+    scheduleRepaint();
+}
+
 bool Decoration::onPointerMotion(input::Timestamp, const base::PointF &at)
 {
     if (!m_window)
@@ -277,6 +288,7 @@ bool Decoration::onPointerMotion(input::Timestamp, const base::PointF &at)
     const base::Point framePoint = toFrame(at);
     if (m_pressedButton >= 0 && m_pressTouch)
         return true;
+    setControlsHovered(controlsRect().contains(framePoint) && resizeEdgeAt(framePoint) == ResizeEdge::None);
     if (m_pressedButton >= 0) {
         // A press follows the pointer: the button only stays lit while the
         // pointer is still on it.
@@ -417,6 +429,7 @@ void Decoration::releaseButton(const base::Point &framePoint)
 void Decoration::onPointerLeave()
 {
     setHoveredButton(-1);
+    setControlsHovered(false);
 }
 
 void Decoration::runButtonAction(CaptionButtonType type)

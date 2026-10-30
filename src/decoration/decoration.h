@@ -55,6 +55,9 @@ public:
     // True once the window is maximized, so the maximize button shows the
     // restore icon.
     bool isRestoreButton() const;
+    // The pointer over the buttons or the gaps between them, which shows the
+    // artwork on all of them.
+    bool isControlsHovered() const { return m_controlsHovered; }
 
     // --- wm::WindowFrame ---
 
@@ -109,16 +112,20 @@ private:
     void releaseButton(const base::Point& framePoint);
     void runButtonAction(CaptionButtonType type);
     bool setHoveredButton(int index);
+    // The buttons' row, gaps included, in frame coordinates.
+    base::Rect controlsRect() const;
+    void setControlsHovered(bool hovered);
     void toggleMaximize();
 
     wm::Window* m_window = nullptr;
     Theme* m_theme = nullptr;
     DecorationNode* m_node = nullptr;
 
-    // Right to left in the titlebar: close, maximize, minimize, which is the
-    // order the Cutefish KWin configuration ships (ButtonsOnRight=HIAX).
+    // Left to right at the title bar's start: close, minimize, maximize, as
+    // the toolkit's window header has them.
     std::vector<CaptionButton> m_buttons;
     int m_hoveredButton = -1;
+    bool m_controlsHovered = false;
     int m_pressedButton = -1;
     // The touch point holding m_pressedButton, and where it is; empty while
     // the pointer holds it.

@@ -6,9 +6,9 @@
 //
 // The values come from the existing Cutefish decoration rather than from a new
 // design: the KWin plugin in `kwin-plugins/plugins/decoration` (titlebar
-// height, frame radius, caption button size, spacing and hover treatment,
-// titlebar and caption colours) and FishUI's window frame (the hairline window
-// border, and its active/inactive alpha). Nothing here is derived from the
+// height, frame radius, titlebar and caption colours) and FishUI's window
+// frame (the hairline window border, and its active/inactive alpha). The
+// caption buttons are the toolkit's window controls. Nothing here is derived from the
 // KDecoration API, and none of it is linked: only the metrics were carried
 // across.
 
@@ -28,6 +28,8 @@
 #include "decoration/text.h"
 #include "decoration/window_visual_style.h"
 #include "render/renderer.h"
+#include "ui/bitmap.h"
+#include "ui/window_controls.h"
 #include "wm/shadow_types.h"
 #include "wm/types.h"
 
@@ -49,13 +51,11 @@ struct Metrics {
     int resizeMargin = 5;
     // How far along an edge counts as the corner rather than the edge.
     int resizeCorner = 16;
-    // FishUI's title bar: 7px between hover circles and to the right edge, so
-    // right-aligned windows line their buttons up.
-    int buttonSize = 32;
-    int buttonSpacing = 1;
-    int buttonsRightMargin = 4;
-    // The artwork is drawn on a 24x24 grid inside the button.
-    int iconSize = 24;
+    // The toolkit's window controls, centred in the title bar and as far from
+    // the leading edge as from the top.
+    int buttonSize = int(ui::window_controls::kButton);
+    int buttonSpacing = int(ui::window_controls::kSpacing);
+    int buttonsMargin = (titleBarHeight - buttonSize) / 2;
     // kwin-plugins: the caption keeps this much clear of the buttons.
     int captionMargin = 20;
     // Logical pixel size of the caption font: the session's FontSize (points)
@@ -120,9 +120,6 @@ struct Palette {
     render::Color titleBar;
     render::Color captionActive;
     render::Color captionInactive;
-    render::Color buttonHover;
-    render::Color buttonPressed;
-    render::Color buttonIcon;
 };
 
 // Told when the palette changes, so a frame already on screen repaints
@@ -171,7 +168,7 @@ public:
 
     const Palette &palette() const;
 
-    // The colour the caption and the icons are drawn in.
+    // The colour the caption is drawn in.
     render::Color captionColor(bool active) const;
     // The outline pair for the current mode; re-read on ThemeObserver::onThemeChanged.
     WindowVisualStyle visualStyle() const;
@@ -180,7 +177,7 @@ public:
     // Textures belong to the renderer that created them, so the whole cache is
     // dropped if a different one turns up.
     render::Texture *texture(render::Renderer &renderer, const std::string &key,
-                             const std::function<Image()> &make);
+                             const std::function<ui::Bitmap()> &make);
 
     // Drops every cached texture. Must run while the renderer's context is
     // still alive.

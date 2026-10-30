@@ -15,6 +15,8 @@
 #include "decoration/decoration.h"
 #include "decoration/decoration_theme.h"
 #include "decoration/text.h"
+#include "ui/bitmap.h"
+#include "ui/window_controls.h"
 #include "wm/window.h"
 
 namespace cutefish::decoration {
@@ -43,13 +45,6 @@ const char* iconName(CaptionButtonType type, bool restore)
 base::Point innerCenter(const base::Rect& rect)
 {
     return {(2 * rect.x() + rect.width() - 1) / 2, (2 * rect.y() + rect.height() - 1) / 2};
-}
-
-// A rect of `size` whose innerCenter() is `center`.
-base::Rect centeredAt(const base::Size& size, const base::Point& center)
-{
-    return base::Rect(center.x() - (size.width() - 1) / 2, center.y() - (size.height() - 1) / 2,
-                      size.width(), size.height());
 }
 
 } // namespace
@@ -165,42 +160,27 @@ void DecorationNode::paintCaption(render::Renderer& renderer, const base::Rect& 
 
 void DecorationNode::paintButtons(render::Renderer& renderer, const base::Rect& bounds) const
 {
-    const int rasterDensity = int(std::ceil(renderer.rasterScale()));
-    const Metrics& metrics = m_theme->metrics();
-    const Palette& palette = m_theme->palette();
-    const render::Color iconColor = palette.buttonIcon;
-
+    const double scale = renderer.rasterScale();
     for (const CaptionButton& button : m_decoration->buttons()) {
         const base::Rect geometry = button.geometry().translated(bounds.origin());
         if (!bounds.contains(innerCenter(geometry)))
             continue;
 
-        if (button.isHovered() || button.isPressed()) {
-            const render::Color wash =
-                button.isPressed() ? palette.buttonPressed : palette.buttonHover;
-            const std::string key = std::format("{}wash:{}:{}", rasterDensity,
-                                                metrics.buttonSize, colorKey(wash));
-            render::Texture* texture = m_theme->texture(renderer, key, [&] {
-                return renderButtonHighlight(metrics.buttonSize * rasterDensity, wash);
-            });
-            if (texture) {
-                const base::Size size = (base::SizeF(texture->size()) / rasterDensity).toSize();
-                renderer.drawTexture(texture, centeredAt(size, innerCenter(geometry)));
-            }
-        }
-
-        const bool restore = m_decoration->isRestoreButton();
-        const std::string key =
-            std::format("{}icon:{}:{}:{}", rasterDensity, iconName(button.type(), restore),
-                        metrics.iconSize, colorKey(iconColor));
+        ui::window_controls::State state;
+        state.artwork = iconName(button.type(), m_decoration->isRestoreButton());
+        state.dark = m_theme->darkMode();
+        state.active = m_decoration->isActive();
+        state.hovered = m_decoration->isControlsHovered() || button.isHovered();
+        state.pressed = button.isPressed();
+        const std::string key = std::format("control:{}:{}:{}{}{}{}", scale, state.artwork, int(state.dark),
+                                            int(state.active), int(state.hovered), int(state.pressed));
         render::Texture* texture = m_theme->texture(renderer, key, [&] {
-            return renderCaptionIcon(button.type(), restore, metrics.iconSize * rasterDensity,
-                                     iconColor);
+            return ui::window_controls::render(state, scale, ui::Bitmap::Format::Rgba8888Premultiplied);
         });
         if (!texture)
             continue;
-        const base::Size size = (base::SizeF(texture->size()) / rasterDensity).toSize();
-        renderer.drawTexture(texture, centeredAt(size, innerCenter(geometry)));
+        // Mapped, so the texels land on whole physical pixels.
+        renderer.drawTextureMapped(texture, geometry, 1.0f, base::AffineTransform());
     }
 }
 

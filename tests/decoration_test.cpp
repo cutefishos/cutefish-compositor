@@ -80,18 +80,8 @@ TEST(DecorationThemeTest, DarkModeSwapsThePaletteAndTellsObservers)
     EXPECT_FLOAT_EQ(theme.palette().titleBar.r, lightTitleBar);
 }
 
-TEST(DecorationRasterTest, CaptionHoverRemainsCircular)
+TEST(DecorationRasterTest, WindowSilhouetteCornersAreContinuous)
 {
-    const auto highlight = decoration::renderButtonHighlight(24, {1, 1, 1, 1});
-    ASSERT_EQ(highlight.size(), base::Size(20, 20));
-    const auto alpha = [&](int x, int y) {
-        return highlight.bits()[(y * highlight.size().width() + x) * 4 + 3];
-    };
-    for (const base::Point point : {base::Point(2, 2), {17, 2}, {2, 17}, {17, 17}})
-        EXPECT_LT(alpha(point.x(), point.y()), 32);
-    EXPECT_EQ(alpha(10, 10), 255);
-    EXPECT_GT(alpha(10, 0), 240);
-
     decoration::Image window({20, 20});
     decoration::fillContinuousRoundedRect(window, {0, 0, 20, 20}, 10, {1, 1, 1, 1});
     EXPECT_GT(window.bits()[(2 * 20 + 2) * 4 + 3], 240);
@@ -580,14 +570,16 @@ TEST_F(DecorationTest, TheResizeBorderFollowsTheRoundedCorner)
                                       visual.shape.radius};
 
     // Down the top-left diagonal: resize wherever the pixel is within the margin
-    // of the arc, the title bar past that.
+    // of the arc, the close button or the title bar past that.
+    const base::Rect close = frame->buttons()[0].geometry();
     bool beyondTheSquareBorder = false;
     for (int i = 0; i < 20; ++i) {
         const base::Point point(i, i);
         const bool border =
                 shape.distance(base::PointF(point.x() + 0.5, point.y() + 0.5)) > -metrics.resizeMargin;
         beyondTheSquareBorder |= border && i >= metrics.resizeMargin;
-        EXPECT_EQ(border ? FrameArea::ResizeBorder : FrameArea::TitleBar,
+        const FrameArea inside = close.contains(point) ? FrameArea::CaptionButton : FrameArea::TitleBar;
+        EXPECT_EQ(border ? FrameArea::ResizeBorder : inside,
                   frame->areaAt(onFrame(window, point)))
                 << i;
         if (!border)
@@ -625,18 +617,20 @@ TEST_F(DecorationTest, ACaptionButtonIsNotTheTitleBar)
     }
 }
 
-TEST_F(DecorationTest, TheButtonsCentreInTheTitleBar)
+TEST_F(DecorationTest, TheButtonsCentreInTheTitleBarAtItsStart)
 {
     ShellSurface *shell = makeToplevel(base::Size(400, 300));
     decoration::Decoration *frame = frameOf(shell->window());
     const auto &metrics = theme.metrics();
-    const int width = shell->window()->bounds().width();
 
     const auto &buttons = frame->buttons();
     ASSERT_EQ(3u, buttons.size());
+    EXPECT_EQ(decoration::CaptionButtonType::Close, buttons[0].type());
+    EXPECT_EQ(decoration::CaptionButtonType::Minimize, buttons[1].type());
+    EXPECT_EQ(decoration::CaptionButtonType::Maximize, buttons[2].type());
     const int top = (metrics.titleBarHeight - metrics.buttonSize) / 2;
-    EXPECT_EQ(width - metrics.buttonsRightMargin,
-              buttons.back().geometry().right());
+    // As far from the leading edge as from the top.
+    EXPECT_EQ(top, buttons.front().geometry().left());
     for (size_t index = 0; index < buttons.size(); ++index) {
         const base::Rect geometry = buttons[index].geometry();
         EXPECT_EQ(base::Size(metrics.buttonSize, metrics.buttonSize), geometry.size());
@@ -754,7 +748,7 @@ TEST_F(DecorationTest, TheCloseButtonAsksTheClientToClose)
     Recorder *recorder = nullptr;
     ShellSurface *shell = makeToplevel(base::Size(400, 300), true, &recorder);
     Window *window = shell->window();
-    const base::Rect close = frameOf(window)->buttons().back().geometry();
+    const base::Rect close = frameOf(window)->buttons()[0].geometry();
 
     press(onFrame(window, wm::centerPixel(close)));
     EXPECT_TRUE(frameOf(window)->isTrackingPress());
@@ -771,7 +765,7 @@ TEST_F(DecorationTest, APressThatWandersOffItsButtonDoesNothing)
     Recorder *recorder = nullptr;
     ShellSurface *shell = makeToplevel(base::Size(400, 300), true, &recorder);
     Window *window = shell->window();
-    const base::Rect close = frameOf(window)->buttons().back().geometry();
+    const base::Rect close = frameOf(window)->buttons()[0].geometry();
 
     press(onFrame(window, wm::centerPixel(close)));
     release(onTitleBar(window));
@@ -786,7 +780,7 @@ TEST_F(DecorationTest, TheMinimizeButtonMinimizes)
 {
     ShellSurface *shell = makeToplevel(base::Size(400, 300));
     Window *window = shell->window();
-    const base::Rect minimize = frameOf(window)->buttons().front().geometry();
+    const base::Rect minimize = frameOf(window)->buttons()[1].geometry();
 
     press(onFrame(window, wm::centerPixel(minimize)));
     release(onFrame(window, wm::centerPixel(minimize)));
@@ -800,7 +794,7 @@ TEST_F(DecorationTest, TheMaximizeButtonMaximizesAndThenRestores)
     Recorder *recorder = nullptr;
     ShellSurface *shell = makeToplevel(base::Size(400, 300), true, &recorder);
     Window *window = shell->window();
-    const base::Rect maximize = frameOf(window)->buttons()[1].geometry();
+    const base::Rect maximize = frameOf(window)->buttons()[2].geometry();
 
     press(onFrame(window, wm::centerPixel(maximize)));
     release(onFrame(window, wm::centerPixel(maximize)));
@@ -811,7 +805,7 @@ TEST_F(DecorationTest, TheMaximizeButtonMaximizesAndThenRestores)
     attach(shell->rootSurface(), window->contentBounds().size());
     shell->rootSurface()->commit();
     // The button follows the newly presented frame.
-    const base::Rect restore = frameOf(window)->buttons()[1].geometry();
+    const base::Rect restore = frameOf(window)->buttons()[2].geometry();
     press(onFrame(window, wm::centerPixel(restore)));
     release(onFrame(window, wm::centerPixel(restore)));
     EXPECT_EQ(WindowStateType::Normal, window->stateType());
@@ -1009,7 +1003,7 @@ TEST_F(DecorationTest, TappingTheCloseButtonAsksTheClientToClose)
     Recorder *recorder = nullptr;
     ShellSurface *shell = makeToplevel(base::Size(400, 300), true, &recorder);
     Window *window = shell->window();
-    const base::Rect close = frameOf(window)->buttons().back().geometry();
+    const base::Rect close = frameOf(window)->buttons()[0].geometry();
 
     // A tap that slides off the button does nothing.
     touchDown(1, 1, onFrame(window, wm::centerPixel(close)));
@@ -1179,32 +1173,53 @@ TEST_F(DecorationTest, TheFrameIsSceneContentOfItsOwn)
     EXPECT_FALSE(renderer.calls.empty());
 }
 
-TEST_F(DecorationTest, CaptionButtonIconsAreCentered)
+TEST_F(DecorationTest, CaptionButtonsAreDrawnOneTexelPerPixelOnTheirGeometry)
 {
     ShellSurface *shell = makeToplevel(base::Size(400, 300));
     Window *window = shell->window();
     decoration::Decoration *frame = frameOf(window);
 
-    renderer.calls.clear();
-    scene.render(renderer);
+    for (const double scale : {1.0, 1.5}) {
+        renderer.setRasterScale(scale);
+        renderer.calls.clear();
+        scene.render(renderer);
 
-    std::vector<base::Rect> iconTargets;
-    const base::Size iconSize(theme.metrics().iconSize, theme.metrics().iconSize);
-    for (const auto &call : renderer.calls) {
-        if (call.kind == "texture" && call.texture
-            && call.texture->size() == iconSize) {
-            iconTargets.push_back(call.rect);
+        const int side = base::roundToInt(theme.metrics().buttonSize * scale);
+        std::vector<testsupport::FakeRenderer::Call> controls;
+        for (const auto &call : renderer.calls) {
+            if (call.kind == "texture" && call.texture && call.texture->size() == base::Size(side, side))
+                controls.push_back(call);
+        }
+
+        ASSERT_EQ(frame->buttons().size(), controls.size()) << scale;
+        for (size_t i = 0; i < controls.size(); ++i) {
+            EXPECT_EQ(frame->buttons()[i].geometry().translated(window->bounds().topLeft()), controls[i].rect);
+            EXPECT_TRUE(controls[i].mapping.isIdentity());
         }
     }
+}
 
-    ASSERT_EQ(frame->buttons().size(), iconTargets.size());
-    for (size_t i = 0; i < iconTargets.size(); ++i) {
-        const base::Rect button =
-                frame->buttons()[i].geometry().translated(window->bounds().topLeft());
-        const base::Rect icon = iconTargets[i];
-        EXPECT_EQ(2 * button.x() + button.width(), 2 * icon.x() + icon.width());
-        EXPECT_EQ(2 * button.y() + button.height(), 2 * icon.y() + icon.height());
-    }
+TEST_F(DecorationTest, HoveringTheButtonRowRedrawsEveryButton)
+{
+    ShellSurface *shell = makeToplevel(base::Size(400, 300));
+    Window *window = shell->window();
+    decoration::Decoration *frame = frameOf(window);
+    const auto &buttons = frame->buttons();
+    ASSERT_EQ(3u, buttons.size());
+
+    // The gap between close and minimize.
+    const base::Point gap(buttons[0].geometry().right(), buttons[0].geometry().center().y());
+    frame->onPointerMotion({}, onFrame(window, gap));
+    EXPECT_TRUE(frame->isControlsHovered());
+    for (const auto &button : buttons)
+        EXPECT_FALSE(button.isHovered());
+
+    frame->onPointerMotion({}, onTitleBar(window));
+    EXPECT_FALSE(frame->isControlsHovered());
+    frame->onPointerMotion({}, onFrame(window, wm::centerPixel(buttons[2].geometry())));
+    EXPECT_TRUE(frame->isControlsHovered());
+    frame->onPointerLeave();
+    EXPECT_FALSE(frame->isControlsHovered());
 }
 
 TEST_F(DecorationTest, AMinimizedWindowHidesItsFrameWithIt)
@@ -1259,7 +1274,7 @@ TEST_F(DecorationTest, ADecorationTornDownFromInsideItsOwnCallbackIsSurvivable)
 {
     ShellSurface *shell = makeToplevel(base::Size(400, 300));
     Window *window = shell->window();
-    const base::Rect close = frameOf(window)->buttons().back().geometry();
+    const base::Rect close = frameOf(window)->buttons()[0].geometry();
 
     // A client that reacts to xdg_toplevel.close by unmapping straight away,
     // which destroys the window and the frame from inside the button release.
@@ -1548,8 +1563,10 @@ TEST_F(DecorationTest, CaptionTexelsMatchPhysicalPixelsAndEachScaleKeepsItsOwn)
         if (!textures)
             textures = renderer.createdTextures;
     }
-    // One raster per scale, not one per frame as the outputs alternate.
-    EXPECT_EQ(renderer.createdTextures, textures + 1);
+    // One raster per scale, not one per frame as the outputs alternate: the
+    // caption's and each button's.
+    EXPECT_EQ(renderer.createdTextures,
+              textures + 1 + int(frameOf(window)->buttons().size()));
 }
 
 TEST_F(DecorationTest, CaptionChangesDamageTheFrame)

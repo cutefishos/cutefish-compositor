@@ -7,22 +7,20 @@
 // Behaviour follows ash/frame/caption_buttons: a button tracks its own hover
 // and pressed state, a press is only honoured if the release lands on the same
 // button, and the action is a window-state request rather than anything done to
-// the client directly. The artwork follows the Cutefish KWin decoration: a
-// circular hover wash under a 24x24 icon grid.
+// the client directly. The artwork is the toolkit's window controls, so
+// frames drawn here match the headers apps draw.
 
 #ifndef CUTEFISH_DECORATION_CAPTION_BUTTON_H_
 #define CUTEFISH_DECORATION_CAPTION_BUTTON_H_
 
 #include "base/geometry.h"
 
-#include "decoration/raster.h"
-
 namespace cutefish::decoration {
 
 enum class CaptionButtonType {
+    Close,
     Minimize,
     Maximize,
-    Close,
 };
 
 class CaptionButton
@@ -48,14 +46,6 @@ private:
     bool m_hovered = false;
     bool m_pressed = false;
 };
-
-// The icon artwork, on a square `size` grid. `restore` swaps the maximize icon
-// for the restore one.
-Image renderCaptionIcon(CaptionButtonType type, bool restore, int size,
-                        const render::Color& color);
-
-// The circular wash under a hovered or pressed button.
-Image renderButtonHighlight(int buttonSize, const render::Color& color);
 
 } // namespace cutefish::decoration
 
