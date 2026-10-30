@@ -257,7 +257,6 @@ TEST_F(LauncherWindowTest, CoversThePrimaryOutputAndTakesTheKeyboard)
     key(KEY_ESC);
     EXPECT_FALSE(launcher().isShown());
     EXPECT_EQ(nullptr, launcherWindow->window()->wmWindow());
-    // Toggled back, it shows the first page again.
     launcher().toggle();
     EXPECT_TRUE(launcher().isShown());
     EXPECT_NE(nullptr, launcherWindow->window()->wmWindow());
@@ -286,11 +285,39 @@ TEST_F(LauncherWindowTest, ArrowsSelectAndTurnPages)
     }
     EXPECT_EQ(kOutput.width(), view()->contentX());
 
-    // Hiding resets the selection and the page.
+    // Hiding resets the selection and keeps the page.
     launcher().hide();
     EXPECT_EQ(-1, view()->selectedIndex());
     launcher().show();
     EXPECT_EQ(-1, view()->selectedIndex());
+    EXPECT_EQ(1, view()->currentPage());
+    EXPECT_EQ(kOutput.width(), view()->contentX());
+}
+
+TEST_F(LauncherWindowTest, ASearchReturnsToThePageItStartedOn)
+{
+    open();
+    launcher().show();
+    frame();
+    view()->goToPage(1);
+    view()->stopSwipe();
+    key(KEY_T);
+    ASSERT_TRUE(test::runUntil([this] { return model().count() < 31; }));
+    EXPECT_EQ(0, view()->currentPage());
+    EXPECT_EQ(0, view()->contentX());
+
+    view()->searchField()->setText({});
+    EXPECT_EQ(1, view()->currentPage());
+    EXPECT_EQ(kOutput.width(), view()->contentX());
+
+    // Hidden mid-search, it shows that page on the next show too.
+    key(KEY_T);
+    ASSERT_TRUE(test::runUntil([this] { return model().count() < 31; }));
+    EXPECT_EQ(0, view()->currentPage());
+    key(KEY_ESC);
+    launcher().show();
+    EXPECT_EQ(1, view()->currentPage());
+    EXPECT_EQ(kOutput.width(), view()->contentX());
 }
 
 TEST_F(LauncherWindowTest, TypingSearchesAndShowsNotFound)

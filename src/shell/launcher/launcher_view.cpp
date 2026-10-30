@@ -635,14 +635,14 @@ void LauncherView::scrollPreviousPage()
     goToPage(std::max(0, m_currentPage) - 1);
 }
 
-void LauncherView::resetToFirstPage()
+void LauncherView::jumpToPage(int page)
 {
     stopSwipe();
     if (pageTotal() == 0)
         return;
     m_slide.stop();
-    m_currentPage = 0;
-    setContentX(pageX(0));
+    m_currentPage = std::clamp(page, 0, pageTotal() - 1);
+    setContentX(pageX(m_currentPage));
     m_indicator->setDots(pageTotal(), m_currentPage, m_shown);
 }
 
@@ -735,8 +735,15 @@ void LauncherView::launchSelected()
 
 void LauncherView::applySearch(const std::string &text)
 {
+    if (!text.empty() && m_pageBeforeSearch < 0)
+        m_pageBeforeSearch = std::max(0, m_currentPage);
     m_launcher.applications().search(text);
-    resetToFirstPage();
+    if (!text.empty()) {
+        jumpToPage(0);
+    } else if (m_pageBeforeSearch >= 0) {
+        jumpToPage(m_pageBeforeSearch);
+        m_pageBeforeSearch = -1;
+    }
     setSelectedIndex(!text.empty() && m_launcher.applications().count() > 0 ? 0 : -1);
     m_notFound->setVisible(!text.empty() && m_launcher.applications().count() == 0);
 }

@@ -86,8 +86,8 @@ public:
     void goToPage(int page);
     void scrollNextPage();
     void scrollPreviousPage();
-    // Jumps to the first page, without the slide.
-    void resetToFirstPage();
+    // Lands on the page at once, without the slide.
+    void jumpToPage(int page);
     // Lands at once on the page a swipe was heading for.
     void stopSwipe();
 
@@ -171,6 +171,8 @@ private:
     ui::Label *m_notFound = nullptr;
 
     int m_currentPage = -1;
+    // The page the grid showed when a search began; -1 outside a search.
+    int m_pageBeforeSearch = -1;
     double m_contentX = 0;
     bool m_swiping = false;
     std::chrono::steady_clock::time_point m_settleUntil;
