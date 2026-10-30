@@ -14,7 +14,6 @@
 
 namespace cutefish::ui {
 class DialogButton;
-class HeaderButton;
 class Label;
 } // namespace cutefish::ui
 
@@ -26,10 +25,9 @@ class ShellWindow;
 // The secret prompts (Wi-Fi and VPN passwords, Bluetooth pairing): a window
 // in FishUI's look, kept above applications and
 // centred by the window manager, 360 wide and as tall as its content; a
-// close button in the 44 high header's corner, a bold title and a grey
-// explanation, the dialog's own rows, Cancel and a primary button at the
-// bottom right. Escape, the close button and the window manager's close all
-// dismiss it; a drag anywhere but on a control moves the window.
+// bold title and a grey explanation, the dialog's own rows, Cancel and a
+// primary button at the bottom right. Escape, Cancel and the window
+// manager's close all dismiss it; a drag anywhere but on a control moves the window.
 class SecretDialog
 {
 public:
@@ -53,7 +51,7 @@ public:
     ui::DialogButton *cancelButton() const;
     ui::DialogButton *primaryButton() const;
 
-    // Escape, the close button or the window manager closed it; it is closed.
+    // Escape, Cancel or the window manager closed it; it is closed.
     std::function<void()> onDismissed;
 
     // The frame's fixed width and margins (FishUI's dialog metrics).
@@ -62,8 +60,6 @@ public:
     static constexpr double kSpacing = 16;
     static constexpr double kTextSize = 14;
     static constexpr double kBodyLineHeight = 20;
-    // The labels' width: the window less the margins and the close button's column.
-    static constexpr double kTextWidth = kWidth - 2 * kMargin - 32;
 
 protected:
     class Frame;

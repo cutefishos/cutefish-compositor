@@ -15,7 +15,6 @@
 #include "shell/shell_window.h"
 #include "ui/dialog_window.h"
 #include "ui/embedded_window.h"
-#include "ui/header_button.h"
 #include "ui/keys.h"
 #include "ui/label.h"
 #include "ui/painter.h"
@@ -26,8 +25,6 @@ using cutefish::i18n::tr;
 
 namespace cutefish::shell {
 
-static constexpr double kCloseButton = 32;
-static constexpr double kCloseMargin = 8;
 static constexpr double kTitleGap = 4;
 static constexpr double kButtonSpacing = 8;
 // A press that moves this far moves the window.
@@ -42,8 +39,6 @@ public:
     explicit Frame(SecretDialog *dialog)
         : m_dialog(dialog)
     {
-        m_close = addChild<ui::HeaderButton>("close", kCloseButton);
-        m_close->onClicked = [this] { m_dialog->dismiss(); };
         m_title = addChild<ui::Label>();
         m_title->setFontSize(kTextSize);
         m_title->setWeight(kDemiBold);
@@ -112,17 +107,15 @@ private:
         const ui::Theme &theme = ui::Theme::current();
         const double width = kWidth;
         const double inner = width - 2 * kMargin;
-        if (apply) {
+        if (apply)
             m_body->setColor(theme.disabledText);
-            m_close->setGeometry({width - kCloseMargin - kCloseButton, kCloseMargin, kCloseButton, kCloseButton});
-        }
 
         double y = kMargin;
-        const double titleHeight = m_title->heightForWidth(kTextWidth);
-        const double bodyHeight = m_body->heightForWidth(kTextWidth);
+        const double titleHeight = m_title->heightForWidth(inner);
+        const double bodyHeight = m_body->heightForWidth(inner);
         if (apply) {
-            m_title->setGeometry({kMargin, y, kTextWidth, titleHeight});
-            m_body->setGeometry({kMargin, y + titleHeight + kTitleGap, kTextWidth, bodyHeight});
+            m_title->setGeometry({kMargin, y, inner, titleHeight});
+            m_body->setGeometry({kMargin, y + titleHeight + kTitleGap, inner, bodyHeight});
         }
         y += titleHeight + kTitleGap + bodyHeight;
 
@@ -156,7 +149,6 @@ private:
     }
 
     SecretDialog *m_dialog;
-    ui::HeaderButton *m_close;
     ui::Label *m_title;
     ui::Label *m_body;
     ui::DialogButton *m_cancel;
