@@ -42,6 +42,8 @@ bool isTerminal(std::string_view applicationId);
 //   terminal, since as Ctrl it would be a control character. Nothing else is
 //   rewritten.
 // - Control+click is a secondary click.
+// - A client that binds Command itself reads Ctrl as Command, so Control goes
+//   out to it as Meta.
 //
 // Ash's KeyboardModifierEventRewriter does this job on ChromeOS; like it, each
 // key remembers what it was sent as, so its release matches whatever changed
@@ -64,6 +66,13 @@ public:
         m_terminal = std::move(provider);
     }
     bool terminalFocused() const { return m_terminal && m_terminal(); }
+
+    // True while the focused client binds Command itself, reading Ctrl as
+    // Command and Meta as Control.
+    void setCommandBindingProvider(std::function<bool()> provider)
+    {
+        m_bindsCommand = std::move(provider);
+    }
 
     // True while keys must reach the focused client untranslated.
     void setPassthroughProvider(std::function<bool()> provider)
@@ -114,6 +123,7 @@ private:
     ShortcutConvention m_convention = ShortcutConvention::Pc;
     std::function<bool()> m_terminal;
     std::function<bool()> m_passthrough;
+    std::function<bool()> m_bindsCommand;
     std::function<bool()> m_pointerButtonsHeld;
 
     // Physical modifier keys held, in the order they went down.

@@ -449,11 +449,19 @@ void CompositorShell::initAccelerators()
     });
 
     input::KeyTranslator *translator = m_seat.keyTranslator();
-    translator->setTerminalProvider([this] {
+    const auto focusedWindow = [this]() -> const wm::Window * {
         compositor::Surface *focus = m_seat.focusedSurface();
-        const wm::Window *window = focus ? m_windowManager.windowForSurface(focus) : nullptr;
-        return window && input::isTerminal(window->applicationId())
-                && !(m_security && m_security->bindsCommandKey(window->processId()));
+        return focus ? m_windowManager.windowForSurface(focus) : nullptr;
+    };
+    const auto bindsCommand = [this](const wm::Window *window) {
+        return window && m_security && m_security->bindsCommandKey(window->processId());
+    };
+    translator->setTerminalProvider([focusedWindow, bindsCommand] {
+        const wm::Window *window = focusedWindow();
+        return window && input::isTerminal(window->applicationId()) && !bindsCommand(window);
+    });
+    translator->setCommandBindingProvider([focusedWindow, bindsCommand] {
+        return bindsCommand(focusedWindow());
     });
     // A remote desktop, a virtual machine or the shortcut recorder wants the
     // keys the user pressed, with Command as Meta. So does a game, which holds

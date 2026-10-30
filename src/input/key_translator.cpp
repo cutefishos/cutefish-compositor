@@ -169,6 +169,12 @@ uint32_t KeyTranslator::deliveredModifier(uint32_t code, bool passthrough) const
         return KEY_LEFTCTRL;
     if (code == KEY_RIGHTMETA)
         return KEY_RIGHTCTRL;
+    if (m_bindsCommand && m_bindsCommand()) {
+        if (code == KEY_LEFTCTRL)
+            return KEY_LEFTMETA;
+        if (code == KEY_RIGHTCTRL)
+            return KEY_RIGHTMETA;
+    }
     return code;
 }
 

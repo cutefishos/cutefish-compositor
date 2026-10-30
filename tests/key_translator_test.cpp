@@ -48,6 +48,7 @@ protected:
     bool terminal = false;
     bool passthrough = false;
     bool buttonsHeld = false;
+    bool bindsCommand = false;
     KeyTranslator translator {&keymap, [this](Timestamp, uint32_t code, bool pressed) {
                                   delivered.push_back({code, pressed});
                               }};
@@ -64,6 +65,9 @@ protected:
         });
         translator.setPointerButtonsProvider([this] {
             return buttonsHeld;
+        });
+        translator.setCommandBindingProvider([this] {
+            return bindsCommand;
         });
     }
 
@@ -283,6 +287,22 @@ TEST_F(KeyTranslatorTest, CommandAndControlShareOneCtrl)
     release(KEY_LEFTMETA);
     EXPECT_EQ(std::vector<Delivered>({down(KEY_LEFTCTRL), down(KEY_X), up(KEY_X), down(KEY_X),
                                       up(KEY_X), up(KEY_LEFTCTRL)}),
+              take());
+}
+
+TEST_F(KeyTranslatorTest, AClientThatBindsCommandGetsControlAsMeta)
+{
+    // Its Ctrl is Command, so Control needs a modifier of its own: there
+    // Command+C copies and Control+C interrupts a terminal program.
+    bindsCommand = true;
+    press(KEY_LEFTMETA);
+    tap(KEY_C);
+    release(KEY_LEFTMETA);
+    press(KEY_LEFTCTRL);
+    tap(KEY_C);
+    release(KEY_LEFTCTRL);
+    EXPECT_EQ(std::vector<Delivered>({down(KEY_LEFTCTRL), down(KEY_C), up(KEY_C), up(KEY_LEFTCTRL),
+                                      down(KEY_LEFTMETA), down(KEY_C), up(KEY_C), up(KEY_LEFTMETA)}),
               take());
 }
 
