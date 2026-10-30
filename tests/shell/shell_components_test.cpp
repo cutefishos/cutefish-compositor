@@ -387,9 +387,10 @@ TEST_F(ShellComponentsTest, TheDockSitsAlongTheBottomOnItsGlassAndReservesItsStr
     ASSERT_NE(nullptr, window);
     EXPECT_EQ(wm::WindowRole::Dock, window->role());
     EXPECT_EQ(wm::FocusPolicy::NoFocus, window->focusPolicy());
-    // The strip along the whole edge, 86 thick at the default icon size and
-    // reaching over its 5 px gap to the edge.
-    EXPECT_EQ(base::Rect(5, 960 - 86 - 5, 1430, 91), window->bounds());
+    // The strip along the whole edge, 86 thick at the default icon size,
+    // reaching over its 5 px gap to the edge and 11 past the far side for
+    // the 27 a launching icon bounces.
+    EXPECT_EQ(base::Rect(5, 960 - 86 - 5 - 11, 1430, 102), window->bounds());
     // From the screen edge to the far side, and 2 more.
     EXPECT_EQ(base::Rect(0, kStatusBar, 1440, 960 - kStatusBar - 92), manager.workAreaFor(nullptr));
 
@@ -400,7 +401,8 @@ TEST_F(ShellComponentsTest, TheDockSitsAlongTheBottomOnItsGlassAndReservesItsStr
     EXPECT_EQ(length, panel.width());
     EXPECT_EQ(86, panel.height());
     EXPECT_EQ(int(std::floor((1430 - length) / 2.0)), panel.x());
-    EXPECT_EQ(panel.translated(5, 960 - 86 - 5), dock->primaryGeometry());
+    EXPECT_EQ(11, panel.y());
+    EXPECT_EQ(panel.translated(5, 960 - 86 - 5 - 11), dock->primaryGeometry());
 
     // The glass: the default tint's values, rounded to 16 bits, then wl_fixed.
     const compositor::Surface *surface = dock->window()->surface();
@@ -419,9 +421,10 @@ TEST_F(ShellComponentsTest, TheDockSitsAlongTheBottomOnItsGlassAndReservesItsStr
     EXPECT_TRUE(surface->inputRegion()->contains(base::Point(panel.x() + panel.width() / 2, panel.y() + 2)));
     EXPECT_FALSE(surface->inputRegion()->contains(base::Point(panel.x(), panel.y())));
     EXPECT_FALSE(surface->inputRegion()->contains(base::Point(2, 40)));
+    EXPECT_FALSE(surface->inputRegion()->contains(base::Point(panel.x() + panel.width() / 2, panel.y() - 1)));
     // And on the gap under it, where the icon above still has the pointer.
-    EXPECT_TRUE(surface->inputRegion()->contains(base::Point(panel.x(), 89)));
-    EXPECT_FALSE(surface->inputRegion()->contains(base::Point(panel.x() - 1, 89)));
+    EXPECT_TRUE(surface->inputRegion()->contains(base::Point(panel.x(), 100)));
+    EXPECT_FALSE(surface->inputRegion()->contains(base::Point(panel.x() - 1, 100)));
     EXPECT_EQ(91.0, dock->icons()[1]->geometry().height);
 
     // Icons in order along the panel, each slot a pitch of 70 on.
@@ -433,6 +436,50 @@ TEST_F(ShellComponentsTest, TheDockSitsAlongTheBottomOnItsGlassAndReservesItsStr
     // The divider after the pins: its line centred in the gap, 48 long, 19 down.
     EXPECT_EQ(19, dock->divider().y());
     EXPECT_EQ(48, dock->divider().height());
+}
+
+TEST_F(ShellComponentsTest, ALaunchingDockIconBouncesOnceIntoItsRoomWithItsTooltip)
+{
+    auto *dock = openDock("[Dock]\nPinned=files\n");
+    shell::DockIcon *icon = dock->applicationIcon("files");
+    ASSERT_NE(nullptr, icon);
+    ASSERT_TRUE(test::runUntil([&] {
+        frame();
+        return !dock->applicationPresentation()->isRunning();
+    }));
+    const ui::View *face = nullptr;
+    for (const auto &child : icon->children()) {
+        if (child->isVisible())
+            face = child.get();
+    }
+    ASSERT_NE(nullptr, face);
+    const base::PointF centre = centreOf(dock, icon);
+    move(1, centre.x(), centre.y());
+    ASSERT_TRUE(dock->tooltip()->isShown());
+    shell::ShellWindow *popup =
+            shell->host()->windowFor(static_cast<ui::EmbeddedWindow *>(dock->tooltip()->window()));
+    ASSERT_NE(nullptr, popup);
+    const base::Rect tip = popup->geometry();
+
+    // Straight up from the screen edge, as high as the room past the panel
+    // allows, and down to rest; the tooltip rides along.
+    const auto started = std::chrono::steady_clock::now();
+    icon->bounce();
+    double highest = 0;
+    ASSERT_TRUE(test::runUntil([&] {
+        frame();
+        const ui::PointF offset = face->transform().translation;
+        EXPECT_EQ(0, offset.x);
+        EXPECT_EQ(std::round(offset.y), offset.y);
+        EXPECT_EQ(tip.translated(0, int(offset.y)), popup->geometry());
+        highest = std::min(highest, offset.y);
+        return !icon->isBouncing();
+    }));
+    EXPECT_GE(std::chrono::steady_clock::now() - started, std::chrono::milliseconds(620));
+    EXPECT_NEAR(-27, highest, 1);
+    EXPECT_EQ(ui::PointF(), face->transform().translation);
+    EXPECT_EQ(tip, popup->geometry());
+    EXPECT_GE(icon->geometry().y + icon->iconRect().y + highest, 0);
 }
 
 TEST_F(ShellComponentsTest, TheDockFollowsRunningApplicationsAndTakesClicks)

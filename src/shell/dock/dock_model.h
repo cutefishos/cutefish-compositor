@@ -91,6 +91,9 @@ public:
     // brings up an application.
     std::function<void()> hideLauncher;
     std::function<void()> toggleLauncher;
+    // An application of the dock's was started from it, one that wants
+    // launch feedback.
+    std::function<void(const std::string &id)> launched;
 
     // The pins and the running applications are in.
     bool isLoaded() const { return m_loaded; }

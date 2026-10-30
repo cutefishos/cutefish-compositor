@@ -97,6 +97,7 @@ public:
     void iconHovered(DockIcon *icon, bool hovered);
     void iconDragRequested(DockIcon *icon);
     void iconClicked(DockIcon *icon, int button);
+    void iconBounced(DockIcon *icon);
     void iconMenuRequested(DockIcon *icon);
     // Hides the tooltip, as leaving the dock does.
     void hideTooltip();
@@ -155,6 +156,8 @@ private:
     void updateMinimizeTargets();
     void handOffLanded();
     double pixelRatio() const;
+    // The window across the dock: the configured dock's thickness and its bounce room.
+    int windowThickness() const;
     base::Rect minimizedSlot(int index, int count) const;
     base::Rect applicationSlot(double position) const;
     double place(double position, double rest) const;

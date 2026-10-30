@@ -74,6 +74,12 @@ public:
     ui::RectF iconRect() const { return m_iconRect; }
     void setPresentation(double scale, double opacity);
     void setPresentationOpacity(double opacity);
+    // Bounces once away from the screen edge as its application starts; one
+    // already bouncing runs on.
+    void bounce();
+    bool isBouncing() const;
+    // The icon's offset for the bounce, in whole device pixels.
+    ui::PointF bounceOffset() const;
     double presentationScale() const { return m_scale; }
     double presentationOpacity() const { return m_opacity; }
     // The running dot, in this view.
@@ -106,6 +112,7 @@ protected:
     void paint(ui::Painter &painter) override;
 
 private:
+    class Bounce;
     class SvgFace;
     class ThumbnailMask;
 
@@ -115,6 +122,7 @@ private:
     void updateMask();
     void applyBadgeOpacity();
     void placeCountBadge();
+    void setLift(double lift);
 
     DockWindow *m_dock;
     const Kind m_kind;
@@ -147,6 +155,9 @@ private:
     ui::RectF m_dotRect;
     double m_scale = 1;
     double m_opacity = 1;
+    std::unique_ptr<Bounce> m_bounce;
+    // Of the bounce height, 0 at rest.
+    double m_lift = 0;
     bool m_hovered = false;
     bool m_pressed = false;
     bool m_menuOpen = false;

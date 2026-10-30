@@ -267,6 +267,10 @@ DockWindow::DockWindow(Shell *shell, std::unique_ptr<Dock> dock)
     base::dbus::Connection *bus = m_shell->bus();
     applications.hideLauncher = [bus] { callLauncher(bus, "hide"); };
     applications.toggleLauncher = [bus] { callLauncher(bus, "toggle"); };
+    applications.launched = [this](const std::string &id) {
+        if (DockIcon *icon = applicationIcon(id))
+            icon->bounce();
+    };
     m_dock->minimizedWindows().hideLauncher = [bus] { callLauncher(bus, "hide"); };
     m_dock->primaryGeometry = [this] { return primaryGeometry(); };
 
@@ -316,8 +320,7 @@ DockWindow::DockWindow(Shell *shell, std::unique_ptr<Dock> dock)
     // A side dock is centred in the work area, which other panels' zones and
     // its own former bottom zone change after it was placed.
     m_subscriptions.push_back(m_shell->windowManager()->exclusiveZonesChanged.connect([this] {
-        const int thickness = DockMetrics::forIconSize(m_dock->settings().iconSize()).thickness();
-        if (windowRect(thickness) != m_windowRect)
+        if (windowRect(windowThickness()) != m_windowRect)
             resize(false);
     }));
 
@@ -412,6 +415,13 @@ base::Rect DockWindow::windowRect(int thickness) const
     }
     return base::Rect(screen.x() + (screen.width() - length) / 2,
                       screen.y() + screen.height() - across, length, across);
+}
+
+int DockWindow::windowThickness() const
+{
+    // Past the panel's far side, the room a launching icon bounces into.
+    const DockMetrics metrics = DockMetrics::forIconSize(m_dock->settings().iconSize());
+    return metrics.thickness() + metrics.bounceRoom();
 }
 
 int DockWindow::edgeGap() const
@@ -592,7 +602,7 @@ void DockWindow::resize(bool animate)
     const Shell::Output *output = m_shell->output({});
     if (output)
         m_window->setOutput(output->name);
-    m_windowRect = windowRect(DockMetrics::forIconSize(m_dock->settings().iconSize()).thickness());
+    m_windowRect = windowRect(windowThickness());
     if (!m_windowRect.isEmpty())
         m_window->setGeometry(m_windowRect);
     m_surfaceLength = m_dock->settings().direction() == DockSettings::Bottom ? m_windowRect.width()
@@ -1048,8 +1058,15 @@ void DockWindow::showTooltip(DockIcon *icon)
     m_tooltipOwner = icon;
     const ui::RectF slot = icon->geometry();
     const ui::RectF rect = icon->iconRect();
-    m_tooltip->show(icon->toolTipText(), base::PointF(slot.x + rect.x + rect.width / 2,
-                                                      slot.y + rect.y + rect.height / 2));
+    m_tooltip->show(icon->toolTipText(),
+                    base::PointF(slot.x + rect.x + rect.width / 2, slot.y + rect.y + rect.height / 2),
+                    icon->bounceOffset());
+}
+
+void DockWindow::iconBounced(DockIcon *icon)
+{
+    if (icon == m_tooltipOwner && m_tooltip->isShown())
+        showTooltip(icon);
 }
 
 // Menus are made when they open: an open one closes.

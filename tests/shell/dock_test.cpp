@@ -187,10 +187,16 @@ TEST_F(DockTest, KeepsAPinnedBundleWhileItIsGone)
     EXPECT_EQ(model().at(1).iconName, icon);
     EXPECT_EQ(savedPins(), (std::vector<std::string>{bundle, "files"}));
 
-    // A click asks the runtime to look for it.
+    // A click asks the runtime to look for it, and the dock hears of the launch.
+    std::vector<std::string> launched;
+    model().launched = [&launched](const std::string &id) { launched.push_back(id); };
     model().clicked(bundle);
     ASSERT_TRUE(test::runUntil([&] { return !runtime.launched.empty(); }));
     EXPECT_EQ(runtime.launched.front(), bundle);
+    EXPECT_EQ(launched, (std::vector<std::string>{bundle}));
+    // The launcher button is no application.
+    model().clicked(DockModel::kLauncherId);
+    EXPECT_EQ(launched.size(), 1u);
 }
 
 TEST_F(DockTest, StartsFromTheDefaultPinsWithoutAList)
@@ -285,13 +291,17 @@ TEST_F(DockTest, KeepsApplicationsThatRunWithoutWindows)
 
 TEST_F(DockTest, LaunchesAndQuitsThroughTheRuntime)
 {
-    start("[Dock]\nPinned=editor\n");
+    applications.addSimple("capture", "Capture", {}, "StartupNotify=false\n");
+    start("[Dock]\nPinned=editor, capture\n");
     bool hidden = false;
     model().hideLauncher = [&] { hidden = true; };
+    std::vector<std::string> launched;
+    model().launched = [&launched](const std::string &id) { launched.push_back(id); };
     model().clicked("editor");
     EXPECT_TRUE(hidden);
     ASSERT_TRUE(test::runUntil([&] { return !runtime.launched.empty(); }));
     EXPECT_EQ(runtime.launched.front(), "editor");
+    EXPECT_EQ(launched, std::vector<std::string>{"editor"});
     // The application, or its instance already running, comes forward with it.
     EXPECT_EQ(runtime.tokens.front(), "launch-token");
 
@@ -303,6 +313,12 @@ TEST_F(DockTest, LaunchesAndQuitsThroughTheRuntime)
     const uint64_t window = open("editor");
     model().quit("editor");
     EXPECT_EQ(windows.requests.back(), "quit " + std::to_string(window));
+
+    // An entry without launch feedback starts as quietly as it asks.
+    model().clicked("capture");
+    ASSERT_TRUE(test::runUntil([&] { return runtime.launched.size() == 2; }));
+    EXPECT_EQ(runtime.launched.back(), "capture");
+    EXPECT_EQ(launched, std::vector<std::string>{"editor"});
 }
 
 TEST_F(DockTest, PinsMovesAndDrops)

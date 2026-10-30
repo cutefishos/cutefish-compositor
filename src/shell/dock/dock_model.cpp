@@ -333,11 +333,13 @@ bool DockModel::openNewInstance(const std::string &id)
         base::DesktopEntry bundle;
         bundle.id = item->desktopPath;
         m_launcher.launch(bundle);
-        return true;
-    }
-    if (!entry)
+    } else if (entry) {
+        m_launcher.launch(*entry);
+    } else {
         return false;
-    m_launcher.launch(*entry);
+    }
+    if (launched && (!entry || entry->startupNotify))
+        launched(item->id);
     return true;
 }
 

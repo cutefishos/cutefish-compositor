@@ -10,6 +10,9 @@
 
 #include "core/main_loop.h"
 #include "shell/common/count_badge.h"
+#include "shell/dock/dock.h"
+#include "shell/dock/dock_metrics.h"
+#include "shell/dock/dock_presentation.h"
 #include "shell/dock/dock_window.h"
 #include "shell/shell_window.h"
 #include "ui/animation.h"
@@ -24,6 +27,87 @@ namespace cutefish::shell {
 static constexpr std::chrono::milliseconds kPressAndHold {800};
 // How far a press moves before it starts a drag.
 static constexpr double kStartDragDistance = 10;
+// A launch bounces the whole hop whether or not the application is up sooner:
+// a quick rise that hangs at the top, then a fall that speeds up and eases
+// into the landing.
+static constexpr double kBounceRiseMs = 300;
+static constexpr double kBounceFallMs = 370;
+// The fall's timing curve, a cubic Bezier from (0, 0) to (1, 1).
+static constexpr double kFallX1 = 0.5;
+static constexpr double kFallY1 = 0;
+static constexpr double kFallX2 = 0.3;
+static constexpr double kFallY2 = 1;
+
+// The cubic Bezier timing curve through (x1, y1) and (x2, y2), at `x`.
+static double cubicBezier(double x1, double y1, double x2, double y2, double x)
+{
+    const auto at = [](double p1, double p2, double t) {
+        const double u = 1 - t;
+        return 3 * u * u * t * p1 + 3 * u * t * t * p2 + t * t * t;
+    };
+    // x rises monotonically with the curve's parameter: bisect for it.
+    double low = 0;
+    double high = 1;
+    for (int i = 0; i < 40; ++i) {
+        const double middle = (low + high) / 2;
+        (at(x1, x2, middle) < x ? low : high) = middle;
+    }
+    return at(y1, y2, (low + high) / 2);
+}
+
+// Of the bounce height, `ms` into the bounce; negative once it is over.
+static double bounceLift(double ms)
+{
+    if (ms < kBounceRiseMs) {
+        const double t = 1 - ms / kBounceRiseMs;
+        return 1 - t * t * t;
+    }
+    ms -= kBounceRiseMs;
+    if (ms < kBounceFallMs)
+        return 1 - cubicBezier(kFallX1, kFallY1, kFallX2, kFallY2, ms / kBounceFallMs);
+    return -1;
+}
+
+// The launch bounce, stepped on the dock's frames as its transitions are, the
+// first frame already one interval in.
+class DockIcon::Bounce final : public ui::FrameClient
+{
+public:
+    explicit Bounce(DockIcon *icon)
+        : FrameClient(icon->m_dock->window()->window())
+        , m_icon(icon)
+    {
+    }
+
+    void start()
+    {
+        if (isTicking())
+            return;
+        m_startMs = -1;
+        startTicking();
+    }
+
+    bool isRunning() const { return isTicking(); }
+
+protected:
+    void tick(uint64_t frameTimeNs) override
+    {
+        const double nowMs = double(frameTimeNs) / 1e6;
+        if (m_startMs < 0)
+            m_startMs = nowMs - DockPresentation::kFrameIntervalMs;
+        const double lift = bounceLift(nowMs - m_startMs);
+        if (lift < 0) {
+            stopTicking();
+            m_icon->setLift(0);
+            return;
+        }
+        m_icon->setLift(lift);
+    }
+
+private:
+    DockIcon *m_icon;
+    double m_startMs = -1;
+};
 
 // The launcher's artwork, an SVG drawn at the icon's device size as
 // FishUI's IconItem renders a file.
@@ -286,6 +370,7 @@ void DockIcon::setIconRect(const ui::RectF &rect)
         ui::Transform result;
         // ui::Transform scales about the view's centre.
         result.scale = m_scale;
+        result.translation = bounceOffset();
         return result;
     }();
     for (ui::View *face : {static_cast<ui::View *>(m_themeFace), static_cast<ui::View *>(m_svgFace),
@@ -342,6 +427,7 @@ void DockIcon::placeCountBadge()
     transform.scale = m_scale;
     transform.translation = {(m_scale - 1) * (badge.x + badge.width / 2 - (m_iconRect.x + m_iconRect.width / 2)),
                              (m_scale - 1) * (badge.y + badge.height / 2 - (m_iconRect.y + m_iconRect.height / 2))};
+    transform.translation += bounceOffset();
     m_countBadge->setTransform(transform);
     m_countBadge->setOpacity(m_opacity);
     m_countBadge->setVisible(m_countBadge->count() > 0 && !m_dragHidden);
@@ -359,6 +445,45 @@ void DockIcon::setPresentation(double scale, double opacity)
 void DockIcon::setPresentationOpacity(double opacity)
 {
     setPresentation(m_scale, opacity);
+}
+
+void DockIcon::bounce()
+{
+    if (!m_bounce)
+        m_bounce = std::make_unique<Bounce>(this);
+    m_bounce->start();
+}
+
+bool DockIcon::isBouncing() const
+{
+    return m_bounce && m_bounce->isRunning();
+}
+
+void DockIcon::setLift(double lift)
+{
+    if (lift == m_lift)
+        return;
+    m_lift = lift;
+    setIconRect(m_iconRect);
+    m_dock->iconBounced(this);
+}
+
+ui::PointF DockIcon::bounceOffset() const
+{
+    if (m_lift == 0)
+        return {};
+    const double ratio = m_dock->window()->scale();
+    const double height = DockMetrics::forIconSize(int(std::lround(m_iconRect.width))).bounceHeight();
+    const double lift = std::round(m_lift * height * ratio) / ratio;
+    switch (m_dock->dock().settings().direction()) {
+    case DockSettings::Left:
+        return {lift, 0};
+    case DockSettings::Right:
+        return {-lift, 0};
+    case DockSettings::Bottom:
+        break;
+    }
+    return {0, -lift};
 }
 
 void DockIcon::setDotRect(const ui::RectF &rect)

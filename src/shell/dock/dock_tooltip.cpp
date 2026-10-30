@@ -42,7 +42,7 @@ void DockTooltip::hide()
         m_window->hide();
 }
 
-void DockTooltip::show(const std::string &text, const base::PointF &target)
+void DockTooltip::show(const std::string &text, const base::PointF &target, const ui::PointF &offset)
 {
     m_text = text;
     if (text.empty()) {
@@ -94,6 +94,8 @@ void DockTooltip::show(const std::string &text, const base::PointF &target)
     bubble.width = width;
     bubble.height = height;
     bubble.arrowPosition = across ? target.y() - y : target.x() - x;
+    x += offset.x;
+    y += offset.y;
     const ui::RectF body = bubble.bodyRect();
 
     ui::PopupPlacement placement;

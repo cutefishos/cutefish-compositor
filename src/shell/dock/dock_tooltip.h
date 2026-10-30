@@ -29,8 +29,9 @@ public:
     DockTooltip(DockWindow *dock, Shell *shell);
     ~DockTooltip();
 
-    // `target`: the icon's centre in the dock window's coordinates.
-    void show(const std::string &text, const base::PointF &target);
+    // `target`: the icon's centre in the dock window's coordinates; the
+    // bubble is moved by `offset` as the icon bounces.
+    void show(const std::string &text, const base::PointF &target, const ui::PointF &offset = {});
     void hide();
     bool isShown() const;
     const std::string &text() const { return m_text; }
