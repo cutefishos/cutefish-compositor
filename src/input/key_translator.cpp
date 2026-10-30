@@ -42,6 +42,11 @@ enum ModifierKind : uint32_t {
 constexpr std::array<uint32_t, 6> kTerminalCtrlShiftKeys = {XKB_KEY_c, XKB_KEY_v, XKB_KEY_t,
                                                            XKB_KEY_w, XKB_KEY_n, XKB_KEY_f};
 
+// Besides the letters, the keys a terminal turns into control characters with
+// Ctrl: Ctrl+[ is Esc and Ctrl+Backslash the quit signal.
+constexpr std::array<uint32_t, 4> kTerminalControlKeys = {XKB_KEY_bracketleft, XKB_KEY_backslash,
+                                                         XKB_KEY_bracketright, XKB_KEY_slash};
+
 uint32_t defaultCode(ModifierKind kind)
 {
     switch (kind) {
@@ -314,9 +319,12 @@ bool KeyTranslator::applyRule(Timestamp timestamp, uint32_t code)
         // Terminals pick a tab with Alt+digit. By position, since some layouts
         // type symbols on the digit row.
         kinds = AltKind;
-    } else if (keysym >= XKB_KEY_a && keysym <= XKB_KEY_z) {
-        // As Ctrl a letter is a control character to the program: Command+D
-        // would end the shell and Command+Z suspend it. Other keys go out.
+    } else if ((keysym >= XKB_KEY_a && keysym <= XKB_KEY_z)
+               || std::find(kTerminalControlKeys.begin(), kTerminalControlKeys.end(), keysym)
+                       != kTerminalControlKeys.end()) {
+        // As Ctrl these are control characters to the program: Command+D
+        // would end the shell, Command+Z suspend it and Command+Backslash
+        // quit it. Other keys go out.
         m_presses.emplace(code, Press {0, true});
         return true;
     } else {

@@ -38,9 +38,9 @@ bool isTerminal(std::string_view applicationId);
 //   Alt).
 // - In a terminal Command+C/V/T/W/N/F go out as Ctrl+Shift+C/V/T/W/N/F and
 //   Command+1 to 9 as Alt+1 to 9, the terminal's own shortcuts, so Control+C
-//   still interrupts the program. Any other Command+letter reaches no
-//   terminal, since as Ctrl it would be a control character. Nothing else is
-//   rewritten.
+//   still interrupts the program. Any other Command+letter, and Command with
+//   [ \ ] or /, reaches no terminal, since as Ctrl it would be a control
+//   character. Nothing else is rewritten.
 // - Control+click is a secondary click.
 // - A client that binds Command itself reads Ctrl as Command, so Control goes
 //   out to it as Meta.

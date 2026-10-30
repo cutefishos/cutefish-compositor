@@ -227,7 +227,7 @@ TEST_F(KeyTranslatorTest, TerminalsOpenAndCloseTabsAndPickThemByNumber)
               take());
 }
 
-TEST_F(KeyTranslatorTest, TerminalsGetNoOtherCommandLetters)
+TEST_F(KeyTranslatorTest, TerminalsGetNoOtherCommandControlCharacters)
 {
     // As Ctrl these would end the shell and suspend the program.
     terminal = true;
@@ -243,6 +243,15 @@ TEST_F(KeyTranslatorTest, TerminalsGetNoOtherCommandLetters)
     release(KEY_LEFTMETA);
     release(KEY_LEFTSHIFT);
     EXPECT_EQ(std::vector<Delivered>({down(KEY_LEFTSHIFT), up(KEY_LEFTSHIFT)}), take());
+
+    // So would these: Esc, and the quit signal.
+    press(KEY_LEFTMETA);
+    tap(KEY_LEFTBRACE);
+    tap(KEY_BACKSLASH);
+    tap(KEY_RIGHTBRACE);
+    tap(KEY_SLASH);
+    release(KEY_LEFTMETA);
+    EXPECT_TRUE(take().empty());
 
     // Other keys still go out as Ctrl.
     press(KEY_LEFTMETA);
