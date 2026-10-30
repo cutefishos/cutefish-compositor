@@ -322,7 +322,7 @@ DockWindow::DockWindow(Shell *shell, std::unique_ptr<Dock> dock)
     }));
 
     m_shell->windowManager()->setApplicationQuit([this](wm::Window *window) {
-        return m_dock->running().quitAppId(window->applicationId());
+        return m_dock->running().quit(m_shell->tasks().applicationOf(window->id()));
     });
 
     TaskWindows &windows = m_shell->taskWindows();

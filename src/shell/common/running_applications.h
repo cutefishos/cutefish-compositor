@@ -45,11 +45,9 @@ public:
     bool showsInDock(const std::string &application) const;
     // Null for an application no desktop entry claims.
     DesktopEntryPtr entry(const std::string &application) const;
-    // Asks every instance of the application to quit.
-    void quit(const std::string &application) const;
-    // Asks the instances whose AppId is `appId`, ignoring ASCII case, to quit;
-    // returns whether there were any.
-    bool quitAppId(const std::string &appId) const;
+    // Asks every instance of the application to quit; returns whether there
+    // were any.
+    bool quit(const std::string &application) const;
 
     // The application started or stopped showing in the dock.
     base::Signal<const std::string &> changed;

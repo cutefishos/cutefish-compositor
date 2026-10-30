@@ -1201,6 +1201,11 @@ bool WindowManager::belongsToApplication(const Window *candidate, const Window *
         return false;
     if (candidate == window)
         return true;
+    if (m_applicationResolver) {
+        const std::string application = m_applicationResolver(window);
+        if (!application.empty())
+            return m_applicationResolver(candidate) == application;
+    }
     // The application id first, as the dock groups its tasks: an installed web
     // app shares its browser's process but is an application of its own.
     if (!window->applicationId().empty())

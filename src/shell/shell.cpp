@@ -27,6 +27,7 @@
 #include "ui/application.h"
 #include "ui/theme.h"
 #include "wm/overview/overview_controller.h"
+#include "wm/window.h"
 #include "wm/window_manager.h"
 
 namespace cutefish::shell {
@@ -122,6 +123,8 @@ Shell::~Shell()
     m_languageChanged.reset();
     m_badges.reset();
     m_launcher.reset();
+    if (m_tasks)
+        windowManager()->setApplicationResolver({});
     m_tasks.reset();
     m_taskWindows.reset();
     m_applications.reset();
@@ -170,8 +173,12 @@ TaskWindows &Shell::taskWindows()
 
 TaskManager &Shell::tasks()
 {
-    if (!m_tasks)
+    if (!m_tasks) {
         m_tasks = std::make_unique<TaskManager>(taskWindows(), applications());
+        windowManager()->setApplicationResolver([tasks = m_tasks.get()](const wm::Window *window) {
+            return tasks->applicationOf(window->id());
+        });
+    }
     return *m_tasks;
 }
 

@@ -208,6 +208,42 @@ TEST_F(WmTest, QuitLeavesAnApplicationThatQuitsItselfItsWindows)
     EXPECT_TRUE(terminated.empty());
 }
 
+TEST_F(WmTest, QuitFollowsTheApplicationsTheShellNames)
+{
+    std::vector<std::string> closed;
+    const auto make = [&](const std::string &name, int64_t process) {
+        return manager.createWindow(makeSurface({200, 100}),
+                                    {.requestedSize = {200, 100},
+                                     .title = name,
+                                     .applicationId = "terminal",
+                                     .processId = process,
+                                     .closeCallback = [&closed, name] {
+                                         closed.push_back(name);
+                                     }});
+    };
+    // Two programs that give the same application id: the shell tells them
+    // apart by their executables.
+    Window *native = make("native", 10);
+    make("bundle", 20);
+    Window *untold = make("untold", 30);
+    manager.setApplicationResolver([](const Window *window) -> std::string {
+        if (window->processId() == 10)
+            return "terminal.desktop";
+        if (window->processId() == 20)
+            return "/Applications/Terminal.app";
+        return {};
+    });
+    manager.setQuitGracePeriod(std::chrono::milliseconds(0));
+
+    manager.quitApplication(native);
+    EXPECT_EQ(std::vector<std::string>({"native"}), closed);
+
+    // A window the shell does not name goes by its application id.
+    closed.clear();
+    manager.quitApplication(untold);
+    EXPECT_EQ(std::vector<std::string>({"native", "bundle", "untold"}), closed);
+}
+
 class QuitAllTest : public WmTest
 {
 protected:

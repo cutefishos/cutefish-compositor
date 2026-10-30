@@ -237,6 +237,16 @@ public:
     // and the dock group them.
     bool belongsToApplication(const Window *candidate, const Window *window) const;
 
+    // Names the application of a task-list window, or empty for one that is
+    // not grouped: the shell's task manager in production, so Quit, Hide and
+    // the switcher group windows as the dock does, telling apart programs
+    // that share an application id. Unset, or for an unnamed window, the
+    // application id or else the process decides.
+    void setApplicationResolver(std::function<std::string(const Window *)> resolver)
+    {
+        m_applicationResolver = std::move(resolver);
+    }
+
     void hideApplication(Window *window);
 
     // Shows every hidden window of `window`'s application again, in place:
@@ -640,6 +650,7 @@ private:
     std::map<int32_t, Window *> m_frameTouches;
     std::function<void(int64_t pid)> m_terminateProcess;
     std::function<bool(Window *)> m_applicationQuit;
+    std::function<std::string(const Window *)> m_applicationResolver;
     std::function<void(int64_t pid)> m_forceQuitProcess;
     std::function<bool(Window *)> m_notRespondingPrompt;
     std::chrono::milliseconds m_quitGracePeriod {3000};

@@ -263,6 +263,10 @@ TEST_F(DockTest, KeepsApplicationsThatRunWithoutWindows)
     EXPECT_EQ(runtime.launched.front(), "editor");
     model().quit("editor");
     ASSERT_TRUE(test::runUntil([&] { return editor->quits == 1; }));
+    // Quit asks only the application it names.
+    EXPECT_FALSE(dock->running().quit("terminal"));
+    test::processPendingEvents();
+    EXPECT_EQ(editor->quits, 1);
 
     // Unpinned, it stays while it runs.
     model().pin("editor");
