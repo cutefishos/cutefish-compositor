@@ -452,7 +452,8 @@ void CompositorShell::initAccelerators()
     translator->setTerminalProvider([this] {
         compositor::Surface *focus = m_seat.focusedSurface();
         const wm::Window *window = focus ? m_windowManager.windowForSurface(focus) : nullptr;
-        return window && input::isTerminal(window->applicationId());
+        return window && input::isTerminal(window->applicationId())
+                && !(m_security && m_security->bindsCommandKey(window->processId()));
     });
     // A remote desktop, a virtual machine or the shortcut recorder wants the
     // keys the user pressed, with Command as Meta. So does a game, which holds

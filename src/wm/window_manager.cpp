@@ -1155,7 +1155,7 @@ void WindowManager::sendPaste()
     const std::optional<input::KeyStroke> stroke =
             m_seat->clientXkbTracker()->keyStroke(XKB_KEY_v);
     std::vector<uint32_t> codes {KEY_LEFTCTRL};
-    if (input::isTerminal(window->applicationId()))
+    if (m_seat->keyTranslator()->terminalFocused())
         codes.push_back(KEY_LEFTSHIFT);
     codes.push_back(stroke && stroke->modifiers.empty() ? stroke->key : KEY_V);
     m_seat->tapKeys(std::chrono::steady_clock::now(), codes);

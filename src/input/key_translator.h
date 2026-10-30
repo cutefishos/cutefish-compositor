@@ -63,6 +63,7 @@ public:
     {
         m_terminal = std::move(provider);
     }
+    bool terminalFocused() const { return m_terminal && m_terminal(); }
 
     // True while keys must reach the focused client untranslated.
     void setPassthroughProvider(std::function<bool()> provider)

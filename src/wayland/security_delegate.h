@@ -56,6 +56,10 @@ public:
     bool showsSystemDialogs(int64_t pid) const override;
     bool canControlComputer(const wl_client *client) const override;
     bool canPlaceWindows(const wl_client *client) const override;
+    // Programs that place their own windows come from a desktop with a
+    // Command key of its own and bind it themselves: they get Command as
+    // Ctrl, never a terminal's rewritten shortcuts.
+    bool bindsCommandKey(int64_t pid) const;
 
 private:
     const std::vector<std::string> m_clipboardClients;
