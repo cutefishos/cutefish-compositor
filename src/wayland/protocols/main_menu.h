@@ -9,9 +9,12 @@
 
 namespace cutefish::wayland {
 
+struct WaylandSeat;
+
 // cutefish_main_menu_manager_v1: a window's main menu becomes its surface's
-// compositor::MenuModel, which the status bar shows.
-wl_global *createMainMenuGlobal(wl_display *display);
+// compositor::MenuModel, which the status bar shows. A choice counts as
+// input on the seat.
+wl_global *createMainMenuGlobal(wl_display *display, WaylandSeat *seat);
 
 } // namespace cutefish::wayland
 

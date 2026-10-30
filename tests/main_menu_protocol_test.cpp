@@ -28,6 +28,7 @@
 #include "scene/scene.h"
 #include "wayland/protocols/main_menu.h"
 #include "wayland/protocols/wl_compositor.h"
+#include "wayland/protocols/wl_seat.h"
 #include "wayland/protocols/xdg_shell.h"
 #include "wayland/server.h"
 #include "wm/window_manager.h"
@@ -47,6 +48,7 @@ struct Menu {
 struct Item {
     cutefish_menu_item_v1 *item = nullptr;
     int activated = 0;
+    uint32_t serial = 0;
 };
 
 const cutefish_menu_v1_listener menuListener = {
@@ -55,7 +57,10 @@ const cutefish_menu_v1_listener menuListener = {
 };
 
 const cutefish_menu_item_v1_listener itemListener = {
-        [](void *data, cutefish_menu_item_v1 *) { ++static_cast<Item *>(data)->activated; },
+        [](void *data, cutefish_menu_item_v1 *, uint32_t serial) {
+            ++static_cast<Item *>(data)->activated;
+            static_cast<Item *>(data)->serial = serial;
+        },
 };
 
 struct Client {
@@ -207,7 +212,8 @@ protected:
                                                                    server.serialTracker());
         ASSERT_TRUE(wayland::createCompositorGlobal(server.display(), &compositor));
         ASSERT_TRUE(wayland::createXdgShellGlobal(server.display(), xdgShell.get()));
-        ASSERT_TRUE(wayland::createMainMenuGlobal(server.display()));
+        wayland::WaylandSeat waylandSeat(&seat, server.serialTracker());
+        ASSERT_TRUE(wayland::createMainMenuGlobal(server.display(), &waylandSeat));
 
         int fds[2];
         ASSERT_EQ(0, socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, fds));
@@ -293,6 +299,7 @@ TEST_F(MainMenuProtocolTest, AWindowsMainMenuIsItsSurfacesModel)
         c.sync();
         ASSERT_EQ(1u, applicationMenu->willOpen.size());
         EXPECT_EQ(1, quit->activated);
+        EXPECT_NE(0u, quit->serial);
         EXPECT_EQ(1, applicationMenu->closed);
 
         // The answer and later changes reach the model.

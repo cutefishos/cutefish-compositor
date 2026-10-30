@@ -107,7 +107,7 @@ bool ProtocolGlobals::registerCoreGlobals()
             && !createXdgToplevelDragGlobal(display, m_deps.windowManager))
         || !createXdgImporterV2Global(display) || !createSurfaceBlurGlobal(display)
         || !createWindowHintsGlobal(display, m_deps.windowManager) || !createAppMenuGlobal(display)
-        || !createMainMenuGlobal(display) || !createFractionalScaleGlobal(display)
+        || !createMainMenuGlobal(display, m_seat.get()) || !createFractionalScaleGlobal(display)
         || !createXdgOutputManagerGlobal(display) || !createViewporterGlobal(display)
         || (m_deps.windowManager
             && !createStatusItemGlobal(display, m_deps.windowManager->statusItems()))) {

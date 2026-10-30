@@ -16,7 +16,10 @@
 #include "compositor/menu_model.h"
 #include "compositor/surface.h"
 #include "compositor/surface_observer.h"
+#include "input/seat.h"
+#include "wayland/protocols/wl_seat.h"
 #include "wayland/protocols/xdg_shell.h"
+#include "wayland/serial_tracker.h"
 #include "wayland/server_util.h"
 
 namespace cutefish::wayland {
@@ -55,6 +58,26 @@ private:
     MenuObject *m_menu = nullptr;
     MenuObject *m_submenu = nullptr;
 };
+
+// The seat whose input a choice in a menu counts as.
+WaylandSeat *&menuSeat()
+{
+    static WaylandSeat *seat = nullptr;
+    return seat;
+}
+
+// A serial for the choice, which the client may spend on the selection as
+// on a key press; the menu took the focus, so its older serials are gone.
+uint32_t choiceSerial(wl_client *client)
+{
+    WaylandSeat *seat = menuSeat();
+    if (!seat)
+        return 0;
+    const uint32_t serial = seat->serialTracker->nextSerial(SerialTracker::OTHER_EVENT);
+    seat->seat->selection()->recordSerial(client, serial);
+    seat->seat->primarySelection()->recordSerial(client, serial);
+    return serial;
+}
 
 std::unordered_map<int32_t, ItemObject *> &itemsById()
 {
@@ -202,8 +225,10 @@ public:
     {
         const auto it = itemsById().find(id);
         if (id != 0 && it != itemsById().end()) {
-            cutefish_menu_item_v1_send_activated(it->second->resource());
-            wl_client_flush(wl_resource_get_client(it->second->resource()));
+            wl_resource *resource = it->second->resource();
+            wl_client *client = wl_resource_get_client(resource);
+            cutefish_menu_item_v1_send_activated(resource, choiceSerial(client));
+            wl_client_flush(client);
         }
     }
 
@@ -636,8 +661,9 @@ void bindManager(wl_client *client, void *, uint32_t version, uint32_t id)
 
 } // namespace
 
-wl_global *createMainMenuGlobal(wl_display *display)
+wl_global *createMainMenuGlobal(wl_display *display, WaylandSeat *seat)
 {
+    menuSeat() = seat;
     return wl_global_create(display, &cutefish_main_menu_manager_v1_interface, kMainMenuVersion, nullptr,
                             bindManager);
 }
