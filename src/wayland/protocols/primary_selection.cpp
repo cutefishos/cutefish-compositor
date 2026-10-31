@@ -134,9 +134,6 @@ struct Device {
 void select(wl_client *client, wl_resource *resource, wl_resource *sourceResource, uint32_t serial)
 {
     auto *device = getUserDataAs<Device>(resource);
-    if (!device->controller || !device->authorization
-        || !device->authorization->authorize(client, serial, *device->controller))
-        return;
     std::shared_ptr<Source> source;
     if (sourceResource) {
         if (!wl_resource_instance_of(sourceResource, &zwp_primary_selection_source_v1_interface,
@@ -146,6 +143,13 @@ void select(wl_client *client, wl_resource *resource, wl_resource *sourceResourc
         source = getUserDataAs<SourceResource>(sourceResource)->source;
         if (!source->alive() || source->used())
             return;
+    }
+    // Refused by the security policy: cancelled, as a data device's source is.
+    if (!device->controller || !device->authorization
+        || !device->authorization->authorize(client, serial, *device->controller)) {
+        if (source)
+            source->cancel();
+        return;
     }
     device->controller->setSource(std::move(source));
 }

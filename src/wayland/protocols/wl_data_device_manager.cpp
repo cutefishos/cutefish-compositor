@@ -461,9 +461,14 @@ void setSelection(wl_client* client, wl_resource* resource, wl_resource* sourceR
                                "drag source cannot be a selection");
         return;
     }
-    // Security policy refusal is not a protocol error. The source stays unused.
-    if (!device->controller || !device->controller->authorize(client, serial))
+    // Security policy refusal is not a protocol error. The source is cancelled,
+    // so the client knows the selection is not its own and keeps following
+    // the selection events.
+    if (!device->controller || !device->controller->authorize(client, serial)) {
+        if (source)
+            source->cancel();
         return;
+    }
     device->controller->setSource(std::move(source));
 }
 

@@ -147,13 +147,19 @@ TEST(ClipboardProtocol, SerialPolicyDoesNotAuthorizeOtherClientsOrOldFocus)
     wl_data_device_set_selection(a.devices[0], source, b.serial);
     h.sync(a);
     EXPECT_FALSE(h.seat.selection()->source());
+    // A refused source is cancelled, so its client knows it holds nothing.
+    EXPECT_EQ(1u, a.cancelled);
     h.focus(a);
-    wl_data_device_set_selection(a.devices[0], source, oldSerial);
+    auto* retry = a.source({{"text/plain", "a"}});
+    wl_data_device_set_selection(a.devices[0], retry, oldSerial);
     h.sync(a);
     EXPECT_FALSE(h.seat.selection()->source());
-    wl_data_device_set_selection(a.devices[0], source, a.serial);
+    EXPECT_EQ(2u, a.cancelled);
+    auto* accepted = a.source({{"text/plain", "a"}});
+    wl_data_device_set_selection(a.devices[0], accepted, a.serial);
     h.sync(a);
     EXPECT_TRUE(h.seat.selection()->source());
+    EXPECT_EQ(2u, a.cancelled);
     const auto enter = a.serial;
     h.seat.onKey(input::Timestamp {}, 46, true);
     h.sync(a);
@@ -427,9 +433,15 @@ TEST(ClipboardProtocol, PrimarySelectionSerialsAreOrderedApartFromTheClipboard)
 
     auto* stale = zwp_primary_selection_device_manager_v1_create_source(manager);
     zwp_primary_selection_source_v1_offer(stale, "text/plain");
+    static bool staleCancelled = false;
+    static const zwp_primary_selection_source_v1_listener staleListener = {
+        [](void*, zwp_primary_selection_source_v1*, const char*, int32_t fd) { close(fd); },
+        [](void*, zwp_primary_selection_source_v1*) { staleCancelled = true; }};
+    zwp_primary_selection_source_v1_add_listener(stale, &staleListener, nullptr);
     zwp_primary_selection_device_v1_set_selection(device, stale, enter);
     h.sync(a);
     EXPECT_EQ(selected, h.seat.primarySelection()->source());
+    EXPECT_TRUE(staleCancelled);
 
     h.seat.onKey(input::Timestamp {}, 46, false);
     zwp_primary_selection_source_v1_destroy(stale);
