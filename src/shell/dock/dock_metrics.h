@@ -60,7 +60,7 @@ struct DockMetrics {
     int dotAreaSize() const { return edgePadding + dotSize + dotGap; }
     // How far a launching icon bounces away from the screen edge, and the
     // room that takes past the dock's far side.
-    int bounceHeight() const { return int(std::floor(iconSize * 0.5 + 0.5)); }
+    int bounceHeight() const { return int(std::floor(iconSize * 0.35 + 0.5)); }
     int bounceRoom() const { return std::max(0, bounceHeight() - outerPadding); }
     // Along the dock: the icons plus the padding at both ends.
     int length(int itemCount) const
