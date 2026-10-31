@@ -338,7 +338,7 @@ bool DockModel::openNewInstance(const std::string &id)
     } else {
         return false;
     }
-    if (launched && (!entry || entry->startupNotify))
+    if (launched && !item->running && (!entry || entry->startupNotify))
         launched(item->id);
     return true;
 }

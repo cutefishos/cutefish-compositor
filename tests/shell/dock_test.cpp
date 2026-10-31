@@ -263,10 +263,14 @@ TEST_F(DockTest, KeepsApplicationsThatRunWithoutWindows)
     ASSERT_TRUE(test::runUntil([&] { return item().windows.empty(); }));
     EXPECT_TRUE(item().running);
 
-    // A click opens it again through the runtime; Quit goes to it.
+    // A click opens it again through the runtime without launch feedback,
+    // since it is already running; Quit goes to it.
+    std::vector<std::string> launched;
+    model().launched = [&launched](const std::string &id) { launched.push_back(id); };
     model().clicked("editor");
     ASSERT_TRUE(test::runUntil([&] { return !runtime.launched.empty(); }));
     EXPECT_EQ(runtime.launched.front(), "editor");
+    EXPECT_TRUE(launched.empty());
     model().quit("editor");
     ASSERT_TRUE(test::runUntil([&] { return editor->quits == 1; }));
     // Quit asks only the application it names.
