@@ -374,7 +374,7 @@ void SystemTrayView::showMenu(TrayItemView *item, DBusMenu *menu)
     m_menuLoaded.reset();
     if (m_popup && m_popup->menu().isOpen())
         return;
-    m_popup = std::make_unique<MenuPopup>(menu, 0);
+    m_popup = std::make_unique<MenuPopup>(menu, 0, m_host.shortcutText);
     m_popup->setPrepared();
     m_popupItem = item;
     m_popup->onClosed = [this] { menuClosed(); };

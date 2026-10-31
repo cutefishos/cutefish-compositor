@@ -380,3 +380,29 @@ TEST(IsTerminal, KnownTerminalsAreRecognised)
     EXPECT_FALSE(isTerminal("google-chrome"));
     EXPECT_FALSE(isTerminal("code"));
 }
+
+TEST(PressedShortcut, FollowsTheTranslationBackwards)
+{
+    const auto equal = [](PressedShortcut pressed, PressedShortcut expected) {
+        return pressed.command == expected.command && pressed.control == expected.control
+                && pressed.alt == expected.alt && pressed.shift == expected.shift;
+    };
+    // Under the Pc convention the keys are the ones the client gets.
+    EXPECT_TRUE(equal(pressedShortcut(ShortcutConvention::Pc, false, XKB_KEY_s, true, false, true),
+                      {false, true, false, true}));
+    // Command reaches applications as Ctrl.
+    EXPECT_TRUE(equal(pressedShortcut(ShortcutConvention::Command, false, XKB_KEY_s, true, false, true),
+                      {true, false, false, true}));
+    EXPECT_TRUE(equal(pressedShortcut(ShortcutConvention::Command, false, XKB_KEY_Up, false, true, false),
+                      {false, false, true, false}));
+    // A terminal's own shortcuts are Command alone.
+    EXPECT_TRUE(equal(pressedShortcut(ShortcutConvention::Command, true, XKB_KEY_c, true, false, true),
+                      {true, false, false, false}));
+    EXPECT_TRUE(equal(pressedShortcut(ShortcutConvention::Command, true, XKB_KEY_3, false, true, false),
+                      {true, false, false, false}));
+    // Command+letter reaches no terminal; Control does.
+    EXPECT_TRUE(equal(pressedShortcut(ShortcutConvention::Command, true, XKB_KEY_q, true, false, true),
+                      {false, true, false, true}));
+    EXPECT_TRUE(equal(pressedShortcut(ShortcutConvention::Command, true, XKB_KEY_equal, true, false, false),
+                      {true, false, false, false}));
+}

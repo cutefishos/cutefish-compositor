@@ -80,6 +80,11 @@ struct ShellEnvironment {
     // An xdg-activation token for a program the shell starts on the user's
     // input; null where there is none (tests).
     std::function<std::string()> createActivationToken;
+    // What a menu shows for a key equivalent (a key as the toolkit names it,
+    // with ui::KeyModifier flags): the keys the user presses for the active
+    // window, or with `activeWindow` false for any application, to get it.
+    // Null where there is no keyboard (tests).
+    std::function<std::string(const std::string &key, uint32_t modifiers, bool activeWindow)> shortcutText;
 };
 
 // The desktop shell inside the compositor, after ash::Shell's shell parts: it
@@ -109,6 +114,11 @@ public:
     wm::WindowManager *windowManager() const { return m_environment.windowManager; }
     input::Seat *seat() const { return m_environment.seat; }
     base::dbus::Connection *bus() const { return m_environment.bus; }
+    // ShellEnvironment::shortcutText, empty without one.
+    std::string shortcutText(const std::string &key, uint32_t modifiers, bool activeWindow) const
+    {
+        return m_environment.shortcutText ? m_environment.shortcutText(key, modifiers, activeWindow) : std::string();
+    }
     display::DisplayManager *displayManager() const;
 
     ShellInput *input() const { return m_input.get(); }

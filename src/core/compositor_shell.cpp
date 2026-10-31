@@ -7,7 +7,10 @@
 #include <unistd.h>
 
 #include <algorithm>
+#include <cctype>
 #include <utility>
+
+#include <xkbcommon/xkbcommon.h>
 
 #include "accelerators/accelerator_configuration.h"
 #include "accelerators/accelerator_controller.h"
@@ -42,6 +45,7 @@
 #include "display/display_topology_coordinator.h"
 #include "input/cursor_shape.h"
 #include "input/drag.h"
+#include "input/key_translator.h"
 #include "ipc/display_config_service.h"
 #include "render/egl_renderer.h"
 #include "render/renderer.h"
@@ -73,6 +77,7 @@
 #include "shell/statusbar/vpn_notifier.h"
 #include "shell/wallpaper/wallpaper.h"
 #include "switcher/switcher_view.h"
+#include "ui/event.h"
 #include "wayland/idle_inhibition.h"
 #include "wayland/input_method_launcher.h"
 #include "wayland/privileged_client.h"
@@ -96,6 +101,7 @@
 #include "wm/mru_window_tracker.h"
 #include "wm/overview/overview_controller.h"
 #include "wm/quit_all.h"
+#include "wm/activation.h"
 #include "wm/toplevel_event_handler.h"
 #include "wm/window.h"
 #include "wm/window_cycle_controller.h"
@@ -648,6 +654,56 @@ bool CompositorShell::init()
     return true;
 }
 
+std::string CompositorShell::shortcutText(const std::string &key, uint32_t modifiers, bool activeWindow)
+{
+    uint32_t keysym = XKB_KEY_NoSymbol;
+    if (key.size() == 1)
+        keysym = xkb_utf32_to_keysym(uint32_t(std::tolower(static_cast<unsigned char>(key[0]))));
+    if (keysym == XKB_KEY_NoSymbol)
+        keysym = xkb_keysym_from_name(key.c_str(), XKB_KEYSYM_NO_FLAGS);
+    if (keysym == XKB_KEY_NoSymbol)
+        return {};
+
+    const bool ctrl = modifiers & ui::ControlModifier;
+    const bool alt = modifiers & ui::AltModifier;
+    const bool shift = modifiers & ui::ShiftModifier;
+    const wm::Window *window = activeWindow ? m_windowManager.activation()->activeWindow() : nullptr;
+    const bool terminal = window && input::isTerminal(window->applicationId())
+            && !(m_security && m_security->bindsCommandKey(window->processId()));
+    input::PressedShortcut pressed
+            = input::pressedShortcut(m_seat.shortcutConvention(), terminal, keysym, ctrl, alt, shift);
+    // A Command shortcut the compositor takes never reaches the application,
+    // so the Control key is the one to press; Quit is the same either way.
+    if (pressed.command && m_acceleratorConfiguration) {
+        uint32_t flags = accelerators::MetaDown;
+        if (pressed.alt)
+            flags |= accelerators::AltDown;
+        if (pressed.shift)
+            flags |= accelerators::ShiftDown;
+        const accelerators::AcceleratorAction *action
+                = m_acceleratorConfiguration->findAcceleratorAction(accelerators::Accelerator(keysym, flags));
+        if (action && *action != accelerators::AcceleratorAction::QuitApplication)
+            pressed = {false, ctrl, alt, shift};
+    }
+
+    std::string text;
+    if (pressed.control)
+        text += "Ctrl+";
+    if (pressed.command)
+        text += "Command+";
+    if (pressed.alt)
+        text += "Alt+";
+    if (pressed.shift)
+        text += "Shift+";
+    if (modifiers & ui::SuperModifier)
+        text += "Super+";
+    if (key.size() == 1 && key[0] >= 'a' && key[0] <= 'z')
+        text += char(key[0] - 'a' + 'A');
+    else
+        text += key;
+    return text;
+}
+
 void CompositorShell::initShell()
 {
     // The greeter shows no desktop.
@@ -665,6 +721,9 @@ void CompositorShell::initShell()
         environment.createActivationToken = [activation] { return activation->createShellToken(); };
     }
     environment.theme = &m_decorationTheme;
+    environment.shortcutText = [this](const std::string &key, uint32_t modifiers, bool activeWindow) {
+        return shortcutText(key, modifiers, activeWindow);
+    };
     m_shell = std::make_unique<shell::Shell>(environment);
 
     // First, so the components that share its decode go before it.

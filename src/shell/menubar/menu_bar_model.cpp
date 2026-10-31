@@ -290,7 +290,10 @@ ui::Menu *MenuBarModel::menuAt(size_t row)
         return nullptr;
     std::unique_ptr<MenuPopup> &popup = m_popups[item->id];
     if (!popup) {
-        popup = std::make_unique<MenuPopup>(m_shown, item->id);
+        Shell *shell = m_shell;
+        popup = std::make_unique<MenuPopup>(m_shown, item->id, [shell](const std::string &key, uint32_t modifiers) {
+            return shell->shortcutText(key, modifiers, true);
+        });
         popup->onClosed = [this] { menuClosed(); };
     }
     return &popup->menu();

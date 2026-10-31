@@ -64,17 +64,19 @@ struct MenuPopup::State {
 
     compositor::MenuModel *model = nullptr;
     MenuPopup *owner = nullptr;
+    MenuPopup::ShortcutText shortcutText;
     bool prepared = false;
     std::map<int32_t, Shown> shown;
 };
 
-MenuPopup::MenuPopup(compositor::MenuModel *menu, int32_t id)
+MenuPopup::MenuPopup(compositor::MenuModel *menu, int32_t id, ShortcutText shortcutText)
     : m_id(id)
     , m_state(std::make_shared<State>())
     , m_menu(std::make_unique<ui::Menu>())
 {
     m_state->model = menu;
     m_state->owner = this;
+    m_state->shortcutText = std::move(shortcutText);
     wire(m_state, *m_menu, m_id);
     std::weak_ptr<State> weak = m_state;
     m_subscriptions.push_back(menu->menuUpdated.connect([weak](int32_t updated) {
@@ -221,6 +223,11 @@ void MenuPopup::fill(const std::shared_ptr<State> &state, ui::Menu &menu, int32_
         menu.setItemState(index, stateOf(*row));
         const KeyEquivalent key = keyEquivalentOf(*row);
         menu.setItemKeyEquivalent(index, key.key, key.modifiers);
+        if (state->shortcutText && !key.key.empty()) {
+            const std::string text = state->shortcutText(key.key, key.modifiers);
+            if (!text.empty())
+                menu.setItemShortcut(index, text);
+        }
         // A name the theme has; a picture of the application's own is not
         // shown.
         const bool themed = !row->iconName.empty() && !ui::themeIconPath(row->iconName, 22).empty();

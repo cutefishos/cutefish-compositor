@@ -149,6 +149,9 @@ StatusBarWindow::StatusBarWindow(Shell *shell, std::unique_ptr<StatusBar> status
         const base::Point origin = m_window->geometry().topLeft();
         return ui::PointF {double(origin.x()), double(origin.y())};
     };
+    trayHost.shortcutText = [shell](const std::string &key, uint32_t modifiers) {
+        return shell->shortcutText(key, modifiers, false);
+    };
     m_tray = m_root->addChild<SystemTrayView>(this, &m_statusBar->systemTray(), std::move(trayHost));
     m_tray->setName("tray");
     m_tray->onCountChanged = [this] { layoutRow(); };

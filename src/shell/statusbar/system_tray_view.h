@@ -48,6 +48,9 @@ public:
         std::function<ui::RectF()> availableGeometry;
         // The bar window's top-left on the screen, for the clicks' positions.
         std::function<ui::PointF()> origin;
+        // The text for a key equivalent in an item's menu; empty keeps the
+        // toolkit's.
+        std::function<std::string(const std::string &key, uint32_t modifiers)> shortcutText;
     };
 
     // An item's slot: 16 + 12 + 12.

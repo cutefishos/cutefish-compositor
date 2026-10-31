@@ -32,7 +32,10 @@ namespace cutefish::shell {
 class MenuPopup
 {
 public:
-    MenuPopup(compositor::MenuModel *menu, int32_t id);
+    // The text for a key equivalent; empty keeps the toolkit's.
+    using ShortcutText = std::function<std::string(const std::string &key, uint32_t modifiers)>;
+
+    MenuPopup(compositor::MenuModel *menu, int32_t id, ShortcutText shortcutText = {});
     ~MenuPopup();
 
     MenuPopup(const MenuPopup &) = delete;

@@ -120,6 +120,32 @@ bool isTerminal(std::string_view applicationId)
     return terminals.contains(lower);
 }
 
+PressedShortcut pressedShortcut(ShortcutConvention convention, bool terminal, uint32_t keysym, bool ctrl, bool alt,
+                                bool shift)
+{
+    PressedShortcut pressed {false, ctrl, alt, shift};
+    if (convention != ShortcutConvention::Command)
+        return pressed;
+    if (terminal) {
+        const bool ctrlShiftKey = std::find(kTerminalCtrlShiftKeys.begin(), kTerminalCtrlShiftKeys.end(), keysym)
+                != kTerminalCtrlShiftKeys.end();
+        if (ctrl && shift && !alt && ctrlShiftKey)
+            return {true, false, false, false};
+        if (alt && !ctrl && !shift && keysym >= XKB_KEY_1 && keysym <= XKB_KEY_9)
+            return {true, false, false, false};
+        const bool controlCharacter = (keysym >= XKB_KEY_a && keysym <= XKB_KEY_z)
+                || std::find(kTerminalControlKeys.begin(), kTerminalControlKeys.end(), keysym)
+                        != kTerminalControlKeys.end();
+        if (controlCharacter)
+            return pressed;
+    }
+    if (ctrl) {
+        pressed.command = true;
+        pressed.control = false;
+    }
+    return pressed;
+}
+
 KeyTranslator::KeyTranslator(const XkbTracker *keymap, DeliverKey deliver)
     : m_keymap(keymap)
     , m_deliver(std::move(deliver))

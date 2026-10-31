@@ -23,6 +23,23 @@ class XkbTracker;
 // class) names a terminal, the one kind of application treated apart.
 bool isTerminal(std::string_view applicationId);
 
+// A shortcut as the user presses it: `command` is the Command key under the
+// Command convention, `control` the Control key.
+struct PressedShortcut {
+    bool command = false;
+    bool control = false;
+    bool alt = false;
+    bool shift = false;
+};
+
+// What the user presses for a client to get `keysym` with Ctrl, Alt and Shift
+// as given, KeyTranslator's rules run backwards: the same keys under the Pc
+// convention; Command for Ctrl under the Command convention, but in a
+// terminal Command alone for its Ctrl+Shift keys and Alt digits, and Control
+// for the Ctrl keys Command does not reach it with.
+PressedShortcut pressedShortcut(ShortcutConvention convention, bool terminal, uint32_t keysym, bool ctrl, bool alt,
+                                bool shift);
+
 // Turns the keys the compositor did not consume into the keys clients see.
 //
 // Under ShortcutConvention::Pc every key passes through unchanged, and so it

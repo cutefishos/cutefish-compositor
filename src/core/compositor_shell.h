@@ -162,6 +162,8 @@ private:
     bool initDisplay();
     void initXwayland();
     void initShell();
+    // ShellEnvironment::shortcutText.
+    std::string shortcutText(const std::string &key, uint32_t modifiers, bool activeWindow);
     shell::ScreenCaptureServices screenCaptureServices(shell::DockWindow *dockWindow, shell::Wallpaper *wallpaper);
     std::vector<compositor::Output *> outputModels() const;
     void publishDisplayState();
