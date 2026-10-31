@@ -174,6 +174,9 @@ public:
 
 protected:
     virtual void paint(render::Renderer &renderer, const base::Rect &absoluteGeometry) const;
+    // What the node draws of the content behind it (a background blur), before
+    // the children placed below it: those are its own, not behind it.
+    virtual void paintBackdrop(render::Renderer &renderer, const base::Rect &absoluteGeometry) const;
 
     // render() whether or not this node itself is visible, for a subtree drawn
     // somewhere of its own while hidden, as a desk preview draws another desk.

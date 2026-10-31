@@ -84,10 +84,6 @@ void SurfaceNode::paint(render::Renderer &renderer, const base::Rect &absoluteGe
     }
     // The client may still be writing this buffer; the wait is queued on the
     // GPU, so composition does not block the compositor thread.
-    if (hasBackgroundBlur() && !renderer.suppressBackgroundBlur)
-        renderer.drawBackgroundBlur(m_blurRect.translated(absoluteGeometry.topLeft()), m_blurRadius,
-                                    absoluteGeometry, m_glass,
-                                    m_blurShape.translated(absoluteGeometry.x(), absoluteGeometry.y()), damageId());
     renderer.waitFence(m_acquireFence);
     const float alpha = m_alpha * renderer.opacityScale;
     if (m_contentShape) {
@@ -102,6 +98,19 @@ void SurfaceNode::paint(render::Renderer &renderer, const base::Rect &absoluteGe
     }
     if (m_alpha > 0)
         renderer.recordPresentation(m_presentationContent, absoluteGeometry);
+}
+
+// Blurs what is behind the whole surface tree: subsurfaces placed below this
+// surface are drawn after the blur, not blurred into it.
+void SurfaceNode::paintBackdrop(render::Renderer &renderer, const base::Rect &absoluteGeometry) const
+{
+    if (!m_texture || absoluteGeometry.isEmpty() || (isPromotedToOverlay() && !renderer.capturing))
+        return;
+    if (!renderer.drawsInto(absoluteGeometry) || !hasBackgroundBlur() || renderer.suppressBackgroundBlur)
+        return;
+    renderer.drawBackgroundBlur(m_blurRect.translated(absoluteGeometry.topLeft()), m_blurRadius, absoluteGeometry,
+                                m_glass, m_blurShape.translated(absoluteGeometry.x(), absoluteGeometry.y()),
+                                damageId());
 }
 
 } // namespace cutefish::scene

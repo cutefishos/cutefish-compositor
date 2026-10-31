@@ -241,6 +241,8 @@ void Node::renderSubtree(render::Renderer &renderer) const
 {
     const size_t split = std::min(m_childrenBelowParent, m_childOrder.size());
     const size_t first = firstUnoccludedChild(renderer);
+    if (first <= split)
+        paintBackdrop(renderer, absoluteGeometry());
     for (size_t i = first; i < split; ++i)
         m_childOrder[i]->render(renderer);
     if (first <= split)
@@ -263,6 +265,8 @@ void Node::renderForCapture(render::Renderer &renderer) const
 
     const size_t split = std::min(m_childrenBelowParent, m_childOrder.size());
     const size_t first = firstUnoccludedChild(renderer);
+    if (first <= split)
+        paintBackdrop(renderer, absoluteGeometry());
     for (size_t i = first; i < m_childOrder.size(); ++i) {
         if (i == split)
             paint(renderer, absoluteGeometry());
@@ -295,6 +299,10 @@ void Node::collectRetired()
 }
 
 void Node::paint(render::Renderer &, const base::Rect &) const
+{
+}
+
+void Node::paintBackdrop(render::Renderer &, const base::Rect &) const
 {
 }
 

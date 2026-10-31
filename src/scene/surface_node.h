@@ -122,6 +122,7 @@ public:
 
 protected:
     void paint(render::Renderer &renderer, const base::Rect &absoluteGeometry) const override;
+    void paintBackdrop(render::Renderer &renderer, const base::Rect &absoluteGeometry) const override;
 
 private:
     std::shared_ptr<render::PresentationContent> m_presentationContent;
