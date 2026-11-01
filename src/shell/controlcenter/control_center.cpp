@@ -292,8 +292,10 @@ void ControlCenter::updateWindow(Panel panel)
         height = std::max(1, int(std::lround(open.panel->shownBottom())));
         open.window->resize({double(open.geometry.width()), double(height)});
     }
-    window->setBackgroundBlur(base::Rect(0, 0, open.geometry.width(), height), int(panel::kTileRadius),
-                              panel::panelGlass());
+    const bool controlCenter = panel == Panel::ControlCenter;
+    window->setBackgroundBlur(base::Rect(0, 0, open.geometry.width(), height),
+                              int(panel::kPanelRadius),
+                              controlCenter ? panel::controlCenterGlass() : panel::panelGlass());
 }
 
 void ControlCenter::fitToWorkArea(Panel panel)

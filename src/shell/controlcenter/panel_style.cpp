@@ -25,7 +25,7 @@ bool dark()
 
 ui::Color tileColor()
 {
-    return dark() ? rgba(1, 1, 1, 0.1) : rgba(1, 1, 1, 0.8);
+    return dark() ? rgba(1, 1, 1, 0.12) : rgba(1, 1, 1, 0.55);
 }
 
 ui::Color tileInkColor()
@@ -44,6 +44,14 @@ render::GlassParams panelGlass()
                                        : popupGlass(0.94, 0.94, 0.95, 0.86);
     glass.blurSigma = glassFixed(20.0);
     glass.saturation = glassFixed(2.4);
+    return glass;
+}
+
+render::GlassParams controlCenterGlass()
+{
+    render::GlassParams glass = dark() ? popupGlass(0.1, 0.1, 0.11, 0.82) : popupGlass(0.97, 0.97, 0.98, 0.65);
+    glass.blurSigma = glassFixed(20.0);
+    glass.saturation = glassFixed(1.2);
     return glass;
 }
 
@@ -105,7 +113,8 @@ ui::RectF parityPlate(const ui::RectF &slot, double glyph, double scale)
 
 void paintTile(ui::Painter &painter, const ui::RectF &rect)
 {
-    painter.fillRoundedRect(rect, kTileRadius, tileColor(), ui::Corners::Continuous);
+    // The window's corner style, so the curves stay concentric.
+    painter.fillRoundedRect(rect, kTileRadius, tileColor(), ui::themeCorners());
 }
 
 std::string artwork(std::string_view name, bool white)

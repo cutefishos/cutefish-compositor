@@ -29,6 +29,10 @@ void addCompositorColors(ui::ColorMixer &mixer, const ui::Theme &theme)
     mixer[CompositorColor::LevelTrackFill] = dark ? ui::Color::rgb(0x6C6C72) : kWhite;
     mixer[CompositorColor::LevelTrackKnob] = dark ? ui::Color::rgb(0x7C7C82) : kWhite;
     mixer[CompositorColor::LevelTrackKnobShadow] = kBlack.withAlpha(dark ? 0.35 : 0.18);
+    mixer[CompositorColor::LevelTrackSunkenBackground] = kBlack.withAlpha(dark ? 0.3 : 0.08);
+    mixer[CompositorColor::LevelTrackSunkenOutline] = kBlack.withAlpha(dark ? 0.4 : 0.1);
+    mixer[CompositorColor::LevelTrackSunkenKnobOutline] = kBlack.withAlpha(dark ? 0.3 : 0.08);
+    mixer[CompositorColor::LevelTrackSunkenKnobShadow] = kBlack.withAlpha(dark ? 0.3 : 0.12);
 
     mixer[CompositorColor::ClipboardSurface] = dark ? ui::Color::rgb(0x242529) : ui::Color::rgb(0xFAFAFC);
     mixer[CompositorColor::ClipboardHairline] = (dark ? kWhite : kBlack).withAlpha(0.1);

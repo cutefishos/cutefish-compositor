@@ -52,6 +52,7 @@ static double angleNotches(const ui::ScrollEvent &event)
 LevelSlider::LevelSlider()
 {
     m_track = addChild<LevelTrack>();
+    m_track->setSunken(true);
     m_settle.setSingleShot(true);
     m_settle.setInterval(kSettle);
     m_settle.onTimeout = [this] {

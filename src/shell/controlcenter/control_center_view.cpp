@@ -12,31 +12,18 @@
 #include "shell/controlcenter/level_slider.h"
 #include "shell/controlcenter/panel_style.h"
 #include "shell/controlcenter/tiles.h"
-#include "ui/label.h"
 #include "ui/theme.h"
-#include "ui/window.h"
 
 using cutefish::i18n::tr;
 
 namespace cutefish::shell {
 
-// The panels' titles: 13 pt.
-static constexpr double kTitleFontSize = 13.0 * 4 / 3;
 // The slider writes the backlight once the knob rests this long.
 static constexpr std::chrono::milliseconds kBrightnessDelay {100};
-
-static double windowScale(const ui::View *view)
-{
-    const ui::Window *window = view->window();
-    return window && window->scale() > 0 ? window->scale() : 1;
-}
 
 ControlCenterView::ControlCenterView(ControlCenterServices &services)
     : m_services(services)
 {
-    m_title = addChild<ui::Label>(tr("Control Center"));
-    m_title->setFontSize(kTitleFontSize);
-    m_title->setElide(ui::Label::Elide::Right);
     m_users = addChild<DeviceUsersTile>();
 
     m_wireless = addChild<CardItem>();
@@ -112,7 +99,6 @@ ControlCenterView::~ControlCenterView() = default;
 
 void ControlCenterView::retranslate()
 {
-    m_title->setText(tr("Control Center"));
     m_wireless->setTitle(tr("Wi-Fi"));
     m_bluetooth->setTitle(tr("Bluetooth"));
     m_darkMode->setTitle(tr("Dark Mode"));
@@ -166,18 +152,10 @@ void ControlCenterView::refresh()
         onHeightChanged();
 }
 
-double ControlCenterView::headerHeight() const
-{
-    // The capitals' top as far from the edge as the text is from the side,
-    // and the tiles as far below the baseline.
-    const double textBaseline = kTitleInset - kGap + m_title->capHeight();
-    return textBaseline + kTitleInset - kGap;
-}
-
 double ControlCenterView::layoutHeight() const
 {
     const double width = kWidth - 2 * kGap;
-    std::vector<double> heights {headerHeight()};
+    std::vector<double> heights;
     if (m_users->isVisible())
         heights.push_back(m_users->heightForWidth(width));
     int cards = 0;
@@ -216,15 +194,8 @@ void ControlCenterView::layout()
         m_media->setState(m_services.media());
     }
 
-    const double scale = windowScale(this);
     const double width = kWidth - 2 * kGap;
     double y = kGap;
-
-    const double textBaseline = kTitleInset - kGap + m_title->capHeight();
-    const double titleTop = alignedLabelTop(m_title, textBaseline, scale);
-    m_title->setGeometry({kTitleInset, y + titleTop, width - 2 * (kTitleInset - kGap),
-                          m_title->sizeHint().height});
-    y += headerHeight() + kGap;
 
     if (m_users->isVisible()) {
         const double height = m_users->heightForWidth(width);

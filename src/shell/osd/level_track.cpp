@@ -46,6 +46,14 @@ void LevelTrack::setPosition(double position)
     m_animation->start();
 }
 
+void LevelTrack::setSunken(bool sunken)
+{
+    if (sunken == m_sunken)
+        return;
+    m_sunken = sunken;
+    requestPaint();
+}
+
 void LevelTrack::setIcon(std::string file)
 {
     if (file == m_icon)
@@ -60,14 +68,19 @@ void LevelTrack::paint(ui::Painter &painter)
     const ui::RectF rect = localRect();
     const double height = rect.height;
     const double travel = rect.width - height;
-    const double hairline = 1 / painter.scale();
-    const ui::Color outline = ui::color(toolkit::CompositorColor::LevelTrackOutline);
+    // The sunken track's edges are a point wide on whole device pixels.
+    const double hairline = (m_sunken ? std::max(1.0, std::round(painter.scale())) : 1) / painter.scale();
+    const ui::Color outline = ui::color(m_sunken ? toolkit::CompositorColor::LevelTrackSunkenOutline
+                                                 : toolkit::CompositorColor::LevelTrackOutline);
     const ui::RoundedShape pill {height / 2, 0, ui::Corners::Circular};
 
-    painter.drawRoundedRect(rect, pill, ui::color(toolkit::CompositorColor::LevelTrackBackground), hairline,
-                            outline);
+    painter.drawRoundedRect(rect, pill,
+                            ui::color(m_sunken ? toolkit::CompositorColor::LevelTrackSunkenBackground
+                                               : toolkit::CompositorColor::LevelTrackBackground),
+                            hairline, outline);
 
-    const ui::Color fill = ui::color(toolkit::CompositorColor::LevelTrackFill);
+    const ui::Color white = ui::Color::rgb(0xFFFFFF);
+    const ui::Color fill = m_sunken ? white : ui::color(toolkit::CompositorColor::LevelTrackFill);
     const ui::RectF fillRect {0, 0, height + travel * m_drawn, height};
     painter.drawRoundedRect(fillRect, pill, fill, hairline, outline);
 
@@ -75,19 +88,24 @@ void LevelTrack::paint(ui::Painter &painter)
     // device pixels, a deviation of (3 dpr + 1) / 3.3333 of them.
     const ui::RectF knob {fillRect.width - height, 0, height, height};
     const double sigma = (3 * painter.scale() + 1) / 3.3333 / painter.scale();
-    painter.drawShadow(knob, height / 2, sigma, ui::color(toolkit::CompositorColor::LevelTrackKnobShadow),
-                       {0, 1});
+    // The sunken knob stands out by its ring; its shadow only softens it.
+    painter.drawShadow(knob, height / 2, sigma,
+                       ui::color(m_sunken ? toolkit::CompositorColor::LevelTrackSunkenKnobShadow
+                                          : toolkit::CompositorColor::LevelTrackKnobShadow),
+                       m_sunken ? ui::PointF {0, 0} : ui::PointF {0, 1});
     painter.drawRoundedRect(knob, pill,
-                            ui::color(toolkit::CompositorColor::LevelTrackKnob), hairline,
-                            outline);
+                            m_sunken ? white : ui::color(toolkit::CompositorColor::LevelTrackKnob), hairline,
+                            m_sunken ? ui::color(toolkit::CompositorColor::LevelTrackSunkenKnobOutline) : outline);
 
     if (!m_icon.empty()) {
         painter.save();
-        painter.multiplyOpacity(dark ? 0.85 : 0.7);
+        // The light artwork on a white fill.
+        const bool tinted = dark && !m_sunken;
+        painter.multiplyOpacity(tinted ? 0.85 : 0.7);
         const ui::RectF icon {(height - kIconSize) / 2, (height - kIconSize) / 2, kIconSize,
                               kIconSize};
         painter.drawSvg(m_icon, icon,
-                        dark ? std::optional<ui::Color>(ui::Color::rgb(0xFFFFFF)) : std::nullopt);
+                        tinted ? std::optional<ui::Color>(ui::Color::rgb(0xFFFFFF)) : std::nullopt);
         painter.restore();
     }
 }

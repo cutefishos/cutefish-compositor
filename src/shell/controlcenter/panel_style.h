@@ -23,8 +23,11 @@ namespace cutefish::shell::panel {
 // PanelStyle.popupMargin: the gap every panel keeps from the bar and the
 // screen edge.
 inline constexpr double kPopupMargin = 6;
-// PanelStyle.tileRadius, and the panels' window radius.
-inline constexpr double kTileRadius = 16;
+// Every panel's window radius, the control centre's too.
+inline constexpr double kPanelRadius = 16;
+// The control centre's tiles. Concentric with the window across their 10 px
+// inset would leave 6, too tight against the round plates and pills inside.
+inline constexpr double kTileRadius = 12;
 
 bool dark();
 // PanelStyle.tileColor: a lift of the panel rather than a card on it.
@@ -36,6 +39,9 @@ ui::Color tileInkColor();
 ui::Color secondaryTextColor();
 // PanelStyle.panelTint over PanelGlass.
 render::GlassParams panelGlass();
+// The control centre's thinner glass: the wallpaper shows through, and the
+// tiles lifted off it carry the text.
+render::GlassParams controlCenterGlass();
 // StatusPanel's surfaceColor: the ink reference of the status panels.
 ui::Color statusSurfaceColor();
 // FishUI's Theme.textColor at `opacity`, as a Rectangle's opacity draws it.

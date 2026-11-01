@@ -23,6 +23,10 @@ enum class CompositorColor : uint16_t {
     LevelTrackFill,
     LevelTrackKnob,
     LevelTrackKnobShadow,
+    LevelTrackSunkenBackground,
+    LevelTrackSunkenOutline,
+    LevelTrackSunkenKnobOutline,
+    LevelTrackSunkenKnobShadow,
 
     ClipboardSurface,
     ClipboardHairline,

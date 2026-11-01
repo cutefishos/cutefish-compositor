@@ -36,6 +36,9 @@ public:
     const std::string &icon() const { return m_icon; }
     // Whether a change of position glides (120 ms, OutCubic) rather than snaps.
     void setAnimated(bool animated) { m_animated = animated; }
+    // A darker track under a white fill and knob in either theme, for one on
+    // a card that is lighter than the panel.
+    void setSunken(bool sunken);
 
     // The icon's side and its distance from the cap's edge.
     static constexpr double kIconSize = 14;
@@ -48,6 +51,7 @@ private:
     double m_drawn = 0;
     double m_from = 0;
     bool m_animated = false;
+    bool m_sunken = false;
     std::string m_icon;
     std::unique_ptr<ui::Animation> m_animation;
 };
