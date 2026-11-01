@@ -22,6 +22,17 @@ sudo make install
 
 Pass `-DBUILD_TESTING=ON` to build the tests.
 
+## Open-source references
+
+Parts of the compositor were written with an open-source project as their
+reference:
+
+- `src/input/pointer_acceleration.cpp`: pointer acceleration curves,
+  reimplemented from [IOHIDFamily](https://github.com/apple-oss-distributions/IOHIDFamily)
+  (Apple Public Source License 2.0): `IOHIDParametricAcceleration`'s
+  parametric curve. Its curve table is the `HIDAccelCurves` table of
+  IOHIDFamily's generic HID pointer, converted from 16.16 fixed point.
+
 ## License
 
 BSD-3-Clause; see [LICENSE](LICENSE). Code ported from Chromium keeps its
