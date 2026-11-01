@@ -28,8 +28,8 @@ namespace cutefish::shell {
 
 using namespace status_panel;
 
-// The panels' titles: 13 pt.
-static constexpr double kTitleFontSize = 13.0 * 4 / 3;
+// The panels' titles: 10.5 pt.
+static constexpr double kTitleFontSize = 10.5 * 4 / 3;
 static constexpr double kBadgeSize = 28;
 static constexpr double kGlyphSize = 16;
 static constexpr double kRowSpacing = 12;
@@ -518,7 +518,9 @@ void StatusPanelView::layout()
         const ui::SizeF size = m_accessory->sizeHint();
         // Centred on the capitals.
         const double capCenter = snapToDevice(snapToDevice(textBaseline, scale) - m_title->capHeight() / 2, scale);
-        m_accessory->setGeometry({headerRight - size.width, capCenter - size.height / 2, size.width, size.height});
+        // In the panel's coordinates, the clip's start added: the clip would cut its top.
+        m_accessory->setGeometry({headerRight - size.width, kContentPadding + capCenter - size.height / 2,
+                                  size.width, size.height});
         headerRight -= size.width + kSectionSpacing;
     }
     if (m_detail->isVisible()) {
@@ -591,7 +593,7 @@ protected:
 NetworkPanel::NetworkPanel(ControlCenterServices &services)
     : StatusPanelView(tr("Wi-Fi"), tr("Wi-Fi Settings"), "wlan", services)
 {
-    m_switch = header()->addChild<ui::Switch>();
+    m_switch = addChild<ui::Switch>();
     m_switch->setPadding({0, 0, 0, 0});
     m_switch->setLayoutHints({.preferredHeight = kHeaderHeight});
     m_switch->onToggled = [this](bool checked) {
@@ -601,6 +603,7 @@ NetworkPanel::NetworkPanel(ControlCenterServices &services)
     };
     setAccessory(m_switch);
 
+    m_separator = body()->addChild<Separator>();
     m_scroll = body()->addChild<ui::ScrollView>();
     m_scroll->setScrollDirections(false, true);
     m_list = m_scroll->setContent<List>();
@@ -694,20 +697,39 @@ double NetworkPanel::listHeight() const
     return m_list->heightForWidth(kWidth);
 }
 
+// The line above the list: kHeaderLineGap below the title's baseline, and
+// the first row's badge as far below it. Fixed lengths, so the line keeps its
+// place while the list fills in.
+static constexpr double kHeaderLineGap = 14;
+// A row's badge sits this far inside its background.
+static constexpr double kBadgeInset = (kMinimumRowHeight - kBadgeSize) / 2;
+
+double NetworkPanel::listLead() const
+{
+    return kHeaderLineGap - kHorizontalPadding + 1 + kHeaderLineGap - kBadgeInset;
+}
+
 double NetworkPanel::bodyHeight() const
 {
     const bool listed = !m_networks.empty() || services().hotspotActive();
-    return listed ? std::min(listHeight(), std::max(0.0, bodyMaximumHeight())) : 0;
+    return listed ? listLead() + std::min(listHeight(), std::max(0.0, bodyMaximumHeight() - listLead())) : 0;
 }
 
 void NetworkPanel::layoutBody(double top)
 {
     const bool listed = !m_networks.empty() || services().hotspotActive();
     m_scroll->setVisible(listed);
+    // A line above the list as well as the footer's below it; without a list
+    // the footer's is the only one.
+    m_separator->setVisible(listed);
+    const double baseline = top - kHorizontalPadding;
+    // On whole device pixels, or the line spreads over two rows.
+    const double lineY = snapToDevice(baseline + kHeaderLineGap, windowScale(this));
+    m_separator->setGeometry({kHorizontalPadding, lineY, kWidth - 2 * kHorizontalPadding, 1});
     // The list keeps its final height while the panel moves, so no scroll bar
     // shows on the way.
-    const double height = std::min(listHeight(), std::max(0.0, bodyMaximumHeight()));
-    m_scroll->setGeometry({0, top, kWidth, height});
+    const double height = std::min(listHeight(), std::max(0.0, bodyMaximumHeight() - listLead()));
+    m_scroll->setGeometry({0, top + listLead(), kWidth, height});
 }
 
 VolumePanel::VolumePanel(ControlCenterServices &services)

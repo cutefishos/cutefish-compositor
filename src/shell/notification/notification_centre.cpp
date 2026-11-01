@@ -427,7 +427,8 @@ protected:
                             clear->buttonHeight()});
 
         ui::Label *title = m_centre->m_title;
-        title->setFontSize(14.0 * 4 / 3);
+        // The status panels' title size.
+        title->setFontSize(10.5 * 4 / 3);
         const ui::SizeF size = title->sizeHint();
         title->setGeometry({kInset, top + (kHeaderHeight - size.height) / 2,
                             std::max(0.0, clearX - theme.largeSpacing - kInset), size.height});
