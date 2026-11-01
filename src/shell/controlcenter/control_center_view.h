@@ -7,7 +7,6 @@
 
 #include <functional>
 
-#include "base/timer.h"
 #include "ui/view.h"
 
 namespace cutefish::shell {
@@ -68,7 +67,6 @@ private:
     MediaTile *m_media;
     TileSlider *m_brightness;
     TileSlider *m_sound;
-    base::Timer m_brightnessTimer;
     bool m_darkModeShown = false;
 };
 

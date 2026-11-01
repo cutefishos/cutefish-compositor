@@ -18,9 +18,6 @@ using cutefish::i18n::tr;
 
 namespace cutefish::shell {
 
-// The slider writes the backlight once the knob rests this long.
-static constexpr std::chrono::milliseconds kBrightnessDelay {100};
-
 ControlCenterView::ControlCenterView(ControlCenterServices &services)
     : m_services(services)
 {
@@ -76,12 +73,9 @@ ControlCenterView::ControlCenterView(ControlCenterServices &services)
     m_brightness = addChild<TileSlider>(tr("Display"));
     m_brightness->slider()->setRange(1, 100, 1);
     m_brightness->slider()->setIcon(panel::artwork("brightness", false));
-    m_brightnessTimer.setSingleShot(true);
-    m_brightnessTimer.setInterval(kBrightnessDelay);
-    m_brightnessTimer.onTimeout = [this] {
-        m_services.setBrightness(int(std::lround(m_brightness->slider()->visualValue())));
+    m_brightness->slider()->onMoved = [this](double value) {
+        m_services.setBrightness(int(std::lround(value)));
     };
-    m_brightness->slider()->onMoved = [this](double) { m_brightnessTimer.start(); };
 
     m_sound = addChild<TileSlider>(tr("Sound"));
     m_sound->slider()->setRange(0, 1, 0.01);

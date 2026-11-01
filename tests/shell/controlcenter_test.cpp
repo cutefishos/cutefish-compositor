@@ -363,12 +363,10 @@ TEST_F(ControlCenterTest, SlidersMoveTheLevelsAndTheMediaCardControlsThePlayer)
     frame();
     EXPECT_NEAR(0.55, services->volumeValue, 0.011);
 
-    // The brightness slider writes once the knob rests 100 ms.
+    // The brightness slider writes as the knob moves.
     shell::LevelSlider *display = view->brightnessSlider()->slider();
     const ui::PointF displayOrigin = display->mapToWindow({0, 0});
     click(popup.x() + displayOrigin.x + display->geometry().height / 2, popup.y() + displayOrigin.y + 11);
-    EXPECT_EQ(0, services->brightnessWrites);
-    test::runFor(std::chrono::milliseconds(150));
     EXPECT_EQ(1, services->brightnessWrites);
     EXPECT_EQ(1, services->brightnessValue);
 
