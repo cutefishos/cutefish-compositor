@@ -12,6 +12,7 @@
 #include <cmath>
 
 #include "compositor/compositor.h"
+#include "compositor/surface.h"
 #include "input/seat.h"
 #include "scene/node.h"
 #include "wm/activation.h"
@@ -208,29 +209,41 @@ const DockLayoutManager::Dock *DockLayoutManager::dockFor(const Window *window) 
 
 // Upstream: WorkspaceController::GetWindowState. The active window decides
 // fullscreen when it is on this output; otherwise the topmost window there.
-WorkspaceState DockLayoutManager::workspaceStateFor(const base::Rect &output) const
+const Window *DockLayoutManager::topmostWindowFor(const base::Rect &output) const
 {
     const auto &windows = m_manager->windows();
     auto onOutput = [&](const Window *window) {
         return isWorkspaceWindow(window) && m_manager->outputBoundsFor(window) == output;
     };
 
-    const Window *topmost = m_manager->activation()->activeWindow();
-    if (!topmost || !onOutput(topmost)) {
-        topmost = nullptr;
-        for (auto it = windows.rbegin(); it != windows.rend(); ++it) {
-            if (onOutput(*it)) {
-                topmost = *it;
-                break;
-            }
-        }
+    const Window *active = m_manager->activation()->activeWindow();
+    if (active && onOutput(active))
+        return active;
+    for (auto it = windows.rbegin(); it != windows.rend(); ++it) {
+        if (onOutput(*it))
+            return *it;
     }
+    return nullptr;
+}
+
+WorkspaceState DockLayoutManager::workspaceStateFor(const base::Rect &output) const
+{
+    const Window *topmost = topmostWindowFor(output);
     if (topmost && isFullscreenOrOverFullscreen(topmost))
         return WorkspaceState::Fullscreen;
 
     if (m_manager->hasMaximizedWindow(output))
         return WorkspaceState::Maximized;
     return WorkspaceState::Default;
+}
+
+Window *DockLayoutManager::fullscreenWindowFor(const base::Rect &output) const
+{
+    for (const Window *window = topmostWindowFor(output); window; window = window->transientParent()) {
+        if (window->stateType() == WindowStateType::Fullscreen)
+            return const_cast<Window *>(window);
+    }
+    return nullptr;
 }
 
 bool DockLayoutManager::hasVisibleWindow(const base::Rect &output) const
@@ -300,7 +313,11 @@ DockAutoHideState DockLayoutManager::computeAutoHideState(const Window *dock, co
         return DockAutoHideState::Shown;
 
     if (m_pointer) {
-        const base::Rect region = shownRegion(dock->bounds(), output, entry.edge);
+        base::Rect region = shownRegion(dock->bounds(), output, entry.edge);
+        if (entry.edge == ScreenEdge::Top) {
+            if (const Window *fullscreen = fullscreenWindowFor(output); fullscreen && fullscreen->rootSurface())
+                region.setBottom(region.bottom() + fullscreen->rootSurface()->fullscreenBarsHeight());
+        }
         if (revealing && region.contains(m_pointer->toPoint()))
             return DockAutoHideState::Shown;
         if (revealStrip(output, entry.edge).contains(m_pointer->toPoint()))
@@ -386,6 +403,12 @@ void DockLayoutManager::updateDock(Window *dock, Dock &entry)
     const bool revealing =
             entry.autoHide == DockAutoHideState::Shown || entry.autoHideTimer.isActive();
     const DockAutoHideState autoHide = computeAutoHideState(dock, entry, output, revealing);
+    // A change applied below tells the window itself, from the new state.
+    const bool applying = autoHide != entry.autoHide
+            && (entry.visibility == DockVisibilityState::Visible
+                || (!entry.autoHideTimer.isActive() && autoHide == DockAutoHideState::Hidden));
+    if (!applying)
+        updateReveal(dock, entry);
     if (autoHide == entry.autoHide) {
         if (autoHide == DockAutoHideState::Hidden || entry.pointerOver)
             entry.autoHideTimer.stop();
@@ -415,6 +438,42 @@ void DockLayoutManager::applyAutoHideState(Window *dock, Dock &entry, DockAutoHi
     slideTo(dock, entry,
             state == DockAutoHideState::Hidden ? hiddenOffset(dock->bounds(), output, entry.edge)
                                                : base::Point());
+    updateReveal(dock, entry);
+    present(dock, entry);
+}
+
+// The window hears where the panel is headed as it sets off, and is pushed
+// down with it frame by frame in present().
+void DockLayoutManager::updateReveal(Window *dock, Dock &entry)
+{
+    if (dock->role() != WindowRole::Panel || entry.edge != ScreenEdge::Top)
+        return;
+    const base::Rect output = m_manager->outputBoundsFor(dock);
+    Window *fullscreen = fullscreenWindowFor(output);
+    const int offset = fullscreen && entry.autoHide == DockAutoHideState::Shown
+            ? std::max(0, dock->bounds().bottom() - output.top())
+            : 0;
+    Window *previous = m_manager->windowById(entry.revealedOver);
+    if (previous != fullscreen) {
+        if (previous && entry.revealSent != 0)
+            m_manager->fullscreenRevealChanged.emit(previous, 0, kSlideDurationMs);
+        entry.revealedOver = fullscreen ? fullscreen->id() : 0;
+        entry.revealSent = 0;
+    }
+    if (fullscreen && offset != entry.revealSent) {
+        entry.revealSent = offset;
+        m_manager->fullscreenRevealChanged.emit(fullscreen, offset, kSlideDurationMs);
+    }
+
+    Window *pushing = fullscreen && fullscreen->rootSurface() && fullscreen->rootSurface()->fullscreenBarsPush()
+            ? fullscreen
+            : nullptr;
+    Window *pushed = m_manager->windowById(entry.pushed);
+    if (pushed == pushing)
+        return;
+    if (pushed)
+        pushed->setPresentationOffset(base::Point());
+    entry.pushed = pushing ? pushing->id() : 0;
     present(dock, entry);
 }
 
@@ -445,6 +504,11 @@ void DockLayoutManager::present(Window *dock, const Dock &entry)
     }
     dock->setPresentationOffset(offset);
     dock->setPresentationHidden(hidden);
+    if (Window *pushed = m_manager->windowById(entry.pushed)) {
+        const base::Rect output = m_manager->outputBoundsFor(dock);
+        const int reach = hidden ? 0 : std::max(0, dock->bounds().bottom() + offset.y() - output.top());
+        pushed->setPresentationOffset(base::Point(0, reach));
+    }
     if (scene::Node *node = dock->node())
         node->setEventTargetingBlocked(entry.autoHide == DockAutoHideState::Hidden);
 }
@@ -494,6 +558,10 @@ void DockLayoutManager::onWindowRemoved(Window *window)
 {
     if (window->hasObserver(this))
         window->removeObserver(this);
+    if (Dock *entry = dockFor(window)) {
+        if (Window *pushed = m_manager->windowById(entry->pushed))
+            pushed->setPresentationOffset(base::Point());
+    }
     m_docks.erase(window);
     m_manager->setDockHidden(window, false);
     update();

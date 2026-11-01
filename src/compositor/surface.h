@@ -149,6 +149,15 @@ public:
     // The client's opacity for the whole window, 0 to 1; see set_opacity.
     float opacity() const { return m_opacity; }
     void setOpacity(float opacity);
+    // Read when the top panel slides over the window in the fullscreen
+    // state; see set_fullscreen_bars.
+    int fullscreenBarsHeight() const { return m_fullscreenBarsHeight; }
+    bool fullscreenBarsPush() const { return m_fullscreenBarsPush; }
+    void setFullscreenBars(int height, bool push)
+    {
+        m_fullscreenBarsHeight = height;
+        m_fullscreenBarsPush = push;
+    }
 
     struct MenuAddress {
         std::string service;
@@ -540,6 +549,8 @@ private:
     bool m_alwaysOnTop = false;
     bool m_castsShadow = true;
     float m_opacity = 1;
+    int m_fullscreenBarsHeight = 0;
+    bool m_fullscreenBarsPush = false;
     ResizeAnchor m_resizeAnchor = ResizeAnchor::TopLeft;
     bool m_serverResize = false;
     std::string m_restoreId;

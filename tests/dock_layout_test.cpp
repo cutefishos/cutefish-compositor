@@ -581,4 +581,57 @@ TEST_F(DockLayoutTest, SideDockLeavesThroughItsOwnEdge)
     EXPECT_TRUE(isShown());
 }
 
+TEST_F(DockLayoutTest, TopPanelTellsAFullscreenWindowAndPushesItWhenAsked)
+{
+    Window *panel = makeWindow(base::Rect(0, 0, 1000, 30));
+    panel->setRole(WindowRole::Panel);
+    Window *window = makeWindow(base::Rect(100, 100, 300, 200));
+    window->activate();
+    std::vector<std::pair<int, int>> reveals;
+    base::Subscription watch = manager.fullscreenRevealChanged.connect(
+            [&](Window *revealed, int offset, int duration) {
+        if (revealed == window)
+            reveals.emplace_back(offset, duration);
+    });
+    window->setFullscreen(true);
+    finishSlide();
+    EXPECT_TRUE(reveals.empty());
+
+    // Bars of 40 under the panel: the pointer over them keeps it.
+    window->rootSurface()->setFullscreenBars(40, true);
+    moveTo(base::PointF(500, 2));
+    waitForReveal();
+    ASSERT_EQ(DockAutoHideState::Shown, layout.autoHideState(panel));
+    ASSERT_EQ(1u, reveals.size());
+    EXPECT_EQ(std::make_pair(30, DockLayoutManager::kSlideDurationMs), reveals.back());
+    // The window comes down with the panel, all the way once it is in.
+    layout.advance(2000);
+    EXPECT_EQ(base::Point(0, 0), window->presentationOffset());
+    layout.advance(2000 + DockLayoutManager::kSlideDurationMs);
+    EXPECT_EQ(base::Point(0, 30), window->presentationOffset());
+
+    moveTo(base::PointF(500, 65));
+    waitForReveal();
+    EXPECT_EQ(DockAutoHideState::Shown, layout.autoHideState(panel));
+    moveTo(base::PointF(500, 75));
+    waitForReveal();
+    EXPECT_EQ(DockAutoHideState::Hidden, layout.autoHideState(panel));
+    EXPECT_EQ(std::make_pair(0, DockLayoutManager::kSlideDurationMs), reveals.back());
+    finishSlide();
+    EXPECT_EQ(base::Point(), window->presentationOffset());
+
+    // Without push the window stays where it is.
+    window->rootSurface()->setFullscreenBars(40, false);
+    moveTo(base::PointF(500, 2));
+    waitForReveal();
+    finishSlide();
+    EXPECT_EQ(DockAutoHideState::Shown, layout.autoHideState(panel));
+    EXPECT_EQ(base::Point(), window->presentationOffset());
+    EXPECT_EQ(30, reveals.back().first);
+
+    // Leaving fullscreen under the panel takes the offset back.
+    window->setFullscreen(false);
+    EXPECT_EQ(0, reveals.back().first);
+}
+
 } // namespace

@@ -17,6 +17,7 @@
 #include "compositor/surface.h"
 #include "wayland/protocols/surface_blur.h"
 #include "wayland/server_util.h"
+#include "wm/window.h"
 #include "wm/window_manager.h"
 
 namespace cutefish::wayland {
@@ -47,6 +48,7 @@ struct WorkAreaWatch {
     DisplayListener displayDestroyed {};
     base::Subscription outputsChanged;
     base::Subscription zonesChanged;
+    base::Subscription fullscreenReveal;
 };
 
 void sendWorkAreas(wl_resource *resource)
@@ -204,6 +206,17 @@ void setOpacity(wl_client *, wl_resource *resource, wl_resource *surface, wl_fix
     getUserDataAs<compositor::Surface>(surface)->setOpacity(float(opacity));
 }
 
+void setFullscreenBars(wl_client *, wl_resource *resource, wl_resource *surface, int32_t height,
+                       uint32_t push)
+{
+    if (height < 0 || push > 1) {
+        wl_resource_post_error(resource, CUTEFISH_WINDOW_HINTS_V1_ERROR_INVALID_VALUE,
+                               "fullscreen bars need a height of zero or more and a push of zero or one");
+        return;
+    }
+    getUserDataAs<compositor::Surface>(surface)->setFullscreenBars(height, push != 0);
+}
+
 void hideApplication(wl_client *, wl_resource *resource, wl_resource *surface)
 {
     auto *manager = static_cast<Manager *>(wl_resource_get_user_data(resource));
@@ -217,7 +230,7 @@ const struct cutefish_window_hints_v1_interface implementation = {
         destroy, setSkipTaskbar, setAlwaysOnTop, setResizeAnchor,
         setServerResize, setRestoreId, setRestoreSize, setPlacementAnchor,
         unsetPlacementAnchor, setBodyShape, unsetBodyShape, setShadow,
-        setOpacity, hideApplication};
+        setOpacity, hideApplication, setFullscreenBars};
 
 void unbind(wl_resource *resource)
 {
@@ -258,6 +271,18 @@ void sendInteractiveResize(wl_resource *surface, bool active)
     }
 }
 
+void sendFullscreenReveal(wm::Window *window, int offset, int durationMs)
+{
+    wl_resource *surface = window->rootSurface() ? getSurfaceResource(window->rootSurface()) : nullptr;
+    if (!surface)
+        return;
+    wl_client *client = wl_resource_get_client(surface);
+    for (wl_resource *resource : managers()) {
+        if (wl_resource_get_client(resource) == client)
+            cutefish_window_hints_v1_send_fullscreen_reveal(resource, surface, offset, uint32_t(durationMs));
+    }
+}
+
 wl_global *createWindowHintsGlobal(wl_display *display, wm::WindowManager *windows)
 {
     wl_global *global =
@@ -273,6 +298,10 @@ wl_global *createWindowHintsGlobal(wl_display *display, wm::WindowManager *windo
     });
     watch->zonesChanged = windows->exclusiveZonesChanged.connect([windows] {
         sendWorkAreas(windows);
+    });
+    watch->fullscreenReveal = windows->fullscreenRevealChanged.connect(
+            [](wm::Window *window, int offset, int durationMs) {
+        sendFullscreenReveal(window, offset, durationMs);
     });
     return global;
 }

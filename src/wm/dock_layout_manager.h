@@ -67,6 +67,10 @@ enum class WorkspaceState {
 // dock or at its edge, a menu of the dock's, the launcher - and from whether
 // there is a window to make room for at all. Showing, and hiding because the
 // pointer left, wait kAutoHideDelayMs; anything else hides at once.
+// A panel along the top edge tells a fullscreen window under it when it
+// comes and goes, keeps itself shown while the pointer is over the bars the
+// window shows under it, and pushes the window down with it when the window
+// asks for that.
 // A dock or panel that maps slides in from its edge, as the session starts.
 // The window overview pushes the panels off their edge as it comes in,
 // following its progress, and lets them back as it leaves.
@@ -140,6 +144,11 @@ private:
         // from its bounds, and not drawn at all when parked.
         base::Point offset;
         bool parked = false;
+        // A top panel's fullscreen window and the offset it was last told,
+        // and the window it pushes down, if any.
+        uint64_t revealedOver = 0;
+        int revealSent = 0;
+        uint64_t pushed = 0;
     };
 
     Dock *dockFor(Window *window);
@@ -156,6 +165,14 @@ private:
                                            const base::Rect &output, bool revealing) const;
     bool isAwayForSession() const { return m_sessionStarting || m_sessionEnding; }
     bool hasVisibleWindow(const base::Rect &output) const;
+    // The window the workspace state of the output follows.
+    const Window *topmostWindowFor(const base::Rect &output) const;
+    // The fullscreen window the workspace on the output is fullscreen for,
+    // if it is.
+    Window *fullscreenWindowFor(const base::Rect &output) const;
+    // Tells the fullscreen window under a top panel where the panel is going,
+    // and picks the window it pushes.
+    void updateReveal(Window *dock, Dock &entry);
     bool isLauncherShowing(const base::Rect &output) const;
     void applyAutoHideState(Window *dock, Dock &entry, DockAutoHideState state);
     // Aims the dock at where its current state puts it: on screen, or just

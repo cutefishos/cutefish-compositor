@@ -515,6 +515,10 @@ public:
     base::Signal<> exclusiveZonesChanged;
     // A popup took a grab or let it go.
     base::Signal<> popupGrabsChanged;
+    // The panel along an output's top edge starts to slide over a fullscreen
+    // window, or away: how far into the window it reaches once the slide of
+    // that many milliseconds ends; see fullscreen_reveal.
+    base::Signal<Window *, int, int> fullscreenRevealChanged;
 
 private:
     bool hasApplicationWindow(int64_t process) const;

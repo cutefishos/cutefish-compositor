@@ -390,6 +390,25 @@ TEST_F(WindowHintsProtocolTest, OpacityIsImmediateAndBetweenZeroAndOne)
     wl_surface_destroy(surface);
 }
 
+TEST_F(WindowHintsProtocolTest, FullscreenBarsAreImmediateAndRejectOtherValues)
+{
+    auto *surface = wl_compositor_create_surface(clientCompositor);
+    ASSERT_GE(roundtrip(), 0);
+    auto *model = compositor.surfaces().front();
+    EXPECT_EQ(model->fullscreenBarsHeight(), 0);
+    EXPECT_FALSE(model->fullscreenBarsPush());
+    cutefish_window_hints_v1_set_fullscreen_bars(hints, surface, 52, 1);
+    ASSERT_GE(roundtrip(), 0);
+    EXPECT_EQ(model->fullscreenBarsHeight(), 52);
+    EXPECT_TRUE(model->fullscreenBarsPush());
+    cutefish_window_hints_v1_set_fullscreen_bars(hints, surface, 52, 2);
+    EXPECT_LT(roundtrip(), 0);
+    EXPECT_EQ(wl_display_get_protocol_error(client, nullptr, nullptr),
+              CUTEFISH_WINDOW_HINTS_V1_ERROR_INVALID_VALUE);
+    EXPECT_TRUE(model->fullscreenBarsPush());
+    wl_surface_destroy(surface);
+}
+
 TEST_F(WindowHintsProtocolTest, HideApplicationOnASurfaceWithoutAWindowIsHarmless)
 {
     auto *surface = wl_compositor_create_surface(clientCompositor);
