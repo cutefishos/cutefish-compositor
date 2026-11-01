@@ -1521,6 +1521,7 @@ TEST_F(ShellSurfaceTest, PopupClientShadowSuppressesTheSharedCompositorShadow)
     auto *popup = makeShell();
     ASSERT_TRUE(popup->setPopup(parent, base::Rect(20, 30, 160, 120)));
     auto *surface = popup->rootSurface();
+    surface->setBackgroundBlur(base::Rect(10, 10, 160, 120), 8);
     popup->setGeometry(base::Rect(10, 10, 160, 120));
     attach(surface, base::Size(180, 140));
     surface->commit();

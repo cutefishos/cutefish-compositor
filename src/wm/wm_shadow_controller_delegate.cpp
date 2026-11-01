@@ -32,8 +32,12 @@ bool WmShadowControllerDelegate::shouldShowShadowForWindow(const Window *window)
     if (window->isPopup() && !window->isDecorated() && window->hasClientInputMargin())
         return false;
 
-    if (window->isPopup())
-        return true;
+    // A popup casts a shadow only around a body it describes; any other popup
+    // may paint its own shadow inside a transparent margin of its surface.
+    if (window->isPopup()) {
+        const auto *surface = window->rootSurface();
+        return surface && (!surface->backgroundBlurRect().isEmpty() || !surface->bodyShape().isEmpty());
+    }
 
     switch (window->role()) {
     case WindowRole::Normal:

@@ -351,6 +351,7 @@ TEST_F(ShadowControllerTest, PopupWithInputMarginDrawsItsOwnShadow)
     ShellSurface *popup = shells.back().get();
     ASSERT_TRUE(popup->setPopup(parent, base::Rect(10, 20, 120, 90)));
     popup->setGeometry(base::Rect(0, 0, 120, 90));
+    popup->rootSurface()->setBackgroundBlur(base::Rect(4, 4, 112, 82), 8);
     attach(popup->rootSurface(), {120, 90});
     popup->rootSurface()->commit();
     Window *window = popup->window();
@@ -367,6 +368,27 @@ TEST_F(ShadowControllerTest, PopupWithInputMarginDrawsItsOwnShadow)
     popup->rootSurface()->setInputRegion(base::Region(base::Rect(0, 4, 116, 82)));
     popup->rootSurface()->commit();
     EXPECT_FALSE(window->hasClientInputMargin());
+    EXPECT_EQ(elevationOf(window), ShadowElevation::MenuOrTooltip);
+}
+
+// A popup that describes no body may paint a rounded card and its shadow
+// inside a transparent margin while declaring neither window geometry nor an
+// input band; a shadow around its surface would frame that margin.
+TEST_F(ShadowControllerTest, PopupWithoutABodyCastsNoShadow)
+{
+    ShellSurface *parent = makeToplevel({400, 300}, false);
+    surfaces.push_back(compositor.createSurface());
+    shells.push_back(std::make_unique<ShellSurface>(&manager, surfaces.back().get()));
+    ShellSurface *popup = shells.back().get();
+    ASSERT_TRUE(popup->setPopup(parent, base::Rect(10, 20, 120, 90)));
+    attach(popup->rootSurface(), {120, 90});
+    popup->rootSurface()->commit();
+    Window *window = popup->window();
+    ASSERT_TRUE(window);
+    EXPECT_EQ(elevationOf(window), ShadowElevation::None);
+
+    popup->rootSurface()->setBackgroundBlur(base::Rect(4, 4, 112, 82), 8);
+    popup->rootSurface()->commit();
     EXPECT_EQ(elevationOf(window), ShadowElevation::MenuOrTooltip);
 }
 
