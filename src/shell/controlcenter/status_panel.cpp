@@ -747,6 +747,7 @@ VolumePanel::VolumePanel(ControlCenterServices &services)
     // TRANSLATORS: the heading above the list of sound output devices.
     m_heading = body()->addChild<ui::Label>(tr("Output"));
     m_heading->setWeight(kDemiBold);
+    m_separator = body()->addChild<Separator>();
     refresh();
 }
 
@@ -797,6 +798,11 @@ void VolumePanel::refresh()
     contentChanged();
 }
 
+// The separator between the slider and "Output": more room under the slider's
+// hard edge than over the heading, whose capitals start below its line box.
+static constexpr double kOutputLineAbove = 14;
+static constexpr double kOutputLineBelow = 10;
+
 double VolumePanel::bodyHeight() const
 {
     std::vector<double> heights;
@@ -805,7 +811,8 @@ double VolumePanel::bodyHeight() const
     if (m_slider->isVisible())
         heights.push_back(LevelSlider::kHeight);
     if (!m_outputs.empty()) {
-        heights.push_back(2 + m_heading->sizeHint().height);
+        // The separator and the heading, after the slider's section spacing.
+        heights.push_back(kOutputLineAbove - kSectionSpacing + 1 + kOutputLineBelow + m_heading->sizeHint().height);
         double rows = 0;
         for (const PanelRow *row : m_rows)
             rows += row->heightForWidth(kWidth);
@@ -832,9 +839,13 @@ void VolumePanel::layoutBody(double top)
         m_slider->setGeometry({x, y, width, LevelSlider::kHeight});
         y += LevelSlider::kHeight + kSectionSpacing;
     }
+    m_separator->setVisible(!m_outputs.empty());
     if (m_outputs.empty())
         return;
-    y += 2;
+    // On whole device pixels so it is one pixel thick.
+    const double separator = snapToDevice(y - kSectionSpacing + kOutputLineAbove, windowScale(this));
+    m_separator->setGeometry({x, separator, width, 1});
+    y = separator + 1 + kOutputLineBelow;
     m_heading->setGeometry({x, y, width, m_heading->sizeHint().height});
     y += m_heading->sizeHint().height + kSectionSpacing;
     for (PanelRow *row : m_rows) {
@@ -943,7 +954,7 @@ void BatteryPanel::layoutBody(double top)
         return;
     // Spaced like the separator above the settings link.
     const double margin = std::max(0.0, kSeparatorSpacing - kSectionSpacing);
-    const double separator = y + kSectionSpacing + margin;
+    const double separator = snapToDevice(y + kSectionSpacing + margin, windowScale(this));
     m_separator->setGeometry({x, separator, width, 1});
     y = separator + 1 + margin + kSectionSpacing;
     m_heading->setGeometry({x, y, width, m_heading->sizeHint().height});

@@ -243,6 +243,7 @@ private:
     ui::Label *m_noOutput;
     LevelSlider *m_slider;
     ui::Label *m_heading;
+    ui::View *m_separator;
     std::vector<PanelRow *> m_rows;
     std::vector<AudioOutput> m_outputs;
 };
