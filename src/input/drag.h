@@ -128,6 +128,8 @@ public:
 
     // For the running drag only, the icon and its subsurfaces included.
     void setIconOpacity(float opacity);
+    bool hasIcon() const { return m_icon != nullptr; }
+    float iconOpacity() const { return m_iconOpacity; }
 
     // For the running drag only: over nothing that takes the drop it shows
     // the default pointer rather than no-drop.

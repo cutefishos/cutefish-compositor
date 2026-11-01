@@ -482,6 +482,44 @@ TEST_F(XdgToplevelDragProtocolTest, ANewWindowMapsUnderThePointerAndStaysWhereIt
     });
 }
 
+TEST_F(XdgToplevelDragProtocolTest, AnIconFadesIntoThePreviewAsThePointerMovesOn)
+{
+    run([&](Client &c) {
+        Toplevel *origin = mapSourceWindowAndPress(c);
+        wl_data_source *source = c.makeSource();
+        auto *drag = xdg_toplevel_drag_manager_v1_get_xdg_toplevel_drag(c.dragManager, source);
+        wl_surface *icon = wl_compositor_create_surface(c.compositor);
+        wl_data_device_start_drag(c.dataDevice, source, origin->surface, icon, c.buttonSerial);
+        c.sync();
+
+        Toplevel *detached = c.makeToplevel();
+        xdg_toplevel_drag_v1_attach(drag, detached->toplevel, 20, 10);
+        c.map(detached, base::Size(200, 150));
+        check([&] {
+            wm::Window *window = windowSized(base::Size(200, 150));
+            ASSERT_NE(nullptr, window);
+            // Only the icon near where the drag started.
+            EXPECT_FLOAT_EQ(0, opacityOf(window));
+            EXPECT_FLOAT_EQ(1, seat.drag()->iconOpacity());
+            const double halfway = wm::ToplevelDrag::kIconDistance + wm::ToplevelDrag::kIconFadeDistance / 2;
+            manager.onPointerMotionAbsolute(at(3), base::PointF(150, 150 + halfway));
+            EXPECT_FLOAT_EQ(wm::ToplevelDrag::kPreviewOpacity / 2, opacityOf(window));
+            EXPECT_FLOAT_EQ(0.5f, seat.drag()->iconOpacity());
+            manager.onPointerMotionAbsolute(at(4), base::PointF(150, 400));
+            EXPECT_FLOAT_EQ(wm::ToplevelDrag::kPreviewOpacity, opacityOf(window));
+            EXPECT_FLOAT_EQ(0, seat.drag()->iconOpacity());
+            manager.onPointerButton(at(5), BTN_LEFT, false);
+            EXPECT_FLOAT_EQ(1, opacityOf(window));
+        });
+        c.sync();
+
+        xdg_toplevel_drag_v1_destroy(drag);
+        wl_data_source_destroy(source);
+        wl_surface_destroy(icon);
+        c.sync();
+    });
+}
+
 // A new window of an application with a maximized window is told to maximize
 // in its initial configure. Qt maps it at that size before the attach reaches
 // the compositor, so it must neither be maximized after it is placed under the

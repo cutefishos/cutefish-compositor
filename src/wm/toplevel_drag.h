@@ -15,8 +15,10 @@
 // against the attach, and the tab-dragging window property.
 //
 // What is added: a window that maps during the drag is a preview until it is
-// let go. It is drawn as a translucent thumbnail around the pointer, and grows
-// to its size when dropped; it cannot be activated, so the window it was
+// let go. It is drawn as a thumbnail around the pointer, and grows to its size
+// when dropped. A drag with an icon shows the icon alone at first, and the
+// icon fades into the thumbnail as the pointer moves on from where the drag
+// started; it cannot be activated, so the window it was
 // pulled out of keeps the keyboard; dropped where nothing takes it, it becomes
 // an ordinary window and is activated. Over a window of its own process that
 // takes the drop it is not drawn at all, from the frame that window next
@@ -77,9 +79,13 @@ public:
     void onSurfaceCommit(compositor::Surface *surface) override;
 
     // How opaque a preview is drawn, and how wide at most.
-    static constexpr float kPreviewOpacity = 0.85f;
+    static constexpr float kPreviewOpacity = 1.0f;
     static constexpr double kPreviewWidth = 320;
     static constexpr double kPreviewMaxScale = 0.5;
+    // How far the pointer moves from where the drag started before the icon
+    // starts to fade into the preview, and how much further until it has.
+    static constexpr double kIconDistance = 40;
+    static constexpr double kIconFadeDistance = 60;
     // How long a client has after the drag to take its preview back before
     // it is shown as an ordinary window anyway.
     static constexpr int kSettleDelayMs = 500;
@@ -93,12 +99,20 @@ private:
     void stopMove();
     void detach();
     void unwatchDockTarget();
+    // Shows the icon or the preview, or a mix of both, for how far the
+    // pointer is from where the drag started; neither while docked.
+    void updateCrossFade();
 
     WindowManager *m_manager = nullptr;
     std::shared_ptr<clipboard::DataSource> m_source;
     compositor::Surface *m_surface = nullptr;
     base::Point m_offset;
     bool m_dragging = false;
+    // Where the pointer was when the drag started and where it is now.
+    base::PointF m_dragStart;
+    base::PointF m_pointer;
+    // The preview is hidden over the window that takes the drop.
+    bool m_previewHidden = false;
     Window *m_moving = nullptr;
     // The window a released drag was dropped on, while the dragged one is
     // still mapped. Zero otherwise.

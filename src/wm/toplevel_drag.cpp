@@ -5,6 +5,7 @@
 #include "wm/toplevel_drag.h"
 
 #include <algorithm>
+#include <cmath>
 
 #include "clipboard/selection.h"
 #include "compositor/surface.h"
@@ -95,6 +96,8 @@ void ToplevelDrag::onDragStarted()
     if (m_dragging || !m_source || seat->drag()->source() != m_source)
         return;
     m_dragging = true;
+    m_dragStart = m_pointer = seat->pointerLocation();
+    m_previewHidden = false;
     seat->drag()->setWindowDelegate(this);
     if (Window *window = windowForSurface())
         startMove(window);
@@ -116,10 +119,10 @@ void ToplevelDrag::onWindowAdded(Window *window)
     }
     if (m_dragging) {
         window->setDragPreview(true);
-        window->setOpacity(kPreviewOpacity);
         window->setPresentationScale(previewScale(window), grabPoint(m_manager, window), false);
         m_preview = window->id();
         m_previewWidth = window->bounds().width();
+        updateCrossFade();
         startMove(window);
     }
 }
@@ -173,8 +176,23 @@ void ToplevelDrag::stopMove()
         handler->completeDrag(ToplevelEventHandler::DragResult::Revert);
 }
 
+void ToplevelDrag::updateCrossFade()
+{
+    input::Seat *seat = m_manager->seat();
+    const bool icon = seat && seat->drag()->hasIcon();
+    const double travel = std::hypot(m_pointer.x() - m_dragStart.x(), m_pointer.y() - m_dragStart.y());
+    const float shown = icon ? float(std::clamp((travel - kIconDistance) / kIconFadeDistance, 0.0, 1.0)) : 1.0f;
+    if (icon)
+        seat->drag()->setIconOpacity(m_previewHidden ? 0 : 1 - shown);
+    if (Window *preview = m_manager->windowById(m_preview))
+        preview->setOpacity(m_previewHidden ? 0 : kPreviewOpacity * shown);
+}
+
 void ToplevelDrag::dragMoved(const base::PointF &location)
 {
+    m_pointer = location;
+    if (!m_previewHidden)
+        updateCrossFade();
     ToplevelEventHandler *handler = m_manager->eventHandler();
     if (m_moving && handler->draggedWindow() == m_moving)
         handler->onPointerMotion(location);
@@ -189,8 +207,8 @@ void ToplevelDrag::dragTargetChanged(compositor::Surface *target, bool accepted)
     if (!docked) {
         unwatchDockTarget();
         m_docked = 0;
-        if (preview)
-            preview->setOpacity(kPreviewOpacity);
+        m_previewHidden = false;
+        updateCrossFade();
         return;
     }
     if (m_docked == below->id())
@@ -214,8 +232,8 @@ void ToplevelDrag::onSurfaceCommit(compositor::Surface *surface)
     if (surface != m_dockTarget)
         return;
     unwatchDockTarget();
-    if (Window *preview = m_manager->windowById(m_preview))
-        preview->setOpacity(0);
+    m_previewHidden = true;
+    updateCrossFade();
 }
 
 void ToplevelDrag::unwatchDockTarget()
