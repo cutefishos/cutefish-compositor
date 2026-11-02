@@ -10,13 +10,46 @@
 
 #include "backend/drm/drm_hotplug_monitor.h"
 
+#include <charconv>
+#include <cstring>
+#include <fcntl.h>
 #include <libudev.h>
+#include <string_view>
 #include <sys/epoll.h>
+#include <unistd.h>
+#include <xf86drmMode.h>
 
 #include "base/event_loop.h"
 #include "core/main_loop.h"
 
 namespace cutefish::backend {
+namespace {
+
+// HDCP state changes are connector property notifications, not cable events.
+// Keep unknown properties (especially link-status) on the recovery path.
+bool isContentProtectionEvent(udev_device *device)
+{
+    const char *property = udev_device_get_property_value(device, "PROPERTY");
+    const char *node = udev_device_get_devnode(device);
+    if (!property || !node)
+        return false;
+    uint32_t id = 0;
+    const std::string_view text(property);
+    const auto parsed = std::from_chars(text.data(), text.data() + text.size(), id);
+    if (parsed.ec != std::errc() || parsed.ptr != text.data() + text.size())
+        return false;
+    const int fd = open(node, O_RDONLY | O_CLOEXEC);
+    if (fd < 0)
+        return false;
+    drmModePropertyPtr info = drmModeGetProperty(fd, id);
+    const bool contentProtection = info && std::strcmp(info->name, "Content Protection") == 0;
+    if (info)
+        drmModeFreeProperty(info);
+    close(fd);
+    return contentProtection;
+}
+
+} // namespace
 
 DrmHotplugMonitor::DrmHotplugMonitor()
     : m_quiet(core::mainLoop())
@@ -63,8 +96,10 @@ void DrmHotplugMonitor::notifyForTest()
 void DrmHotplugMonitor::onReadable()
 {
     while (udev_device *device = udev_monitor_receive_device(m_monitor)) {
+        const bool contentProtection = isContentProtectionEvent(device);
         udev_device_unref(device);
-        schedule();
+        if (!contentProtection)
+            schedule();
     }
 }
 
