@@ -417,8 +417,9 @@ private:
 
     void addSubSurface(Surface *child);
     void removeSubSurface(Surface *child);
-    // wl_subsurface.set_desync, in order with the tree's held commits.
-    void requestDesynchronizedCommit();
+    // wl_subsurface.set_sync and set_desync, in order with the tree's held
+    // commits; false when none is held and the mode can change now.
+    bool holdCommitBehavior(bool synchronized);
     void applyCommit(CommitRequest &request);
     void holdCommit(std::unique_ptr<CommitRequest> request);
     // Applies the tree's held commits, oldest first, up to one still waiting.

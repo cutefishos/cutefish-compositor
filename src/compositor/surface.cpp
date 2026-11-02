@@ -15,6 +15,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <optional>
 #include <utility>
 
 #include "base/event_loop.h"
@@ -163,8 +164,9 @@ struct Surface::CommitRequest {
     std::vector<std::pair<SurfaceObserver *, std::function<void()>>> roleState;
     std::vector<Fence> fences;
     bool held = false;
-    // wl_subsurface.set_desync, which applies a cache rather than commits one.
-    bool desynchronize = false;
+    // wl_subsurface.set_sync or set_desync, which changes the mode rather
+    // than commits.
+    std::optional<bool> commitBehavior;
 };
 
 uint32_t Surface::preferredScale() const
@@ -430,9 +432,9 @@ void Surface::commit()
 
 void Surface::applyCommit(CommitRequest &request)
 {
-    if (request.desynchronize) {
-        if (!isSynchronized())
-            commitDesynchronized();
+    if (request.commitBehavior) {
+        if (m_subSurface)
+            m_subSurface->applyCommitBehavior(*request.commitBehavior);
         return;
     }
 
@@ -545,16 +547,15 @@ void Surface::applyReadyCommits()
     }
 }
 
-void Surface::requestDesynchronizedCommit()
+bool Surface::holdCommitBehavior(bool synchronized)
 {
-    if (s_heldCommits == 0 || !rootSurface()->oldestHeldCommit()) {
-        commitDesynchronized();
-        return;
-    }
+    if (s_heldCommits == 0 || !rootSurface()->oldestHeldCommit())
+        return false;
     auto request = std::make_unique<CommitRequest>();
     request->sequence = ++s_commitSequence;
-    request->desynchronize = true;
+    request->commitBehavior = synchronized;
     holdCommit(std::move(request));
+    return true;
 }
 
 Surface *Surface::rootSurface()

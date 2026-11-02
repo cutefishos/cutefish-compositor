@@ -35,6 +35,8 @@ public:
     bool placeAbove(Surface* reference);
     bool placeBelow(Surface* reference);
     void setCommitBehavior(bool synchronized);
+    // The mode change itself, once commits before it are applied.
+    void applyCommitBehavior(bool synchronized);
     bool isSurfaceSynchronized() const;
     void onSurfaceDestroying(Surface* surface);
 

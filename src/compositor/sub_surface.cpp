@@ -70,12 +70,22 @@ bool SubSurface::placeBelow(Surface* reference)
 
 void SubSurface::setCommitBehavior(bool synchronized)
 {
+    // Behind commits of the tree that wait for their buffers, the mode
+    // changes in commit order: a synchronized commit still waiting goes to
+    // the cache for its parent's commit, not to the screen before it.
+    if (m_surface && m_surface->holdCommitBehavior(synchronized))
+        return;
+    applyCommitBehavior(synchronized);
+}
+
+void SubSurface::applyCommitBehavior(bool synchronized)
+{
     m_isSynchronized = synchronized;
     // wl_subsurface.set_desync requires immediate application of an existing
     // cache if no ancestor still synchronizes us. Exo's setter alone doesn't
     // flush it; Cutefish has no SurfaceTreeHost to trigger that application.
     if (m_surface && !isSurfaceSynchronized())
-        m_surface->requestDesynchronizedCommit();
+        m_surface->commitDesynchronized();
 }
 
 bool SubSurface::isSurfaceSynchronized() const

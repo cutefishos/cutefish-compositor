@@ -317,6 +317,39 @@ TEST_F(CommitReadinessTest, SetDesyncAppliesTheCacheInOrder)
     EXPECT_EQ(0u, child->heldCommitCount());
 }
 
+TEST_F(CommitReadinessTest, AWaitingSynchronizedCommitStaysCachedAfterSetDesync)
+{
+    std::unique_ptr<Surface> child = m_compositor.createSurface();
+    std::unique_ptr<SubSurface> sub = SubSurface::create(child.get(), m_surface.get());
+
+    // As a client resizes a subsurface with its window: a synchronized
+    // commit, the window's commit, set_desync, and the next frame at once.
+    FakeFence childFence;
+    FakeFence parentFence;
+    auto resized = commitFenced(child.get(), childFence);
+    auto parentBuffer = commitFenced(m_surface.get(), parentFence);
+    sub->setCommitBehavior(false);
+    auto next = std::make_shared<FencedBuffer>();
+    child->attach(next, base::Point());
+    child->commit();
+
+    childFence.signal();
+    ASSERT_TRUE(waitFor([&] {
+        return child->heldCommitCount() == 2;
+    }));
+    // Still synchronized when it applies: cached for the window's commit.
+    EXPECT_NE(resized, child->buffer());
+    EXPECT_EQ(nullptr, child->buffer());
+
+    parentFence.signal();
+    ASSERT_TRUE(waitFor([&] {
+        return m_surface->buffer() == parentBuffer;
+    }));
+    EXPECT_EQ(next, child->buffer());
+    EXPECT_EQ(0u, child->heldCommitCount());
+    EXPECT_FALSE(child->isSynchronized());
+}
+
 TEST_F(CommitReadinessTest, AChildLeavingTheTreeStopsWaiting)
 {
     std::unique_ptr<Surface> child = m_compositor.createSurface();
