@@ -60,6 +60,18 @@ int WindowResizer::widthForDrag(int *deltaX) const
     }
 
     int maxWidth = m_workArea.isEmpty() ? width : m_workArea.width();
+    // A dragged edge that starts inside the work area stops at its side, as
+    // a pulled edge stops at the dock instead of sliding under it.
+    if (!m_workArea.isEmpty()) {
+        const int left = m_initialBounds.x();
+        const int right = left + m_initialBounds.width();
+        const int areaLeft = m_workArea.x();
+        const int areaRight = areaLeft + m_workArea.width();
+        if (isRightEdge(m_edge) && right <= areaRight)
+            maxWidth = std::min(maxWidth, areaRight - left);
+        else if (!isRightEdge(m_edge) && left >= areaLeft)
+            maxWidth = std::min(maxWidth, right - areaLeft);
+    }
     if (m_window->maximumOuterSize().width() > 0)
         maxWidth = std::min(maxWidth, m_window->maximumOuterSize().width());
     maxWidth = std::max(maxWidth, minWidth);
@@ -86,6 +98,16 @@ int WindowResizer::heightForDrag(int *deltaY) const
     }
 
     int maxHeight = m_workArea.isEmpty() ? height : m_workArea.height();
+    if (!m_workArea.isEmpty()) {
+        const int top = m_initialBounds.y();
+        const int bottom = top + m_initialBounds.height();
+        const int areaTop = m_workArea.y();
+        const int areaBottom = areaTop + m_workArea.height();
+        if (isBottomEdge(m_edge) && bottom <= areaBottom)
+            maxHeight = std::min(maxHeight, areaBottom - top);
+        else if (!isBottomEdge(m_edge) && top >= areaTop)
+            maxHeight = std::min(maxHeight, bottom - areaTop);
+    }
     if (m_window->maximumOuterSize().height() > 0)
         maxHeight = std::min(maxHeight, m_window->maximumOuterSize().height());
     maxHeight = std::max(maxHeight, minHeight);

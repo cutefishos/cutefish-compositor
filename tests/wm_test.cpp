@@ -1988,6 +1988,34 @@ TEST_F(WmTest, TheResizerMathIsIndependentOfTheWindow)
     EXPECT_EQ(base::Rect(200, 200, 300, 200), window->bounds());
 }
 
+TEST_F(WmTest, ADraggedEdgeStopsAtTheWorkArea)
+{
+    const base::Rect workArea(0, 30, 1000, 670);
+    Window *window = makeWindow(base::Rect(200, 300, 300, 200));
+
+    // The bottom edge stops at the work area's bottom, the dock's top.
+    WindowResizer bottom(window, base::PointF(350, 500), ResizeEdge::Bottom, workArea);
+    EXPECT_EQ(base::Rect(200, 300, 300, 400), bottom.calculateBoundsForDrag(base::PointF(350, 790)));
+    // The top edge stops below the bar, the bottom edge staying put.
+    WindowResizer top(window, base::PointF(350, 300), ResizeEdge::Top, workArea);
+    EXPECT_EQ(base::Rect(200, 30, 300, 470), top.calculateBoundsForDrag(base::PointF(350, 0)));
+    // And sideways at the work area's sides.
+    WindowResizer right(window, base::PointF(500, 400), ResizeEdge::Right, workArea);
+    EXPECT_EQ(base::Rect(200, 300, 800, 200), right.calculateBoundsForDrag(base::PointF(1200, 400)));
+    WindowResizer left(window, base::PointF(200, 400), ResizeEdge::Left, workArea);
+    EXPECT_EQ(base::Rect(0, 300, 500, 200), left.calculateBoundsForDrag(base::PointF(-100, 400)));
+}
+
+TEST_F(WmTest, AnEdgeAlreadyPastTheWorkAreaStillGrowsToItsHeight)
+{
+    const base::Rect workArea(0, 30, 1000, 670);
+    Window *window = makeWindow(base::Rect(200, 600, 300, 200));
+
+    // Pushed under the dock before the drag: only the work area's height limits it.
+    WindowResizer bottom(window, base::PointF(350, 800), ResizeEdge::Bottom, workArea);
+    EXPECT_EQ(base::Rect(200, 600, 300, 250), bottom.calculateBoundsForDrag(base::PointF(350, 850)));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Surface to window mapping and stacking
 

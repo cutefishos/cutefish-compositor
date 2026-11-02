@@ -288,6 +288,9 @@ void acceptClient(const std::string &program, std::vector<std::string> arguments
     }
     if (exerciseResize) {
         static_cast<scene::WindowAnimation *>(window->node())->finish();
+        // Dragged edges stop at the work area: leave the growth room inside it.
+        const base::Rect area = manager.workAreaFor(window);
+        window->setBounds(base::Rect(area.topLeft(), window->bounds().size()));
         const base::Size baseSize = window->bounds().size();
         for (int step = 0; step < 8; ++step) {
             const base::Size nextSize = baseSize + (step % 2 ? base::Size(30, 20) : base::Size(100, 80));
