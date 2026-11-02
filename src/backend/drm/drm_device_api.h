@@ -110,6 +110,11 @@ public:
                            const base::Point& hotspot) = 0;
     virtual bool moveCursor(uint32_t crtcId, const base::Point& position) = 0;
 
+    // Whether the driver turns these ioctls into blocking commits that sleep
+    // until the CRTC's pending page flip lands, rather than updating the
+    // cursor plane on its own.
+    virtual bool cursorWaitsForFlips() const = 0;
+
     // The largest cursor the hardware accepts, or an empty size when it has no
     // cursor plane at all.
     virtual base::Size maxCursorSize() const = 0;

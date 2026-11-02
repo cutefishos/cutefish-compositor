@@ -155,6 +155,8 @@ public:
         return true;
     }
 
+    bool cursorWaitsForFlips() const override { return cursorWaits; }
+
     base::Size maxCursorSize() const override { return maxCursor; }
 
     bool createDumbBuffer(const base::Size &size, backend::DumbBufferInfo *info) override
@@ -204,6 +206,7 @@ public:
     bool primeFails = false;
     bool setCursorFails = false;
     bool dumbBufferFails = false;
+    bool cursorWaits = false;
     base::Size maxCursor {64, 64};
     // A real GBM device standing in for the renderer that shares this file.
     gbm_device *gbm = nullptr;

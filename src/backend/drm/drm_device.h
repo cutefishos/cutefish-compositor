@@ -42,6 +42,7 @@ public:
     bool setCursor(uint32_t crtcId, uint32_t handle, const base::Size &size,
                    const base::Point &hotspot) override;
     bool moveCursor(uint32_t crtcId, const base::Point &position) override;
+    bool cursorWaitsForFlips() const override { return m_cursorWaitsForFlips; }
 
     base::Size maxCursorSize() const override { return m_maxCursorSize; }
 
@@ -59,6 +60,7 @@ private:
     // drmModeSetCursor2 carries the hotspot; drivers without it need the
     // caller to fold the hotspot into the cursor position instead.
     bool m_hasCursor2 = true;
+    bool m_cursorWaitsForFlips = false;
 };
 
 } // namespace cutefish::backend

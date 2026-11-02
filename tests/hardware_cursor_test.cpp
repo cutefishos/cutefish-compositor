@@ -278,6 +278,50 @@ TEST_F(DrmCursorTest, MovingAHiddenCursorCostsNothing)
     EXPECT_EQ(m_device->moveCursorCalls, 0);
 }
 
+TEST_F(DrmCursorTest, AWaitingDriverTakesOnlyTheNewestPositionOnceTheFlipLands)
+{
+    // Each move would otherwise block until the flip in flight lands.
+    m_device->cursorWaits = true;
+    auto cursor = backend::DrmCursor::create(m_device.get(), kCrtcId);
+    ASSERT_TRUE(cursor);
+    const cutefish::base::Size size(24, 24);
+    const auto pixels = opaquePixels(size);
+    ASSERT_TRUE(cursor->setImage(pixels.data(), size, size.width() * 4, base::Point(5, 3)));
+
+    cursor->setFlipPending(true);
+    cursor->move(base::Point(100, 90));
+    cursor->move(base::Point(110, 95));
+    EXPECT_EQ(m_device->moveCursorCalls, 0);
+
+    cursor->setFlipPending(false);
+    EXPECT_EQ(m_device->moveCursorCalls, 1);
+    EXPECT_EQ(m_device->cursorPosition, base::Point(105, 92));
+
+    cursor->setFlipPending(true);
+    cursor->setFlipPending(false);
+    EXPECT_EQ(m_device->moveCursorCalls, 1);
+
+    cursor->move(base::Point(120, 100));
+    EXPECT_EQ(m_device->moveCursorCalls, 2);
+}
+
+TEST_F(DrmCursorTest, OtherDriversMoveTheCursorDuringAFlip)
+{
+    auto cursor = backend::DrmCursor::create(m_device.get(), kCrtcId);
+    ASSERT_TRUE(cursor);
+    const cutefish::base::Size size(24, 24);
+    const auto pixels = opaquePixels(size);
+    ASSERT_TRUE(cursor->setImage(pixels.data(), size, size.width() * 4, base::Point(0, 0)));
+
+    cursor->setFlipPending(true);
+    cursor->move(base::Point(100, 90));
+
+    EXPECT_EQ(m_device->moveCursorCalls, 1);
+    EXPECT_EQ(m_device->cursorPosition, base::Point(100, 90));
+    cursor->setFlipPending(false);
+    EXPECT_EQ(m_device->moveCursorCalls, 1);
+}
+
 namespace {
 
 // The compositor cursor, with a sink that can be told to refuse.

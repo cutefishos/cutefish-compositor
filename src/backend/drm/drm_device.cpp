@@ -16,6 +16,7 @@
 #include <algorithm>
 #include <cerrno>
 #include <cstring>
+#include <string_view>
 
 #include "core/logging.h"
 
@@ -41,6 +42,15 @@ DrmDevice::DrmDevice(int fd, gbm_device *gbm)
         height = 64;
     m_maxCursorSize = base::Size(static_cast<int>(std::min(width, kMaxCursorSize)),
                             static_cast<int>(std::min(height, kMaxCursorSize)));
+
+    // This driver's atomic commit ignores legacy_cursor_update: every blocking
+    // commit, a cursor-only one too, waits for the CRTC's flip queue to drain.
+    if (drmVersion *version = drmGetVersion(m_fd)) {
+        const std::string_view name(version->name ? version->name : "",
+                                    version->name ? size_t(std::max(version->name_len, 0)) : 0);
+        m_cursorWaitsForFlips = name == "nvidia-drm";
+        drmFreeVersion(version);
+    }
 }
 
 DrmDevice::~DrmDevice() = default;

@@ -1208,6 +1208,9 @@ void DrmOutput::finishFlip(uint64_t frame, uint32_t timeMs,
         m_flipTimeout.stop();
     else
         m_flipTimeout.start();
+    // Before commitQueued() puts the next flip in flight.
+    if (m_cursor && m_events.empty())
+        m_cursor->setFlipPending(false);
     if (frame == m_bufferFrame && !m_pendingFrame.planes.empty()) {
         if (const auto done = m_renderer ? m_renderer->drawnAt(m_pendingFrame.drawnMark)
                                          : std::nullopt) {
@@ -1371,6 +1374,8 @@ bool DrmOutput::commit(const std::vector<PlaneContent> &planes, bool modeset, ui
         return false;
     }
 
+    if (frame && m_cursor)
+        m_cursor->setFlipPending(true);
     if (frame && !m_flipTimeout.isActive())
         m_flipTimeout.start();
     if (modeset)

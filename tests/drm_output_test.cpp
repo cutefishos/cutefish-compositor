@@ -552,6 +552,27 @@ TEST_F(DrmOutputTest, JointConfigurationTestsAndCommitsBothRoutesBeforeNotifying
         EXPECT_TRUE(objects.contains(object));
 }
 
+TEST_F(DrmOutputTest, AWaitingDriversCursorFollowsThePointerAfterEachFlip)
+{
+    device.maxCursor = {64, 64};
+    device.cursorWaits = true;
+    auto second = secondOutput();
+    ASSERT_TRUE(second);
+    ASSERT_TRUE(second->enable());
+    ASSERT_TRUE(waitEvents(1));
+    const std::vector<uint8_t> pixels(24 * 24 * 4, 0xFF);
+    ASSERT_TRUE(second->setCursorImage({pixels.data(), {24, 24}, 24 * 4, {0, 0}}));
+    const int moves = device.moveCursorCalls;
+
+    second->moveCursor({30, 30});
+    second->moveCursor({40, 40});
+    EXPECT_EQ(device.moveCursorCalls, moves);
+
+    flip(events.size() - 1);
+    EXPECT_EQ(device.moveCursorCalls, moves + 1);
+    EXPECT_EQ(device.cursorPosition, base::Point(40, 40));
+}
+
 TEST_F(DrmOutputTest, JointTestFailureDoesNotCommitOrRetireEitherRoute)
 {
     auto second = secondOutput();

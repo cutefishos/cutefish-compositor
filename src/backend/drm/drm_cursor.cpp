@@ -131,8 +131,10 @@ bool DrmCursor::upload()
     m_visible = true;
     // A new image on an already-positioned cursor still has to be placed: the
     // hotspot may have moved within the image.
-    if (m_positioned)
+    if (m_positioned) {
+        m_moveDeferred = false;
         m_device->moveCursor(m_crtcId, m_position - m_hotspot);
+    }
     return true;
 }
 
@@ -148,8 +150,23 @@ void DrmCursor::move(const base::Point& position)
 {
     m_position = position;
     m_positioned = true;
+    if (!m_visible)
+        return;
+    if (m_flipPending && m_device->cursorWaitsForFlips()) {
+        m_moveDeferred = true;
+        return;
+    }
+    m_device->moveCursor(m_crtcId, position - m_hotspot);
+}
+
+void DrmCursor::setFlipPending(bool pending)
+{
+    m_flipPending = pending;
+    if (pending || !m_moveDeferred)
+        return;
+    m_moveDeferred = false;
     if (m_visible)
-        m_device->moveCursor(m_crtcId, position - m_hotspot);
+        m_device->moveCursor(m_crtcId, m_position - m_hotspot);
 }
 
 } // namespace cutefish::backend
