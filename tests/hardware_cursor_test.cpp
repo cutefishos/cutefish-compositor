@@ -191,10 +191,34 @@ TEST_F(DrmCursorTest, ConsecutiveImagesAlternateBuffers)
 
     ASSERT_TRUE(cursor->setImage(pixels.data(), size, size.width() * 4, base::Point()));
     const uint32_t first = m_device->cursorHandle;
-    ASSERT_TRUE(cursor->setImage(pixels.data(), size, size.width() * 4, base::Point()));
+    auto other = pixels;
+    other[0] = 0;
+    ASSERT_TRUE(cursor->setImage(other.data(), size, size.width() * 4, base::Point()));
 
     // Writing into the buffer the display is scanning out would tear the cursor.
     EXPECT_NE(m_device->cursorHandle, first);
+}
+
+TEST_F(DrmCursorTest, TheSameImageAgainLeavesThePlaneAlone)
+{
+    auto cursor = backend::DrmCursor::create(m_device.get(), kCrtcId);
+    ASSERT_TRUE(cursor);
+    const cutefish::base::Size size(24, 24);
+    const auto pixels = opaquePixels(size);
+    ASSERT_TRUE(cursor->setImage(pixels.data(), size, size.width() * 4, base::Point(5, 3)));
+    const int calls = m_device->setCursorCalls;
+
+    EXPECT_TRUE(cursor->setImage(pixels.data(), size, size.width() * 4, base::Point(5, 3)));
+    EXPECT_EQ(m_device->setCursorCalls, calls);
+
+    // A new hotspot is a new image.
+    EXPECT_TRUE(cursor->setImage(pixels.data(), size, size.width() * 4, base::Point(4, 3)));
+    EXPECT_EQ(m_device->setCursorCalls, calls + 1);
+
+    cursor->hide();
+    EXPECT_TRUE(cursor->setImage(pixels.data(), size, size.width() * 4, base::Point(4, 3)));
+    EXPECT_EQ(m_device->setCursorCalls, calls + 3);
+    EXPECT_TRUE(cursor->isVisible());
 }
 
 // A CRTC without colour properties cannot tint its cursor plane, so the image
@@ -303,6 +327,49 @@ TEST_F(DrmCursorTest, AWaitingDriverTakesOnlyTheNewestPositionOnceTheFlipLands)
 
     cursor->move(base::Point(120, 100));
     EXPECT_EQ(m_device->moveCursorCalls, 2);
+}
+
+TEST_F(DrmCursorTest, AWaitingDriverTakesOnlyTheNewestImageOnceTheFlipLands)
+{
+    m_device->cursorWaits = true;
+    auto cursor = backend::DrmCursor::create(m_device.get(), kCrtcId);
+    ASSERT_TRUE(cursor);
+    const cutefish::base::Size size(24, 24);
+    const auto pixels = opaquePixels(size);
+    ASSERT_TRUE(cursor->setImage(pixels.data(), size, size.width() * 4, base::Point(0, 0)));
+    cursor->move(base::Point(100, 90));
+    const int calls = m_device->setCursorCalls;
+    const int moves = m_device->moveCursorCalls;
+
+    cursor->setFlipPending(true);
+    auto other = pixels;
+    other[0] = 0;
+    EXPECT_TRUE(cursor->setImage(other.data(), size, size.width() * 4, base::Point(2, 2)));
+    EXPECT_TRUE(cursor->setImage(other.data(), size, size.width() * 4, base::Point(5, 3)));
+    cursor->move(base::Point(110, 95));
+    EXPECT_EQ(m_device->setCursorCalls, calls);
+    EXPECT_EQ(m_device->moveCursorCalls, moves);
+
+    cursor->setFlipPending(false);
+    EXPECT_EQ(m_device->setCursorCalls, calls + 1);
+    EXPECT_EQ(m_device->cursorHotspot, base::Point(5, 3));
+    EXPECT_EQ(m_device->moveCursorCalls, moves + 1);
+    EXPECT_EQ(m_device->cursorPosition, base::Point(105, 92));
+}
+
+TEST_F(DrmCursorTest, AWaitingDriverStillShowsAHiddenCursorAtOnce)
+{
+    // Whether the plane takes the image decides between it and compositing.
+    m_device->cursorWaits = true;
+    auto cursor = backend::DrmCursor::create(m_device.get(), kCrtcId);
+    ASSERT_TRUE(cursor);
+    const cutefish::base::Size size(24, 24);
+    const auto pixels = opaquePixels(size);
+
+    cursor->setFlipPending(true);
+    EXPECT_TRUE(cursor->setImage(pixels.data(), size, size.width() * 4, base::Point()));
+    EXPECT_EQ(m_device->setCursorCalls, 1);
+    EXPECT_TRUE(cursor->isVisible());
 }
 
 TEST_F(DrmCursorTest, OtherDriversMoveTheCursorDuringAFlip)
