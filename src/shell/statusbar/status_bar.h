@@ -54,13 +54,14 @@ public:
     powerprofiles::PowerProfiles &powerProfiles() { return *m_powerProfiles; }
     PowerActions &powerActions() { return m_powerActions; }
 
-    // The clock follows the primary language, not LC_TIME: the region the
-    // system was installed with would otherwise pick its words.
+    // The clock follows the primary language in the session's region, not
+    // LC_TIME: the region the system was installed with would otherwise pick
+    // its words.
     const std::string &timeLocale() const { return m_timeLocale; }
     // A format string for base::Locale(timeLocale()).toString().
     const std::string &timeFormat() const { return m_timeFormat; }
+    // The session's 24-hour choice, else the region's clock.
     bool twentyFourTime() const { return m_twentyFourTime; }
-    void setTwentyFourTime(bool enabled);
 
     base::Signal<> timeFormatChanged;
 
@@ -80,10 +81,8 @@ private:
     PowerActions m_powerActions;
     std::unique_ptr<base::dbus::Object> m_object;
     base::dbus::Match m_languageChanged;
-    base::Job m_load;
     base::Job m_language;
     bool m_twentyFourTime = false;
-    bool m_twentyFourTimeSet = false;
     std::string m_timeLocale;
     std::string m_timeFormat;
 };

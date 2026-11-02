@@ -4,7 +4,9 @@
 
 #include "shell/statusbar/status_bar.h"
 
-#include "base/desktop_entry.h"
+#include <filesystem>
+
+#include "base/locale.h"
 #include "base/logging.h"
 #include "base/settings.h"
 #include "cutefish/powerprofiles/power_profiles.h"
@@ -37,16 +39,6 @@ StatusBar::StatusBar(dbus::Connection *sessionBus, dbus::Connection *systemBus, 
     });
     m_timeFormat = clock_format::pattern(m_timeLocale, m_twentyFourTime);
 
-    m_load = runOnFileThread(
-            [path = m_settingsPath] { return base::Settings(path).boolValue("Statusbar/TwentyFourTime", false); },
-            [this](bool enabled) {
-                // A choice made while the file was read stays.
-                if (m_twentyFourTimeSet || enabled == m_twentyFourTime)
-                    return;
-                m_twentyFourTime = enabled;
-                updateTimeFormat();
-            });
-
     if (m_bus) {
         dbus::MatchRule rule;
         rule.sender = "org.cutefish.Services";
@@ -72,8 +64,6 @@ bool StatusBar::registerServices()
         auto object = std::make_unique<dbus::Object>(m_bus, "/Statusbar", "org.cutefish.Statusbar");
         object->addMethod("setBatteryPercentage", [this](bool enabled) { m_battery->setShowPercentage(enabled); },
                           dbus::ArgumentNames{{"batteryPercentage"}, {}});
-        object->addMethod("setTwentyFourTime", [this](bool enabled) { setTwentyFourTime(enabled); },
-                          dbus::ArgumentNames{{"t"}, {}});
         // The same as the menu's: the user is asked first. The session's
         // own methods act at once.
         object->addMethod("requestLogout", [this] { m_powerActions.request(PowerActions::Logout); });
@@ -90,28 +80,39 @@ bool StatusBar::registerServices()
     return watcher && registrar;
 }
 
-void StatusBar::setTwentyFourTime(bool enabled)
+namespace {
+
+struct ClockLocale
 {
-    m_twentyFourTimeSet = true;
-    if (m_twentyFourTime == enabled)
-        return;
-    m_twentyFourTime = enabled;
-    writeSettings(m_settingsPath, [enabled](base::Settings &settings) {
-        settings.setValue("Statusbar/TwentyFourTime", enabled);
-    });
-    updateTimeFormat();
-}
+    std::string name;
+    bool twentyFourHour = false;
+};
+
+} // namespace
 
 void StatusBar::reloadLanguage()
 {
-    // The session language lives in cutefish-services' settings.
-    m_language = runOnFileThread([] { return base::DesktopEntry::displayLanguage(); },
-                                 [this](std::string language) {
-                                     if (language == m_timeLocale)
-                                         return;
-                                     m_timeLocale = language;
-                                     updateTimeFormat();
-                                 });
+    // The session language and region live in cutefish-services' settings,
+    // beside the shell's.
+    const std::string services = (std::filesystem::path(m_settingsPath).parent_path() / "services.conf").string();
+    m_language = runOnFileThread(
+            [services] {
+                std::string language = base::Settings(services).stringValue("Language/language");
+                if (language.empty())
+                    language = base::Locale::systemLanguage();
+                base::RegionalPreferences preferences = base::RegionalPreferences::read(services);
+                if (preferences.region.empty())
+                    preferences.region = base::Locale::systemRegion();
+                const base::Locale locale = base::Locale::regional(language, preferences);
+                return ClockLocale {locale.formatsId(), locale.usesTwentyFourHourTime()};
+            },
+            [this](ClockLocale clock) {
+                if (clock.name == m_timeLocale && clock.twentyFourHour == m_twentyFourTime)
+                    return;
+                m_timeLocale = clock.name;
+                m_twentyFourTime = clock.twentyFourHour;
+                updateTimeFormat();
+            });
 }
 
 void StatusBar::updateTimeFormat()

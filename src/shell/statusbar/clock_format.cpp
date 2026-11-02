@@ -10,7 +10,6 @@
 #include <unicode/dtptngen.h>
 #include <unicode/locid.h>
 
-#include "base/locale.h"
 #include "base/strings.h"
 
 namespace cutefish::shell::clock_format {
@@ -125,10 +124,9 @@ bool showsSeconds(const std::string &format)
 
 std::string pattern(const std::string &localeName, bool twentyFourHour)
 {
-    const std::string name = base::Locale(localeName).name();
     UErrorCode status = U_ZERO_ERROR;
     std::unique_ptr<icu::DateTimePatternGenerator> generator(
-            icu::DateTimePatternGenerator::createInstance(icu::Locale(name.c_str()), status));
+            icu::DateTimePatternGenerator::createInstance(icu::Locale(localeName.c_str()), status));
     if (U_SUCCESS(status)) {
         const std::string date = toLocaleFormat(bestPattern(generator.get(), "EEEMMMd"));
         const std::string time = toLocaleFormat(bestPattern(generator.get(), twentyFourHour ? "Hmm" : "hmm"));

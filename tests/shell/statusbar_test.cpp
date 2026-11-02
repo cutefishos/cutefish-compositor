@@ -464,19 +464,29 @@ TEST(BatteryTest, ShowsOnceTheServiceComesUp)
 TEST(StatusBarTest, ServesOrgCutefishStatusbar)
 {
     test::TemporaryDirectory directory;
-    directory.write("shell.conf", "[Statusbar]\nTwentyFourTime=true\n");
+    directory.write("services.conf", "[Language]\nlanguage=en_US\n\n[Region]\nregion=US\ntwentyFourHour=true\n");
     shell::StatusBar statusBar(sessionBus(), dbus::Connection::system(core::mainLoop()), nullptr,
                                directory.filePath("shell.conf"));
     ASSERT_TRUE(statusBar.registerServices());
     ASSERT_TRUE(test::runUntil([&] { return statusBar.twentyFourTime(); }));
     EXPECT_NE(statusBar.timeFormat().find('H'), std::string::npos);
+    EXPECT_EQ(statusBar.timeLocale(), "en_US@hours=h23");
+
+    // The session's choice goes, and the region's 12-hour clock stands.
+    directory.write("services.conf", "[Language]\nlanguage=en_US\n\n[Region]\nregion=US\n");
+    test::DBusTestClient services;
+    dbus::Object language(services.connection.get(), "/org/cutefish/Services/Language",
+                          "org.cutefish.Services.Language");
+    language.addSignal("languageChanged", "");
+    ASSERT_TRUE(language.publish());
+    ASSERT_TRUE(services.connection->requestName("org.cutefish.Services"));
+    language.emitSignal("languageChanged");
+    ASSERT_TRUE(test::runUntil([&] { return !statusBar.twentyFourTime(); }));
+    EXPECT_EQ(statusBar.timeFormat().find('H'), std::string::npos);
 
     test::DBusTestClient settings;
-    settings.call("org.cutefish.Statusbar", "/Statusbar", "org.cutefish.Statusbar", "setTwentyFourTime", false);
     settings.call("org.cutefish.Statusbar", "/Statusbar", "org.cutefish.Statusbar", "setBatteryPercentage", true);
-    EXPECT_FALSE(statusBar.twentyFourTime());
     EXPECT_TRUE(statusBar.battery().showPercentage());
-    EXPECT_EQ(statusBar.timeFormat().find('H'), std::string::npos);
 
     bool requested = false;
     auto subscription = statusBar.powerActions().requested.connect([&] { requested = true; });
@@ -489,7 +499,6 @@ TEST(StatusBarTest, ServesOrgCutefishStatusbar)
 
     shell::waitForFileThread();
     base::Settings saved(directory.filePath("shell.conf"));
-    EXPECT_FALSE(saved.boolValue("Statusbar/TwentyFourTime", true));
     EXPECT_TRUE(saved.boolValue("Statusbar/BatteryPercentage", false));
 
     const std::string xml = settings.introspect("org.cutefish.Statusbar", "/Statusbar");
