@@ -239,9 +239,9 @@ WorkspaceState DockLayoutManager::workspaceStateFor(const base::Rect &output) co
 
 Window *DockLayoutManager::fullscreenWindowFor(const base::Rect &output) const
 {
-    for (const Window *window = topmostWindowFor(output); window; window = window->transientParent()) {
+    for (Window *window = m_manager->activation()->activeWindow(); window; window = window->transientParent()) {
         if (window->stateType() == WindowStateType::Fullscreen)
-            return const_cast<Window *>(window);
+            return m_manager->outputBoundsFor(window) == output ? window : nullptr;
     }
     return nullptr;
 }
@@ -314,7 +314,7 @@ DockAutoHideState DockLayoutManager::computeAutoHideState(const Window *dock, co
 
     if (m_pointer) {
         base::Rect region = shownRegion(dock->bounds(), output, entry.edge);
-        if (entry.edge == ScreenEdge::Top) {
+        if (isTopBar(dock, entry, output)) {
             if (const Window *fullscreen = fullscreenWindowFor(output); fullscreen && fullscreen->rootSurface())
                 region.setBottom(region.bottom() + fullscreen->rootSurface()->fullscreenBarsHeight());
         }
@@ -442,13 +442,21 @@ void DockLayoutManager::applyAutoHideState(Window *dock, Dock &entry, DockAutoHi
     present(dock, entry);
 }
 
+// The bar along the whole top edge; panels such as notifications only lie
+// there.
+bool DockLayoutManager::isTopBar(const Window *dock, const Dock &entry, const base::Rect &output) const
+{
+    return dock->role() == WindowRole::Panel && entry.edge == ScreenEdge::Top
+            && dock->bounds().width() >= output.width();
+}
+
 // The window hears where the panel is headed as it sets off, and is pushed
 // down with it frame by frame in present().
 void DockLayoutManager::updateReveal(Window *dock, Dock &entry)
 {
-    if (dock->role() != WindowRole::Panel || entry.edge != ScreenEdge::Top)
-        return;
     const base::Rect output = m_manager->outputBoundsFor(dock);
+    if (!isTopBar(dock, entry, output))
+        return;
     Window *fullscreen = fullscreenWindowFor(output);
     const int offset = fullscreen && entry.autoHide == DockAutoHideState::Shown
             ? std::max(0, dock->bounds().bottom() - output.top())

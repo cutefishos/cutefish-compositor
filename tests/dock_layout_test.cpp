@@ -634,4 +634,56 @@ TEST_F(DockLayoutTest, TopPanelTellsAFullscreenWindowAndPushesItWhenAsked)
     EXPECT_EQ(0, reveals.back().first);
 }
 
+TEST_F(DockLayoutTest, OnlyTheActiveFullscreenWindowIsPushedAndOnlyByTheBar)
+{
+    Window *panel = makeWindow(base::Rect(0, 0, 1000, 30));
+    panel->setRole(WindowRole::Panel);
+    // A panel that only lies along the top edge, as a notification does.
+    Window *banner = makeWindow(base::Rect(600, 0, 400, 88));
+    banner->setRole(WindowRole::Panel);
+    Window *window = makeWindow(base::Rect(100, 100, 300, 200));
+    window->activate();
+    std::vector<int> reveals;
+    base::Subscription watch = manager.fullscreenRevealChanged.connect(
+            [&](Window *revealed, int offset, int) {
+        if (revealed == window)
+            reveals.push_back(offset);
+    });
+    window->setFullscreen(true);
+    window->rootSurface()->setFullscreenBars(40, true);
+    finishSlide();
+    moveTo(base::PointF(500, 2));
+    waitForReveal();
+    finishSlide();
+    ASSERT_EQ(DockAutoHideState::Shown, layout.autoHideState(panel));
+    EXPECT_EQ(std::vector<int>({30}), reveals);
+    EXPECT_EQ(base::Point(0, 30), window->presentationOffset());
+
+    // Another window taking the activation takes the push and the reveal
+    // back, and the top edge brings neither while it has it.
+    Window *other = makeWindow(base::Rect(200, 200, 300, 200));
+    other->activate();
+    ASSERT_TRUE(other->isActive());
+    EXPECT_EQ(std::vector<int>({30, 0}), reveals);
+    EXPECT_EQ(base::Point(), window->presentationOffset());
+    moveTo(base::PointF(500, 300));
+    waitForReveal();
+    moveTo(base::PointF(500, 2));
+    waitForReveal();
+    finishSlide();
+    EXPECT_EQ(std::vector<int>({30, 0}), reveals);
+    EXPECT_EQ(base::Point(), window->presentationOffset());
+
+    // Active again, the bar pushes it by its own height.
+    window->activate();
+    moveTo(base::PointF(500, 300));
+    waitForReveal();
+    finishSlide();
+    moveTo(base::PointF(500, 2));
+    waitForReveal();
+    finishSlide();
+    EXPECT_EQ(30, reveals.back());
+    EXPECT_EQ(base::Point(0, 30), window->presentationOffset());
+}
+
 } // namespace

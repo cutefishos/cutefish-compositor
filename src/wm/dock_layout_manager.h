@@ -167,9 +167,10 @@ private:
     bool hasVisibleWindow(const base::Rect &output) const;
     // The window the workspace state of the output follows.
     const Window *topmostWindowFor(const base::Rect &output) const;
-    // The fullscreen window the workspace on the output is fullscreen for,
-    // if it is.
+    // The fullscreen window on the output that is active, or that the active
+    // window is a dialog of; none while anything else is active.
     Window *fullscreenWindowFor(const base::Rect &output) const;
+    bool isTopBar(const Window *dock, const Dock &entry, const base::Rect &output) const;
     // Tells the fullscreen window under a top panel where the panel is going,
     // and picks the window it pushes.
     void updateReveal(Window *dock, Dock &entry);
