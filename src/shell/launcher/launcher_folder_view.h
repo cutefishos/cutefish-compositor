@@ -1,4 +1,4 @@
-// Copyright 2026 Reion Wong <reionwong@gmail.com>
+// Copyright 2026 Sacha Grandcolas
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -67,7 +67,6 @@ public:
     void sync();
     // Selects the name for editing.
     void editName();
-    bool isEditingName() const;
     ui::TextField *nameField() const;
 
     LauncherCell *cell(const std::string &id) const;

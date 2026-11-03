@@ -129,9 +129,10 @@ TEST_F(LauncherTest, FoldersHoldApplicationsAndAreSaved)
     ASSERT_TRUE(test::runUntil([&] { return model().count() == 3; }));
     const auto children = [this](const std::string &folder) {
         std::vector<std::string> list;
-        if (const shell::LauncherItem *item = model().item(folder))
+        if (const shell::LauncherItem *item = model().item(folder)) {
             for (const auto &child : item->children)
                 list.push_back(child.id);
+        }
         return list;
     };
 
@@ -143,8 +144,11 @@ TEST_F(LauncherTest, FoldersHoldApplicationsAndAreSaved)
     EXPECT_EQ(model().item(folder)->name, "Work");
     EXPECT_EQ(model().folderOf("zeta"), folder);
     EXPECT_EQ(model().findById("zeta"), -1);
-    // A folder does not go into another.
+    // A folder does not go into another, and an application dropped on its
+    // own folder stays where it is.
     EXPECT_EQ(model().merge(folder, "mid", "Other"), "");
+    EXPECT_EQ(model().merge("zeta", folder, {}), "");
+    EXPECT_EQ(children(folder), (std::vector<std::string>{"alpha", "zeta"}));
 
     // A search looks into the folders and finds applications only.
     model().search("zeta");

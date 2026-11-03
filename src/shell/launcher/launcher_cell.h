@@ -5,6 +5,7 @@
 #ifndef CUTEFISH_SHELL_LAUNCHER_LAUNCHER_CELL_H_
 #define CUTEFISH_SHELL_LAUNCHER_LAUNCHER_CELL_H_
 
+#include <chrono>
 #include <cstdint>
 #include <string>
 
@@ -27,8 +28,9 @@ class LauncherView;
 // One application or folder in the launcher's grid: its icon (a folder's
 // shows the first of its applications on a plate) and its count, its name in
 // up to two lines, the new mark, the keyboard selection, the pressed
-// silhouette and the plate a drag held over it to make a folder shows. Only
-// the icon takes the pointer; the rest of the cell is the page behind it.
+// silhouette, and a plate behind the icon while a drop there would make a
+// folder. Only the icon takes the pointer; the rest of the cell is the page
+// behind it.
 class LauncherCell final : public ui::View
 {
 public:
@@ -65,7 +67,16 @@ public:
     // when `animate`.
     void moveTo(const ui::PointF &position, bool animate);
     bool isMoving() const { return m_moveX.isRunning() || m_moveY.isRunning(); }
+    // Jumps to the end of the move and of the folder's animation.
     void finishMove();
+
+    static constexpr std::chrono::milliseconds kFolderCreatedDuration {360};
+    static constexpr std::chrono::milliseconds kFolderAddedDuration {300};
+    // A folder just made of two applications pops up out of a smaller
+    // preview; one that has just taken another bumps, the new application's
+    // icon fading in. Nothing for an application.
+    void playFolderAnimation(bool created);
+    bool isPlayingFolderAnimation() const { return m_folderTween.isRunning(); }
 
     // What a drag of the cell carries: the application's icon, or the
     // folder's preview as it shows at rest. Device pixels at `scale`.
@@ -119,6 +130,9 @@ private:
     ui::PointF m_pressPoint;
     LauncherSpring m_moveX;
     LauncherSpring m_moveY;
+    LauncherTween m_folderTween;
+    // A folder's applications.
+    size_t m_childCount = 0;
 };
 
 } // namespace cutefish::shell

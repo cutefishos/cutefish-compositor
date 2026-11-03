@@ -1,4 +1,4 @@
-// Copyright 2026 Reion Wong <reionwong@gmail.com>
+// Copyright 2026 Sacha Grandcolas
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -29,7 +29,8 @@ static int jsRound(double value)
     return int(std::floor(value + 0.5));
 }
 
-// The folder's name over its applications, framed only while it is edited.
+// The folder's name over its applications, edited in place. Return keeps
+// the edit, Escape drops it and closes the folder.
 class LauncherFolderView::NameField final : public ui::TextField
 {
 public:
@@ -268,11 +269,6 @@ void LauncherFolderView::editName()
         return;
     m_name->setFocus();
     m_name->selectAll();
-}
-
-bool LauncherFolderView::isEditingName() const
-{
-    return m_name->hasFocus();
 }
 
 ui::TextField *LauncherFolderView::nameField() const

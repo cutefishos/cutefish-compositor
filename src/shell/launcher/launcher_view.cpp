@@ -53,8 +53,8 @@ static double centred(double start, double extent, double size)
     return start + jsRound(extent / 2 - jsRound(size / 2));
 }
 
-// What an application's icon shows: its count, or for a folder its
-// applications' together.
+// The count on an icon: an application's own, or the sum of a folder's
+// applications'.
 static int64_t badgeCount(const ApplicationBadges &badges, const LauncherModel &model, const std::string &id)
 {
     if (!LauncherItem::isFolderId(id))
@@ -785,14 +785,12 @@ void LauncherView::openFolder(const std::string &folder, bool editName)
     // The panel grows out of the folder's icon.
     ui::RectF from;
     const auto &rows = m_launcher.applications().rows();
-    for (size_t row = 0; row < rows.size(); ++row) {
-        const LauncherCell *cell = rows[row].id == folder ? this->cell(folder) : nullptr;
-        if (!cell)
-            continue;
-        const ui::RectF slot = cellRect(int(row));
+    const auto row = std::find_if(rows.begin(), rows.end(),
+                                  [&folder](const LauncherItem &item) { return item.id == folder; });
+    if (const LauncherCell *cell = this->cell(folder); cell && row != rows.end()) {
+        const ui::RectF slot = cellRect(int(row - rows.begin()));
         const ui::RectF icon = cell->iconRect();
         from = {slot.x + icon.x, slot.y + icon.y, icon.width, icon.height};
-        break;
     }
     m_folder->open(folder, m_shown, from);
     if (editName)
@@ -872,8 +870,8 @@ bool LauncherView::searchKey(uint32_t key)
 
 bool LauncherView::keyPress(const ui::KeyEvent &event)
 {
-    // An open folder takes Escape; the arrows and Return stay with the grid
-    // behind it.
+    // An open folder closes on Escape; the arrows and Return, which would
+    // act on the grid behind it, do nothing.
     if (m_folder->isOpen()) {
         switch (event.key) {
         case ui::key::Escape:
@@ -1059,7 +1057,7 @@ void LauncherView::openMenu(LauncherCell *cell, ui::PointF windowPosition)
     auto menu = std::make_unique<ui::Menu>();
     Launcher &launcher = m_launcher;
     LauncherModel &model = m_launcher.applications();
-    // The menu goes with the view, so its rows may use it.
+    // The menu belongs to the view, so its actions may capture it.
     if (cell->isFolder()) {
         menu->addItem(tr("Open"), [this, id] { openFolder(id); });
         menu->addItem(tr("Rename"), [this, id] { openFolder(id, true); });
@@ -1067,25 +1065,26 @@ void LauncherView::openMenu(LauncherCell *cell, ui::PointF windowPosition)
     } else {
         menu->addItem(tr("Open"), [&launcher, id] { launcher.applications().launch(id); });
         // Folders change only outside a search.
-        const bool inFolder = !model.folderOf(id).empty();
-        if (!isSearching() && !inFolder) {
-            menu->addItem(tr("New Folder"), [this, &model, id] {
-                const std::string created = model.createFolder(id, newFolderName());
-                if (!created.empty())
-                    openFolder(created, true);
-            });
-            std::vector<std::pair<std::string, std::string>> folders;
-            for (const LauncherItem &item : model.allItems()) {
-                if (item.isFolder())
-                    folders.emplace_back(item.id, item.name);
+        if (!isSearching()) {
+            if (model.folderOf(id).empty()) {
+                menu->addItem(tr("New Folder"), [this, &model, id] {
+                    const std::string created = model.createFolder(id, newFolderName());
+                    if (!created.empty())
+                        openFolder(created, true);
+                });
+                std::vector<std::pair<std::string, std::string>> folders;
+                for (const LauncherItem &item : model.allItems()) {
+                    if (item.isFolder())
+                        folders.emplace_back(item.id, item.name);
+                }
+                if (!folders.empty()) {
+                    ui::Menu *moveTo = menu->addSubmenu(tr("Move to Folder"));
+                    for (const auto &[target, name] : folders)
+                        moveTo->addItem(name, [this, id, target] { merge(id, target); });
+                }
+            } else {
+                menu->addItem(tr("Remove from Folder"), [&model, id] { model.removeFromFolder(id); });
             }
-            if (!folders.empty()) {
-                ui::Menu *moveTo = menu->addSubmenu(tr("Move to Folder"));
-                for (const auto &[target, name] : folders)
-                    moveTo->addItem(name, [&model, id, target] { model.merge(id, target, {}); });
-            }
-        } else if (!isSearching()) {
-            menu->addItem(tr("Remove from Folder"), [&model, id] { model.removeFromFolder(id); });
         }
         menu->addItem(tr("Send to Desktop"), [&launcher, id] { launcher.applications().sendToDesktop(id); });
         const size_t sendToDock = menu->addItem(tr("Send to Dock"), [&launcher, id] { launcher.sendToDock(id); });
@@ -1213,8 +1212,20 @@ void LauncherView::requestMerge()
     std::weak_ptr<bool> alive = m_alive;
     core::mainLoop()->post([this, alive, id, target] {
         if (!alive.expired())
-            m_launcher.applications().merge(id, target, newFolderName());
+            merge(id, target);
     });
+}
+
+void LauncherView::merge(const std::string &id, const std::string &target)
+{
+    LauncherModel &model = m_launcher.applications();
+    const LauncherItem *item = model.item(target);
+    const bool created = item && !item->isFolder();
+    const std::string folder = model.merge(id, target, newFolderName());
+    // The model's signals have made the folder's cell by now.
+    LauncherCell *cell = this->cell(folder);
+    if (cell && m_shown)
+        cell->playFolderAnimation(created);
 }
 
 bool LauncherView::canDrop(const ui::DropOffer &offer) const
@@ -1351,7 +1362,7 @@ void LauncherView::updateDragTarget(ui::PointF position)
     // The cell under the drag, by its resting slot on the page shown, and
     // the icon there a drop would make a folder with.
     std::string hovered;
-    std::string merge;
+    std::string mergeTarget;
     if (!inEdge && !isSearching() && m_currentPage >= 0) {
         const base::Rect grid = m_metrics.pageGrid();
         const double x = position.x - (pageX(m_currentPage) - m_contentX);
@@ -1371,13 +1382,13 @@ void LauncherView::updateDragTarget(ui::PointF position)
                 const ui::RectF icon {slot.x() + double(jsRound((m_metrics.cellWidth - size) / 2)),
                                       double(slot.y() + m_metrics.cellPaddingV), size, size};
                 if (icon.contains({x, position.y})) {
-                    merge = hovered;
+                    mergeTarget = hovered;
                     hovered.clear();
                 }
             }
         }
     }
-    setMergeTarget(merge);
+    setMergeTarget(mergeTarget);
     setHovered(hovered);
 }
 

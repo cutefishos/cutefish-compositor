@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <numbers>
 #include <utility>
 #include <vector>
 
@@ -95,6 +96,10 @@ public:
         requestLayout();
     }
 
+    // The icon of the folder's application at `index`; null past the
+    // preview's nine.
+    ui::ThemeIcon *icon(size_t index) const { return index < m_icons.size() ? m_icons[index] : nullptr; }
+
     void updatePressed()
     {
         const double opacity = m_cell->isPressDimmed() ? 0.6 : 1;
@@ -120,9 +125,10 @@ protected:
     void paint(ui::Painter &painter) override
     {
         const ui::RectF bounds = localRect();
-        const ui::Color plate = m_cell->isPressDimmed() ? ui::Color {0, 0, 0, 255} : ui::Color {255, 255, 255, 255};
-        painter.drawSmoothRectangle(bounds, jsRound(bounds.width * 0.22),
-                                    plate.withAlpha(m_cell->isPressDimmed() ? 0.3 : 0.22));
+        // Darkened rather than lightened while pressed.
+        const bool dimmed = m_cell->isPressDimmed();
+        const ui::Color plate = dimmed ? ui::Color {0, 0, 0, 255} : ui::Color {255, 255, 255, 255};
+        painter.drawSmoothRectangle(bounds, jsRound(bounds.width * 0.22), plate.withAlpha(dimmed ? 0.3 : 0.22));
     }
 
 private:
@@ -155,6 +161,7 @@ void LauncherCell::setItem(const LauncherItem &item)
             requestLayout();
         }
         m_preview->setIcons(item.children);
+        m_childCount = item.children.size();
     }
     const std::string iconName = item.isFolder() ? "folder" : item.iconName;
     if (iconName != m_iconName) {
@@ -299,6 +306,28 @@ void LauncherCell::finishMove()
         m_moveX.finish();
     if (m_moveY.isRunning())
         m_moveY.finish();
+    if (m_folderTween.isRunning())
+        m_folderTween.finish();
+}
+
+void LauncherCell::playFolderAnimation(bool created)
+{
+    if (!m_preview)
+        return;
+    if (created) {
+        m_folderTween.start(window(), 0.6, 1, kFolderCreatedDuration, easing::outBack,
+                            [this](double scale) { m_preview->setTransform({{}, scale}); });
+        return;
+    }
+    // The application that went in is the folder's last.
+    const size_t added = m_childCount - 1;
+    m_folderTween.start(window(), 0, 1, kFolderAddedDuration, easing::linear, [this, added](double t) {
+        // Up by 12% and back, exactly at rest at the end.
+        const double scale = t < 1 ? 1 + 0.12 * std::sin(std::numbers::pi * t) : 1;
+        m_preview->setTransform({{}, scale});
+        if (ui::ThemeIcon *icon = m_preview->icon(added))
+            icon->setOpacity(t);
+    });
 }
 
 ui::Bitmap LauncherCell::dragImage(double scale)

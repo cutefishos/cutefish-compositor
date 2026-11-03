@@ -161,6 +161,9 @@ private:
     void requestMove(int to);
     void applyMove();
     void requestMerge();
+    // Drops an application on another or on a folder, and plays the folder's
+    // animation.
+    void merge(const std::string &id, const std::string &target);
     void updateDragTarget(ui::PointF position);
     bool updateFolderDragTarget(ui::PointF position);
     void setMergeTarget(const std::string &id);

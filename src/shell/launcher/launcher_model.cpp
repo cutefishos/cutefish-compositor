@@ -5,12 +5,12 @@
 #include "shell/launcher/launcher_model.h"
 
 #include <algorithm>
-#include <cstdlib>
 #include <cstring>
 #include <filesystem>
 #include <map>
 #include <tuple>
 #include <unistd.h>
+#include <utility>
 
 #include "base/locale.h"
 #include "base/paths.h"
@@ -36,6 +36,12 @@ static std::string absolutePath(const std::string &path)
 {
     std::error_code error;
     return std::filesystem::absolute(path, error).lexically_normal().string();
+}
+
+// A folder's number, as its group in shell.conf is named.
+static std::string folderNumber(const std::string &id)
+{
+    return id.substr(std::strlen(LauncherItem::kFolderPrefix));
 }
 
 LauncherModel::LauncherModel(Applications &applications, ApplicationLauncher &launcher, std::string path)
@@ -97,7 +103,7 @@ LauncherModel::Stored LauncherModel::load(const std::string &path)
         LauncherItem item;
         item.id = id;
         if (item.isFolder()) {
-            const std::string group = "Launcher/Folder" + id.substr(std::strlen(LauncherItem::kFolderPrefix));
+            const std::string group = "Launcher/Folder" + folderNumber(id);
             item.name = settings.stringValue(group + "/name");
             for (const std::string &child : settings.stringListValue(group + "/apps")) {
                 LauncherItem app;
@@ -136,7 +142,7 @@ void LauncherModel::save()
             if (child.newInstalled)
                 newAppIds.push_back(child.id);
         }
-        folders.emplace_back(item.id.substr(std::strlen(LauncherItem::kFolderPrefix)), item.name, std::move(apps));
+        folders.emplace_back(folderNumber(item.id), item.name, std::move(apps));
     }
 
     fileThread().post([path = m_path, order, newAppIds, folders] {
@@ -289,20 +295,20 @@ void LauncherModel::move(int from, int to)
 
 const LauncherItem *LauncherModel::item(const std::string &id) const
 {
-    return const_cast<LauncherModel *>(this)->findItem(id);
-}
-
-LauncherItem *LauncherModel::findItem(const std::string &id)
-{
-    for (LauncherItem &item : m_items) {
+    for (const LauncherItem &item : m_items) {
         if (item.id == id)
             return &item;
-        for (LauncherItem &child : item.children) {
+        for (const LauncherItem &child : item.children) {
             if (child.id == id)
                 return &child;
         }
     }
     return nullptr;
+}
+
+LauncherItem *LauncherModel::findItem(const std::string &id)
+{
+    return const_cast<LauncherItem *>(std::as_const(*this).item(id));
 }
 
 std::string LauncherModel::folderOf(const std::string &id) const
@@ -324,7 +330,7 @@ std::string LauncherModel::newFolderId() const
     const auto note = [&highest](const std::vector<LauncherItem> &items) {
         for (const LauncherItem &item : items) {
             if (item.isFolder())
-                highest = std::max(highest, std::atoi(item.id.c_str() + std::strlen(LauncherItem::kFolderPrefix)));
+                highest = std::max(highest, base::strings::toNumber<int>(folderNumber(item.id)).value_or(0));
         }
     };
     note(m_items);
@@ -388,19 +394,15 @@ std::string LauncherModel::createFolder(const std::string &id, const std::string
 
 std::string LauncherModel::merge(const std::string &id, const std::string &target, const std::string &name)
 {
-    if (!m_searchKey.empty() || id == target || LauncherItem::isFolderId(id) || findById(target) < 0)
+    if (!m_searchKey.empty() || id == target || LauncherItem::isFolderId(id) || findById(target) < 0
+        || folderOf(id) == target)
         return {};
-    // A folder that the application leaves empty goes, and the target's
-    // index with it.
     std::optional<LauncherItem> app = takeApplication(id);
     if (!app)
         return {};
+    // The folder the application left, if any, is not the target: the
+    // target stays, though its index may change.
     const int index = findById(target);
-    if (index < 0) {
-        m_items.push_back(std::move(*app));
-        changed();
-        return {};
-    }
     LauncherItem &item = m_items[size_t(index)];
     if (!item.isFolder()) {
         LauncherItem folder;

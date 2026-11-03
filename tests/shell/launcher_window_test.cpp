@@ -590,6 +590,24 @@ TEST_F(LauncherWindowTest, DroppedOnAnIconAnApplicationMakesAFolder)
     EXPECT_EQ("folder:1", model().folderOf("app01"));
     ASSERT_TRUE(view()->cellAt(0)->isFolder());
     EXPECT_FALSE(view()->cellAt(0)->isMergeTarget());
+    // The new folder pops up.
+    EXPECT_TRUE(view()->cellAt(0)->isPlayingFolderAnimation());
+    frames(shell::LauncherCell::kFolderCreatedDuration + std::chrono::milliseconds(100),
+           [this] { return !view()->cellAt(0)->isPlayingFolderAnimation(); });
+    EXPECT_FALSE(view()->cellAt(0)->isPlayingFolderAnimation());
+
+    // One more application bumps it.
+    startDrag(iconCentre(1));
+    const ui::PointF folderIcon = iconCentre(0);
+    move(folderIcon.x, folderIcon.y);
+    ASSERT_TRUE(test::runUntil([this] { return view()->mergeTargetId() == "folder:1"; }));
+    release();
+    ASSERT_TRUE(test::runUntil([this] { return model().folderOf("app02") == "folder:1"; }));
+    EXPECT_EQ(3u, model().item("folder:1")->children.size());
+    EXPECT_TRUE(view()->cellAt(0)->isPlayingFolderAnimation());
+    frames(shell::LauncherCell::kFolderAddedDuration + std::chrono::milliseconds(100),
+           [this] { return !view()->cellAt(0)->isPlayingFolderAnimation(); });
+    EXPECT_FALSE(view()->cellAt(0)->isPlayingFolderAnimation());
 
     // Dragged, it looks as it does at rest: its plate, not a theme's folder
     // icon. Its centre holds no application of the two, only the plate.

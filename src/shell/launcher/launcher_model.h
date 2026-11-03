@@ -88,7 +88,8 @@ public:
     std::string createFolder(const std::string &id, const std::string &name);
     // Drops an application on another, or on a folder: the other and it
     // become a new folder in the other's place, or it joins the folder at
-    // its end. Returns the folder's id; empty when nothing changed.
+    // its end. Returns the folder's id; empty when nothing changed, as for
+    // an application dropped on its own folder.
     std::string merge(const std::string &id, const std::string &target, const std::string &name);
     // Out of its folder, to the top level just after it. A folder left
     // with one application gives way to it, and one left empty goes. Only
