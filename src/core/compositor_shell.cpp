@@ -252,6 +252,8 @@ CompositorShell::CompositorShell(const CompositorOptions &options)
     m_compositorSubscriptions.push_back(
             m_compositor.frameStarted.connect([this](double frameTimeMs) {
                 m_dockLayout.advance(frameTimeMs);
+                if (wm::OverviewController *overview = m_windowManager.overview())
+                    overview->advance(frameTimeMs);
             }));
     m_outputModel.scale = m_options.scale;
 

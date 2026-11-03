@@ -73,6 +73,7 @@ OverviewController::OverviewController(WindowManager *manager)
     });
     // The window is out of the window manager's lists by now.
     m_windowRemoved = m_manager->windowRemoved.connect([this](Window *window) {
+        m_faded.erase(window);
         if (!isActive())
             return;
         if (window == m_swipeTarget)
@@ -137,6 +138,25 @@ double OverviewController::shownProgress(double timeMs) const
     if (!m_node || !m_node->isActive())
         return 0;
     return std::clamp(m_node->progress(timeMs), 0.0, 1.0);
+}
+
+void OverviewController::advance(double timeMs)
+{
+    const double shown = shownProgress(timeMs);
+    std::set<Window *> faded;
+    if (shown > 0) {
+        for (Window *window : m_manager->windows()) {
+            if (layerFor(window) == StackingLayer::AlwaysOnTop)
+                faded.insert(window);
+        }
+    }
+    for (Window *window : m_faded) {
+        if (!faded.contains(window))
+            window->setOpacity(1);
+    }
+    for (Window *window : faded)
+        window->setOpacity(float(1 - shown));
+    m_faded = std::move(faded);
 }
 
 void OverviewController::buildBars()
@@ -724,9 +744,10 @@ OverviewController::Hit OverviewController::hitTest(const base::PointF &location
     if (!isActive())
         return hit;
     // The panels, the dock and whatever else is above the desk stay usable,
-    // server-side frames too, which windowAt() does not see.
+    // server-side frames too, which windowAt() does not see. Floating windows
+    // fade away instead.
     const auto aboveDesk = [](const Window *window) {
-        return window && layerFor(window) > StackingLayer::Normal;
+        return window && layerFor(window) > StackingLayer::AlwaysOnTop;
     };
     if (aboveDesk(m_manager->windowAt(location)) || aboveDesk(m_manager->frameAt(location))) {
         hit.type = Hit::Type::Panel;

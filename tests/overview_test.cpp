@@ -334,6 +334,36 @@ TEST_F(OverviewTest, ThePanelsAndTheDockKeepTheirInput)
     EXPECT_TRUE(overview->onPointerMotion(at(now), base::PointF(500, 600)));
 }
 
+TEST_F(OverviewTest, FloatingWindowsFadeAwayAndLeaveItTheInput)
+{
+    Window *window = makeWindow(base::Rect(100, 100, 500, 400));
+    Window *floating = makeWindow(base::Rect(300, 200, 300, 200));
+    floating->setAlwaysOnTop(true);
+    const auto opacity = [floating] {
+        return dynamic_cast<const scene::WindowAnimation *>(floating->node())->opacity();
+    };
+    overview->advance(double(now));
+    ASSERT_EQ(1.f, opacity());
+
+    ASSERT_TRUE(overview->enter());
+    paint();
+    overview->advance(double(now) + scene::OverviewNode::kTransitionDurationMs / 2);
+    EXPECT_GT(1.f, opacity());
+    EXPECT_LT(0.f, opacity());
+    settle();
+    overview->advance(double(now));
+    EXPECT_EQ(0.f, opacity());
+    // Not in the overview, and the pointer over it is the overview's.
+    ASSERT_EQ(1u, overview->items().size());
+    EXPECT_EQ(window, overview->items().front().window);
+    EXPECT_NE(OverviewController::Hit::Type::Panel, overview->hitTest(base::PointF(450, 300)).type);
+
+    overview->toggle();
+    settle();
+    overview->advance(double(now));
+    EXPECT_EQ(1.f, opacity());
+}
+
 TEST_F(OverviewTest, ThePanelsGiveWayAsItComesIn)
 {
     DockLayoutManager layout {&manager};

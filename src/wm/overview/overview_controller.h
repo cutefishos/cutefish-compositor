@@ -94,6 +94,9 @@ public:
     }
     // How far in it is drawn at `timeMs` on the frame clock, from 0 to 1.
     double shownProgress(double timeMs) const;
+    // Fades the windows floating above applications out as it comes in, and
+    // back as it goes, for the frame at `timeMs`.
+    void advance(double timeMs);
 
     // The shortcut.
     void toggle();
@@ -231,6 +234,7 @@ private:
     scene::OverviewNode *m_node = nullptr;
     scene::OverviewDeskBarNode *m_bar = nullptr;
     std::vector<const scene::Node *> m_wallpapers;
+    std::set<Window *> m_faded;
     input::EventSink *m_next = nullptr;
     State m_state = State::Hidden;
     std::vector<Item> m_items;
