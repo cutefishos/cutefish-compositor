@@ -871,7 +871,16 @@ find_library(PAM_LIBRARY pam REQUIRED)
 add_executable(cutefish-auth-helper src/auth/auth_helper.cpp)
 target_link_libraries(cutefish-auth-helper PRIVATE ${PAM_LIBRARY})
 install(TARGETS cutefish-auth-helper RUNTIME DESTINATION ${CMAKE_INSTALL_LIBEXECDIR})
-install(FILES data/cutefish-auth DESTINATION ${CMAKE_INSTALL_FULL_SYSCONFDIR}/pam.d)
+# Fedora/RHEL use authselect's system-auth rather than Debian's common-*.
+# Packagers and cross builds can explicitly select a service file.
+set(_cutefish_pam_default "${CMAKE_CURRENT_SOURCE_DIR}/data/cutefish-auth")
+if(EXISTS "/etc/pam.d/system-auth" AND NOT EXISTS "/etc/pam.d/common-auth")
+    set(_cutefish_pam_default "${CMAKE_CURRENT_SOURCE_DIR}/data/cutefish-auth-fedora")
+endif()
+set(CUTEFISH_PAM_CONFIG "${_cutefish_pam_default}" CACHE FILEPATH
+    "PAM service file for Cutefish lock-screen authentication")
+install(FILES "${CUTEFISH_PAM_CONFIG}"
+        DESTINATION ${CMAKE_INSTALL_FULL_SYSCONFDIR}/pam.d RENAME cutefish-auth)
 add_library(cutefish-auth STATIC
     src/auth/auth_status.cpp src/auth/auth_status.h
     src/auth/auth_ui.cpp src/auth/auth_ui.h
