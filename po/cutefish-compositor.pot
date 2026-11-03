@@ -286,11 +286,11 @@ msgid "Not found"
 msgstr ""
 
 #: src/shell/launcher/launcher_view.cpp
-msgid "Send to dock"
+msgid "Send to Dock"
 msgstr ""
 
 #: src/shell/launcher/launcher_view.cpp
-msgid "Send to desktop"
+msgid "Send to Desktop"
 msgstr ""
 
 #: src/shell/menubar/menu_bar_model.cpp
