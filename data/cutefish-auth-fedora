@@ -1,0 +1,6 @@
+#%PAM-1.0
+# Authenticate the current session user using Fedora's authselect policy.
+# Lock-screen authentication does not open a new login session.
+auth     requisite  pam_nologin.so
+auth     include    system-auth
+account  include    system-auth
