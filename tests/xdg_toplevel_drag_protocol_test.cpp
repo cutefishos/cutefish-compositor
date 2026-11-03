@@ -88,6 +88,8 @@ struct Client {
     std::vector<wl_data_offer *> offers;
     uint32_t dragEnterSerial = 0;
     int dropsPerformed = 0;
+    bool finishDrop = false;
+    std::vector<std::string> dropEvents;
     int cancels = 0;
 
     explicit Client(int fd)
@@ -155,7 +157,12 @@ struct Client {
                     static_cast<Client *>(data)->dragEnterSurface = nullptr;
                 },
                 [](void *, wl_data_device *, uint32_t, wl_fixed_t, wl_fixed_t) {},
-                [](void *, wl_data_device *) {},
+                [](void *data, wl_data_device *) {
+                    auto *client = static_cast<Client *>(data);
+                    client->dropEvents.push_back("destination drop");
+                    if (client->finishDrop && client->dragOffer)
+                        wl_data_offer_finish(client->dragOffer);
+                },
                 [](void *, wl_data_device *, wl_data_offer *) {},
         };
         wl_data_device_add_listener(dataDevice, &deviceListener, this);
@@ -269,9 +276,13 @@ struct Client {
                     ++static_cast<Client *>(data)->cancels;
                 },
                 [](void *data, wl_data_source *) {
-                    ++static_cast<Client *>(data)->dropsPerformed;
+                    auto *client = static_cast<Client *>(data);
+                    ++client->dropsPerformed;
+                    client->dropEvents.push_back("source drop performed");
                 },
-                [](void *, wl_data_source *) {},
+                [](void *data, wl_data_source *) {
+                    static_cast<Client *>(data)->dropEvents.push_back("source finished");
+                },
                 [](void *, wl_data_source *, uint32_t) {},
         };
         wl_data_source_add_listener(source, &sourceListener, this);
@@ -940,6 +951,33 @@ TEST_F(XdgToplevelDragProtocolTest, DestroyingTheDragBeforeItEndsIsAnError)
         wl_data_device_start_drag(c.dataDevice, source, origin->surface, nullptr, c.buttonSerial);
         xdg_toplevel_drag_v1_destroy(drag);
         EXPECT_EQ(uint32_t(XDG_TOPLEVEL_DRAG_V1_ERROR_ONGOING_DRAG), c.syncExpectingError());
+        wl_data_source_destroy(source);
+    });
+}
+
+TEST_F(XdgToplevelDragProtocolTest, SelfDropReachesDestinationBeforeSourceCompletes)
+{
+    // Chromium can end its nested drag loop on dnd_drop_performed and clear
+    // its same-window target. Deliver the destination drop first so it can
+    // process the data and send finish rather than getting stuck indefinitely.
+    run([&](Client &c) {
+        Toplevel *origin = mapSourceWindowAndPress(c);
+        wl_data_source *source = c.makeSource();
+        c.finishDrop = true;
+        wl_data_device_start_drag(c.dataDevice, source, origin->surface, nullptr, c.buttonSerial);
+        c.sync();
+        ASSERT_NE(nullptr, c.dragOffer);
+        wl_data_offer_accept(c.dragOffer, c.dragEnterSerial, "application/x-cutefish-tab");
+        wl_data_offer_set_actions(c.dragOffer, WL_DATA_DEVICE_MANAGER_DND_ACTION_MOVE,
+                                 WL_DATA_DEVICE_MANAGER_DND_ACTION_MOVE);
+        c.sync();
+        check([&] { manager.onPointerButton(at(4), BTN_LEFT, false); });
+        c.sync();
+        c.sync();
+        EXPECT_EQ((std::vector<std::string>{"destination drop", "source drop performed", "source finished"}),
+                  c.dropEvents);
+        EXPECT_EQ(0, c.cancels);
+        EXPECT_EQ(0, wl_display_get_error(c.display));
         wl_data_source_destroy(source);
     });
 }
