@@ -3,6 +3,7 @@
 // found in the LICENSE.chromium file.
 //
 // Upstream: chromium/src/ui/ozone/platform/drm/host/drm_display_host_manager.cc
+//           chromium/src/ui/ozone/platform/drm/gpu/drm_gpu_display_manager.cc
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
 //
 // Adapted for Cutefish: one udev monitor closes the subscribe-before-query race
@@ -11,46 +12,14 @@
 #include "backend/drm/drm_hotplug_monitor.h"
 
 #include <charconv>
-#include <cstring>
-#include <fcntl.h>
 #include <libudev.h>
 #include <string_view>
 #include <sys/epoll.h>
-#include <unistd.h>
-#include <xf86drmMode.h>
 
 #include "base/event_loop.h"
 #include "core/main_loop.h"
 
 namespace cutefish::backend {
-namespace {
-
-// HDCP state changes are connector property notifications, not cable events.
-// Keep unknown properties (especially link-status) on the recovery path.
-bool isContentProtectionEvent(udev_device *device)
-{
-    const char *property = udev_device_get_property_value(device, "PROPERTY");
-    const char *node = udev_device_get_devnode(device);
-    if (!property || !node)
-        return false;
-    uint32_t id = 0;
-    const std::string_view text(property);
-    const auto parsed = std::from_chars(text.data(), text.data() + text.size(), id);
-    if (parsed.ec != std::errc() || parsed.ptr != text.data() + text.size())
-        return false;
-    const int fd = open(node, O_RDONLY | O_CLOEXEC);
-    if (fd < 0)
-        return false;
-    drmModePropertyPtr info = drmModeGetProperty(fd, id);
-    const bool contentProtection = info && std::strcmp(info->name, "Content Protection") == 0;
-    if (info)
-        drmModeFreeProperty(info);
-    close(fd);
-    return contentProtection;
-}
-
-} // namespace
-
 DrmHotplugMonitor::DrmHotplugMonitor()
     : m_quiet(core::mainLoop())
     , m_deadline(core::mainLoop())
@@ -88,18 +57,31 @@ bool DrmHotplugMonitor::start()
     return m_watch != 0;
 }
 
-void DrmHotplugMonitor::notifyForTest()
+void DrmHotplugMonitor::notifyForTest(const char *devnode, const char *property)
 {
+    notify(devnode, property);
+}
+
+void DrmHotplugMonitor::notify(const char *devnode, const char *property)
+{
+    // HDCP state changes are property notifications, not topology changes.
+    // Keep unresolved properties (especially link-status) on the recovery path.
+    if (devnode && *devnode && property && isContentProtectionProperty) {
+        uint32_t id = 0;
+        const std::string_view text(property);
+        const auto parsed = std::from_chars(text.data(), text.data() + text.size(), id);
+        if (parsed.ec == std::errc() && parsed.ptr == text.data() + text.size()
+            && isContentProtectionProperty(devnode, id))
+            return;
+    }
     schedule();
 }
 
 void DrmHotplugMonitor::onReadable()
 {
     while (udev_device *device = udev_monitor_receive_device(m_monitor)) {
-        const bool contentProtection = isContentProtectionEvent(device);
+        notify(udev_device_get_devnode(device), udev_device_get_property_value(device, "PROPERTY"));
         udev_device_unref(device);
-        if (!contentProtection)
-            schedule();
     }
 }
 
