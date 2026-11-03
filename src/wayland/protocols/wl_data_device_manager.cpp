@@ -449,12 +449,11 @@ void setSelection(wl_client* client, wl_resource* resource, wl_resource* sourceR
     auto source = getSource(client, sourceResource);
     if (sourceResource && !source)
         return;
-    // GTK 3 repeats set_selection for the current source when adding SAVE_TARGETS.
-    // The protocol permits (but does not require) used_source here. Treat this
-    // exact repeat as a no-op; never repurpose or revive a used source.
-    if (source && device->controller && device->controller->source() == source)
-        return;
-    if (!unused(resource, source))
+    // GTK clients can repeat set_selection while a source is being retired
+    // (for example around SAVE_TARGETS). used_source is optional here: ignore
+    // the repeat rather than disconnecting Firefox. Never revive a retired
+    // source or change the selection in response to one.
+    if (source && (source->used() || !source->alive()))
         return;
     if (source && (source->actionsSet || source->dragOnly)) {
         wl_resource_post_error(sourceResource, WL_DATA_SOURCE_ERROR_INVALID_SOURCE,
