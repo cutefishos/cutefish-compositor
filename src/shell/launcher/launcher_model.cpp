@@ -5,8 +5,11 @@
 #include "shell/launcher/launcher_model.h"
 
 #include <algorithm>
+#include <cstdlib>
+#include <cstring>
 #include <filesystem>
 #include <map>
+#include <tuple>
 #include <unistd.h>
 
 #include "base/locale.h"
@@ -42,7 +45,12 @@ LauncherModel::LauncherModel(Applications &applications, ApplicationLauncher &la
     , m_rows(*this, [](const LauncherItem &item) { return item.id; },
              [](const LauncherItem &a, const LauncherItem &b) {
                  return a.name == b.name && a.genericName == b.genericName && a.comment == b.comment
-                         && a.iconName == b.iconName && a.newInstalled == b.newInstalled;
+                         && a.iconName == b.iconName && a.newInstalled == b.newInstalled
+                         && std::equal(a.children.begin(), a.children.end(), b.children.begin(),
+                                       b.children.end(), [](const LauncherItem &x, const LauncherItem &y) {
+                                           return x.id == y.id && x.name == y.name && x.iconName == y.iconName
+                                                   && x.newInstalled == y.newInstalled;
+                                       });
              })
 {
     m_saveTimer.setSingleShot(true);
@@ -54,10 +62,16 @@ LauncherModel::LauncherModel(Applications &applications, ApplicationLauncher &la
                                  m_firstLoad = !stored.valid;
                                  if (stored.valid) {
                                      m_items = std::move(stored.items);
-                                     for (LauncherItem &item : m_items)
-                                         item.newInstalled = std::find(stored.newAppIds.begin(),
-                                                                       stored.newAppIds.end(), item.id)
+                                     const auto isNew = [&stored](const LauncherItem &item) {
+                                         return std::find(stored.newAppIds.begin(), stored.newAppIds.end(),
+                                                          item.id)
                                                  != stored.newAppIds.end();
+                                     };
+                                     for (LauncherItem &item : m_items) {
+                                         item.newInstalled = isNew(item);
+                                         for (LauncherItem &child : item.children)
+                                             child.newInstalled = isNew(child);
+                                     }
                                  }
                                  m_loaded = true;
                                  onApplicationsChanged();
@@ -77,10 +91,20 @@ LauncherModel::Stored LauncherModel::load(const std::string &path)
     if (!settings.contains("Launcher/order"))
         return stored;
 
-    // Names and icons come from the entries; only the ids are kept.
+    // Names and icons come from the entries; only the ids are kept, and a
+    // folder's name.
     for (const std::string &id : settings.stringListValue("Launcher/order")) {
         LauncherItem item;
         item.id = id;
+        if (item.isFolder()) {
+            const std::string group = "Launcher/Folder" + id.substr(std::strlen(LauncherItem::kFolderPrefix));
+            item.name = settings.stringValue(group + "/name");
+            for (const std::string &child : settings.stringListValue(group + "/apps")) {
+                LauncherItem app;
+                app.id = child;
+                item.children.push_back(std::move(app));
+            }
+        }
         stored.items.push_back(std::move(item));
     }
     stored.valid = true;
@@ -97,17 +121,33 @@ void LauncherModel::save()
 
     std::vector<std::string> order;
     std::vector<std::string> newAppIds;
+    // Each folder's number, name and applications.
+    std::vector<std::tuple<std::string, std::string, std::vector<std::string>>> folders;
     for (const LauncherItem &item : m_items) {
         order.push_back(item.id);
-        if (item.newInstalled)
-            newAppIds.push_back(item.id);
+        if (!item.isFolder()) {
+            if (item.newInstalled)
+                newAppIds.push_back(item.id);
+            continue;
+        }
+        std::vector<std::string> apps;
+        for (const LauncherItem &child : item.children) {
+            apps.push_back(child.id);
+            if (child.newInstalled)
+                newAppIds.push_back(child.id);
+        }
+        folders.emplace_back(item.id.substr(std::strlen(LauncherItem::kFolderPrefix)), item.name, std::move(apps));
     }
 
-    fileThread().post([path = m_path, order, newAppIds] {
+    fileThread().post([path = m_path, order, newAppIds, folders] {
         base::Settings settings(path);
         settings.remove("Launcher");
         settings.setValue("Launcher/order", order);
         settings.setValue("Launcher/newAppIds", newAppIds);
+        for (const auto &[number, name, apps] : folders) {
+            settings.setValue("Launcher/Folder" + number + "/name", name);
+            settings.setValue("Launcher/Folder" + number + "/apps", apps);
+        }
         settings.sync();
     });
 }
@@ -123,10 +163,7 @@ void LauncherModel::delaySave()
 
 void LauncherModel::beginReorder()
 {
-    std::vector<std::string> order;
-    for (const LauncherItem &item : m_items)
-        order.push_back(item.id);
-    m_reorderBase = std::move(order);
+    m_reorderBase = m_items;
     // A save already due would write the drag's moves.
     if (m_saveTimer.isActive()) {
         m_saveTimer.stop();
@@ -138,20 +175,34 @@ void LauncherModel::endReorder(bool keep)
 {
     if (!m_reorderBase)
         return;
-    const std::vector<std::string> base = *std::exchange(m_reorderBase, std::nullopt);
+    std::vector<LauncherItem> base = *std::exchange(m_reorderBase, std::nullopt);
     if (!keep) {
-        std::map<std::string, size_t> positions;
-        for (size_t i = 0; i < base.size(); ++i)
-            positions.emplace(base[i], i);
-        // Applications that arrived during the drag stay after the others.
-        const auto position = [&positions, &base](const LauncherItem &item) {
-            const auto found = positions.find(item.id);
-            return found == positions.end() ? base.size() : found->second;
-        };
-        std::stable_sort(m_items.begin(), m_items.end(),
-                         [&position](const LauncherItem &a, const LauncherItem &b) {
-                             return position(a) < position(b);
-                         });
+        // The order and folders as they were, with what the applications
+        // became during the drag: those that arrived stay after the others,
+        // and those opened are no longer new.
+        std::map<std::string, bool> newInstalled;
+        for (const LauncherItem &item : m_items) {
+            newInstalled[item.id] = item.newInstalled;
+            for (const LauncherItem &child : item.children)
+                newInstalled[child.id] = child.newInstalled;
+        }
+        std::set<std::string> seen;
+        for (LauncherItem &item : base) {
+            for (LauncherItem &child : item.children) {
+                if (const auto it = newInstalled.find(child.id); it != newInstalled.end())
+                    child.newInstalled = it->second;
+                seen.insert(child.id);
+            }
+            if (const auto it = newInstalled.find(item.id); it != newInstalled.end() && !item.isFolder())
+                item.newInstalled = it->second;
+            seen.insert(item.id);
+        }
+        for (const LauncherItem &item : m_items) {
+            if (!item.isFolder() && !seen.count(item.id))
+                base.push_back(item);
+        }
+        m_items = std::move(base);
+        onApplicationsChanged();
         updateRows();
     }
     if (std::exchange(m_savePending, false))
@@ -174,10 +225,16 @@ void LauncherModel::updateRows()
         return;
     }
     std::vector<LauncherItem> results;
-    for (const LauncherItem &item : m_items) {
+    const auto match = [this, &results](const LauncherItem &item) {
         if (containsIgnoringCase(item.name, m_searchKey) || containsIgnoringCase(item.genericName, m_searchKey)
             || containsIgnoringCase(item.comment, m_searchKey) || containsIgnoringCase(item.id, m_searchKey))
             results.push_back(item);
+    };
+    for (const LauncherItem &item : m_items) {
+        if (!item.isFolder())
+            match(item);
+        for (const LauncherItem &child : item.children)
+            match(child);
     }
     m_rows.sync(results);
 }
@@ -198,20 +255,21 @@ void LauncherModel::clearNewInstalled(const std::vector<std::string> &ids)
 {
     bool changed = false;
     for (const std::string &id : ids) {
-        const int index = findById(id);
-        if (index < 0) {
+        std::string canonicalId = id;
+        if (const DesktopEntryPtr entry = m_applications.byPath(id))
+            canonicalId = entry->id;
+        LauncherItem *item = LauncherItem::isFolderId(canonicalId) ? nullptr : findItem(canonicalId);
+        if (!item) {
             m_openedUnknownIds.insert(id);
             continue;
         }
-        if (m_items[size_t(index)].newInstalled) {
-            m_items[size_t(index)].newInstalled = false;
+        if (item->newInstalled) {
+            item->newInstalled = false;
             changed = true;
         }
     }
-    if (changed) {
-        updateRows();
-        delaySave();
-    }
+    if (changed)
+        this->changed();
 }
 
 void LauncherModel::move(int from, int to)
@@ -227,6 +285,184 @@ void LauncherModel::move(int from, int to)
     m_items.insert(m_items.begin() + to, std::move(item));
     updateRows();
     delaySave();
+}
+
+const LauncherItem *LauncherModel::item(const std::string &id) const
+{
+    return const_cast<LauncherModel *>(this)->findItem(id);
+}
+
+LauncherItem *LauncherModel::findItem(const std::string &id)
+{
+    for (LauncherItem &item : m_items) {
+        if (item.id == id)
+            return &item;
+        for (LauncherItem &child : item.children) {
+            if (child.id == id)
+                return &child;
+        }
+    }
+    return nullptr;
+}
+
+std::string LauncherModel::folderOf(const std::string &id) const
+{
+    for (const LauncherItem &item : m_items) {
+        for (const LauncherItem &child : item.children) {
+            if (child.id == id)
+                return item.id;
+        }
+    }
+    return {};
+}
+
+std::string LauncherModel::newFolderId() const
+{
+    // One past the highest number in use, also by the order a drag may
+    // put back.
+    int highest = 0;
+    const auto note = [&highest](const std::vector<LauncherItem> &items) {
+        for (const LauncherItem &item : items) {
+            if (item.isFolder())
+                highest = std::max(highest, std::atoi(item.id.c_str() + std::strlen(LauncherItem::kFolderPrefix)));
+        }
+    };
+    note(m_items);
+    if (m_reorderBase)
+        note(*m_reorderBase);
+    return LauncherItem::kFolderPrefix + std::to_string(highest + 1);
+}
+
+std::optional<LauncherItem> LauncherModel::takeApplication(const std::string &id)
+{
+    for (auto it = m_items.begin(); it != m_items.end(); ++it) {
+        if (it->id == id) {
+            if (it->isFolder())
+                return std::nullopt;
+            LauncherItem item = std::move(*it);
+            m_items.erase(it);
+            return item;
+        }
+        auto &children = it->children;
+        const auto child = std::find_if(children.begin(), children.end(),
+                                        [&id](const LauncherItem &item) { return item.id == id; });
+        if (child == children.end())
+            continue;
+        LauncherItem item = std::move(*child);
+        children.erase(child);
+        // A folder left with one application gives way to it.
+        if (children.empty())
+            m_items.erase(it);
+        else if (children.size() == 1)
+            *it = LauncherItem(std::move(children.front()));
+        return item;
+    }
+    return std::nullopt;
+}
+
+void LauncherModel::changed()
+{
+    // A folder is new while one of its applications is.
+    for (LauncherItem &item : m_items) {
+        if (item.isFolder())
+            item.newInstalled = std::any_of(item.children.begin(), item.children.end(),
+                                            [](const LauncherItem &child) { return child.newInstalled; });
+    }
+    updateRows();
+    delaySave();
+}
+
+std::string LauncherModel::createFolder(const std::string &id, const std::string &name)
+{
+    const int index = findById(id);
+    if (!m_searchKey.empty() || index < 0 || m_items[size_t(index)].isFolder())
+        return {};
+    LauncherItem folder;
+    folder.id = newFolderId();
+    folder.name = name;
+    folder.children.push_back(std::move(m_items[size_t(index)]));
+    m_items[size_t(index)] = std::move(folder);
+    changed();
+    return m_items[size_t(index)].id;
+}
+
+std::string LauncherModel::merge(const std::string &id, const std::string &target, const std::string &name)
+{
+    if (!m_searchKey.empty() || id == target || LauncherItem::isFolderId(id) || findById(target) < 0)
+        return {};
+    // A folder that the application leaves empty goes, and the target's
+    // index with it.
+    std::optional<LauncherItem> app = takeApplication(id);
+    if (!app)
+        return {};
+    const int index = findById(target);
+    if (index < 0) {
+        m_items.push_back(std::move(*app));
+        changed();
+        return {};
+    }
+    LauncherItem &item = m_items[size_t(index)];
+    if (!item.isFolder()) {
+        LauncherItem folder;
+        folder.id = newFolderId();
+        folder.name = name;
+        folder.children.push_back(std::move(item));
+        item = std::move(folder);
+    }
+    item.children.push_back(std::move(*app));
+    const std::string folder = item.id;
+    changed();
+    return folder;
+}
+
+void LauncherModel::removeFromFolder(const std::string &id)
+{
+    const std::string folder = folderOf(id);
+    if (!m_searchKey.empty() || folder.empty())
+        return;
+    const int index = findById(folder);
+    const size_t count = m_items.size();
+    std::optional<LauncherItem> app = takeApplication(id);
+    // Just after the folder, or after the application that took its place;
+    // in its place when nothing did.
+    const bool slotStays = m_items.size() == count;
+    m_items.insert(m_items.begin() + index + (slotStays ? 1 : 0), std::move(*app));
+    changed();
+}
+
+void LauncherModel::moveInFolder(const std::string &folder, int from, int to)
+{
+    const int index = findById(folder);
+    if (!m_searchKey.empty() || index < 0 || from == to)
+        return;
+    auto &children = m_items[size_t(index)].children;
+    if (from < 0 || to < 0 || size_t(from) >= children.size() || size_t(to) >= children.size())
+        return;
+    LauncherItem item = std::move(children[size_t(from)]);
+    children.erase(children.begin() + from);
+    children.insert(children.begin() + to, std::move(item));
+    changed();
+}
+
+void LauncherModel::renameFolder(const std::string &folder, const std::string &name)
+{
+    const int index = findById(folder);
+    if (index < 0 || !m_items[size_t(index)].isFolder() || m_items[size_t(index)].name == name)
+        return;
+    m_items[size_t(index)].name = name;
+    changed();
+}
+
+void LauncherModel::ungroupFolder(const std::string &folder)
+{
+    const int index = findById(folder);
+    if (!m_searchKey.empty() || index < 0 || !m_items[size_t(index)].isFolder())
+        return;
+    std::vector<LauncherItem> children = std::move(m_items[size_t(index)].children);
+    m_items.erase(m_items.begin() + index);
+    m_items.insert(m_items.begin() + index, std::make_move_iterator(children.begin()),
+                   std::make_move_iterator(children.end()));
+    changed();
 }
 
 void LauncherModel::sendToDesktop(const std::string &key)
@@ -286,17 +522,42 @@ void LauncherModel::onApplicationsChanged()
 
     std::vector<LauncherItem> updated;
     std::set<std::string> seen;
-    for (LauncherItem item : m_items) {
+    // The application still there, brought up to date; false when it went.
+    const auto refresh = [&byId, &byPath, &seen](LauncherItem *item) {
         DesktopEntryPtr entry;
-        if (const auto it = byId.find(item.id); it != byId.end())
+        if (const auto it = byId.find(item->id); it != byId.end())
             entry = it->second;
-        else if (const auto path = byPath.find(absolutePath(item.id)); path != byPath.end())
+        else if (const auto path = byPath.find(absolutePath(item->id)); path != byPath.end())
             entry = path->second;
         if (!entry || entry->terminal || seen.count(entry->id))
-            continue;
-        updateItem(&item, *entry);
-        updated.push_back(item);
+            return false;
+        updateItem(item, *entry);
         seen.insert(entry->id);
+        return true;
+    };
+    for (LauncherItem item : m_items) {
+        if (!item.isFolder()) {
+            if (refresh(&item))
+                updated.push_back(item);
+            continue;
+        }
+        // A folder keeps its applications still there, and goes with the
+        // last; one that loses all but one gives way to it.
+        std::vector<LauncherItem> children;
+        for (LauncherItem child : item.children) {
+            if (refresh(&child))
+                children.push_back(std::move(child));
+        }
+        if (children.empty())
+            continue;
+        if (children.size() == 1 && item.children.size() > 1) {
+            updated.push_back(std::move(children.front()));
+            continue;
+        }
+        item.children = std::move(children);
+        item.newInstalled = std::any_of(item.children.begin(), item.children.end(),
+                                        [](const LauncherItem &child) { return child.newInstalled; });
+        updated.push_back(std::move(item));
     }
 
     for (const DesktopEntryPtr &entry : available) {

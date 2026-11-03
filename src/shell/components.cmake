@@ -120,10 +120,12 @@ add_library(cutefish-shell-notification-view STATIC
 )
 target_link_libraries(cutefish-shell-notification-view PUBLIC cutefish-shell cutefish-shell-notification)
 target_link_libraries(cutefish-compositor PRIVATE cutefish-shell-notification-view)
-# The launcher: its window, grid, search and paging on the launcher's backend.
+# The launcher: its window, grid, folders, search and paging on the launcher's backend.
 add_library(cutefish-shell-launcher-view STATIC
     src/shell/launcher/launcher_cell.cpp
     src/shell/launcher/launcher_cell.h
+    src/shell/launcher/launcher_folder_view.cpp
+    src/shell/launcher/launcher_folder_view.h
     src/shell/launcher/launcher_metrics.cpp
     src/shell/launcher/launcher_metrics.h
     src/shell/launcher/launcher_search_field.cpp

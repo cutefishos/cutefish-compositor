@@ -29,12 +29,16 @@ namespace cutefish::shell {
 class ApplicationBadges;
 class Launcher;
 class LauncherCell;
+class LauncherFolderView;
 class LauncherSearchField;
 class LauncherWallpaper;
 
 // The launcher's content: the blurred wallpaper, the search field, the
-// application grid in pages that slide sideways, the page dots and "Not
-// found", with its keys, wheel and touchpad paging, drags and menus.
+// application grid in pages that slide sideways, the page dots, "Not
+// found" and the open folder, with its keys, wheel and touchpad paging,
+// drags and menus. An application dragged onto another's icon makes a
+// folder of the two, or joins the folder it is dropped on; dragged out of
+// an open folder's panel, it leaves the folder.
 class LauncherView final : public ui::View, private ui::Scroller::Target
 {
 public:
@@ -68,6 +72,8 @@ public:
     bool isSearching() const;
     LauncherSearchField *searchField() const { return m_search; }
     LauncherCell *cell(const std::string &id) const;
+    // A cell of the grid, or of the open folder.
+    LauncherCell *anyCell(const std::string &id) const;
     // The cell of a row, null when absent.
     LauncherCell *cellAt(int row) const;
     // Where a row's cell rests, in window coordinates.
@@ -78,11 +84,19 @@ public:
     // The dots' centres, in window coordinates.
     std::vector<ui::PointF> indicatorDots() const;
     bool isNotFoundVisible() const;
+    LauncherFolderView *folderView() const { return m_folder; }
+    // The folder an application dragged now would join or make; empty for
+    // none.
+    const std::string &mergeTargetId() const { return m_mergeTargetId; }
 
     // --- What the keys, the wheel and the dots do ---
 
     void moveSelection(LauncherDirection direction);
     void launchSelected();
+    // Opens a folder over the grid, its name selected for editing when
+    // `editName`.
+    void openFolder(const std::string &folder, bool editName = false);
+    void closeFolder();
     void goToPage(int page);
     void scrollNextPage();
     void scrollPreviousPage();
@@ -146,7 +160,11 @@ private:
     void endDrag();
     void requestMove(int to);
     void applyMove();
+    void requestMerge();
     void updateDragTarget(ui::PointF position);
+    bool updateFolderDragTarget(ui::PointF position);
+    void setMergeTarget(const std::string &id);
+    void setHovered(const std::string &id);
     void updateBackdrop();
     void retranslate();
     void retire(std::unique_ptr<ui::View> view);
@@ -169,6 +187,7 @@ private:
     LauncherSearchField *m_search = nullptr;
     Indicator *m_indicator = nullptr;
     ui::Label *m_notFound = nullptr;
+    LauncherFolderView *m_folder = nullptr;
 
     int m_currentPage = -1;
     // The page the grid showed when a search began; -1 outside a search.
@@ -205,6 +224,10 @@ private:
     base::Timer m_edgeTimer;
     std::string m_pendingMoveId;
     int m_pendingMoveTo = -1;
+    // The folder a pending move is within; empty for the grid.
+    std::string m_pendingMoveFolder;
+    // The icon the drag rests on, which a drop makes a folder with.
+    std::string m_mergeTargetId;
 
     base::Timer m_preloadTimer;
     std::vector<std::string> m_preloadedNames;

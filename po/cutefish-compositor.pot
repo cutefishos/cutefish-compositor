@@ -293,6 +293,26 @@ msgstr ""
 msgid "Send to Desktop"
 msgstr ""
 
+#: src/shell/launcher/launcher_view.cpp
+msgid "New Folder"
+msgstr ""
+
+#: src/shell/launcher/launcher_view.cpp
+msgid "Move to Folder"
+msgstr ""
+
+#: src/shell/launcher/launcher_view.cpp
+msgid "Remove from Folder"
+msgstr ""
+
+#: src/shell/launcher/launcher_view.cpp
+msgid "Rename"
+msgstr ""
+
+#: src/shell/launcher/launcher_view.cpp
+msgid "Ungroup"
+msgstr ""
+
 #: src/shell/menubar/menu_bar_model.cpp
 msgid "About"
 msgstr ""

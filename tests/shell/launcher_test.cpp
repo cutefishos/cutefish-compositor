@@ -122,6 +122,91 @@ TEST_F(LauncherTest, SearchesNamesCommentsAndIds)
     EXPECT_EQ(ids(), (std::vector<std::string>{"alpha", "mid", "zeta"}));
 }
 
+TEST_F(LauncherTest, FoldersHoldApplicationsAndAreSaved)
+{
+    start();
+    applications.scan();
+    ASSERT_TRUE(test::runUntil([&] { return model().count() == 3; }));
+    const auto children = [this](const std::string &folder) {
+        std::vector<std::string> list;
+        if (const shell::LauncherItem *item = model().item(folder))
+            for (const auto &child : item->children)
+                list.push_back(child.id);
+        return list;
+    };
+
+    // Dropped on another application, the two make a folder in its place.
+    const std::string folder = model().merge("zeta", "alpha", "Work");
+    EXPECT_EQ(folder, "folder:1");
+    EXPECT_EQ(ids(), (std::vector<std::string>{"folder:1", "mid"}));
+    EXPECT_EQ(children(folder), (std::vector<std::string>{"alpha", "zeta"}));
+    EXPECT_EQ(model().item(folder)->name, "Work");
+    EXPECT_EQ(model().folderOf("zeta"), folder);
+    EXPECT_EQ(model().findById("zeta"), -1);
+    // A folder does not go into another.
+    EXPECT_EQ(model().merge(folder, "mid", "Other"), "");
+
+    // A search looks into the folders and finds applications only.
+    model().search("zeta");
+    EXPECT_EQ(ids(), (std::vector<std::string>{"zeta"}));
+    model().search("");
+
+    model().renameFolder(folder, "Games");
+    model().moveInFolder(folder, 1, 0);
+    EXPECT_EQ(children(folder), (std::vector<std::string>{"zeta", "alpha"}));
+    model().save();
+    shell::waitForFileThread();
+    {
+        const base::Settings settings(directory.filePath("shell.conf"));
+        EXPECT_EQ(settings.stringListValue("Launcher/order"), (std::vector<std::string>{"folder:1", "mid"}));
+        EXPECT_EQ(settings.stringValue("Launcher/Folder1/name"), "Games");
+        EXPECT_EQ(settings.stringListValue("Launcher/Folder1/apps"), (std::vector<std::string>{"zeta", "alpha"}));
+    }
+
+    // Read back as it was written.
+    launcher.reset();
+    start();
+    applications.scan();
+    ASSERT_TRUE(test::runUntil([&] { return model().count() == 2; }));
+    EXPECT_EQ(ids(), (std::vector<std::string>{"folder:1", "mid"}));
+    EXPECT_EQ(children("folder:1"), (std::vector<std::string>{"zeta", "alpha"}));
+    EXPECT_EQ(model().item("folder:1")->name, "Games");
+    EXPECT_EQ(model().rows()[0].children[0].name, "Zeta");
+}
+
+TEST_F(LauncherTest, AFolderLeftWithOneApplicationGivesWayToIt)
+{
+    start("[Launcher]\norder=folder:4, mid\nFolder4/name=Tools\nFolder4/apps=alpha, gone, zeta\n");
+    applications.scan();
+    ASSERT_TRUE(test::runUntil([&] { return model().count() == 2; }));
+    // Applications no longer installed leave it.
+    ASSERT_EQ(model().item("folder:4")->children.size(), 2u);
+
+    // Out of the folder, just after it; the one left takes the folder's
+    // place.
+    model().removeFromFolder("alpha");
+    EXPECT_EQ(ids(), (std::vector<std::string>{"zeta", "alpha", "mid"}));
+    EXPECT_EQ(model().item("folder:4"), nullptr);
+
+    // Made from the menu, a folder holds one application; ungrouped, its
+    // applications take its place.
+    EXPECT_EQ(model().createFolder("alpha", "Folder"), "folder:1");
+    model().merge("mid", "folder:1", {});
+    EXPECT_EQ(ids(), (std::vector<std::string>{"zeta", "folder:1"}));
+    EXPECT_EQ(model().merge("zeta", "folder:1", {}), "folder:1");
+    EXPECT_EQ(model().createFolder("folder:1", "Inner"), "");
+    model().ungroupFolder("folder:1");
+    EXPECT_EQ(ids(), (std::vector<std::string>{"alpha", "mid", "zeta"}));
+
+    // An application uninstalled from a folder of two leaves the other in
+    // its place.
+    model().merge("zeta", "mid", "Pair");
+    EXPECT_EQ(ids(), (std::vector<std::string>{"alpha", "folder:1"}));
+    applications.remove("zeta");
+    applications.scan();
+    EXPECT_EQ(ids(), (std::vector<std::string>{"alpha", "mid"}));
+}
+
 TEST_F(LauncherTest, PagesFollowTheList)
 {
     start();

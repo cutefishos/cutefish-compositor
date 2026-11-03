@@ -13,6 +13,7 @@
 #include "shell/common/application_badges.h"
 #include "shell/launcher/launcher.h"
 #include "shell/launcher/launcher_cell.h"
+#include "shell/launcher/launcher_folder_view.h"
 #include "shell/launcher/launcher_search_field.h"
 #include "shell/launcher/launcher_wallpaper.h"
 #include "ui/application.h"
@@ -50,6 +51,26 @@ static int jsRound(double value)
 static double centred(double start, double extent, double size)
 {
     return start + jsRound(extent / 2 - jsRound(size / 2));
+}
+
+// What an application's icon shows: its count, or for a folder its
+// applications' together.
+static int64_t badgeCount(const ApplicationBadges &badges, const LauncherModel &model, const std::string &id)
+{
+    if (!LauncherItem::isFolderId(id))
+        return badges.count(id);
+    int64_t count = 0;
+    if (const LauncherItem *folder = model.item(id)) {
+        for (const LauncherItem &child : folder->children)
+            count += badges.count(child.id);
+    }
+    return count;
+}
+
+// The name a new folder starts with.
+static std::string newFolderName()
+{
+    return tr("New Folder");
 }
 
 // One page of the grid. It slides by its transform, so a page in motion is
@@ -205,6 +226,8 @@ LauncherView::LauncherView(Launcher &launcher, LauncherWallpaper &wallpaper, App
     m_notFound->setColor(kWhite);
     m_notFound->setVisible(false);
     m_indicator = addChild<Indicator>(this);
+    // Above everything else.
+    m_folder = addChild<LauncherFolderView>(this, m_launcher.applications(), m_badges, m_wallpaper);
 
     m_wheelReset.setSingleShot(true);
     m_wheelReset.setInterval(std::chrono::milliseconds(250));
@@ -224,6 +247,11 @@ LauncherView::LauncherView(Launcher &launcher, LauncherWallpaper &wallpaper, App
             return;
         }
         m_reorderPending = false;
+        if (m_folder->isOpen()) {
+            if (const LauncherCell *hovered = m_folder->cell(m_hoveredId))
+                requestMove(hovered->index());
+            return;
+        }
         const LauncherCell *hovered = cell(m_hoveredId);
         if (hovered)
             requestMove(hovered->page() * m_metrics.pageCount + hovered->index());
@@ -261,7 +289,8 @@ LauncherView::LauncherView(Launcher &launcher, LauncherWallpaper &wallpaper, App
     }));
     m_subscriptions.push_back(m_badges.changed.connect([this] {
         for (const auto &[id, cell] : m_cells)
-            cell->setCount(m_badges.count(id));
+            cell->setCount(badgeCount(m_badges, m_launcher.applications(), id));
+        m_folder->sync();
     }));
     m_subscriptions.push_back(ui::Application::instance()->languageChanged.connect([this] { retranslate(); }));
 }
@@ -313,6 +342,7 @@ void LauncherView::setShown(bool shown)
     m_backgroundPressed = false;
     m_flicking = false;
     endDrag();
+    m_folder->close();
     for (const auto &[id, cell] : m_cells)
         cell->finishMove();
     setFocus();
@@ -327,6 +357,13 @@ LauncherCell *LauncherView::cell(const std::string &id) const
 {
     const auto it = m_cells.find(id);
     return it != m_cells.end() ? it->second : nullptr;
+}
+
+LauncherCell *LauncherView::anyCell(const std::string &id) const
+{
+    if (LauncherCell *cell = this->cell(id))
+        return cell;
+    return m_folder->cell(id);
 }
 
 LauncherCell *LauncherView::cellAt(int row) const
@@ -396,6 +433,8 @@ void LauncherView::layout()
         syncCells();
     else
         placePages();
+    m_folder->setGeometry(localRect());
+    m_folder->setMetrics(m_metrics);
 
     const ui::SizeF indicator = m_indicator->implicitSize();
     const base::Rect dots = m_metrics.indicatorRow;
@@ -474,7 +513,7 @@ void LauncherView::syncCells()
         }
         cell->setVisible(true);
         cell->setItem(item);
-        cell->setCount(m_badges.count(item.id));
+        cell->setCount(badgeCount(m_badges, model, item.id));
         cell->setMetrics(m_metrics);
         cell->setBackdrop(backdrop);
         cell->setSlot(pageIndex, index);
@@ -532,6 +571,7 @@ void LauncherView::syncCells()
     else
         updateSelection();
     m_notFound->setVisible(isSearching() && rows.empty());
+    m_folder->sync();
     requestPaint();
 }
 
@@ -727,14 +767,49 @@ void LauncherView::launchSelected()
 {
     flushSearch();
     LauncherModel &model = m_launcher.applications();
-    if (m_selectedIndex >= 0)
+    if (m_selectedIndex >= 0 && m_selectedIndex < model.count()
+        && model.rows()[size_t(m_selectedIndex)].isFolder())
+        openFolder(model.rows()[size_t(m_selectedIndex)].id);
+    else if (m_selectedIndex >= 0)
         model.launchRow(m_selectedIndex);
     else if (isSearching() && model.count() > 0)
         model.launchRow(0);
 }
 
+void LauncherView::openFolder(const std::string &folder, bool editName)
+{
+    if (isSearching() || !m_launcher.applications().item(folder))
+        return;
+    if (m_menu)
+        m_menu->close();
+    // The panel grows out of the folder's icon.
+    ui::RectF from;
+    const auto &rows = m_launcher.applications().rows();
+    for (size_t row = 0; row < rows.size(); ++row) {
+        const LauncherCell *cell = rows[row].id == folder ? this->cell(folder) : nullptr;
+        if (!cell)
+            continue;
+        const ui::RectF slot = cellRect(int(row));
+        const ui::RectF icon = cell->iconRect();
+        from = {slot.x + icon.x, slot.y + icon.y, icon.width, icon.height};
+        break;
+    }
+    m_folder->open(folder, m_shown, from);
+    if (editName)
+        m_folder->editName();
+    else
+        setFocus();
+}
+
+void LauncherView::closeFolder()
+{
+    m_folder->close();
+}
+
 void LauncherView::applySearch(const std::string &text)
 {
+    if (!text.empty())
+        closeFolder();
     if (!text.empty() && m_pageBeforeSearch < 0)
         m_pageBeforeSearch = std::max(0, m_currentPage);
     m_launcher.applications().search(text);
@@ -773,7 +848,10 @@ bool LauncherView::searchKey(uint32_t key)
 {
     switch (key) {
     case ui::key::Escape:
-        m_launcher.hide();
+        if (m_folder->isOpen())
+            m_folder->dismiss();
+        else
+            m_launcher.hide();
         return true;
     case ui::key::Up:
         flushSearch();
@@ -794,6 +872,24 @@ bool LauncherView::searchKey(uint32_t key)
 
 bool LauncherView::keyPress(const ui::KeyEvent &event)
 {
+    // An open folder takes Escape; the arrows and Return stay with the grid
+    // behind it.
+    if (m_folder->isOpen()) {
+        switch (event.key) {
+        case ui::key::Escape:
+            m_folder->dismiss();
+            return true;
+        case ui::key::Left:
+        case ui::key::Right:
+        case ui::key::Up:
+        case ui::key::Down:
+        case ui::key::Return:
+        case ui::key::KeypadEnter:
+            return true;
+        default:
+            break;
+        }
+    }
     switch (event.key) {
     case ui::key::Escape:
         m_launcher.hide();
@@ -824,6 +920,7 @@ bool LauncherView::keyPress(const ui::KeyEvent &event)
     const bool letter = (key >= 'a' && key <= 'z') || (key >= 'A' && key <= 'Z');
     const bool digit = (key >= '0' && key <= '9') || (key >= 0xffb0 && key <= 0xffb9);
     if (modifiers == 0 && !event.text.empty() && (letter || digit)) {
+        closeFolder();
         m_search->focusField();
         m_search->setText(event.text);
         return true;
@@ -943,7 +1040,9 @@ void LauncherView::backgroundReleased(ui::PointF position)
 
 void LauncherView::cellClicked(LauncherCell *cell, ui::MouseButton button, ui::PointF windowPosition)
 {
-    if (button == ui::MouseButton::Left)
+    if (button == ui::MouseButton::Left && cell->isFolder())
+        openFolder(cell->id());
+    else if (button == ui::MouseButton::Left)
         m_launcher.applications().launch(cell->id());
     else if (button == ui::MouseButton::Right)
         openMenu(cell, windowPosition);
@@ -953,25 +1052,54 @@ void LauncherView::openMenu(LauncherCell *cell, ui::PointF windowPosition)
 {
     if (m_menu)
         m_menu->close();
-    if (LauncherCell *previous = this->cell(m_menuId))
+    if (LauncherCell *previous = anyCell(m_menuId))
         previous->setMenuOpen(false);
     const std::string id = cell->id();
     m_menuId = id;
     auto menu = std::make_unique<ui::Menu>();
     Launcher &launcher = m_launcher;
-    menu->addItem(tr("Open"), [&launcher, id] { launcher.applications().launch(id); });
-    menu->addItem(tr("Send to Desktop"), [&launcher, id] { launcher.applications().sendToDesktop(id); });
-    const size_t sendToDock = menu->addItem(tr("Send to Dock"), [&launcher, id] { launcher.sendToDock(id); });
-    const size_t removeFromDock =
-            menu->addItem(tr("Remove from Dock"), [&launcher, id] { launcher.removeFromDock(id); });
-    const bool pinned = m_launcher.isPinnedInDock(id);
-    menu->setItemVisible(sendToDock, !pinned);
-    menu->setItemVisible(removeFromDock, pinned);
+    LauncherModel &model = m_launcher.applications();
+    // The menu goes with the view, so its rows may use it.
+    if (cell->isFolder()) {
+        menu->addItem(tr("Open"), [this, id] { openFolder(id); });
+        menu->addItem(tr("Rename"), [this, id] { openFolder(id, true); });
+        menu->addItem(tr("Ungroup"), [&model, id] { model.ungroupFolder(id); });
+    } else {
+        menu->addItem(tr("Open"), [&launcher, id] { launcher.applications().launch(id); });
+        // Folders change only outside a search.
+        const bool inFolder = !model.folderOf(id).empty();
+        if (!isSearching() && !inFolder) {
+            menu->addItem(tr("New Folder"), [this, &model, id] {
+                const std::string created = model.createFolder(id, newFolderName());
+                if (!created.empty())
+                    openFolder(created, true);
+            });
+            std::vector<std::pair<std::string, std::string>> folders;
+            for (const LauncherItem &item : model.allItems()) {
+                if (item.isFolder())
+                    folders.emplace_back(item.id, item.name);
+            }
+            if (!folders.empty()) {
+                ui::Menu *moveTo = menu->addSubmenu(tr("Move to Folder"));
+                for (const auto &[target, name] : folders)
+                    moveTo->addItem(name, [&model, id, target] { model.merge(id, target, {}); });
+            }
+        } else if (!isSearching()) {
+            menu->addItem(tr("Remove from Folder"), [&model, id] { model.removeFromFolder(id); });
+        }
+        menu->addItem(tr("Send to Desktop"), [&launcher, id] { launcher.applications().sendToDesktop(id); });
+        const size_t sendToDock = menu->addItem(tr("Send to Dock"), [&launcher, id] { launcher.sendToDock(id); });
+        const size_t removeFromDock =
+                menu->addItem(tr("Remove from Dock"), [&launcher, id] { launcher.removeFromDock(id); });
+        const bool pinned = m_launcher.isPinnedInDock(id);
+        menu->setItemVisible(sendToDock, !pinned);
+        menu->setItemVisible(removeFromDock, pinned);
+    }
     std::weak_ptr<bool> alive = m_alive;
     menu->onClosed = [this, alive, id] {
         if (alive.expired())
             return;
-        if (LauncherCell *cell = this->cell(id))
+        if (LauncherCell *cell = anyCell(id))
             cell->setMenuOpen(false);
         if (m_menuId == id)
             m_menuId.clear();
@@ -1024,10 +1152,14 @@ void LauncherView::endDrag()
     m_edge = 0;
     m_hoveredId.clear();
     m_reorderPending = false;
+    setMergeTarget({});
+    // A folder the drag left stays up only while its cell is dragged.
+    if (m_folder->isDetached())
+        m_folder->close();
     if (m_draggedId.empty())
         return;
     const std::string id = std::exchange(m_draggedId, {});
-    if (LauncherCell *cell = this->cell(id))
+    if (LauncherCell *cell = anyCell(id))
         cell->setDragging(false);
     m_launcher.setDragging(false);
 }
@@ -1038,6 +1170,7 @@ void LauncherView::requestMove(int to)
     // gets to run.
     m_pendingMoveId = m_draggedId;
     m_pendingMoveTo = to;
+    m_pendingMoveFolder = m_folder->isOpen() ? m_folder->folder() : std::string();
     std::weak_ptr<bool> alive = m_alive;
     core::mainLoop()->post([this, alive] {
         if (!alive.expired())
@@ -1049,15 +1182,40 @@ void LauncherView::applyMove()
 {
     const std::string id = std::exchange(m_pendingMoveId, {});
     const int to = std::exchange(m_pendingMoveTo, -1);
+    const std::string folder = std::exchange(m_pendingMoveFolder, {});
     if (id.empty() || to < 0)
         return;
     LauncherModel &model = m_launcher.applications();
+    if (!folder.empty()) {
+        const LauncherItem *item = model.item(folder);
+        if (!item)
+            return;
+        const auto &children = item->children;
+        const auto found = std::find_if(children.begin(), children.end(),
+                                        [&id](const LauncherItem &child) { return child.id == id; });
+        if (found == children.end())
+            return;
+        model.moveInFolder(folder, int(found - children.begin()), to);
+        return;
+    }
     const int from = model.findById(id);
     if (from < 0 || from == to)
         return;
     startSettle(kSettleDuration);
     m_reorderAnimation.start();
     model.move(from, to);
+}
+
+void LauncherView::requestMerge()
+{
+    // As a move: after the drag has finished.
+    const std::string id = m_draggedId;
+    const std::string target = m_mergeTargetId;
+    std::weak_ptr<bool> alive = m_alive;
+    core::mainLoop()->post([this, alive, id, target] {
+        if (!alive.expired())
+            m_launcher.applications().merge(id, target, newFolderName());
+    });
 }
 
 bool LauncherView::canDrop(const ui::DropOffer &offer) const
@@ -1080,6 +1238,7 @@ uint32_t LauncherView::dragUpdate(const ui::DragEvent &event)
 
 void LauncherView::dragLeave()
 {
+    setMergeTarget({});
     m_reorderTimer.stop();
     m_reorderPending = false;
     m_hoveredId.clear();
@@ -1093,19 +1252,79 @@ uint32_t LauncherView::drop(const ui::DragEvent &event)
     m_reorderTimer.stop();
     m_edgeTimer.stop();
     m_edge = 0;
-    // A swap rebinds the hovered slot, so moving again here would undo the
-    // dwell's move.
-    if (m_reorderPending && !m_draggedId.empty()) {
-        if (const LauncherCell *hovered = cell(m_hoveredId))
+    if (!m_mergeTargetId.empty() && !m_draggedId.empty()) {
+        requestMerge();
+    } else if (m_reorderPending && !m_draggedId.empty()) {
+        // A swap rebinds the hovered slot, so moving again here would undo
+        // the dwell's move.
+        if (m_folder->isOpen()) {
+            if (const LauncherCell *hovered = m_folder->cell(m_hoveredId))
+                requestMove(hovered->index());
+        } else if (const LauncherCell *hovered = cell(m_hoveredId)) {
             requestMove(hovered->page() * m_metrics.pageCount + hovered->index());
+        }
     }
+    setMergeTarget({});
     m_reorderPending = false;
     m_hoveredId.clear();
     return ui::MoveAction;
 }
 
+void LauncherView::setMergeTarget(const std::string &id)
+{
+    if (id == m_mergeTargetId)
+        return;
+    if (LauncherCell *previous = cell(m_mergeTargetId))
+        previous->setMergeTarget(false);
+    m_mergeTargetId = id;
+    if (LauncherCell *target = cell(id))
+        target->setMergeTarget(true);
+}
+
+void LauncherView::setHovered(const std::string &id)
+{
+    if (id == m_hoveredId)
+        return;
+    m_hoveredId = id;
+    m_reorderPending = !id.empty();
+    if (m_reorderPending)
+        m_reorderTimer.start();
+    else
+        m_reorderTimer.stop();
+}
+
+bool LauncherView::updateFolderDragTarget(ui::PointF position)
+{
+    if (!m_folder->isOpen())
+        return false;
+    LauncherModel &model = m_launcher.applications();
+    const std::string folder = m_folder->folder();
+    if (m_folder->panelRect().contains(position)) {
+        // Within the panel the drag reorders the folder's applications.
+        std::string hovered;
+        const int index = m_folder->indexAt(position);
+        const LauncherItem *item = model.item(folder);
+        if (index >= 0 && item && size_t(index) < item->children.size())
+            hovered = item->children[size_t(index)].id;
+        setHovered(hovered);
+        return true;
+    }
+    // Out of the panel, the application leaves its folder for the grid.
+    setHovered({});
+    if (!m_draggedId.empty() && model.folderOf(m_draggedId) == folder) {
+        m_folder->detach();
+        model.removeFromFolder(m_draggedId);
+    } else {
+        m_folder->close();
+    }
+    return false;
+}
+
 void LauncherView::updateDragTarget(ui::PointF position)
 {
+    if (updateFolderDragTarget(position))
+        return;
+
     // The edge areas, above the cells, page every 600 ms while the drag
     // rests in them.
     int edge = 0;
@@ -1130,8 +1349,10 @@ void LauncherView::updateDragTarget(ui::PointF position)
             m_edgeTimer.stop();
     }
 
-    // The cell under the drag, by its resting slot on the page shown.
+    // The cell under the drag, by its resting slot on the page shown, and
+    // the icon there a drop would make a folder with.
     std::string hovered;
+    std::string merge;
     if (!inEdge && !isSearching() && m_currentPage >= 0) {
         const base::Rect grid = m_metrics.pageGrid();
         const double x = position.x - (pageX(m_currentPage) - m_contentX);
@@ -1143,16 +1364,22 @@ void LauncherView::updateDragTarget(ui::PointF position)
             const auto &rows = m_launcher.applications().rows();
             if (column < m_metrics.columns && row < m_metrics.rows && index < int(rows.size()))
                 hovered = rows[size_t(index)].id;
+            // Only an application goes into a folder, and not onto itself.
+            if (!hovered.empty() && hovered != m_draggedId && !m_draggedId.empty()
+                && !LauncherItem::isFolderId(m_draggedId)) {
+                const base::Rect slot = m_metrics.cellRect(index % m_metrics.pageCount);
+                const double size = m_metrics.iconSize;
+                const ui::RectF icon {slot.x() + double(jsRound((m_metrics.cellWidth - size) / 2)),
+                                      double(slot.y() + m_metrics.cellPaddingV), size, size};
+                if (icon.contains({x, position.y})) {
+                    merge = hovered;
+                    hovered.clear();
+                }
+            }
         }
     }
-    if (hovered != m_hoveredId) {
-        m_hoveredId = hovered;
-        m_reorderPending = !hovered.empty();
-        if (m_reorderPending)
-            m_reorderTimer.start();
-        else
-            m_reorderTimer.stop();
-    }
+    setMergeTarget(merge);
+    setHovered(hovered);
 }
 
 void LauncherView::preloadIcons()
@@ -1167,8 +1394,12 @@ void LauncherView::preloadIcons()
             base::Size(int(std::lround(window->size().width)), int(std::lround(window->size().height))),
             m_margins);
     std::vector<std::string> names;
-    for (const LauncherItem &item : m_launcher.applications().allItems())
-        names.push_back(item.iconName.empty() ? "application-x-desktop" : item.iconName);
+    for (const LauncherItem &item : m_launcher.applications().allItems()) {
+        if (!item.isFolder())
+            names.push_back(item.iconName.empty() ? "application-x-desktop" : item.iconName);
+        for (const LauncherItem &child : item.children)
+            names.push_back(child.iconName.empty() ? "application-x-desktop" : child.iconName);
+    }
     std::sort(names.begin(), names.end());
     names.erase(std::unique(names.begin(), names.end()), names.end());
     const std::string key = std::to_string(metrics.iconSize) + "@" + std::to_string(window->scale());

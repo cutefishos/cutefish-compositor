@@ -7,6 +7,7 @@
 
 #include <chrono>
 #include <cmath>
+#include <functional>
 
 #include <linux/input-event-codes.h>
 
@@ -28,6 +29,7 @@
 #include "shell/common/task_manager.h"
 #include "shell/launcher/launcher.h"
 #include "shell/launcher/launcher_cell.h"
+#include "shell/launcher/launcher_folder_view.h"
 #include "shell/launcher/launcher_metrics.h"
 #include "shell/launcher/launcher_model.h"
 #include "shell/launcher/launcher_search_field.h"
@@ -42,6 +44,7 @@
 #include "ui/bitmap.h"
 #include "ui/embedded_window.h"
 #include "ui/menu.h"
+#include "ui/text_field.h"
 #include "wm/window.h"
 #include "wm/window_manager.h"
 
@@ -113,7 +116,8 @@ protected:
         seat.shutdown();
     }
 
-    void open()
+    // `count` is how many icons the grid shows once it has loaded.
+    void open(int count = 31)
     {
         auto launcher = std::make_unique<shell::Launcher>(nullptr, shell->tasks(), shell->launcher(), nullptr,
                                                           directory.filePath("shell.conf"));
@@ -124,7 +128,7 @@ protected:
         wallpaper->setBackground(background);
         launcherWindow = shell->addComponent(std::make_unique<shell::LauncherWindow>(
                 shell.get(), std::move(launcher), nullptr, wallpaper));
-        ASSERT_TRUE(test::runUntil([this] { return model().count() == 31; }));
+        ASSERT_TRUE(test::runUntil([this, count] { return model().count() == count; }));
         ASSERT_TRUE(test::runUntil([this] { return launcherWindow->wallpaper().isLoaded(); }));
     }
 
@@ -133,6 +137,17 @@ protected:
     shell::LauncherView *view() { return launcherWindow->view(); }
 
     void frame() { compositor.updateTextures(renderer); }
+
+    // Animations run on the window's frames: frames for `duration`, or
+    // until `done`.
+    void frames(std::chrono::milliseconds duration, const std::function<bool()> &done = {})
+    {
+        for (auto run = std::chrono::milliseconds(0); run < duration && !(done && done());
+             run += std::chrono::milliseconds(16)) {
+            test::runFor(std::chrono::milliseconds(16));
+            frame();
+        }
+    }
 
     void key(uint32_t code)
     {
@@ -160,6 +175,29 @@ protected:
         const ui::RectF cell = view()->cellRect(row);
         const ui::RectF icon = view()->cellAt(row)->iconRect();
         return {cell.x + icon.x + icon.width / 2, cell.y + icon.y + icon.height / 2};
+    }
+
+    // Beside the icon, in its cell: a drag there reorders rather than
+    // making a folder.
+    ui::PointF besideIcon(int row)
+    {
+        const ui::RectF cell = view()->cellRect(row);
+        return {cell.x + 4, iconCentre(row).y};
+    }
+
+    // Presses an icon and drags it far enough to start the drag.
+    void startDrag(ui::PointF from)
+    {
+        move(from.x, from.y);
+        input.onPointerButton(at(clock), BTN_LEFT, true);
+        move(from.x + 20, from.y);
+        test::processPendingEvents();
+    }
+
+    void release()
+    {
+        input.onPointerButton(at(clock), BTN_LEFT, false);
+        clock += 10;
     }
 };
 
@@ -439,7 +477,7 @@ TEST_F(LauncherWindowTest, ACancelledDragPutsTheOrderBackUnsaved)
     const std::vector<std::string> before = order();
     ASSERT_EQ("app00", before.front());
     const ui::PointF from = iconCentre(0);
-    const ui::PointF to = iconCentre(3);
+    const ui::PointF to = besideIcon(3);
     const auto dragToFourth = [&] {
         move(from.x, from.y);
         input.onPointerButton(at(clock), BTN_LEFT, true);
@@ -528,4 +566,83 @@ TEST_F(LauncherWindowTest, AnApplicationsCountSitsOnItsIconsCorner)
 
     client.sendLauncherEntry("application://terminal.desktop", dbus::VariantMap {{"count", dbus::Variant(int64_t(0))}});
     ASSERT_TRUE(test::runUntil([badge] { return !badge->isVisible(); }));
+}
+
+TEST_F(LauncherWindowTest, DroppedOnAnIconAnApplicationMakesAFolder)
+{
+    open();
+    launcher().show();
+    frame();
+    startDrag(iconCentre(1));
+    const ui::PointF onto = iconCentre(0);
+    move(onto.x, onto.y);
+    ASSERT_TRUE(test::runUntil([this] { return view()->mergeTargetId() == "app00"; }));
+    EXPECT_TRUE(view()->cellAt(0)->isMergeTarget());
+    // Resting on the icon does not reorder.
+    test::runFor(std::chrono::milliseconds(600));
+    EXPECT_EQ(1, model().findById("app01"));
+    release();
+    ASSERT_TRUE(test::runUntil([this] { return model().item("folder:1") != nullptr; }));
+    EXPECT_TRUE(view()->draggedId().empty());
+    EXPECT_EQ(30, model().count());
+    EXPECT_EQ(0, model().findById("folder:1"));
+    EXPECT_EQ("folder:1", model().folderOf("app00"));
+    EXPECT_EQ("folder:1", model().folderOf("app01"));
+    ASSERT_TRUE(view()->cellAt(0)->isFolder());
+    EXPECT_FALSE(view()->cellAt(0)->isMergeTarget());
+
+    // A click opens it over the grid; Escape closes it.
+    frame();
+    const ui::PointF folder = iconCentre(0);
+    click(folder.x, folder.y);
+    shell::LauncherFolderView *open = view()->folderView();
+    ASSERT_TRUE(open->isOpen());
+    // In a layer of its own: the pages' layers would cover it otherwise.
+    EXPECT_TRUE(open->isLayered());
+    EXPECT_EQ("folder:1", open->folder());
+    EXPECT_EQ("New Folder", open->nameField()->text());
+    ASSERT_NE(nullptr, open->cell("app01"));
+    frames(shell::LauncherFolderView::kOpenDuration + std::chrono::milliseconds(100));
+    key(KEY_ESC);
+    EXPECT_FALSE(open->isOpen());
+    // It shrinks back into the icon, then goes.
+    EXPECT_FALSE(open->folder().empty());
+    frames(shell::LauncherFolderView::kCloseDuration + std::chrono::milliseconds(200),
+           [open] { return open->folder().empty(); });
+    EXPECT_TRUE(open->folder().empty());
+    EXPECT_FALSE(open->isVisible());
+    EXPECT_TRUE(launcher().isShown());
+}
+
+TEST_F(LauncherWindowTest, DraggedOutOfItsFolderAnApplicationLeavesIt)
+{
+    directory.write("shell.conf", "[Launcher]\norder=folder:2, app02\nFolder2/name=Tools\nFolder2/apps=app00, app01\n");
+    open(30);
+    ASSERT_NE(nullptr, model().item("folder:2"));
+    launcher().show();
+    frame();
+    view()->openFolder("folder:2");
+    shell::LauncherFolderView *folder = view()->folderView();
+    ASSERT_TRUE(folder->isOpen());
+    // Grown out of its icon.
+    frames(shell::LauncherFolderView::kOpenDuration + std::chrono::milliseconds(100));
+    const ui::RectF cell = folder->cellRect(1);
+    const ui::RectF icon = folder->cell("app01")->iconRect();
+    startDrag({cell.x + icon.x + icon.width / 2, cell.y + icon.y + icon.height / 2});
+    ASSERT_EQ("app01", view()->draggedId());
+
+    // Out of the panel, on the grid.
+    const ui::RectF panel = folder->panelRect();
+    move(panel.x - 30, panel.y + panel.height / 2);
+    ASSERT_TRUE(test::runUntil([folder] { return !folder->isOpen(); }));
+    EXPECT_EQ("", view()->mergeTargetId());
+    EXPECT_EQ("", model().folderOf("app01"));
+    EXPECT_EQ(1, model().findById("app01"));
+    release();
+    ASSERT_TRUE(test::runUntil([this] { return view()->draggedId().empty(); }));
+    // The folder left with one application gave way to it.
+    EXPECT_EQ(nullptr, model().item("folder:2"));
+    EXPECT_EQ(0, model().findById("app00"));
+    // Dropped beside an icon of the grid, it took that slot.
+    EXPECT_GT(model().findById("app01"), 0);
 }

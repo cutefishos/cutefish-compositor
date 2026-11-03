@@ -23,10 +23,11 @@ namespace cutefish::shell {
 class CountBadge;
 class LauncherView;
 
-// One application in the launcher's grid: its icon and its count,
-// its name in up to two lines, the new mark, the keyboard selection and the
-// pressed silhouette. Only the icon takes the pointer; the rest of the cell
-// is the page behind it.
+// One application or folder in the launcher's grid: its icon (a folder's
+// shows the first of its applications on a plate) and its count, its name in
+// up to two lines, the new mark, the keyboard selection, the pressed
+// silhouette and the plate a drag held over it to make a folder shows. Only
+// the icon takes the pointer; the rest of the cell is the page behind it.
 class LauncherCell final : public ui::View
 {
 public:
@@ -34,6 +35,7 @@ public:
     ~LauncherCell() override;
 
     const std::string &id() const { return m_id; }
+    bool isFolder() const { return LauncherItem::isFolderId(m_id); }
 
     void setItem(const LauncherItem &item);
     // The application's count on the icon's corner; 0 for none.
@@ -51,6 +53,9 @@ public:
     // Its icon and name hide while it is dragged.
     void setDragging(bool dragging);
     void setMenuOpen(bool open);
+    // An application dragged over the icon would make a folder with it.
+    void setMergeTarget(bool target);
+    bool isMergeTarget() const { return m_mergeTarget; }
     bool isPressDimmed() const { return (m_pressed || m_menuOpen) && !m_dragging; }
     // The colour the selection is inked against.
     void setBackdrop(ui::Color color);
@@ -79,6 +84,7 @@ protected:
 
 private:
     class Icon;
+    class FolderPreview;
 
     void updateMask();
     void updateCountBadge();
@@ -91,6 +97,8 @@ private:
     int m_page = 0;
     int m_index = 0;
     Icon *m_icon = nullptr;
+    // A folder's, over its icon.
+    FolderPreview *m_preview = nullptr;
     ui::ThemeIcon *m_mask = nullptr;
     // Above the icon and its pressed look.
     CountBadge *m_countBadge = nullptr;
@@ -99,6 +107,7 @@ private:
     bool m_selected = false;
     bool m_dragging = false;
     bool m_menuOpen = false;
+    bool m_mergeTarget = false;
     bool m_pressed = false;
     // One drag per press.
     bool m_dragArmed = false;
