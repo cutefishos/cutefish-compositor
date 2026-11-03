@@ -195,6 +195,8 @@ ClockItem::ClockItem(BarContext *bar)
     setInsets(BarContext::kHighlightGap / 2,
               BarContext::kEdgeMargin - (BarContext::kItemGap - BarContext::kHighlightGap) / 2);
     m_label = addChild<BarLabel>();
+    // Figures of one width keep the clock still as the time changes.
+    m_label->setFontFeatures({{"tnum", 1}});
     updateLook();
 }
 

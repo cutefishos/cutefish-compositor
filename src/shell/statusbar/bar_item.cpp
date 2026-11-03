@@ -354,6 +354,14 @@ void BarLabel::setWeight(int weight)
     m_shadow->contentChanged();
 }
 
+void BarLabel::setFontFeatures(const std::vector<std::pair<std::string, int>> &features)
+{
+    m_label->setFontFeatures(features);
+    m_shadowText->setFontFeatures(features);
+    requestLayout();
+    m_shadow->contentChanged();
+}
+
 void BarLabel::setDropShadow(bool shadow)
 {
     // The faint edge hides the glyphs' subpixel fringes on the wallpaper.
