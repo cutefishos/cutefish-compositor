@@ -1124,8 +1124,7 @@ bool LauncherView::startCellDrag(LauncherCell *cell, ui::View *icon)
     if (ui::Window *window = this->window()) {
         // icon.grabToImage(): the icon as drawn, at the window's scale.
         source.iconScale = window->scale();
-        source.icon = ui::themeIconBitmap(cell->iconName().empty() ? "application-x-desktop" : cell->iconName(),
-                                          m_metrics.iconSize, source.iconScale);
+        source.icon = cell->dragImage(source.iconScale);
     }
     std::weak_ptr<bool> alive = m_alive;
     source.onFinished = [this, alive](ui::DropAction action) {

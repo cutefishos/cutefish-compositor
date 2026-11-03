@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <utility>
 #include <vector>
 
 #include "shell/common/count_badge.h"
@@ -298,6 +299,20 @@ void LauncherCell::finishMove()
         m_moveX.finish();
     if (m_moveY.isRunning())
         m_moveY.finish();
+}
+
+ui::Bitmap LauncherCell::dragImage(double scale)
+{
+    if (!m_preview)
+        return ui::themeIconBitmap(m_iconName.empty() ? "application-x-desktop" : m_iconName,
+                                   m_metrics.iconSize, scale);
+    // Not dimmed by the press the drag starts from.
+    const bool pressed = std::exchange(m_pressed, false);
+    m_preview->updatePressed();
+    ui::Bitmap image = m_preview->grab(scale);
+    m_pressed = pressed;
+    m_preview->updatePressed();
+    return image;
 }
 
 ui::RectF LauncherCell::iconRect() const

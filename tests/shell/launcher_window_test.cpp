@@ -591,6 +591,15 @@ TEST_F(LauncherWindowTest, DroppedOnAnIconAnApplicationMakesAFolder)
     ASSERT_TRUE(view()->cellAt(0)->isFolder());
     EXPECT_FALSE(view()->cellAt(0)->isMergeTarget());
 
+    // Dragged, it looks as it does at rest: its plate, not a theme's folder
+    // icon. Its centre holds no application of the two, only the plate.
+    frame();
+    const ui::Bitmap image = view()->cellAt(0)->dragImage(1);
+    ASSERT_FALSE(image.isNull());
+    EXPECT_EQ(view()->metrics().iconSize, image.width());
+    EXPECT_GT(image.alpha(image.width() / 2, image.height() / 2), 0);
+    EXPECT_LT(image.alpha(image.width() / 2, image.height() / 2), 128);
+
     // A click opens it over the grid; Escape closes it.
     frame();
     const ui::PointF folder = iconCentre(0);

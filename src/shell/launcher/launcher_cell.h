@@ -11,6 +11,7 @@
 #include "shell/launcher/launcher_metrics.h"
 #include "shell/launcher/launcher_model.h"
 #include "shell/launcher/launcher_tween.h"
+#include "ui/bitmap.h"
 #include "ui/view.h"
 
 namespace cutefish::ui {
@@ -65,6 +66,10 @@ public:
     void moveTo(const ui::PointF &position, bool animate);
     bool isMoving() const { return m_moveX.isRunning() || m_moveY.isRunning(); }
     void finishMove();
+
+    // What a drag of the cell carries: the application's icon, or the
+    // folder's preview as it shows at rest. Device pixels at `scale`.
+    ui::Bitmap dragImage(double scale);
 
     // In the cell's coordinates.
     ui::RectF iconRect() const;
