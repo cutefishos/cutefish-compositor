@@ -71,7 +71,7 @@ public:
     ~WindowCycleController();
 
     // Whether cycling may start or continue: the session is not blocked and
-    // no system-modal dialog holds the desktop.
+    // no window is being dragged.
     bool canCycle() const;
 
     // Starts cycling if needed, then steps once.

@@ -357,8 +357,8 @@ void toggleAssignToAllDesks(const CommandContext &context)
 {
     wm::Window *window = targetWindow(context);
     wm::DesksController *desks = context.windowManager->desks();
-    // Only a desk's own windows: an always-on-top window or a system dialog is
-    // on every desk already.
+    // Only a desk's own windows: an always-on-top window is on every desk
+    // already.
     if (!window || (!desks->belongsToActiveDesk(window) && !desks->isVisibleOnAllDesks(window)))
         return;
     desks->setVisibleOnAllDesks(window, !desks->isVisibleOnAllDesks(window));

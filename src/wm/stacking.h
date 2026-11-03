@@ -17,11 +17,7 @@ class Window;
 //
 // Bottom to top:
 //
-//   Desktop < Normal applications < AlwaysOnTop < DesktopPopup < Panel < Launcher < SystemDialog < Dock < Notification < Osd < Capture
-//
-// SystemDialog holds the session's own dialogs - permission prompts and the
-// like, asked by trusted processes on another application's behalf - which no
-// application window may cover, and which still sit under the dock.
+//   Desktop < Normal applications < AlwaysOnTop < DesktopPopup < Panel < Launcher < Dock < Notification < Osd < Capture
 //
 // Osd is the level a volume or brightness key shows, which must not hide
 // behind a banner that happens to be up.
@@ -38,12 +34,11 @@ enum class StackingLayer {
     DesktopPopup = 3,
     Panel = 4,
     Launcher = 5,
-    SystemDialog = 6,
-    Dock = 7,
-    Notification = 8,
-    Osd = 9,
-    Picker = 10,
-    Capture = 11,
+    Dock = 6,
+    Notification = 7,
+    Osd = 8,
+    Picker = 9,
+    Capture = 10,
 };
 
 // A panel whose behavior is WindowsCanCover drops into the normal layer.

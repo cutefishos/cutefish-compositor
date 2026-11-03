@@ -850,9 +850,6 @@ bool CompositorShell::initWayland()
             withExecutables({"/usr/bin/cutefish-computer-use"}, m_options.computerControlClients),
             // The compatibility runtime, whose programs place their windows.
             withExecutables({"/usr/bin/reef"}, m_options.windowPlacementClients));
-    m_windowManager.setSystemDialogPolicy([this](int64_t pid) {
-        return m_security->showsSystemDialogs(pid);
-    });
 
     wayland::ProtocolGlobals::Dependencies dependencies;
     dependencies.server = m_server.get();

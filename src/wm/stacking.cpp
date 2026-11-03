@@ -47,8 +47,6 @@ StackingLayer layerFor(const Window *window)
         const StackingLayer parentLayer = layerFor(window->transientParent());
         return parentLayer == StackingLayer::Desktop ? StackingLayer::DesktopPopup : parentLayer;
     }
-    if (window->isSystemDialog() && window->role() == WindowRole::Normal)
-        return StackingLayer::SystemDialog;
     if (window->isAlwaysOnTop() && window->role() == WindowRole::Normal)
         return StackingLayer::AlwaysOnTop;
     return layerFor(window->role(), window->panelBehavior());

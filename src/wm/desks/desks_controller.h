@@ -9,8 +9,8 @@
 // between them and the switch animations. Overview, split view, float, saved
 // desks, coral, the undo toast, per-user desks and metrics are not carried over.
 // A desk's windows are the application windows of the normal stacking layer;
-// always-on-top windows, system dialogs and the shell's own windows are on
-// every desk, as upstream keeps them out of the desk containers.
+// always-on-top windows and the shell's own windows are on every desk, as
+// upstream keeps them out of the desk containers.
 
 #ifndef CUTEFISH_WM_DESKS_DESKS_CONTROLLER_H_
 #define CUTEFISH_WM_DESKS_DESKS_CONTROLLER_H_

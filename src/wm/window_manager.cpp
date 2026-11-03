@@ -627,8 +627,6 @@ Window *WindowManager::createWindow(compositor::Surface *rootSurface, const Wind
                 animation->setStyle(scene::WindowAnimation::Style::None);
         }
     }
-    if (!window->isPopup() && m_systemDialogPolicy && init.processId > 0)
-        window->setSystemDialog(m_systemDialogPolicy(init.processId));
 
     // The shell's metadata is applied before anything else looks at the window:
     // it decides the stacking layer this window is inserted into, whether it is

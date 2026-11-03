@@ -1036,39 +1036,6 @@ TEST_F(WmTest, MinimizePassesOverTheDockAndLeavesItsSlotAfterwards)
     EXPECT_LT(index(front), index(dock));
 }
 
-TEST_F(WmTest, ASystemDialogStacksAboveApplicationsAndBelowTheDock)
-{
-    manager.setSystemDialogPolicy([](int64_t pid) {
-        return pid == 42;
-    });
-    Window *app = makeWindow(base::Rect(0, 0, 400, 300));
-    Window *dock = makeWindow(base::Rect(0, 700, 1000, 100));
-    dock->setRole(WindowRole::Dock);
-    Window *prompt = manager.createWindow(
-            makeSurface(base::Size(300, 200)),
-            {.requestedSize = {300, 200}, .processId = 42, .transientParent = app, .modal = true});
-    Window *other = makeWindow(base::Rect(0, 0, 400, 300));
-    // Its menus follow it, and an application raised afterwards stays under it.
-    Window *menu = manager.createWindow(makeSurface(base::Size(100, 40)),
-                                        {.type = WindowType::Popup, .transientParent = prompt});
-    other->activate();
-    app->activate();
-
-    EXPECT_TRUE(prompt->isSystemDialog());
-    EXPECT_FALSE(other->isSystemDialog());
-    EXPECT_EQ(layerFor(prompt), StackingLayer::SystemDialog);
-    EXPECT_EQ(layerFor(menu), StackingLayer::SystemDialog);
-    EXPECT_TRUE(prompt->isDecorated() == app->isDecorated());
-    const auto &order = manager.windows();
-    auto index = [&](Window *window) {
-        return std::find(order.begin(), order.end(), window) - order.begin();
-    };
-    EXPECT_LT(index(other), index(prompt));
-    EXPECT_LT(index(app), index(prompt));
-    EXPECT_LT(index(prompt), index(menu));
-    EXPECT_LT(index(menu), index(dock));
-}
-
 TEST_F(WmTest, AWindowAskingToStayOnTopStacksAboveApplicationsAndBelowTheDock)
 {
     Window *app = makeWindow(base::Rect(0, 0, 400, 300));

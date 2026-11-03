@@ -286,18 +286,16 @@ TEST_F(ForeignToplevelListTest, ListsApplicationWindowsWithIdentityAndSource)
     EXPECT_EQ(changes, 1);
 }
 
-TEST_F(ForeignToplevelListTest, PopupsAndSystemDialogsAreNotListed)
+TEST_F(ForeignToplevelListTest, PopupsAndWindowsSkippingTheTaskbarAreNotListed)
 {
-    manager.setSystemDialogPolicy([](int64_t pid) {
-        return pid == 42;
-    });
     wm::Window *app = makeWindow(base::Rect(0, 0, 300, 200));
     manager.createWindow(makeSurface(base::Size(100, 40)),
                          {.type = wm::WindowType::Popup, .transientParent = app});
+    compositor::Surface *promptSurface = makeSurface(base::Size(200, 100));
+    promptSurface->setSkipTaskbar(true);
     wm::Window *prompt = manager.createWindow(
-            makeSurface(base::Size(200, 100)),
-            {.requestedSize = {200, 100}, .processId = 42, .transientParent = app});
-    ASSERT_TRUE(prompt->isSystemDialog());
+            promptSurface, {.requestedSize = {200, 100}, .transientParent = app});
+    ASSERT_TRUE(prompt->skipTaskbar());
     ASSERT_TRUE(roundtrip());
     EXPECT_EQ(handles.size(), 1u);
     manager.destroyWindow(prompt);

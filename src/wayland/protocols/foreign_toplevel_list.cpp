@@ -159,7 +159,7 @@ void ForeignToplevelList::shutdown()
 bool ForeignToplevelList::listable(const wm::Window *window)
 {
     return window && !window->isPopup() && window->role() == wm::WindowRole::Normal
-            && !window->isSystemDialog();
+            && !window->skipTaskbar();
 }
 
 ForeignToplevelList::Entry &ForeignToplevelList::entryFor(wm::Window *window)

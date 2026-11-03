@@ -213,19 +213,6 @@ inline constexpr std::array kActionsAllowedAtLockScreen = {
         AcceleratorAction::VolumeUp,
 };
 
-// Actions allowed while a system-modal dialog is up.
-inline constexpr std::array kActionsAllowedAtModalWindow = {
-        AcceleratorAction::BrightnessDown,
-        AcceleratorAction::BrightnessUp,
-        AcceleratorAction::KeyboardBrightnessDown,
-        AcceleratorAction::KeyboardBrightnessUp,
-        AcceleratorAction::LockScreen,
-        AcceleratorAction::MicrophoneMuteToggle,
-        AcceleratorAction::VolumeDown,
-        AcceleratorAction::VolumeMuteToggle,
-        AcceleratorAction::VolumeUp,
-};
-
 // Actions performed again while their key is held.
 inline constexpr std::array kRepeatableActions = {
         AcceleratorAction::BrightnessDown,

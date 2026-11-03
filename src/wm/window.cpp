@@ -494,15 +494,6 @@ void Window::setModal(bool modal)
     m_manager->onWindowModalChanged(this);
 }
 
-void Window::setSystemDialog(bool systemDialog)
-{
-    if (systemDialog == m_systemDialog)
-        return;
-    m_systemDialog = systemDialog;
-    if (m_manager)
-        m_manager->onWindowStackingChanged(this);
-}
-
 bool Window::isAlwaysOnTop() const
 {
     return m_alwaysOnTop || m_surfaceAlwaysOnTop;

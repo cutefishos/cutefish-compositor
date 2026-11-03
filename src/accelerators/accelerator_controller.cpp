@@ -55,8 +55,6 @@ void AcceleratorController::init()
 {
     m_actionsAllowedAtLockScreen.insert(kActionsAllowedAtLockScreen.begin(),
                                         kActionsAllowedAtLockScreen.end());
-    m_actionsAllowedAtModalWindow.insert(kActionsAllowedAtModalWindow.begin(),
-                                         kActionsAllowedAtModalWindow.end());
     m_preferredActions.insert(kPreferredActions.begin(), kPreferredActions.end());
     m_reservedActions.insert(kReservedActions.begin(), kReservedActions.end());
     m_actionsNeedingWindow.insert(kActionsNeedingWindow.begin(), kActionsNeedingWindow.end());
@@ -352,11 +350,6 @@ AcceleratorController::acceleratorProcessingRestriction(AcceleratorAction action
         && !m_actionsAllowedAtLockScreen.contains(action)) {
         return Restriction::PreventProcessing;
     }
-    if (isSystemModalWindowOpen() && !m_actionsAllowedAtModalWindow.contains(action)) {
-        // Propagation is stopped too, so that Alt+Tab does not end up cycling
-        // through the dialog's own widgets.
-        return Restriction::PreventProcessingAndPropagation;
-    }
     // The overview takes the key instead: it has no active window.
     if (m_actionsBlockedInOverview.contains(action) && m_context.windowManager
         && m_context.windowManager->overview()->capturesInput()) {
@@ -374,17 +367,6 @@ AcceleratorController::acceleratorProcessingRestriction(AcceleratorAction action
             return Restriction::PreventProcessingAndPropagation;
     }
     return Restriction::None;
-}
-
-bool AcceleratorController::isSystemModalWindowOpen() const
-{
-    if (!m_context.windowManager)
-        return false;
-    for (wm::Window *window : m_context.windowManager->windows()) {
-        if (window->isSystemDialog() && window->isVisible())
-            return true;
-    }
-    return false;
 }
 
 } // namespace cutefish::accelerators

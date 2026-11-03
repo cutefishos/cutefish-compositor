@@ -6,7 +6,7 @@
 // Revision: 8abbac30b9cf2fe976422c58c000c94685648b65
 //
 // Adapted for Cutefish: the restriction sets that have a Cutefish state
-// behind them (blocked session, system-modal dialog, no window), the launcher
+// behind them (blocked session, no window), the launcher
 // state machine, the repeatable actions. Tablet volume, caps lock, suspend and
 // IME state machines, the exit warning, deprecated accelerators, enterprise
 // policy and metrics are dropped.
@@ -99,7 +99,6 @@ private:
     bool canPerformAction(AcceleratorAction action, const Accelerator &accelerator) const;
     void performAction(AcceleratorAction action, const Accelerator &accelerator);
     Restriction acceleratorProcessingRestriction(AcceleratorAction action) const;
-    bool isSystemModalWindowOpen() const;
 
     AcceleratorManager m_manager;
     AcceleratorHistory m_history;
@@ -108,7 +107,6 @@ private:
     CommandContext m_context;
 
     std::set<AcceleratorAction> m_actionsAllowedAtLockScreen;
-    std::set<AcceleratorAction> m_actionsAllowedAtModalWindow;
     std::set<AcceleratorAction> m_preferredActions;
     std::set<AcceleratorAction> m_reservedActions;
     std::set<AcceleratorAction> m_actionsNeedingWindow;

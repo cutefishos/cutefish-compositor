@@ -1105,7 +1105,7 @@ std::string checkInvariants(WindowManager &manager, DesksController *desks)
             return "visibility of " + window->applicationId();
         const bool root = !window->transientParent() || !manager.hasWindow(window->transientParent());
         const bool deskWindow = root && window->role() == WindowRole::Normal && !window->isPopup()
-                && !window->isAlwaysOnTop() && !window->isSystemDialog();
+                && !window->isAlwaysOnTop();
         if (deskWindow && !desk && !desks->isVisibleOnAllDesks(window))
             return "a desk window on no desk: " + window->applicationId();
     }

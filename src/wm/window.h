@@ -411,12 +411,6 @@ public:
 
     void setModal(bool modal);
 
-    // A dialog the session asks on an application's behalf. Only its stacking
-    // layer differs from an ordinary window; see StackingLayer::SystemDialog.
-    bool isSystemDialog() const { return m_systemDialog; }
-
-    void setSystemDialog(bool systemDialog);
-
     // A shell prompt the user answers in person, such as a password or a
     // pairing confirmation: computer control neither clicks nor types into it
     // or anything transient to it.
@@ -518,7 +512,6 @@ private:
     bool m_restoringFromDrag = false;
     bool m_modal = false;
     bool m_responsive = true;
-    bool m_systemDialog = false;
     bool m_protectedFromControl = false;
     bool m_alwaysOnTop = false;
     bool m_surfaceAlwaysOnTop = false;

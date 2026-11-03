@@ -195,7 +195,7 @@ void DesksController::activateDesk(Desk *desk, DesksSwitchSource source)
 void DesksController::launchActivationAnimation(Desk *desk, DesksSwitchSource source)
 {
     // Activation only moves off the window in use when that window is one of
-    // the desks' own; the launcher or a system dialog keeps it.
+    // the desks' own; the launcher or an always-on-top window keeps it.
     Window *active = m_manager->activation()->activeWindow();
     const bool updateWindowActivation =
             source != DesksSwitchSource::WindowActivated && (!active || deskOf(active));
@@ -288,7 +288,7 @@ bool DesksController::moveWindowFromSourceDeskTo(Window *window, Desk *source, D
     if (!window || !source || !target || source == target)
         return false;
     Window *root = transientRoot(window);
-    // An always-on-top window or a system dialog is on no desk to move from.
+    // An always-on-top window is on no desk to move from.
     if (!source->contains(root))
         return false;
 

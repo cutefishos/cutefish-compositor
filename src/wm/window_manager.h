@@ -195,13 +195,6 @@ public:
     // Bottom to top.
     const std::vector<Window *> &windows() const { return m_stackingOrder; }
 
-    // Decides from the client's pid whether its toplevels are system dialogs.
-    // The pid comes from the socket, so it names the process, not a claim.
-    void setSystemDialogPolicy(std::function<bool(int64_t pid)> policy)
-    {
-        m_systemDialogPolicy = std::move(policy);
-    }
-
     // Moves `window` to the top of its own stacking layer, in the model and in
     // the scene. A raise never lifts a window past a window of a higher layer:
     // an ordinary application can no more cover the dock than a dock can bury
@@ -599,7 +592,6 @@ private:
     std::vector<std::unique_ptr<Window>> m_windows;
     // Bottom to top. Mirrors m_windows but is reordered by raise().
     std::vector<Window *> m_stackingOrder;
-    std::function<bool(int64_t)> m_systemDialogPolicy;
 
     Activation m_activation;
     Window *m_keyboardGrab = nullptr;

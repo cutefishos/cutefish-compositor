@@ -57,10 +57,6 @@ bool WindowCycleController::canCycle() const
     // As upstream: the window the pointer holds stays the one in use.
     if (m_manager->eventHandler()->draggedWindow())
         return false;
-    for (Window *window : m_manager->windows()) {
-        if (window->isSystemDialog() && window->isVisible())
-            return false;
-    }
     return true;
 }
 
