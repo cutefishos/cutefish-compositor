@@ -240,17 +240,38 @@ TEST(ClipboardProtocol, OlderVersionsTransferSelectionWithoutDndEvents)
     }
 }
 
-TEST(ClipboardProtocol, RetiredSourceReuseAndDndSelectionMisuseAreProtocolErrors)
+TEST(ClipboardProtocol, RetiredImageSourceRepeatsDoNotDisconnectOrReplaceSelection)
 {
-    for (int kind = 0; kind < 5; ++kind) {
+    Harness h;
+    auto &a = h.addClient();
+    auto &b = h.addClient();
+    h.publish(a, {{"image/png", "old image"}, {"SAVE_TARGETS", ""}});
+    auto *old = a.sources.front();
+    h.publish(a, {{"image/png", "new image"}});
+    auto current = h.seat.selection()->source();
+    wl_data_device_set_selection(a.devices.front(), old, a.serial);
+    h.sync(a);
+    EXPECT_EQ(0, wl_display_get_error(a.display));
+    EXPECT_EQ(current, h.seat.selection()->source());
+    h.focus(b);
+    EXPECT_EQ("new image", h.receive(b, b.selection, "image/png"));
+    h.focus(a);
+    wl_data_device_set_selection(a.devices.front(), nullptr, a.serial);
+    h.sync(a);
+    EXPECT_FALSE(h.seat.selection()->source());
+    wl_data_device_set_selection(a.devices.front(), old, a.serial);
+    h.sync(a);
+    EXPECT_EQ(0, wl_display_get_error(a.display));
+    EXPECT_FALSE(h.seat.selection()->source());
+}
+
+TEST(ClipboardProtocol, DndSelectionMisuseIsStillAProtocolError)
+{
+    for (int kind = 1; kind < 5; ++kind) {
         Harness h;
         auto& a = h.addClient();
         h.publish(a, {{"text/plain", "old"}});
-        if (kind == 0) {
-            auto* old = a.sources.front();
-            h.publish(a, {{"text/plain", "new"}});
-            wl_data_device_set_selection(a.devices.front(), old, a.serial);
-        } else if (kind == 1) {
+        if (kind == 1) {
             wl_data_offer_finish(a.selection);
         } else if (kind == 2) {
             wl_data_offer_set_actions(a.selection, 1, 1);
@@ -270,8 +291,7 @@ TEST(ClipboardProtocol, RetiredSourceReuseAndDndSelectionMisuseAreProtocolErrors
         const wl_interface* interface = nullptr;
         uint32_t id;
         const auto error = wl_display_get_protocol_error(a.display, &interface, &id);
-        EXPECT_EQ(kind == 0       ? WL_DATA_DEVICE_ERROR_USED_SOURCE
-                      : kind == 1 ? WL_DATA_OFFER_ERROR_INVALID_FINISH
+        EXPECT_EQ(kind == 1       ? WL_DATA_OFFER_ERROR_INVALID_FINISH
                       : kind == 2 ? WL_DATA_OFFER_ERROR_INVALID_OFFER
                       : kind == 3 ? WL_DATA_SOURCE_ERROR_INVALID_SOURCE
                                   : WL_DATA_SOURCE_ERROR_INVALID_ACTION_MASK,
