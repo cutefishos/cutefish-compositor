@@ -960,8 +960,8 @@ void LauncherView::openMenu(LauncherCell *cell, ui::PointF windowPosition)
     auto menu = std::make_unique<ui::Menu>();
     Launcher &launcher = m_launcher;
     menu->addItem(tr("Open"), [&launcher, id] { launcher.applications().launch(id); });
-    const size_t sendToDock = menu->addItem(tr("Send to Dock"), [&launcher, id] { launcher.sendToDock(id); });
     menu->addItem(tr("Send to Desktop"), [&launcher, id] { launcher.applications().sendToDesktop(id); });
+    const size_t sendToDock = menu->addItem(tr("Send to Dock"), [&launcher, id] { launcher.sendToDock(id); });
     const size_t removeFromDock =
             menu->addItem(tr("Remove from Dock"), [&launcher, id] { launcher.removeFromDock(id); });
     const bool pinned = m_launcher.isPinnedInDock(id);

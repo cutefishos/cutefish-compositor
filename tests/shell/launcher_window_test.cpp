@@ -360,7 +360,7 @@ TEST_F(LauncherWindowTest, ClicksOutsideTheIconsHideAndRightClicksOpenTheMenu)
     open();
     launcher().show();
     frame();
-    // The icon's right button opens Open, Send to dock, Send to desktop.
+    // The icon's right button opens Open, Send to Desktop, Send to Dock.
     const ui::PointF icon = iconCentre(0);
     click(icon.x, icon.y, BTN_RIGHT);
     frame();
