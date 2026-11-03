@@ -40,6 +40,8 @@ private:
     mutable std::map<std::string, GLint, std::less<>> m_attributes;
 };
 
+std::string fragmentPrecisionDefines();
+
 std::string clippedFragment(const char *body, const char *extensions = "");
 
 } // namespace cutefish::render
