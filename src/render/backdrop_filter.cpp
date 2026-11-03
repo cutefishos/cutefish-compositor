@@ -22,7 +22,9 @@ bool BackdropFilter::initialize(const char *fragmentOverride)
 {
     GlProgram blur =
             GlProgram::create(shaders::texture_vertex_shader,
-                              fragmentOverride ? fragmentOverride : shaders::blur_fragment_shader);
+                              (fragmentOverride ? std::string(fragmentOverride)
+                                                : fragmentPrecisionDefines() + shaders::blur_fragment_shader)
+                                      .c_str());
     GlProgram mask = GlProgram::create(
             shaders::texture_vertex_shader,
             (fragmentOverride ? std::string(fragmentOverride)

@@ -642,3 +642,38 @@ TEST(EglExtensions, WholeNamesOnlyAsTheSplitListWould)
     EXPECT_FALSE(context->supportsGl(""));
     EXPECT_FALSE(context->supportsGl("GL_CUTEFISH_not_an_extension"));
 }
+
+TEST(GlassPixels, NotificationOnUniformBackdropHasNoBlackPixels)
+{
+    auto renderer = EglRendererTestAccess::create();
+    ASSERT_TRUE(renderer);
+    const base::Size size(420, 130);
+    const EGLint attributes[] = {EGL_WIDTH, 420, EGL_HEIGHT, 130, EGL_NONE};
+    auto surface = eglCreatePbufferSurface(renderer->eglDisplay(), renderer->eglConfig(), attributes);
+    ASSERT_NE(surface, EGL_NO_SURFACE);
+    auto target = std::make_unique<EglRenderTarget>(renderer->eglDisplay(), surface, nullptr, size);
+    TargetRetirement retire {renderer.get(), target.get()};
+    renderer->setOutputContext({"test", base::Rect(size), size, 1, 0, 1});
+    ASSERT_TRUE(renderer->beginFrame(target.get()));
+    GlassParams glass;
+    glass.enabled = true;
+    glass.blurSigma = 6;
+    glass.displacement = 20;
+    glass.chroma = 0.03;
+    glass.saturation = 1.2;
+    glass.tintRed = glass.tintGreen = 0.17;
+    glass.tintBlue = 0.19;
+    glass.tintAlpha = 0.6;
+    auto image = renderer->captureFrame([&] {
+        renderer->clear({0.5, 0.5, 0.5, 1});
+        renderer->drawBackgroundBlur({20, 20, 380, 82}, 22, base::Rect(size), glass, {});
+    });
+    if (const char *path = std::getenv("CUTEFISH_GLASS_TEST_IMAGE"))
+        image.savePng(path);
+    int black = 0;
+    for (int y = 0; y < image.height(); ++y)
+        for (int x = 0; x < image.width(); ++x)
+            if ((image.pixel(x, y) & 0x00ffffff) == 0)
+                ++black;
+    EXPECT_EQ(black, 0);
+}

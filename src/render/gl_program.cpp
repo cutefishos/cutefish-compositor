@@ -127,9 +127,21 @@ GLint GlProgram::attribute(const char *name) const
     return m_attributes.emplace(name, glGetAttribLocation(m_name, name)).first->second;
 }
 
+std::string fragmentPrecisionDefines()
+{
+    // Some drivers omit GL_FRAGMENT_PRECISION_HIGH even though highp works.
+    // Query the current context instead of silently using half precision for
+    // output coordinates, rounded coverage and glass normals.
+    GLint range[2] = {};
+    GLint precision = 0;
+    glGetShaderPrecisionFormat(GL_FRAGMENT_SHADER, GL_HIGH_FLOAT, range, &precision);
+    return precision > 0 ? "#define CUTEFISH_FRAGMENT_HIGHP 1\n" : "";
+}
+
 std::string clippedFragment(const char *body, const char *extensions)
 {
-    return std::string(extensions) + "\n" + shaders::clipped_precision + shaders::rounded_clip + body
+    return std::string(extensions) + "\n" + fragmentPrecisionDefines()
+            + shaders::clipped_precision + shaders::rounded_clip + body
             + shaders::clipped_main;
 }
 
