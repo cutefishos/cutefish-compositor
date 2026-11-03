@@ -131,9 +131,9 @@ std::string pattern(const std::string &localeName, bool twentyFourHour)
         const std::string date = toLocaleFormat(bestPattern(generator.get(), "EEEMMMd"));
         const std::string time = toLocaleFormat(bestPattern(generator.get(), twentyFourHour ? "Hmm" : "hmm"));
         if (!date.empty() && !time.empty())
-            return date + ' ' + time;
+            return date + "  " + time;
     }
-    return twentyFourHour ? "ddd MMM d HH:mm" : "ddd MMM d h:mm AP";
+    return twentyFourHour ? "ddd MMM d  HH:mm" : "ddd MMM d  h:mm AP";
 }
 
 } // namespace cutefish::shell::clock_format

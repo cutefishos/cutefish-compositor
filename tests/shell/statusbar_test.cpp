@@ -410,12 +410,12 @@ TEST(ClockFormatTest, FollowsTheLocalesOrderWithoutCommas)
     const base::DateTime time = base::DateTime::utc({2026, 9, 26}, {13, 40, 0, 0});
     // CLDR puts a narrow no-break space before the day period, kept as is.
     EXPECT_EQ(base::Locale("en_US").toString(time, shell::clock_format::pattern("en_US", false)),
-              "Sat Sep 26 1:40\u202fPM");
+              "Sat Sep 26  1:40\u202fPM");
     EXPECT_EQ(base::Locale("en_US").toString(time, shell::clock_format::pattern("en_US", true)),
-              "Sat Sep 26 13:40");
+              "Sat Sep 26  13:40");
     EXPECT_EQ(base::Locale("zh_CN").toString(time, shell::clock_format::pattern("zh_CN", false)),
               "9\xe6\x9c\x88"
-              "26\xe6\x97\xa5\xe5\x91\xa8\xe5\x85\xad \xe4\xb8\x8b\xe5\x8d\x88"
+              "26\xe6\x97\xa5\xe5\x91\xa8\xe5\x85\xad  \xe4\xb8\x8b\xe5\x8d\x88"
               "1:40");
     EXPECT_EQ(shell::clock_format::toLocaleFormat("d 'de' MMMM"), "d' de 'MMMM");
     EXPECT_EQ(shell::clock_format::toLocaleFormat("G y"), "");
