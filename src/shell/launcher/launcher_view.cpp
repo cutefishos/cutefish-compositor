@@ -963,7 +963,7 @@ void LauncherView::openMenu(LauncherCell *cell, ui::PointF windowPosition)
     const size_t sendToDock = menu->addItem(tr("Send to dock"), [&launcher, id] { launcher.sendToDock(id); });
     menu->addItem(tr("Send to desktop"), [&launcher, id] { launcher.applications().sendToDesktop(id); });
     const size_t removeFromDock =
-            menu->addItem(tr("Remove from dock"), [&launcher, id] { launcher.removeFromDock(id); });
+            menu->addItem(tr("Remove from Dock"), [&launcher, id] { launcher.removeFromDock(id); });
     const bool pinned = m_launcher.isPinnedInDock(id);
     menu->setItemVisible(sendToDock, !pinned);
     menu->setItemVisible(removeFromDock, pinned);
