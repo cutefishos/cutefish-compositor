@@ -254,11 +254,11 @@ msgid "Open"
 msgstr ""
 
 #: src/shell/dock/dock_window.cpp
-msgid "Unpin"
+msgid "Remove from Dock"
 msgstr ""
 
 #: src/shell/dock/dock_window.cpp
-msgid "Pin"
+msgid "Keep in Dock"
 msgstr ""
 
 #: src/shell/dock/dock_window.cpp src/shell/menubar/menu_bar_model.cpp

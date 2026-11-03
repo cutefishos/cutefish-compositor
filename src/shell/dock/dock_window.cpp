@@ -1134,15 +1134,15 @@ void DockWindow::iconMenuRequested(DockIcon *icon)
         }
         if (!windows.empty())
             menu->addSeparator();
-        if (!item.running)
-            menu->addItem(tr("Open"), [&model, id] { model.openNewInstance(id); });
         // A missing bundle keeps its place until it is unpinned.
         if (item.pinnable() || (item.missing && item.isPinned)) {
             const bool pinned = item.isPinned;
-            menu->addItem(pinned ? tr("Unpin") : tr("Pin"), [&model, id, pinned] {
+            menu->addItem(pinned ? tr("Remove from Dock") : tr("Keep in Dock"), [&model, id, pinned] {
                 pinned ? model.unPin(id) : model.pin(id);
             });
         }
+        if (!item.running)
+            menu->addItem(tr("Open"), [&model, id] { model.openNewInstance(id); });
         if (item.running)
             menu->addItem(tr("Quit"), [&model, id] { model.quit(id); });
         break;
