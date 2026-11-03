@@ -243,6 +243,25 @@ bool DrmBackend::open(const std::string &devicePath)
     m_watch = core::mainLoop()->watch(m_fd, EPOLLIN, [this](uint32_t) { onDrmEvent(); });
 
     m_hotplugMonitor = std::make_unique<DrmHotplugMonitor>();
+    m_hotplugMonitor->isContentProtectionProperty = [this](const std::string &devnode, uint32_t id) {
+        // A fresh primary-node open can temporarily become DRM master during
+        // VT switches. Query only the fd the session already owns instead.
+        const DrmBackend *backend = m_renderBackend ? m_renderBackend : this;
+        int propertyFd = devnode == backend->devicePath() ? backend->fd() : -1;
+        for (const auto &device : backend->m_devices) {
+            if (devnode == device->devicePath()) {
+                propertyFd = device->fd();
+                break;
+            }
+        }
+        if (propertyFd < 0)
+            return false;
+        drmModePropertyPtr property = drmModeGetProperty(propertyFd, id);
+        const bool contentProtection = property && std::strcmp(property->name, "Content Protection") == 0;
+        if (property)
+            drmModeFreeProperty(property);
+        return contentProtection;
+    };
     if (m_hotplugMonitor->start()) {
         m_hotplugSubscriptions.push_back(
                 m_hotplugMonitor->snapshotsInvalidated.connect([this] { invalidateOutputs(); }));
