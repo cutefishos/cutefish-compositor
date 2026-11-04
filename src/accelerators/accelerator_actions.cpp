@@ -14,7 +14,7 @@ namespace cutefish::accelerators {
 
 namespace {
 
-constexpr std::array<std::pair<AcceleratorAction, const char *>, 46> kActionNames = {{
+constexpr std::array<std::pair<AcceleratorAction, const char *>, 51> kActionNames = {{
         {AcceleratorAction::ToggleAppList, "toggle-app-list"},
         {AcceleratorAction::LockScreen, "lock-screen"},
         {AcceleratorAction::CycleForwardMru, "cycle-forward-mru"},
@@ -54,6 +54,11 @@ constexpr std::array<std::pair<AcceleratorAction, const char *>, 46> kActionName
         {AcceleratorAction::StartCaptureMode, "start-capture-mode"},
         {AcceleratorAction::StopScreenRecording, "stop-screen-recording"},
         {AcceleratorAction::ToggleClipboardHistory, "toggle-clipboard-history"},
+        {AcceleratorAction::MediaPlayPause, "media-play-pause"},
+        {AcceleratorAction::MediaPause, "media-pause"},
+        {AcceleratorAction::MediaPrevious, "media-previous"},
+        {AcceleratorAction::MediaNext, "media-next"},
+        {AcceleratorAction::MediaStop, "media-stop"},
         {AcceleratorAction::VolumeMuteToggle, "volume-mute-toggle"},
         {AcceleratorAction::VolumeDown, "volume-down"},
         {AcceleratorAction::VolumeUp, "volume-up"},

@@ -96,6 +96,11 @@ inline constexpr auto kAcceleratorData = std::to_array<AcceleratorData>({
         {true, XKB_KEY_v, MetaDown, AcceleratorAction::ToggleClipboardHistory},
 
         // Device keys.
+        {true, XKB_KEY_XF86AudioPlay, NoModifier, AcceleratorAction::MediaPlayPause},
+        {true, XKB_KEY_XF86AudioPause, NoModifier, AcceleratorAction::MediaPause},
+        {true, XKB_KEY_XF86AudioPrev, NoModifier, AcceleratorAction::MediaPrevious},
+        {true, XKB_KEY_XF86AudioNext, NoModifier, AcceleratorAction::MediaNext},
+        {true, XKB_KEY_XF86AudioStop, NoModifier, AcceleratorAction::MediaStop},
         {true, XKB_KEY_XF86AudioMute, NoModifier, AcceleratorAction::VolumeMuteToggle},
         {true, XKB_KEY_XF86AudioLowerVolume, NoModifier, AcceleratorAction::VolumeDown},
         {true, XKB_KEY_XF86AudioRaiseVolume, NoModifier, AcceleratorAction::VolumeUp},
@@ -176,6 +181,11 @@ inline constexpr auto kCommandAcceleratorData = std::to_array<AcceleratorData>({
         {true, XKB_KEY_v, ControlDown | MetaDown, AcceleratorAction::ToggleClipboardHistory},
 
         // Device keys.
+        {true, XKB_KEY_XF86AudioPlay, NoModifier, AcceleratorAction::MediaPlayPause},
+        {true, XKB_KEY_XF86AudioPause, NoModifier, AcceleratorAction::MediaPause},
+        {true, XKB_KEY_XF86AudioPrev, NoModifier, AcceleratorAction::MediaPrevious},
+        {true, XKB_KEY_XF86AudioNext, NoModifier, AcceleratorAction::MediaNext},
+        {true, XKB_KEY_XF86AudioStop, NoModifier, AcceleratorAction::MediaStop},
         {true, XKB_KEY_XF86AudioMute, NoModifier, AcceleratorAction::VolumeMuteToggle},
         {true, XKB_KEY_XF86AudioLowerVolume, NoModifier, AcceleratorAction::VolumeDown},
         {true, XKB_KEY_XF86AudioRaiseVolume, NoModifier, AcceleratorAction::VolumeUp},
@@ -203,6 +213,12 @@ inline constexpr std::array kReservedActions = {
 // Actions allowed while the session is blocked: the lock screen and the login
 // screen.
 inline constexpr std::array kActionsAllowedAtLockScreen = {
+        AcceleratorAction::MediaPlayPause,
+        AcceleratorAction::MediaPause,
+        AcceleratorAction::MediaPrevious,
+        AcceleratorAction::MediaNext,
+        AcceleratorAction::MediaStop,
+
         AcceleratorAction::BrightnessDown,
         AcceleratorAction::BrightnessUp,
         AcceleratorAction::KeyboardBrightnessDown,

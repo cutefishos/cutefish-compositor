@@ -32,6 +32,13 @@ public:
     // org.cutefish.ClipboardHistory.toggle: shows or hides the picker.
     virtual void toggleClipboardHistory() = 0;
 
+    // org.cutefish.Statusbar: control the current MPRIS player.
+    virtual void mediaPlayPause() = 0;
+    virtual void mediaPause() = 0;
+    virtual void mediaPrevious() = 0;
+    virtual void mediaNext() = 0;
+    virtual void mediaStop() = 0;
+
     // org.cutefish.Osd: changes the level and shows it.
     virtual void volumeDown() = 0;
     virtual void volumeUp() = 0;
@@ -56,6 +63,11 @@ public:
     void startCaptureMode() override;
     void stopScreenRecording() override;
     void toggleClipboardHistory() override;
+    void mediaPlayPause() override;
+    void mediaPause() override;
+    void mediaPrevious() override;
+    void mediaNext() override;
+    void mediaStop() override;
     void volumeDown() override;
     void volumeUp() override;
     void toggleMute() override;

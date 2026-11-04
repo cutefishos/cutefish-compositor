@@ -56,6 +56,7 @@ public:
     void play();
     void pause();
     void playPause();
+    void stop();
     void next();
     void previous();
 

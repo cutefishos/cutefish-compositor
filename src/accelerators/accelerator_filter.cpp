@@ -29,11 +29,15 @@ namespace cutefish::accelerators {
 
 namespace {
 
-// ash::AcceleratorController::IsSystemKey, less the media keys, which have no
-// action here and so stay with the applications.
+// Device and playback keys are system shortcuts, before focused applications.
 bool isSystemKey(xkb_keysym_t keysym)
 {
     switch (keysym) {
+    case XKB_KEY_XF86AudioPlay:
+    case XKB_KEY_XF86AudioPause:
+    case XKB_KEY_XF86AudioPrev:
+    case XKB_KEY_XF86AudioNext:
+    case XKB_KEY_XF86AudioStop:
     case XKB_KEY_XF86AudioMute:
     case XKB_KEY_XF86AudioLowerVolume:
     case XKB_KEY_XF86AudioRaiseVolume:
