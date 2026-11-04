@@ -28,7 +28,7 @@ void adjustBoundsSmallerThan(const base::Size &maxSize, base::Rect *bounds);
 // would put its titlebar-equivalent region out of reach. `grabArea` is where
 // that strip has to end up when it is pushed down: the work area, so the top of
 // a window can slide under the dock only as far as it stays reachable beside
-// it. Empty means `visibleArea`.
+// it, and no window grows larger than it. Empty means `visibleArea`.
 void adjustBoundsToEnsureMinimumVisibility(const base::Rect &visibleArea, base::Rect *bounds,
                                            const base::Rect &grabArea = base::Rect());
 

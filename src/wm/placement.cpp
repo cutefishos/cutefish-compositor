@@ -45,7 +45,9 @@ void adjustBoundsToEnsureMinimumVisibility(const base::Rect &visibleArea, base::
     int minWidth = kMinimumOnScreenArea;
     int minHeight = kMinimumOnScreenArea;
 
-    adjustBoundsSmallerThan(visibleArea.size(), bounds);
+    // No larger than the work area, as Ash's SetBoundsConstrained: only the
+    // position may take a window under the dock.
+    adjustBoundsSmallerThan(grabArea.isEmpty() ? visibleArea.size() : grabArea.size(), bounds);
 
     minWidth = std::min(minWidth, visibleArea.width());
     minHeight = std::min(minHeight, visibleArea.height());

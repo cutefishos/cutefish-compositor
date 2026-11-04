@@ -1367,6 +1367,33 @@ TEST_F(WmTest, MovingAWindowUnderTheDockKeepsItsStripAboveTheDock)
     manager.clearExclusiveZone(this);
 }
 
+TEST_F(WmTest, ARequestedSizeIsNoTallerThanTheWorkArea)
+{
+    manager.setExclusiveZone(this, ScreenEdge::Bottom, 80);
+    Window *window = makeWindow(base::Rect(100, 0, 300, 200));
+
+    // Only the position may take a window under the dock, never its size.
+    window->requestBounds(base::Rect(100, 0, 300, kOutput.height()));
+    EXPECT_EQ(base::Rect(100, 0, 300, kOutput.height() - 80), window->bounds());
+
+    manager.clearExclusiveZone(this);
+}
+
+TEST_F(WmTest, AWindowLeavingFullscreenFitsAWorkAreaThatShrank)
+{
+    Window *window = makeWindow(base::Rect(100, 0, 300, kOutput.height()));
+    window->setFullscreen(true);
+    ASSERT_EQ(WindowStateType::Fullscreen, window->stateType());
+
+    // The dock reserved its strip while the window was fullscreen.
+    manager.setExclusiveZone(this, ScreenEdge::Bottom, 80);
+    window->setFullscreen(false);
+    EXPECT_EQ(WindowStateType::Normal, window->stateType());
+    EXPECT_EQ(base::Rect(100, 0, 300, kOutput.height() - 80), window->bounds());
+
+    manager.clearExclusiveZone(this);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Transients
 

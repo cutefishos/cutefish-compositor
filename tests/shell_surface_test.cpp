@@ -597,6 +597,30 @@ TEST_F(ShellSurfaceTest, AClientResizeMovesTheWindowSizeWithIt)
     EXPECT_EQ(base::Rect(origin, base::Size(400, 260)), shell->window()->bounds());
 }
 
+TEST_F(ShellSurfaceTest, AClientGrowingPastTheWorkAreaIsToldTheSizeItKeeps)
+{
+    Recorder *recorder = nullptr;
+    ShellSurface *shell = makeMappedToplevel(base::Size(300, 200), &recorder);
+    ASSERT_TRUE(shell->acknowledgeConfigure(recorder->serials.back()));
+    const base::Rect workArea = manager.workAreaFor(shell->window());
+    shell->window()->setBounds(base::Rect(100, workArea.top(), 300, 200));
+    const size_t configures = recorder->configures.size();
+
+    attach(shell->rootSurface(), base::Size(300, workArea.height() + 100));
+    shell->rootSurface()->commit();
+
+    EXPECT_EQ(base::Rect(100, workArea.top(), 300, workArea.height()), shell->window()->bounds());
+    ASSERT_GT(recorder->configures.size(), configures);
+    EXPECT_EQ(base::Size(300, workArea.height()), recorder->last().size);
+
+    // Already at the work area's height, a second try is answered again.
+    ASSERT_TRUE(shell->acknowledgeConfigure(recorder->serials.back()));
+    attach(shell->rootSurface(), base::Size(300, workArea.height() + 50));
+    shell->rootSurface()->commit();
+    EXPECT_EQ(workArea.height(), shell->window()->bounds().height());
+    EXPECT_EQ(base::Size(300, workArea.height()), recorder->last().size);
+}
+
 TEST_F(ShellSurfaceTest, ACentreAnchoredClientResizeKeepsTheWindowCentre)
 {
     Recorder *recorder = nullptr;

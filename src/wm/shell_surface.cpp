@@ -1156,6 +1156,22 @@ void ShellSurface::updateWindowBoundsFromClient()
                                     std::min(bounds.top(), workArea.bottom() - bounds.height())));
         }
     }
+    // A client may not grow past the work area, as Ash's SetBoundsConstrained
+    // keeps a widget's bounds; it is told the size it keeps instead.
+    const base::Rect workArea =
+            m_window->isPopup() ? base::Rect() : m_manager->workAreaFor(m_window, bounds);
+    if (!workArea.isEmpty()) {
+        base::Rect limited = bounds;
+        adjustBoundsSmallerThan(workArea.size().expandedTo(m_window->minimumOuterSize()), &limited);
+        if (limited != bounds) {
+            // A new size configures the client from onWindowBoundsChanged.
+            const bool resized = limited.size() != m_window->bounds().size();
+            m_window->setBounds(limited);
+            if (!resized)
+                configure();
+            return;
+        }
+    }
     m_applyingClientBounds = true;
     m_window->setBounds(bounds);
     m_applyingClientBounds = false;
