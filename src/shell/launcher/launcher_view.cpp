@@ -1412,7 +1412,8 @@ void LauncherView::preloadIcons()
     }
     std::sort(names.begin(), names.end());
     names.erase(std::unique(names.begin(), names.end()), names.end());
-    const std::string key = std::to_string(metrics.iconSize) + "@" + std::to_string(window->scale());
+    const std::string key = ui::Theme::current().iconTheme + "/" + std::to_string(metrics.iconSize) + "@"
+            + std::to_string(window->scale());
     if (names.empty() || (names == m_preloadedNames && key == m_preloadedKey))
         return;
     m_preloadedNames = names;

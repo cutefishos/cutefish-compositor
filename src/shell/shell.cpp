@@ -38,14 +38,23 @@ namespace cutefish::shell {
 class Shell::ThemeFollower : public decoration::ThemeObserver
 {
 public:
-    ThemeFollower(decoration::Theme *theme, const std::string &settingsPath)
+    ThemeFollower(decoration::Theme *theme, base::dbus::Connection *bus,
+                  const std::string &settingsPath)
         : m_theme(theme)
+        , m_settingsPath(settingsPath.empty() ? preferencesFile("services") : settingsPath)
     {
-        const base::Settings settings(settingsPath.empty() ? preferencesFile("services")
-                                                           : settingsPath);
+        const base::Settings settings(m_settingsPath);
         m_iconTheme = settings.stringValue("Appearance/IconTheme", "Cutefish");
         m_fontFamily = settings.stringValue("Appearance/Font", "");
         m_fontPointSize = settings.doubleValue("Appearance/FontSize", 9);
+        if (bus) {
+            m_appearance = base::dbus::Proxy(bus, "org.cutefish.Services",
+                                             "/org/cutefish/Services/Appearance",
+                                             "org.cutefish.Services.Appearance");
+            // The service writes services.conf before it signals.
+            m_iconThemeChanged = m_appearance.onSignal(
+                    "iconThemeChanged", [this](const base::dbus::Message &) { reloadIconTheme(); });
+        }
         if (m_theme)
             m_theme->addObserver(this);
         apply();
@@ -60,6 +69,16 @@ public:
     void onThemeChanged() override { apply(); }
 
 private:
+    void reloadIconTheme()
+    {
+        const base::Settings settings(m_settingsPath);
+        std::string iconTheme = settings.stringValue("Appearance/IconTheme", "Cutefish");
+        if (iconTheme == m_iconTheme)
+            return;
+        m_iconTheme = std::move(iconTheme);
+        apply();
+    }
+
     void apply()
     {
         static constexpr ui::Color kAccents[] = {ui::accent::blue,   ui::accent::red,
@@ -79,6 +98,9 @@ private:
     }
 
     decoration::Theme *m_theme;
+    std::string m_settingsPath;
+    base::dbus::Proxy m_appearance;
+    base::dbus::Match m_iconThemeChanged;
     std::string m_iconTheme;
     std::string m_fontFamily;
     double m_fontPointSize = 9;
@@ -101,7 +123,8 @@ Shell::Shell(const ShellEnvironment &environment)
     m_renderer = std::make_unique<WindowRenderer>(m_environment.compositor);
     m_input = std::make_unique<ShellInput>(this);
     m_host = std::make_unique<ShellHost>(this, m_environment.inputMethod);
-    m_theme = std::make_unique<ThemeFollower>(m_environment.theme, m_environment.servicesSettings);
+    m_theme = std::make_unique<ThemeFollower>(m_environment.theme, m_environment.bus,
+                                              m_environment.servicesSettings);
     m_outputsChanged = windowManager()->outputsChanged.connect([this] { updateOutputs(); });
     updateOutputs();
     m_trimTimer.setSingleShot(true);
