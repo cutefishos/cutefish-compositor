@@ -29,7 +29,7 @@ namespace cutefish::accelerators {
 
 namespace {
 
-// Device and playback keys are system shortcuts, before focused applications.
+// ash::AcceleratorController::IsSystemKey, with hardware media key handling on.
 bool isSystemKey(xkb_keysym_t keysym)
 {
     switch (keysym) {
