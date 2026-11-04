@@ -257,10 +257,14 @@ struct Client {
                 ++static_cast<Client*>(data)->cancelled;
             },
             [](void* data, wl_data_source*) {
-                ++static_cast<Client*>(data)->performed;
+                auto& c = *static_cast<Client*>(data);
+                ++c.performed;
+                c.events.push_back("dnd-drop-performed");
             },
             [](void* data, wl_data_source*) {
-                ++static_cast<Client*>(data)->finished;
+                auto& c = *static_cast<Client*>(data);
+                ++c.finished;
+                c.events.push_back("dnd-finished");
             },
             [](void* data, wl_data_source*, uint32_t action) {
                 static_cast<Client*>(data)->sourceAction = action;

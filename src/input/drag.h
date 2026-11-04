@@ -80,6 +80,8 @@ private:
     uint32_t m_action = 0;
     bool m_legacy;
     std::string m_mime;
+    bool m_deliveringDrop = false;
+    bool m_finishDeferred = false;
 };
 
 // Moves a window along with a drag, for xdg_toplevel_drag_v1. The data

@@ -7,6 +7,7 @@
 #include "clipboard_test_util.h"
 #include "cursor/cursor.h"
 #include "fake_renderer.h"
+#include "input/drag.h"
 #include "input/input_manager.h"
 #include "scene/surface_node.h"
 #include "shm_test_util.h"
@@ -648,6 +649,30 @@ TEST(DndProtocol, FinishingAfterTheSourceWentAwayIsNoError)
     wl_data_offer_finish(b.dragOffer);
     h.sync(b);
     EXPECT_EQ(0, wl_display_get_error(b.display));
+}
+
+// A destination in the compositor, such as a shell window that needs no data,
+// finishes as the drop reaches it; the source still hears the drop first.
+TEST(DndProtocol, ADestinationFinishingAsTheDropArrivesLetsTheSourceHearTheDropFirst)
+{
+    Harness h;
+    auto &a = h.addClient();
+    auto &b = h.addClient();
+    map(h, a, 0);
+    map(h, b, 150);
+    start(h, a);
+    h.seat.onPointerMotion({}, {160, 10});
+    h.sync(b);
+    accept(h, b);
+    const auto finishOnDrop =
+            h.seat.drag()->dropped.connect([](input::DragOffer *offer) { EXPECT_TRUE(offer->finish()); });
+    a.events.clear();
+    h.seat.onPointerButton({}, {160, 10}, BTN_LEFT, false);
+    h.sync(a);
+    std::erase_if(a.events, [](const std::string &event) { return !event.starts_with("dnd-"); });
+    EXPECT_EQ((std::vector<std::string> {"dnd-drop-performed", "dnd-finished"}), a.events);
+    EXPECT_EQ(0u, a.cancelled);
+    EXPECT_FALSE(h.seat.drag()->active());
 }
 
 // Exo's PointerTest.DragDropAndPointerEnterLeaveEvents: the origin loses
