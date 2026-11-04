@@ -432,17 +432,16 @@ void DeviceUsersTile::setUsers(const std::vector<DeviceUser> &users)
     m_users = users;
     for (Row &row : m_rows) {
         takeChild(row.icon);
-        takeChild(row.name);
-        takeChild(row.usage);
+        takeChild(row.sentence);
     }
     m_rows.clear();
     for (const DeviceUser &user : m_users) {
         Row row;
         row.icon = addChild<ui::ThemeIcon>(user.icon.empty() ? "application-x-executable" : user.icon,
                                            kIconSize);
-        row.name = addChild<ui::Label>(user.name);
-        row.name->setElide(ui::Label::Elide::Right);
-        row.usage = addChild<ui::Label>(" " + deviceUsageText(user));
+        row.sentence = addChild<ui::Label>(user.name + " " + deviceUsageText(user));
+        row.sentence->setWrap(true);
+        row.sentence->setMaximumLineCount(2);
         row.dot = user.camera ? ui::accent::green : user.microphone ? ui::accent::orange : ui::accent::purple;
         m_rows.push_back(row);
     }
@@ -452,7 +451,7 @@ void DeviceUsersTile::setUsers(const std::vector<DeviceUser> &users)
 void DeviceUsersTile::retranslate()
 {
     for (size_t i = 0; i < m_rows.size(); ++i)
-        m_rows[i].usage->setText(" " + deviceUsageText(m_users[i]));
+        m_rows[i].sentence->setText(m_users[i].name + " " + deviceUsageText(m_users[i]));
     requestLayout();
 }
 
@@ -463,20 +462,28 @@ double DeviceUsersTile::inset() const
     return ui::Theme::current().largeSpacing + (CardItem::kPlateSize - kIconSize) / 2;
 }
 
-double DeviceUsersTile::rowHeight() const
+double DeviceUsersTile::sentenceWidth(double width) const
 {
-    double height = kIconSize;
-    for (const Row &row : m_rows)
-        height = std::max(height, row.name->sizeHint().height);
-    return height;
+    const ui::Theme &theme = ui::Theme::current();
+    const double spacing = theme.smallSpacing * 1.5;
+    const double sentenceX = theme.largeSpacing + CardItem::kPlateSize + spacing;
+    return std::max(0.0, width - inset() - 6 - spacing - sentenceX);
 }
 
-double DeviceUsersTile::heightForWidth(double) const
+double DeviceUsersTile::rowHeight(const Row &row, double width) const
+{
+    return std::max(kIconSize, row.sentence->heightForWidth(sentenceWidth(width)));
+}
+
+double DeviceUsersTile::heightForWidth(double width) const
 {
     if (m_rows.empty())
         return 0;
     const double spacing = ui::Theme::current().smallSpacing * 1.5;
-    return 2 * inset() + m_rows.size() * rowHeight() + (m_rows.size() - 1) * spacing;
+    double height = 2 * inset() + (m_rows.size() - 1) * spacing;
+    for (const Row &row : m_rows)
+        height += rowHeight(row, width);
+    return height;
 }
 
 void DeviceUsersTile::layout()
@@ -484,20 +491,15 @@ void DeviceUsersTile::layout()
     const ui::Theme &theme = ui::Theme::current();
     const double spacing = theme.smallSpacing * 1.5;
     const double left = theme.largeSpacing;
-    const double right = geometry().width - inset();
-    const double height = rowHeight();
+    const double width = sentenceWidth(geometry().width);
     double y = inset();
     for (const Row &row : m_rows) {
+        const double height = rowHeight(row, geometry().width);
         row.icon->setGeometry({left + (CardItem::kPlateSize - kIconSize) / 2, y + (height - kIconSize) / 2,
                                kIconSize, kIconSize});
-        const double sentenceX = left + CardItem::kPlateSize + spacing;
-        // The dot keeps the row's end; only the name gives way to a narrow panel.
-        const double sentenceWidth = std::max(0.0, right - 6 - spacing - sentenceX);
-        const double usageWidth = row.usage->sizeHint().width;
-        const double nameWidth = std::min(row.name->sizeHint().width, std::max(0.0, sentenceWidth - usageWidth));
-        const double nameHeight = row.name->sizeHint().height;
-        row.name->setGeometry({sentenceX, y + (height - nameHeight) / 2, nameWidth, nameHeight});
-        row.usage->setGeometry({sentenceX + nameWidth, y + (height - nameHeight) / 2, usageWidth, nameHeight});
+        const double sentenceHeight = row.sentence->heightForWidth(width);
+        row.sentence->setGeometry({left + CardItem::kPlateSize + spacing, y + (height - sentenceHeight) / 2,
+                                   width, sentenceHeight});
         y += height + spacing;
     }
 }
@@ -506,9 +508,9 @@ void DeviceUsersTile::paint(ui::Painter &painter)
 {
     panel::paintTile(painter, localRect());
     const double spacing = ui::Theme::current().smallSpacing * 1.5;
-    const double height = rowHeight();
     double y = inset();
     for (const Row &row : m_rows) {
+        const double height = rowHeight(row, geometry().width);
         painter.fillRoundedRect({geometry().width - inset() - 6, y + (height - 6) / 2, 6, 6}, 3, row.dot);
         y += height + spacing;
     }

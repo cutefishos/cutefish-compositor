@@ -181,12 +181,12 @@ protected:
 private:
     struct Row {
         ui::View *icon;
-        ui::Label *name;
-        ui::Label *usage;
+        ui::Label *sentence;
         ui::Color dot;
     };
 
-    double rowHeight() const;
+    double sentenceWidth(double width) const;
+    double rowHeight(const Row &row, double width) const;
     double inset() const;
 
     std::vector<DeviceUser> m_users;
