@@ -65,6 +65,31 @@ void DBusAcceleratorDelegate::toggleClipboardHistory()
     call("org.cutefish.ClipboardHistory", "/ClipboardHistory", "toggle");
 }
 
+void DBusAcceleratorDelegate::mediaPlayPause()
+{
+    call("org.cutefish.Statusbar", "/Statusbar", "mediaPlayPause");
+}
+
+void DBusAcceleratorDelegate::mediaPause()
+{
+    call("org.cutefish.Statusbar", "/Statusbar", "mediaPause");
+}
+
+void DBusAcceleratorDelegate::mediaPrevious()
+{
+    call("org.cutefish.Statusbar", "/Statusbar", "mediaPrevious");
+}
+
+void DBusAcceleratorDelegate::mediaNext()
+{
+    call("org.cutefish.Statusbar", "/Statusbar", "mediaNext");
+}
+
+void DBusAcceleratorDelegate::mediaStop()
+{
+    call("org.cutefish.Statusbar", "/Statusbar", "mediaStop");
+}
+
 void DBusAcceleratorDelegate::volumeDown()
 {
     callOsd("volumeDown");

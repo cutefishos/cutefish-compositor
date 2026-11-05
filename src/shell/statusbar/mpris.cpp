@@ -178,6 +178,11 @@ void MprisPlayer::playPause()
     callPlayer("PlayPause");
 }
 
+void MprisPlayer::stop()
+{
+    callPlayer("Stop");
+}
+
 void MprisPlayer::next()
 {
     callPlayer("Next");

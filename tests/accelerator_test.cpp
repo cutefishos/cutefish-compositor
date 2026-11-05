@@ -90,6 +90,11 @@ public:
     void startCaptureMode() override { captures.push_back("capture-mode"); }
     void stopScreenRecording() override { captures.push_back("stop-recording"); }
     void toggleClipboardHistory() override { ++clipboardHistoryToggles; }
+    void mediaPlayPause() override { media.push_back("media-play-pause"); }
+    void mediaPause() override { media.push_back("media-pause"); }
+    void mediaPrevious() override { media.push_back("media-previous"); }
+    void mediaNext() override { media.push_back("media-next"); }
+    void mediaStop() override { media.push_back("media-stop"); }
     void volumeDown() override { levels.push_back("volume-down"); }
     void volumeUp() override { levels.push_back("volume-up"); }
     void toggleMute() override { levels.push_back("mute"); }
@@ -103,6 +108,7 @@ public:
     int clipboardHistoryToggles = 0;
     std::vector<std::string> captures;
     std::vector<std::string> levels;
+    std::vector<std::string> media;
 };
 
 // Records what reaches a client keyboard.
@@ -816,10 +822,11 @@ TEST_F(AcceleratorTest, ConsumedKeysNeverReachTheClientAndOthersDo)
                                              "keyboard-brightness-up"};
     EXPECT_EQ(levels, delegate.levels);
 
-    // Media keys have no action, so they belong to the client.
+    // Media keys are global playback actions, not duplicate client key presses.
     keyboardDelegate->keys.clear();
     tap(KEY_PLAYPAUSE);
-    EXPECT_EQ(2u, keyboardDelegate->keys.size());
+    EXPECT_TRUE(keyboardDelegate->keys.empty());
+    EXPECT_EQ((std::vector<std::string>{"media-play-pause"}), delegate.media);
 }
 
 TEST_F(AcceleratorTest, HeldVolumeAndBrightnessKeysRepeatAtTheKeyboardRate)
@@ -1579,6 +1586,8 @@ TEST_F(AcceleratorTest, ABlockedSessionPerformsNothing)
     const std::vector<std::string> levels = {"volume-down", "microphone-mute", "brightness-up",
                                              "keyboard-brightness-down"};
     EXPECT_EQ(levels, delegate.levels);
+    tap(KEY_PLAYPAUSE);
+    EXPECT_EQ((std::vector<std::string>{"media-play-pause"}), delegate.media);
 }
 
 TEST_F(AcceleratorTest, WindowActionsAreSwallowedWithoutAWindowAndWhilePrevented)
@@ -1901,7 +1910,7 @@ TEST_F(AcceleratorTest, ServiceListsActionsWithTheirDefaultsOverTheBus)
     const auto reply = proxy.call("accelerators");
     ASSERT_FALSE(reply.isError()) << reply.error().message;
     const base::json::Value actions = parse(reply.value<std::string>().value_or(""))["actions"];
-    EXPECT_EQ(46u, actions.size());
+    EXPECT_EQ(51u, actions.size());
     bool sawMaximize = false;
     bool sawOverview = false;
     for (const base::json::Value &action : actions.toArray()) {
@@ -1965,4 +1974,31 @@ TEST_F(AcceleratorTest, ARecorderThatLeavesTheBusLiftsTheAcceleratorBlock)
     }
     EXPECT_TRUE(input_test::runUntil(
             loop, [&] { return !controller->shouldPreventProcessingAccelerators(); }));
+}
+
+TEST_F(AcceleratorTest, MediaKeysDispatchAndCanBeReassignedWithoutRepeating)
+{
+    tap(KEY_PLAYPAUSE);
+    tap(KEY_PREVIOUSSONG);
+    tap(KEY_NEXTSONG);
+    tap(KEY_STOPCD);
+    tap(KEY_PAUSECD);
+    EXPECT_EQ((std::vector<std::string>{"media-play-pause", "media-previous", "media-next", "media-stop", "media-pause"}),
+              delegate.media);
+    EXPECT_FALSE(controller->isRepeatable(Accelerator(XKB_KEY_XF86AudioPlay, NoModifier)));
+    EXPECT_FALSE(controller->isRepeatable(Accelerator(XKB_KEY_XF86AudioNext, NoModifier)));
+    const auto action = toActionId(AcceleratorAction::MediaPlayPause);
+    const Accelerator original(XKB_KEY_XF86AudioPlay, NoModifier);
+    const Accelerator custom(XKB_KEY_F8, MetaDown);
+    ASSERT_EQ(AcceleratorConfigResult::Success, configuration->replaceAccelerator(action, original, custom));
+    tap(KEY_PLAYPAUSE);
+    EXPECT_EQ(5u, delegate.media.size());
+    chord({KEY_LEFTMETA}, KEY_F8);
+    EXPECT_EQ(6u, delegate.media.size());
+    EXPECT_EQ("media-play-pause", delegate.media.back());
+    AcceleratorConfiguration reloaded(directory.filePath("compositor.conf"));
+    reloaded.initialize();
+    ASSERT_TRUE(reloaded.findAcceleratorAction(custom));
+    EXPECT_EQ(AcceleratorAction::MediaPlayPause, *reloaded.findAcceleratorAction(custom));
+    EXPECT_FALSE(reloaded.findAcceleratorAction(original));
 }

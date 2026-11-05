@@ -64,6 +64,26 @@ bool StatusBar::registerServices()
         auto object = std::make_unique<dbus::Object>(m_bus, "/Statusbar", "org.cutefish.Statusbar");
         object->addMethod("setBatteryPercentage", [this](bool enabled) { m_battery->setShowPercentage(enabled); },
                           dbus::ArgumentNames{{"batteryPercentage"}, {}});
+        object->addMethod("mediaPlayPause", [this] {
+            if (auto *player = m_mpris.current())
+                player->playPause();
+        });
+        object->addMethod("mediaPause", [this] {
+            if (auto *player = m_mpris.current())
+                player->pause();
+        });
+        object->addMethod("mediaPrevious", [this] {
+            if (auto *player = m_mpris.current())
+                player->previous();
+        });
+        object->addMethod("mediaNext", [this] {
+            if (auto *player = m_mpris.current())
+                player->next();
+        });
+        object->addMethod("mediaStop", [this] {
+            if (auto *player = m_mpris.current())
+                player->stop();
+        });
         // The same as the menu's: the user is asked first. The session's
         // own methods act at once.
         object->addMethod("requestLogout", [this] { m_powerActions.request(PowerActions::Logout); });

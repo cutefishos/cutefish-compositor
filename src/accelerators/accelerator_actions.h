@@ -8,8 +8,8 @@
 // Adapted for Cutefish: the launcher, the lock screen, the window actions,
 // the application menu's Quit, Hide and Hide Others, desks, screen capture and
 // the volume, microphone, brightness and keyboard backlight keys. Media keys
-// stay with the applications; browser, IME, accessibility, tablet and debug
-// actions have nothing to act on.
+// control the current player regardless of focus; browser, IME, accessibility,
+// tablet and debug actions have nothing to act on.
 
 #ifndef CUTEFISH_ACCELERATORS_ACCELERATOR_ACTIONS_H_
 #define CUTEFISH_ACCELERATORS_ACCELERATOR_ACTIONS_H_
@@ -73,6 +73,13 @@ enum class AcceleratorAction : uint32_t {
 
     // The clipboard history, performed by the shell.
     ToggleClipboardHistory,
+
+    // Playback of the current MPRIS player.
+    MediaPlayPause,
+    MediaPause,
+    MediaPrevious,
+    MediaNext,
+    MediaStop,
 
     // Device keys, performed by the shell, which shows the new level.
     VolumeMuteToggle,

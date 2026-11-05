@@ -545,3 +545,19 @@ TEST(VpnNotifierTest, TellsAFailedVpnAndOpensItsPage)
     notifications.emitSignal("ActionInvoked", uint32_t(7), std::string("default"));
     EXPECT_TRUE(test::runUntil([&] { return opened == 1; }));
 }
+
+TEST(StatusBarTest, PlaybackShortcutsControlCurrentPlayerAndNoPlayerIsHarmless)
+{
+    test::TemporaryDirectory directory;
+    shell::StatusBar bar(sessionBus(), nullptr, nullptr, directory.filePath("shell.conf"));
+    ASSERT_TRUE(bar.registerServices());
+    test::DBusTestClient caller;
+    caller.call("org.cutefish.Statusbar", "/Statusbar", "org.cutefish.Statusbar", "mediaPlayPause");
+    test::DBusTestClient app;
+    FakePlayer music(app.connection.get(), "shortcut_test");
+    ASSERT_TRUE(test::runUntil([&] { return bar.mpris().current() && bar.mpris().current()->isReady(); }));
+    for (const char *method : {"mediaPlayPause", "mediaPause", "mediaPrevious", "mediaNext", "mediaStop"})
+        caller.call("org.cutefish.Statusbar", "/Statusbar", "org.cutefish.Statusbar", method);
+    ASSERT_TRUE(test::runUntil([&] { return music.calls.size() == 5; }));
+    EXPECT_EQ((std::vector<std::string>{"PlayPause", "Pause", "Previous", "Next", "Stop"}), music.calls);
+}
