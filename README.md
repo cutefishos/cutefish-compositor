@@ -31,10 +31,13 @@ reference:
   reimplemented from [IOHIDFamily](https://github.com/apple-oss-distributions/IOHIDFamily)
   (Apple Public Source License 2.0): `IOHIDParametricAcceleration`'s
   parametric curve. Its curve table is the `HIDAccelCurves` table of
-  IOHIDFamily's generic HID pointer, converted from 16.16 fixed point.
+  IOHIDFamily's generic HID pointer, converted from 16.16 fixed point, so
+  the file is under the APSL 2.0; see [LICENSE.apsl](LICENSE.apsl).
 
 ## License
 
 BSD-3-Clause; see [LICENSE](LICENSE). Code ported from Chromium keeps its
-original notice in [LICENSE.chromium](LICENSE.chromium), and code from
-sommelier in [LICENSE.sommelier](LICENSE.sommelier).
+original notice in [LICENSE.chromium](LICENSE.chromium), code from sommelier
+in [LICENSE.sommelier](LICENSE.sommelier), and
+`src/input/pointer_acceleration.cpp` is under the APSL 2.0
+([LICENSE.apsl](LICENSE.apsl)).
