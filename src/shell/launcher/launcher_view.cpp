@@ -480,7 +480,7 @@ void LauncherView::syncCells()
         return;
     const LauncherModel &model = m_launcher.applications();
     const auto &rows = model.rows();
-    const bool animate = m_shown && (!m_draggedId.empty() || m_reorderAnimation.isActive());
+    const bool animate = animatesReorder();
 
     // Pages are added and removed one by one; their cells stay.
     const int total = rows.empty() ? 0 : m_metrics.pagesFor(int(rows.size()));
@@ -573,6 +573,11 @@ void LauncherView::syncCells()
     m_notFound->setVisible(isSearching() && rows.empty());
     m_folder->sync();
     requestPaint();
+}
+
+bool LauncherView::animatesReorder() const
+{
+    return m_shown && (!m_draggedId.empty() || m_reorderAnimation.isActive());
 }
 
 void LauncherView::syncPages()
@@ -1184,24 +1189,25 @@ void LauncherView::applyMove()
     if (id.empty() || to < 0)
         return;
     LauncherModel &model = m_launcher.applications();
-    if (!folder.empty()) {
-        const LauncherItem *item = model.item(folder);
-        if (!item)
-            return;
+    int from = -1;
+    if (folder.empty()) {
+        from = model.findById(id);
+    } else if (const LauncherItem *item = model.item(folder)) {
         const auto &children = item->children;
         const auto found = std::find_if(children.begin(), children.end(),
                                         [&id](const LauncherItem &child) { return child.id == id; });
-        if (found == children.end())
-            return;
-        model.moveInFolder(folder, int(found - children.begin()), to);
-        return;
+        if (found != children.end())
+            from = int(found - children.begin());
     }
-    const int from = model.findById(id);
     if (from < 0 || from == to)
         return;
+    // In a folder as in the grid, the cells the move displaces slide.
     startSettle(kSettleDuration);
     m_reorderAnimation.start();
-    model.move(from, to);
+    if (folder.empty())
+        model.move(from, to);
+    else
+        model.moveInFolder(folder, from, to);
 }
 
 void LauncherView::requestMerge()

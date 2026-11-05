@@ -98,6 +98,8 @@ private:
     void setProgress(double progress);
     int visibleRows() const;
     double titleHeight() const;
+    // Where the cell of an application rests, in the grid of cells.
+    ui::PointF slotPosition(int index) const;
     void placeCells();
     void setScroll(double y);
     void commitName();

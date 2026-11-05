@@ -236,11 +236,15 @@ void LauncherFolderView::sync()
 
     std::set<std::string> present;
     m_order.clear();
+    // The cells a reorder displaces slide as the grid's do; new ones appear
+    // in place.
+    const bool animate = m_view->animatesReorder();
     for (size_t i = 0; i < folder->children.size(); ++i) {
         const LauncherItem &item = folder->children[i];
         present.insert(item.id);
         m_order.push_back(item.id);
         LauncherCell *cell = this->cell(item.id);
+        const bool placed = cell != nullptr;
         if (!cell) {
             cell = m_grid->addChild<LauncherCell>(m_view, item.id);
             m_cells[item.id] = cell;
@@ -250,6 +254,7 @@ void LauncherFolderView::sync()
         cell->setMetrics(m_metrics);
         cell->setSlot(0, int(i));
         cell->setDragging(item.id == m_view->draggedId());
+        cell->moveTo(slotPosition(int(i)), animate && placed);
     }
     for (auto it = m_cells.begin(); it != m_cells.end();) {
         if (present.count(it->first)) {
@@ -366,16 +371,19 @@ void LauncherFolderView::layout()
     setProgress(m_progress);
 }
 
+ui::PointF LauncherFolderView::slotPosition(int index) const
+{
+    return {double((index % columns()) * m_metrics.cellWidth),
+            double((index / columns()) * m_metrics.cellHeight) - m_scrollY};
+}
+
 void LauncherFolderView::placeCells()
 {
     for (size_t i = 0; i < m_order.size(); ++i) {
-        LauncherCell *cell = this->cell(m_order[i]);
-        if (!cell)
-            continue;
-        const int index = int(i);
-        cell->moveTo({double((index % columns()) * m_metrics.cellWidth),
-                      double((index / columns()) * m_metrics.cellHeight) - m_scrollY},
-                     false);
+        // A cell already sliding to its slot keeps sliding: a layout must
+        // not cut a reorder's animation short.
+        if (LauncherCell *cell = this->cell(m_order[i]))
+            cell->moveTo(slotPosition(int(i)), cell->isMoving());
     }
 }
 
