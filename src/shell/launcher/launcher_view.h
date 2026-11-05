@@ -79,6 +79,9 @@ public:
     // Where a row's cell rests, in window coordinates.
     ui::RectF cellRect(int row) const;
     const std::string &draggedId() const { return m_draggedId; }
+    // Whether cells slide to new slots now rather than jump: while a drag
+    // runs and for a moment after its last move, in the grid and in a folder.
+    bool animatesReorder() const;
     ui::Menu *menu() const;
     bool isMenuOpen() const;
     // The dots' centres, in window coordinates.

@@ -673,3 +673,107 @@ TEST_F(LauncherWindowTest, DraggedOutOfItsFolderAnApplicationLeavesIt)
     // Dropped beside an icon of the grid, it took that slot.
     EXPECT_GT(model().findById("app01"), 0);
 }
+
+TEST_F(LauncherWindowTest, AReorderInTheGridSlidesTheDisplacedCells)
+{
+    open();
+    launcher().show();
+    frame();
+    const ui::RectF slot = view()->cellRect(0);
+    startDrag(iconCentre(0));
+    const ui::PointF to = besideIcon(3);
+    move(to.x, to.y);
+    ASSERT_TRUE(test::runUntil([this] { return model().findById("app00") == 3; }));
+    // app01 slides into the first slot rather than jumping there.
+    shell::LauncherCell *displaced = view()->cell("app01");
+    EXPECT_TRUE(displaced->isMoving());
+    frames(std::chrono::milliseconds(800), [displaced] { return !displaced->isMoving(); });
+    EXPECT_FALSE(displaced->isMoving());
+    EXPECT_EQ(slot.x, displaced->geometry().x);
+    release();
+    ASSERT_TRUE(test::runUntil([this] { return view()->draggedId().empty(); }));
+}
+
+TEST_F(LauncherWindowTest, AReorderInAFolderSlidesTheDisplacedCellsAsTheGridDoes)
+{
+    directory.write("shell.conf",
+                    "[Launcher]\norder=folder:1, app04\nFolder1/name=Tools\nFolder1/apps=app00, app01, app02, app03\n");
+    open(28);
+    launcher().show();
+    frame();
+    view()->openFolder("folder:1");
+    shell::LauncherFolderView *folder = view()->folderView();
+    frames(shell::LauncherFolderView::kOpenDuration + std::chrono::milliseconds(100));
+
+    const auto order = [this] {
+        std::vector<std::string> ids;
+        for (const shell::LauncherItem &child : model().item("folder:1")->children)
+            ids.push_back(child.id);
+        return ids;
+    };
+    // Where each slot's cell rests, in the folder's grid.
+    std::vector<ui::PointF> slots;
+    for (const std::string &id : order())
+        slots.push_back(folder->cell(id)->geometry().topLeft());
+    const auto centre = [folder](int index) {
+        const ui::RectF cell = folder->cellRect(index);
+        return ui::PointF {cell.x + cell.width / 2, cell.y + cell.height / 2};
+    };
+    const auto anyMoving = [&] {
+        for (const std::string &id : order()) {
+            if (folder->cell(id)->isMoving())
+                return true;
+        }
+        return false;
+    };
+    const auto settle = [&] {
+        frames(std::chrono::milliseconds(800), [&] { return !anyMoving(); });
+        EXPECT_FALSE(anyMoving());
+        // Every cell rests in its application's slot.
+        const std::vector<std::string> ids = order();
+        for (size_t i = 0; i < ids.size(); ++i) {
+            EXPECT_EQ(slots[i].x, folder->cell(ids[i])->geometry().x) << ids[i];
+            EXPECT_EQ(slots[i].y, folder->cell(ids[i])->geometry().y) << ids[i];
+        }
+    };
+    // The dwell over a slot moves the dragged application there; the cells
+    // it passes over slide.
+    const auto dwellOver = [&](int index, const std::vector<std::string> &expected, const std::string &slides) {
+        const ui::PointF point = centre(index);
+        move(point.x, point.y);
+        ASSERT_TRUE(test::runUntil([&] { return order() == expected; }));
+        EXPECT_TRUE(folder->cell(slides)->isMoving()) << slides;
+        settle();
+    };
+
+    const ui::RectF first = folder->cellRect(0);
+    const ui::RectF icon = folder->cell("app00")->iconRect();
+    startDrag({first.x + icon.x + icon.width / 2, first.y + icon.y + icon.height / 2});
+    ASSERT_EQ("app00", view()->draggedId());
+    // To the end, back to the start, then between two others.
+    dwellOver(3, {"app01", "app02", "app03", "app00"}, "app03");
+    dwellOver(0, {"app00", "app01", "app02", "app03"}, "app01");
+    dwellOver(2, {"app01", "app02", "app00", "app03"}, "app02");
+    release();
+    ASSERT_TRUE(test::runUntil([this] { return view()->draggedId().empty(); }));
+    settle();
+
+    // A second application, dropped on its new slot.
+    const ui::RectF last = folder->cellRect(3);
+    startDrag({last.x + icon.x + icon.width / 2, last.y + icon.y + icon.height / 2});
+    ASSERT_EQ("app03", view()->draggedId());
+    dwellOver(1, {"app01", "app03", "app02", "app00"}, "app02");
+    release();
+    ASSERT_TRUE(test::runUntil([this] { return view()->draggedId().empty(); }));
+    settle();
+
+    // Closed and opened again, the cells rest in the new order at once.
+    key(KEY_ESC);
+    frames(shell::LauncherFolderView::kCloseDuration + std::chrono::milliseconds(200),
+           [folder] { return folder->folder().empty(); });
+    ASSERT_TRUE(folder->folder().empty());
+    view()->openFolder("folder:1");
+    EXPECT_FALSE(anyMoving());
+    settle();
+    EXPECT_EQ((std::vector<std::string>{"app01", "app03", "app02", "app00"}), order());
+}
