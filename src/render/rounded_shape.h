@@ -78,6 +78,8 @@ struct RoundedShape {
         const double l = std::cbrt(qx * qx * qx + qy * qy * qy);
         return (l - 1) * l * l / std::hypot(qx * qx / rx, qy * qy / ry);
     }
+
+    friend bool operator==(const RoundedShape &, const RoundedShape &) = default;
 };
 
 } // namespace cutefish::render

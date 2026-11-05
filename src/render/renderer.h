@@ -36,6 +36,8 @@ struct Color {
     float g = 0.0f;
     float b = 0.0f;
     float a = 1.0f;
+
+    friend bool operator==(const Color &, const Color &) = default;
 };
 
 // One Gaussian lobe of a drop shadow, in the pixels of the image it is drawn into.

@@ -41,6 +41,8 @@ struct WindowVisualState {
     {
         return outlineShape.bounds.isEmpty() ? shape : outlineShape;
     }
+
+    friend bool operator==(const WindowVisualState &, const WindowVisualState &) = default;
 };
 
 // Dark outline one stroke outside the shape, highlight on its outermost pixels.
@@ -68,6 +70,9 @@ public:
 
     void setState(const WindowVisualState &state)
     {
+        // Evaluated on every commit; an unchanged state must not damage the window.
+        if (state == m_state)
+            return;
         if (state.dimOpacity != m_state.dimOpacity) {
             // Fades from wherever a fade in flight got to, so a dialog closed
             // mid-fade reverses instead of jumping.

@@ -6,6 +6,7 @@
 
 #include "decoration/decoration.h"
 #include "decoration/decoration_theme.h"
+#include "scene/window_visual_node.h"
 #include "wm/window.h"
 #include "wm/window_manager.h"
 #include "wm/window_visual_controller.h"
@@ -191,4 +192,24 @@ TEST(WindowVisualPolicy, SmallWindowsClampAllCornersAndDarkModeDeepensTheOutline
     }
     EXPECT_GT(theme.visualStyle().dockOutline.a, light.dockOutline.a);
     EXPECT_EQ(theme.visualStyle().radius, light.radius);
+}
+
+TEST(WindowVisualPolicy, ReapplyingTheSameStateLeavesTheNodeUnchanged)
+{
+    decoration::Theme theme;
+    wm::WindowManager manager(nullptr, nullptr);
+    manager.setOutputBounds({0, 0, 1200, 900});
+    auto *window = manager.createWindow(nullptr, {.requestedSize = {400, 300}});
+    const auto state = wm::WindowVisualController::evaluate(*window, theme.visualStyle());
+    scene::WindowVisualNode node;
+    node.setState(state);
+    const uint64_t revision = node.revision();
+    node.setState(state);
+    EXPECT_EQ(revision, node.revision());
+
+    auto moved = state;
+    moved.shape.bounds.translate(10, 0);
+    node.setState(moved);
+    EXPECT_NE(revision, node.revision());
+    manager.destroyWindow(window);
 }
