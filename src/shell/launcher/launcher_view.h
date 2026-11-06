@@ -116,7 +116,7 @@ public:
     base::Signal<> dismissRequested;
 
 protected:
-    bool acceptsFocus() const override { return true; }
+    bool acceptsFocus() const override;
     void layout() override;
     void paint(ui::Painter &painter) override;
     bool keyPress(const ui::KeyEvent &event) override;

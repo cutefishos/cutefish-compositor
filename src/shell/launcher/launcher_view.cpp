@@ -348,6 +348,13 @@ void LauncherView::setShown(bool shown)
     setFocus();
 }
 
+bool LauncherView::acceptsFocus() const
+{
+    // A press elsewhere leaves the search field focused, so a click that
+    // dismisses the launcher hides it as it was.
+    return !m_search->hasFieldFocus();
+}
+
 bool LauncherView::isSearching() const
 {
     return !m_search->text().empty();
