@@ -112,8 +112,13 @@ TEST(Damage, ABlurReadsOnlyWhatIsDrawnBeforeIt)
     const base::Rect viewport(0, 0, 800, 600);
     tracker.update(root, viewport);
     const int halo = render::kBackdropBlurSupport + 2;
-    const base::Rect firstSampled = base::Rect(0, 0, 100, 40).adjusted(-halo, -halo, halo, halo);
-    const base::Rect secondSampled = base::Rect(150, 0, 100, 40).adjusted(-halo, -halo, halo, halo);
+    const auto grown = [](const base::Rect &rect, int by) {
+        return rect.adjusted(-by, -by, by, by);
+    };
+    const base::Rect firstSampled = grown({0, 0, 100, 40}, halo);
+    const base::Rect secondSampled = grown({150, 0, 100, 40}, halo);
+    const base::Rect firstBlurred(-1, -1, 102, 42), secondBlurred(149, -1, 102, 42);
+    const auto [shown, read] = render::backdropReach({}, 1);
     EXPECT_EQ(tracker.samples(), (std::vector<base::Rect> {firstSampled, secondSampled}));
     const auto kept = [](uint64_t) {
         return true;
@@ -124,26 +129,79 @@ TEST(Damage, ABlurReadsOnlyWhatIsDrawnBeforeIt)
               base::Region(base::Rect(500, 400, 10, 10)) + base::Rect(10, 50, 10, 10));
     EXPECT_TRUE(tracker.samples(kept).empty());
     EXPECT_EQ(tracker.freshBackdrops(kept),
-              (std::vector<uint64_t> {first->damageId(), second->damageId()}));
+              (std::vector<render::KeptBackdrop> {{first->damageId()}, {second->damageId()}}));
     // Without a kept result, a repaint reaching a blur still takes in all it reads.
     EXPECT_EQ(tracker.samples(), (std::vector<base::Rect> {firstSampled, secondSampled}));
 
     // The first blur changes, and the second, drawn over it, reads it.
     below->setPosition({10, 50});
+    const base::Rect firstChanged(10, 50, 10, 10);
+    const base::Rect firstRedone = grown(firstChanged, shown).intersected(firstBlurred);
+    const base::Rect secondChanged = firstRedone.intersected(secondSampled);
+    const base::Rect secondRedone = grown(secondChanged, shown).intersected(secondBlurred);
     EXPECT_EQ(tracker.update(root, viewport),
-              (base::Region(base::Rect(500, 400, 10, 10)) + base::Rect(10, 50, 10, 10)
-               + base::Rect(-1, -1, 102, 42) + base::Rect(149, -1, 102, 42))
+              (base::Region(base::Rect(500, 400, 10, 10)) + firstChanged + firstRedone + secondRedone)
                       .intersected(viewport));
-    EXPECT_EQ(tracker.samples(kept), (std::vector<base::Rect> {firstSampled, secondSampled}));
-    EXPECT_TRUE(tracker.freshBackdrops(kept).empty());
+    EXPECT_EQ(tracker.samples(kept),
+              (std::vector<base::Rect> {grown(firstChanged, read).intersected(firstSampled),
+                                        grown(secondChanged, read).intersected(secondSampled)}));
+    EXPECT_EQ(tracker.freshBackdrops(kept),
+              (std::vector<render::KeptBackdrop> {{first->damageId(), firstChanged},
+                                                  {second->damageId(), secondChanged}}));
 
-    // A kept result is only drawn again where nothing under it changed.
+    // A kept result is drawn again as it is where nothing under it changed.
     below->setPosition({600, 400});
     tracker.update(root, viewport);
     below->setPosition({300, 100});
     tracker.update(root, viewport);
-    EXPECT_EQ(tracker.samples(kept), (std::vector<base::Rect> {secondSampled}));
-    EXPECT_EQ(tracker.freshBackdrops(kept), (std::vector<uint64_t> {first->damageId()}));
+    const base::Rect changed(300, 100, 10, 10);
+    EXPECT_EQ(tracker.samples(kept),
+              (std::vector<base::Rect> {grown(changed, read).intersected(secondSampled)}));
+    EXPECT_EQ(tracker.freshBackdrops(kept),
+              (std::vector<render::KeptBackdrop> {{first->damageId()}, {second->damageId(), changed}}));
+}
+
+TEST(Damage, ABlurIsRedoneOnlyWhereItReadsTheChange)
+{
+    for (bool glassy : {false, true}) {
+        scene::Node root;
+        auto *node = static_cast<scene::SurfaceNode *>(
+                root.addChild(std::make_unique<scene::SurfaceNode>()));
+        node->setGeometry({100, 100, 600, 400});
+        render::GlassParams glass;
+        glass.enabled = glassy;
+        node->setBackgroundBlur({0, 0, 600, 400}, 12, glass);
+        // Beside the blur, inside what it reads, and drawn under it.
+        auto *beside = root.addChild(std::make_unique<scene::Node>());
+        root.lower(beside);
+        beside->setGeometry({720, 300, 10, 10});
+        const auto kept = [](uint64_t) {
+            return true;
+        };
+        scene::DamageTracker tracker;
+        const base::Rect viewport(0, 0, 1000, 800);
+        tracker.update(root, viewport);
+        beside->setPosition({720, 320});
+        const int halo = render::kBackdropBlurSupport + 2;
+        const base::Rect sampled = base::Rect(100, 100, 600, 400).adjusted(-halo, -halo, halo, halo);
+        const auto [shown, read] = render::backdropReach(glass, 1);
+        const base::Rect changed(720, 300, 10, 30);
+        const base::Rect redone =
+                changed.adjusted(-shown, -shown, shown, shown).intersected(base::Rect(99, 99, 602, 402));
+        EXPECT_EQ(tracker.update(root, viewport),
+                  base::Region(base::Rect(720, 300, 10, 10)) + base::Rect(720, 320, 10, 10) + redone)
+                << "glass=" << glassy;
+        EXPECT_EQ(tracker.samples(kept),
+                  std::vector<base::Rect> {changed.adjusted(-read, -read, read, read).intersected(sampled)})
+                << "glass=" << glassy;
+        EXPECT_EQ(tracker.freshBackdrops(kept),
+                  (std::vector<render::KeptBackdrop> {{node->damageId(), changed}}));
+        // Without a kept result to redo, it is drawn whole from all it reads.
+        EXPECT_EQ(tracker.samples(), std::vector<base::Rect> {sampled});
+        // Nothing changed: drawn as kept.
+        EXPECT_TRUE(tracker.update(root, viewport).isEmpty());
+        EXPECT_EQ(tracker.freshBackdrops(kept), (std::vector<render::KeptBackdrop> {{node->damageId()}}));
+    }
 }
 
 TEST(Damage, ABlurRepaintsWhenWhatItReadsChangesOutOfSight)

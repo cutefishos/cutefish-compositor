@@ -12,6 +12,7 @@
 #include <vector>
 
 #include "render/damage.h"
+#include "render/renderer.h"
 #include "scene/node.h"
 #include "scene/surface_node.h"
 #include "base/region.h"
@@ -72,25 +73,28 @@ public:
     }
 
     // What the blurs found in the last update() read, for the repaint to cover
-    // whole wherever it reaches one. Left out are those `kept` says the
-    // renderer draws again from a result kept from the last pass, as their
-    // backdrop has not changed since.
+    // whole wherever it reaches one. For a blur `kept` says the renderer draws
+    // again from a result kept from the last pass, only what redoing the part
+    // its changed backdrop reaches reads, if anything.
     std::vector<base::Rect> samples(const std::function<bool(uint64_t)> &kept = {}) const
     {
         std::vector<base::Rect> result;
-        for (const Blur &blur : m_blurs)
+        for (const Blur &blur : m_blurs) {
             if (blur.stale || !kept || !kept(blur.owner))
                 result.push_back(blur.sampled);
+            else if (!blur.read.isEmpty())
+                result.push_back(blur.read);
+        }
         return result;
     }
 
-    // The surfaces, by damage id, of the blurs samples() leaves out.
-    std::vector<uint64_t> freshBackdrops(const std::function<bool(uint64_t)> &kept) const
+    // The blurs drawn again from what they kept, by the damage id of their surface.
+    std::vector<render::KeptBackdrop> freshBackdrops(const std::function<bool(uint64_t)> &kept) const
     {
-        std::vector<uint64_t> result;
+        std::vector<render::KeptBackdrop> result;
         for (const Blur &blur : m_blurs)
             if (!blur.stale && kept(blur.owner))
-                result.push_back(blur.owner);
+                result.push_back({blur.owner, blur.changed});
         return result;
     }
 
@@ -104,8 +108,14 @@ private:
     struct Blur {
         base::Rect sampled;
         uint64_t owner;
-        // Whether what it reads changed, or it moved.
+        // Whether it is redone whole: it moved, or what it reads changed
+        // where a redo of only part of it cannot account for.
         bool stale;
+        // How far a backdrop change reaches through it, redone in part.
+        render::BackdropReach reach;
+        // What changed of its backdrop, and what redoing that part reads.
+        base::Rect changed;
+        base::Rect read;
     };
 
     struct Frame {
@@ -199,7 +209,8 @@ private:
                     steps.push_back({{}, blurred.adjusted(-1, -1, 1, 1), frame.blurs.size()});
                     frame.blurs.push_back(
                             {sampled, node.damageId(),
-                             changed || redrawn || (backdropChanged && backdropChanged(sampled))});
+                             changed || redrawn || (backdropChanged && backdropChanged(sampled)),
+                             render::backdropReach(surface->glass(), scale)});
                 }
             }
             steps.push_back({damage});
@@ -219,9 +230,23 @@ private:
                 continue;
             }
             Blur &blur = frame.blurs[step.blur];
-            blur.stale = full || blur.stale || damage.intersects(blur.sampled.translated(-origin));
-            if (blur.stale)
+            const base::Rect sampled = blur.sampled.translated(-origin);
+            blur.stale = full || blur.stale;
+            if (blur.stale) {
                 damage += step.blurred.translated(-origin);
+                continue;
+            }
+            if (!damage.intersects(sampled))
+                continue;
+            const auto [shown, read] = blur.reach;
+            const base::Rect changed = damage.intersected(sampled).boundingRect();
+            const base::Rect redone = changed.adjusted(-shown, -shown, shown, shown)
+                                              .intersected(step.blurred.translated(-origin));
+            if (redone.isEmpty())
+                continue;
+            blur.changed = changed.translated(origin);
+            blur.read = changed.adjusted(-read, -read, read, read).intersected(sampled).translated(origin);
+            damage += redone;
         }
         if (full)
             damage = base::Rect(base::Point(), viewport.size());

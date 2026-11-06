@@ -373,6 +373,102 @@ TEST(DamagePixels, AKeptBlurMatchesTheCompleteFrame)
     renderer->releaseTarget(target.get());
 }
 
+// A blur whose backdrop changes beside it redoes only the part of its kept
+// result that reads the change, and matches a blur drawn whole.
+TEST(DamagePixels, APartlyRedoneBlurMatchesTheCompleteFrame)
+{
+    auto renderer = render::EglRendererTestAccess::create();
+    ASSERT_TRUE(renderer);
+    const base::Size size(400, 400);
+    const EGLint attributes[] = {EGL_WIDTH, 400, EGL_HEIGHT, 400, EGL_NONE};
+    const auto surface =
+            eglCreatePbufferSurface(renderer->eglDisplay(), renderer->eglConfig(), attributes);
+    ASSERT_NE(surface, EGL_NO_SURFACE);
+    auto target = std::make_unique<render::EglRenderTarget>(renderer->eglDisplay(), surface,
+                                                            nullptr, size);
+    for (double scale : {1.0, 1.25, 1.5}) {
+        for (bool glassy : {false, true}) {
+            scene::Scene scene;
+            scene.setSize(size);
+            const auto add = [&](const render::Color &color, const base::Rect &geometry) {
+                auto *node = scene.root()->addChild(std::make_unique<scene::ColorNode>(color));
+                node->setGeometry(geometry);
+                return node;
+            };
+            add({1, 0, 0, 1}, {50, 50, 40, 40});
+            add({0, 1, 0, 1}, {120, 80, 70, 60});
+            add({0, 0, 1, 1}, {70, 150, 60, 50});
+            // Outside the blur, inside what it reads: one beside it, one under
+            // it; and one inside it, which the lip of a glass refracts from afar.
+            auto *right = add({1, 1, 1, 1}, {252, 60, 12, 30});
+            auto *bottom = add({1, 1, 0, 1}, {60, 232, 30, 12});
+            auto *inside = add({0, 1, 1, 1}, {186, 60, 10, 30});
+            auto *blur = static_cast<scene::SurfaceNode *>(
+                    scene.root()->addChild(std::make_unique<scene::SurfaceNode>()));
+            blur->setGeometry({40, 40, 200, 180});
+            render::GlassParams glass;
+            glass.enabled = glassy;
+            blur->setBackgroundBlur({0, 0, 200, 180}, 12, glass);
+            const render::OutputRenderContext context {"test", base::Rect(base::Point(), size), size,
+                                                       scale};
+            renderer->setOutputContext(context);
+            ASSERT_TRUE(renderer->beginFrame(target.get()));
+            std::vector<uint8_t> pixels(200 * 180 * 4, 0);
+            blur->setTexture(renderer->createTexture({200, 180}, pixels.data()));
+            scene::DamageTracker tracker;
+            const auto scope = uint64_t(reinterpret_cast<uintptr_t>(&tracker));
+            const auto kept = [&](uint64_t owner) {
+                return renderer->keepsBackdrop(scope, owner);
+            };
+            for (int frame = 0; frame < 9; ++frame) {
+                if (frame % 3 == 0)
+                    bottom->setGeometry({60 + frame * 10, 232, 30, 12});
+                else if (frame % 3 == 1)
+                    right->setGeometry({252, 60 + frame * 9, 12, 30});
+                else
+                    inside->setGeometry({186, 60 + frame * 9, 10, 30});
+                const auto damage = tracker.update(*scene.root(), context.logicalViewport, scale);
+                const base::Rect physical = render::physicalDamage(damage, context, size);
+                const base::Rect repaint = render::coverSamples(physical, tracker.samples(kept),
+                                                           context, size);
+                const auto fresh = tracker.freshBackdrops(kept);
+                if (frame > 1)
+                    EXPECT_TRUE(fresh.size() == 1 && !fresh.front().changed.isEmpty())
+                            << "scale=" << scale << " glass=" << glassy << " frame=" << frame;
+                // A plain blur redone inside reads all of one this small.
+                if (frame > 1 && (glassy || frame % 3 != 2))
+                    EXPECT_NE(repaint, render::coverSamples(physical, tracker.samples(), context, size))
+                            << "scale=" << scale << " glass=" << glassy << " frame=" << frame;
+                render::EglRendererTestAccess::applyRepaint(*renderer, repaint);
+                {
+                    const render::BackdropPass backdrops(*renderer, scope, fresh);
+                    renderer->clear(scene.background());
+                    scene.root()->render(*renderer);
+                }
+                ui::Bitmap partial(size, ui::Bitmap::Format::Rgba8888Premultiplied);
+                glReadPixels(0, 0, 400, 400, GL_RGBA, GL_UNSIGNED_BYTE, partial.bits());
+                partial = partial.mirrored(false, true).converted(ui::Bitmap::Format::Argb32Premultiplied);
+                const auto complete = renderer->captureFrame([&] {
+                    scene.render(*renderer);
+                });
+                // Glass shading rounds one rim pixel differently in a capture.
+                int worst = 0;
+                for (int y = 0; y < size.height(); ++y) {
+                    for (int x = 0; x < size.width(); ++x) {
+                        const uint32_t p = partial.pixel(x, y), c = complete.pixel(x, y);
+                        for (int shift = 0; shift < 32; shift += 8)
+                            worst = std::max(worst, std::abs(int(p >> shift & 0xff) - int(c >> shift & 0xff)));
+                    }
+                }
+                EXPECT_LE(worst, glassy ? 1 : 0)
+                        << "scale=" << scale << " glass=" << glassy << " frame=" << frame;
+            }
+            renderer->cancelFrame();
+        }
+    }
+    renderer->releaseTarget(target.get());
+}
+
 // A window keeps a texture of itself for a close or a minimize to start from.
 // A blur in it reads the output behind the window, which outside a partial
 // repaint still shows the window itself.

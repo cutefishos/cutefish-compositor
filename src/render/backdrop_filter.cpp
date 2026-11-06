@@ -64,32 +64,40 @@ void BackdropFilter::frameEnded()
 bool BackdropFilter::keeps(uint64_t scope, uint64_t owner) const
 {
     return std::any_of(m_kept.begin(), m_kept.end(), [&](const Kept &entry) {
-        return entry.scope == scope && entry.owner == owner && entry.result;
+        return entry.scope == scope && entry.owner == owner && entry.result
+                && entry.changed.isEmpty();
     });
 }
 
-void BackdropFilter::beginPass(uint64_t scope, const std::vector<uint64_t> &fresh)
+void BackdropFilter::beginPass(uint64_t scope, const std::vector<KeptBackdrop> &fresh)
 {
+    const auto find = [&](uint64_t owner) {
+        return std::find_if(fresh.begin(), fresh.end(), [&](const KeptBackdrop &backdrop) {
+            return backdrop.owner == owner;
+        });
+    };
+    // A result whose redo the last pass never drew is out of date.
     m_kept.remove_if([&](const Kept &entry) {
-        return entry.scope == scope
-                && std::find(fresh.begin(), fresh.end(), entry.owner) == fresh.end();
+        return entry.scope == scope && (find(entry.owner) == fresh.end() || !entry.changed.isEmpty());
     });
     for (Kept &entry : m_kept) {
         if (entry.scope != scope)
             continue;
+        entry.changed = find(entry.owner)->changed;
         entry.drawn = false;
         entry.used = m_frame;
     }
 }
 
-BackdropFilter::Scratch &BackdropFilter::scratch(const base::Size &coverage, const base::Size &size)
+BackdropFilter::Scratch &BackdropFilter::scratch(const base::Size &coverage, const base::Size &size,
+                                                 bool exact)
 {
     auto found = std::find_if(m_scratch.begin(), m_scratch.end(), [&](const Scratch &entry) {
         return entry.coverage == coverage && entry.size == size;
     });
     // A plain blur takes the smallest set it fits in, so the windows of the
     // overview share a few sets rather than each keeping its own.
-    if (coverage.isEmpty()) {
+    if (coverage.isEmpty() && !exact) {
         for (auto entry = m_scratch.begin(); entry != m_scratch.end(); ++entry) {
             if (!entry->coverage.isEmpty() || entry->size.width() < size.width()
                 || entry->size.height() < size.height())
@@ -310,12 +318,7 @@ void BackdropFilter::draw(Renderer &renderer, const base::RectF &exactLens, int 
     const float sigma =
             (glass.enabled ? std::max(glass.blurSigma, 0.05f) : std::max(glass.plainSigma, 0.05f))
             * scale;
-    // Glass samples the backdrop per output pixel, so it wants device
-    // resolution until its sigma passes Skia's kMaxLinearSigma, past which
-    // Skia halves the resolution too; the plain blur is specified in logical pixels.
-    float quality = glass.enabled ? 1.0f : 0.33f / scale;
-    while (glass.enabled && sigma * quality > kMaxGlassSigma)
-        quality /= 2;
+    const float quality = backdropQuality(glass, scale);
     const base::Rect output(sources.front().offset.toPoint(), sources.front().oriented());
     const base::Rect visibleBounds = bounds.intersected(clip).intersected(output);
     if (visibleBounds.isEmpty())
@@ -385,6 +388,23 @@ void BackdropFilter::draw(Renderer &renderer, const base::RectF &exactLens, int 
     }
     const bool reused = kept && kept->result && kept->coverage == coverage
             && kept->reduced == reduced && kept->sigma == sigma;
+    // The texels of a kept result that read what changed of the backdrop,
+    // rows top-down: past the kernel's taps, a texel each for the capture's
+    // linear sampling and the rounding out.
+    base::Rect redo;
+    if (reused && !kept->changed.isEmpty()) {
+        const base::RectF changed(base::PointF(kept->changed.topLeft()) * scale,
+                                  base::SizeF(kept->changed.size()) * scale);
+        const double sx = double(reduced.width()) / coverage.width();
+        const double sy = double(reduced.height()) / coverage.height();
+        const int reach = kGaussianMaxReach + 2;
+        redo = base::Rect::fromEdges(int(std::floor((changed.left() - coverage.left()) * sx)) - reach,
+                                     int(std::floor((changed.top() - coverage.top()) * sy)) - reach,
+                                     int(std::ceil((changed.right() - coverage.left()) * sx)) + reach,
+                                     int(std::ceil((changed.bottom() - coverage.top()) * sy)) + reach)
+                       .intersected(reducedBounds);
+    }
+    const bool redoing = !redo.isEmpty();
     // A plain blur shrinks with its window on every frame of the overview.
     // Sized up to a step, or in a larger set, its textures last the whole
     // move; the passes use their top left and clamp their samples to it.
@@ -393,7 +413,10 @@ void BackdropFilter::draw(Renderer &renderer, const base::RectF &exactLens, int 
         return (value + kScratchStep - 1) / kScratchStep * kScratchStep;
     };
     Scratch *textures = nullptr;
-    if (!reused)
+    // A redo writes into the kept result, so it filters through textures of its size.
+    if (redoing && !glass.enabled)
+        textures = &scratch(base::Size(), kept->allocated, true);
+    else if (!reused || redoing)
         textures = glass.enabled
                 ? &scratch(coverage.size(), reduced)
                 : &scratch(base::Size(), base::Size(stepUp(reduced.width()), stepUp(reduced.height())));
@@ -413,7 +436,7 @@ void BackdropFilter::draw(Renderer &renderer, const base::RectF &exactLens, int 
     } restoreClips {clips, std::exchange(clips, {})};
 
     std::unique_ptr<Texture> &result = kept ? kept->result : textures->result;
-    if (!reused
+    if ((!reused || redoing)
         && !captureBackdrop(renderer, *textures, sources, coverage, reduced, allocatedBounds))
         return;
 
@@ -440,8 +463,10 @@ void BackdropFilter::draw(Renderer &renderer, const base::RectF &exactLens, int 
         glDisableVertexAttribArray(coord);
         glBindTexture(GL_TEXTURE_2D, 0);
     };
-    const auto filter = [&](Texture *input, std::unique_ptr<Texture> &result, bool horizontal) {
-        return renderer.renderToTexture(result, allocatedBounds, [&] {
+    // Outside a `repaint` in texels, a result of the same size keeps what it holds.
+    const auto filter = [&](Texture *input, std::unique_ptr<Texture> &result, bool horizontal,
+                            const base::Rect &repaint = {}) {
+        return renderer.renderToTexture(result, allocatedBounds, repaint, [&] {
             glUseProgram(m_blurProgram);
             glDisable(GL_BLEND);
             const float scaledSigma = sigma
@@ -454,7 +479,16 @@ void BackdropFilter::draw(Renderer &renderer, const base::RectF &exactLens, int 
             drawQuad(m_blurProgram, input, reducedBounds, true, used);
         });
     };
-    if (!reused) {
+    if (redoing) {
+        // The vertical pass reads the horizontal one's rows the kernel reaches.
+        const base::Rect rows =
+                redo.adjusted(0, -kGaussianMaxReach, 0, kGaussianMaxReach).intersected(reducedBounds);
+        kept->coverage = base::Rect();
+        if (!filter(textures->source.get(), textures->temp, true, rows)
+            || !filter(textures->temp.get(), result, false, redo))
+            return;
+        kept->coverage = coverage;
+    } else if (!reused) {
         if (kept)
             kept->coverage = base::Rect();
         if (!filter(textures->source.get(), textures->temp, true)
@@ -467,6 +501,8 @@ void BackdropFilter::draw(Renderer &renderer, const base::RectF &exactLens, int 
             kept->sigma = sigma;
         }
     }
+    if (kept)
+        kept->changed = base::Rect();
 
     glEnable(GL_SCISSOR_TEST);
     glScissor(scissor.x(), scissor.y(), std::max(0, scissor.width()),

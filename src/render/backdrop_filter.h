@@ -8,6 +8,7 @@
 
 #include "render/gl_program.h"
 #include "render/gl_render_pass.h"
+#include "render/renderer.h"
 #include "render/shape_mask.h"
 #include "base/geometry.h"
 
@@ -27,9 +28,10 @@ public:
     void frameEnded();
     // Whether the blur of surface `owner` kept its result in the target `scope` names.
     bool keeps(uint64_t scope, uint64_t owner) const;
-    // Starts a pass into that target: the blurs of `fresh` read what they did
-    // in the last one and draw what they kept; the others' results are dropped.
-    void beginPass(uint64_t scope, const std::vector<uint64_t> &fresh);
+    // Starts a pass into that target: the blurs of `fresh` draw what they kept
+    // in the last one, redone where their backdrop changed; the others'
+    // results are dropped.
+    void beginPass(uint64_t scope, const std::vector<KeptBackdrop> &fresh);
     // `lens` is the exact device rectangle; it is rounded outward to pixels here.
     // With a `scope`, the blurred backdrop is kept for the next pass, by `owner`.
     void draw(Renderer &renderer, const base::RectF &lens, int radius, const base::Rect &clip,
@@ -69,13 +71,16 @@ private:
         base::Size reduced;
         base::Size allocated;
         float sigma = 0;
+        // Logical; what of the backdrop changed since the result was made.
+        base::Rect changed;
         // A surface drawn twice in one pass keeps only its first blur.
         bool drawn = false;
         uint64_t used = 0;
         std::unique_ptr<Texture> result;
     };
 
-    Scratch &scratch(const base::Size &coverage, const base::Size &size);
+    // A plain blur's set may be larger than `size`, unless `exact`.
+    Scratch &scratch(const base::Size &coverage, const base::Size &size, bool exact = false);
     // Copies `coverage` of the target into `textures.source`, reduced to `reduced`.
     bool captureBackdrop(Renderer &renderer, Scratch &textures,
                          const std::vector<BackdropSource> &sources, const base::Rect &coverage,
@@ -88,8 +93,6 @@ private:
     void applyGlassMaterial(const GlProgram &program, const GlassParams &glass,
                             const base::Size &coverage, double scale);
 
-    // Skia's kMaxLinearSigma, in texels of the glass capture.
-    static constexpr float kMaxGlassSigma = 4;
     static constexpr size_t kCachedSizes = 8;
     static constexpr int kScratchStep = 64;
     static constexpr uint64_t kUnusedFrames = 60;

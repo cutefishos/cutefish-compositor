@@ -47,6 +47,16 @@ struct ShadowLobe {
     float opacity = 0;
 };
 
+// A blur that draws again from the result it kept. A non-empty `changed` is
+// the logical rectangle of its backdrop that changed since; the blur then
+// redoes only the part of its result that reads it.
+struct KeptBackdrop {
+    uint64_t owner = 0;
+    base::Rect changed;
+
+    friend bool operator==(const KeptBackdrop &, const KeptBackdrop &) = default;
+};
+
 // A drawable owned by an output. Opaque to everything except the renderer that
 // created it.
 class RenderTarget
@@ -248,7 +258,7 @@ public:
 
     // Blur results kept between passes into the target `scope` names.
     virtual bool keepsBackdrop(uint64_t /*scope*/, uint64_t /*owner*/) const { return false; }
-    virtual void beginBackdropPass(uint64_t /*scope*/, const std::vector<uint64_t> & /*fresh*/) { }
+    virtual void beginBackdropPass(uint64_t /*scope*/, const std::vector<KeptBackdrop> & /*fresh*/) { }
     // Zero outside a BackdropPass, and in the passes nested in one.
     uint64_t backdropScope = 0;
 
@@ -422,12 +432,12 @@ private:
 };
 
 // A pass into the target `scope` names whose blurs keep their results for
-// the next: those of `fresh`, whose backdrop has not changed since the last
-// pass, draw what they kept, and the others' results are dropped.
+// the next: those of `fresh` draw what they kept, redone where their backdrop
+// changed, and the others' results are dropped.
 class BackdropPass
 {
 public:
-    BackdropPass(Renderer &renderer, uint64_t scope, const std::vector<uint64_t> &fresh)
+    BackdropPass(Renderer &renderer, uint64_t scope, const std::vector<KeptBackdrop> &fresh)
         : m_renderer(renderer)
         , m_saved(std::exchange(renderer.backdropScope, scope))
     {

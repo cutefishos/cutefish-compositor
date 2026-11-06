@@ -797,7 +797,7 @@ bool WindowAnimation::renderSiblingsBelow(render::Renderer &renderer, size_t beg
         const base::Rect repaint = reusable
                 ? render::coverSamples(damage.boundingRect(), below.damage.samples(kept))
                 : base::Rect();
-        const std::vector<uint64_t> fresh = below.damage.freshBackdrops(kept);
+        const std::vector<render::KeptBackdrop> fresh = below.damage.freshBackdrops(kept);
         if (!renderer.renderToTexture(below.texture, viewport, repaint, [&] {
                 renderer.presentationSubmission = submission;
                 const render::BackdropPass backdrops(renderer, scope, fresh);

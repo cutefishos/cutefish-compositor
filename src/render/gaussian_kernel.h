@@ -5,13 +5,11 @@
 #pragma once
 
 
+#include "render/damage.h"
 #include "render/gl_program.h"
 #include "base/geometry.h"
 
 namespace cutefish::render {
-
-// The farthest texel blur_fragment_shader reaches: fifteen linear taps of two.
-inline constexpr int kGaussianMaxReach = 30;
 
 // Sets blur_fragment_shader's kernel to a Gaussian of `sigma` texels, cut off
 // `reach` texels out; `stepX` and `stepY` are one texel in texture
