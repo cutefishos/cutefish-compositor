@@ -4,6 +4,7 @@
 
 #include "shell/launcher/launcher_search_field.h"
 
+#include <algorithm>
 #include <cmath>
 
 #include "base/i18n.h"
@@ -11,12 +12,16 @@
 #include "ui/keys.h"
 #include "ui/label.h"
 #include "ui/painter.h"
+#include "ui/path.h"
 
 using cutefish::i18n::tr;
 
 namespace cutefish::shell {
 
 static const ui::Color kWhite {255, 255, 255, 255};
+static constexpr double kPillScale = 0.985;
+static constexpr double kRimWidth = 4.0 / 216;
+static constexpr double kRimOpacity = 0.3;
 
 // The text field itself, drawn without its frame over the pill.
 class LauncherSearchField::Field final : public ui::TextField
@@ -150,11 +155,6 @@ void LauncherSearchField::focusChanged(bool focused)
                              m_backgroundOpacity = value;
                              requestPaint();
                          });
-    m_scaleTween.start(animating, m_backgroundScale, focused ? 1.0 : 0.985, std::chrono::milliseconds(260),
-                       easing::outBack, [this](double value) {
-                           m_backgroundScale = value;
-                           requestPaint();
-                       });
     m_glyphTween.start(animating, m_glyphScale, focused ? 1.1 : 1.0, std::chrono::milliseconds(260),
                        easing::outBack, [this](double value) {
                            m_glyphScale = value;
@@ -201,16 +201,31 @@ void LauncherSearchField::layout()
 
 void LauncherSearchField::paint(ui::Painter &painter)
 {
-    // A pill scaled about its centre, its border on the device grid.
+    // A pill a little inside the field, its edges on the device grid.
     const ui::RectF bounds = localRect();
-    const double width = bounds.width * m_backgroundScale;
-    const double height = bounds.height * m_backgroundScale;
-    const ui::RectF pill {(bounds.width - width) / 2, (bounds.height - height) / 2, width, height};
-    painter.save();
-    painter.multiplyOpacity(m_backgroundOpacity);
-    painter.drawRoundedRect(pill, {height / 2, 0, ui::Corners::Circular}, kWhite, m_focused ? 1 : 0,
-                            ui::Color {255, 255, 255, 89});
-    painter.restore();
+    const double scale = painter.scale();
+    const ui::Rect device = painter.snappedRect({(bounds.width - bounds.width * kPillScale) / 2,
+                                                 (bounds.height - bounds.height * kPillScale) / 2,
+                                                 bounds.width * kPillScale, bounds.height * kPillScale});
+    const ui::PointF offset = painter.offset();
+    const ui::RectF pill {device.x / scale - offset.x, device.y / scale - offset.y, device.width / scale,
+                          device.height / scale};
+    const double radius = pill.height / 2;
+    ui::Path shape;
+    shape.addRoundedRect(pill, radius, radius);
+    painter.fillPath(shape, kWhite.withAlpha(m_backgroundOpacity));
+
+    // The rim shows at the top and the bottom and fades out towards the sides.
+    const double inset = std::max(1.0, std::round(pill.height * kRimWidth * scale)) / scale;
+    const ui::RectF inner = pill.adjusted(inset, inset, -inset, -inset);
+    ui::Path core;
+    core.addRoundedRect(inner, radius - inset, radius - inset);
+    const ui::Color edge = kWhite.withAlpha(kRimOpacity);
+    const ui::Color clear = kWhite.withAlpha(0);
+    const ui::LinearGradient gradient {{pill.x, pill.y},
+                                       {pill.x, pill.bottom()},
+                                       {{0, edge}, {0.3, clear}, {0.7, clear}, {1, edge}}};
+    painter.fillPath(shape.subtracted(core), gradient);
 }
 
 } // namespace cutefish::shell

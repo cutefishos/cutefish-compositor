@@ -67,11 +67,9 @@ private:
     bool m_focused = false;
     double m_focusProgress = 0;
     double m_backgroundOpacity = 0.18;
-    double m_backgroundScale = 0.985;
     double m_glyphScale = 1;
     LauncherTween m_focusTween;
     LauncherTween m_opacityTween;
-    LauncherTween m_scaleTween;
     LauncherTween m_glyphTween;
 };
 
