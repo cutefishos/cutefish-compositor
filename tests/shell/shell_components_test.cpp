@@ -388,9 +388,11 @@ TEST_F(ShellComponentsTest, TheDockSitsAlongTheBottomOnItsGlassAndReservesItsStr
     EXPECT_EQ(wm::WindowRole::Dock, window->role());
     EXPECT_EQ(wm::FocusPolicy::NoFocus, window->focusPolicy());
     // The strip along the whole edge, 86 thick at the default icon size,
-    // reaching over its 5 px gap to the edge and 3 past the far side for
-    // the 19 a launching icon bounces.
-    EXPECT_EQ(base::Rect(5, 960 - 86 - 5 - 3, 1430, 94), window->bounds());
+    // reaching over its 5 px gap to the edge and 57 past the far side: the
+    // 54 an icon grows by at the largest magnification, whatever the
+    // setting, plus the 19 a launching icon bounces, less the 16 outer
+    // padding.
+    EXPECT_EQ(base::Rect(5, 960 - 86 - 5 - 57, 1430, 148), window->bounds());
     // From the screen edge to the far side, and 2 more.
     EXPECT_EQ(base::Rect(0, kStatusBar, 1440, 960 - kStatusBar - 92), manager.workAreaFor(nullptr));
 
@@ -401,8 +403,8 @@ TEST_F(ShellComponentsTest, TheDockSitsAlongTheBottomOnItsGlassAndReservesItsStr
     EXPECT_EQ(length, panel.width());
     EXPECT_EQ(86, panel.height());
     EXPECT_EQ(int(std::floor((1430 - length) / 2.0)), panel.x());
-    EXPECT_EQ(3, panel.y());
-    EXPECT_EQ(panel.translated(5, 960 - 86 - 5 - 3), dock->primaryGeometry());
+    EXPECT_EQ(57, panel.y());
+    EXPECT_EQ(panel.translated(5, 960 - 86 - 5 - 57), dock->primaryGeometry());
 
     // The glass: the default tint's values, rounded to 16 bits, then wl_fixed.
     const compositor::Surface *surface = dock->window()->surface();
