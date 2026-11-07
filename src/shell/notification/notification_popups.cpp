@@ -168,8 +168,7 @@ void NotificationPopups::Banner::updateTimer()
 
 void NotificationPopups::Banner::updateGlass()
 {
-    // The dock's glass, at the Appearance tint.
-    m_window->setBackgroundBlur(base::Rect(0, 0, kWidth, m_height), int(kRadius), shellGlass());
+    m_window->setBackgroundBlur(base::Rect(0, 0, kWidth, m_height), int(kRadius), shellGlass(GlassRole::Popup));
 }
 
 void NotificationPopups::Banner::place(const base::Point &position)
@@ -217,6 +216,10 @@ NotificationPopups::NotificationPopups(Shell *shell, NotificationBanners &model)
     m_subscriptions.push_back(model.modelReset.connect([this] { reset(); }));
     // The work area moves with the status bar and the dock.
     m_subscriptions.push_back(shell->windowManager()->outputsChanged.connect([this] { schedulePositioning(); }));
+    m_subscriptions.push_back(GlassPreferences::instance().changed.connect([this] {
+        for (const auto &banner : m_banners)
+            banner->updateGlass();
+    }));
     reset();
 }
 

@@ -785,7 +785,7 @@ void CaptureTooltip::apply()
     popup->setInputRegion(base::Region());
     // The glass is the body; the arrow outside it continues the glass, and
     // the outline follows the whole bubble.
-    const render::GlassParams glass = shellGlass();
+    const render::GlassParams glass = shellGlass(GlassRole::Popup);
     const base::Rect region(int(std::floor(body.x)), int(std::floor(body.y)), int(std::ceil(body.width)),
                             int(std::ceil(body.height)));
     const double radius = std::min(bubble.radius, std::min(body.width, body.height) / 2);

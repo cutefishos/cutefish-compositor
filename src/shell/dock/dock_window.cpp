@@ -279,7 +279,8 @@ DockWindow::DockWindow(Shell *shell, std::unique_ptr<Dock> dock)
     }));
     m_subscriptions.push_back(settings.visibilityChanged.connect([this] { resize(false); }));
     m_subscriptions.push_back(settings.glassTintChanged.connect([this] { updateGlass(); }));
-    // The Blur intensity slider is the Appearance page's, for every glass.
+    m_subscriptions.push_back(settings.glassBlurChanged.connect([this] { updateGlass(); }));
+    // The frosted setting is the Appearance page's and takes the dock's lens.
     m_subscriptions.push_back(GlassPreferences::instance().changed.connect([this] { updateGlass(); }));
     m_subscriptions.push_back(settings.minimizedAreaChanged.connect([this] {
         m_sentTargets.clear();
@@ -402,8 +403,12 @@ int DockWindow::edgeGap() const
 
 render::GlassParams DockWindow::glass() const
 {
-    return tintedGlass(m_dock->settings().glassTint(), GlassPreferences::instance().blur(),
-                       ui::Theme::current().darkMode);
+    // The dock's own tint and blur sliders; frosted, no lens.
+    const DockSettings &settings = m_dock->settings();
+    const bool dark = ui::Theme::current().darkMode;
+    if (GlassPreferences::instance().frosted())
+        return frostedTintedGlass(settings.glassTint(), dark);
+    return tintedGlass(settings.glassTint(), settings.glassBlur(), dark);
 }
 
 std::vector<DockIcon *> DockWindow::icons() const

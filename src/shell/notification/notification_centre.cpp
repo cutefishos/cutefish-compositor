@@ -498,6 +498,7 @@ NotificationCentre::NotificationCentre(Shell *shell, NotificationHistory &histor
         }
     }));
     m_subscriptions.push_back(ui::Application::instance()->languageChanged.connect([this] { retranslate(); }));
+    m_subscriptions.push_back(GlassPreferences::instance().changed.connect([this] { applyGlass(); }));
 }
 
 NotificationCentre::~NotificationCentre()
@@ -670,9 +671,8 @@ void NotificationCentre::applyGlass()
     ShellWindow *window = shellWindow();
     if (!window)
         return;
-    // The dock's glass, at the Appearance tint.
     window->setBackgroundBlur(base::Rect(0, 0, m_geometry.width(), m_geometry.height()), int(kRadius),
-                              shellGlass());
+                              shellGlass(GlassRole::Panel));
 }
 
 // --- The model's rows -------------------------------------------------------

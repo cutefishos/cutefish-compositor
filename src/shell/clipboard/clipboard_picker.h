@@ -6,10 +6,12 @@
 #define CUTEFISH_SHELL_CLIPBOARD_CLIPBOARD_PICKER_H_
 
 #include <memory>
+#include <optional>
 #include <vector>
 
 #include "base/geometry.h"
 #include "base/signal.h"
+#include "shell/glass_preferences.h"
 #include "shell/shell.h"
 
 namespace cutefish::shell {
@@ -55,8 +57,8 @@ private:
     ClipboardPickerView *m_view = nullptr;
     // The keyboard arrives after the window maps; only losing it counts.
     bool m_hadKeyboard = false;
-    int m_glassDark = -1;
-    double m_glassTint = -1;
+    // What the glass was made for, once sent.
+    std::optional<GlassKey> m_glassKey;
     std::vector<base::Subscription> m_subscriptions;
 };
 

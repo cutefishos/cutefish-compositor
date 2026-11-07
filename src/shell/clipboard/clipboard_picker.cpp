@@ -46,6 +46,7 @@ ClipboardPicker::ClipboardPicker(Shell *shell, std::unique_ptr<ClipboardHistory>
         if (isOpen())
             place();
     }));
+    m_subscriptions.push_back(GlassPreferences::instance().changed.connect([this] { applyGlass(); }));
 }
 
 ClipboardPicker::~ClipboardPicker()
@@ -82,15 +83,13 @@ void ClipboardPicker::place()
 
 void ClipboardPicker::applyGlass()
 {
-    const bool dark = ui::Theme::current().darkMode;
-    const double tint = double(GlassPreferences::instance().generation());
-    if (int(dark) == m_glassDark && tint == m_glassTint)
+    const GlassKey key = currentGlassKey();
+    if (m_glassKey == key)
         return;
-    m_glassDark = dark;
-    m_glassTint = tint;
-    // The dock's glass, at the Appearance tint.
+    m_glassKey = key;
+    // The OSD's glass: a card of the shell's.
     m_window->setBackgroundBlur(base::Rect(0, 0, ClipboardPickerView::kWidth, ClipboardPickerView::kHeight),
-                                int(ClipboardPickerView::kCardRadius), shellGlass());
+                                int(ClipboardPickerView::kCardRadius), shellGlass(GlassRole::Osd));
 }
 
 void ClipboardPicker::open()

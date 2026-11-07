@@ -4,11 +4,11 @@
 
 #include "shell/shell_data.h"
 
-#include "ui/theme.h"
-
 #include <algorithm>
 #include <cmath>
 #include <iterator>
+
+#include "ui/theme.h"
 
 namespace cutefish::shell {
 
@@ -111,35 +111,80 @@ double glassBlend(double amount, double clearValue, double defaultValue, double 
             + (3.0 * t2 - 2.0 * t3) * y1 + (t3 - t2) * m1;
 }
 
-// From 0.3 to 8, the widest sigma the 30 device pixel kernel carries,
-// geometrically, so 0.3 of the travel is the 0.8 the dock had.
-double glassBlurSigma(double blur)
+double glassBlurFactor(double blur)
 {
-    return 0.3 * std::pow(8.0 / 0.3, std::clamp(blur, 0.0, 1.0));
+    const double position = std::isfinite(blur) ? std::clamp(blur, 0.0, 1.0) : 0.3;
+    // A decade each way from the default, over the travel on that side.
+    const double decades = position < 0.3 ? (position - 0.3) / 0.3 : (position - 0.3) / 0.7;
+    return std::pow(10.0, decades);
 }
 
-render::GlassParams tintedGlass(double tint, double blur, bool)
+render::GlassParams tintedGlass(double tint, double blur, bool dark)
 {
-    // The lens does not move with the Glass effect slider: that sets only
-    // how much of the theme's background colour tints it.
+    const double amount = glassAmount(tint);
+    const auto blend = [amount](double clear, double middle, double tinted) {
+        return glassBlend(amount, clear, middle, tinted);
+    };
     render::GlassParams glass = fishuiGlass();
-    glass.blurSigma = glassFixed(glassBlurSigma(blur));
-    glass.displacement = glassFixed(36.0);
+    glass.blurSigma = glassFixed(std::min(kMaxGlassBlurSigma, blend(0.6, 1.0, 8.0) * glassBlurFactor(blur)));
+    glass.displacement = glassFixed(blend(36.0, 36.0, 0.0));
     // A colour split along the lip reads as a rainbow fringe next to the rim.
     glass.chroma = 0;
-    glass.saturation = glassFixed(1.35);
-    // The lit rim fades with the tint: a near-solid surface has no shine.
-    const double amount = glassAmount(tint);
-    glass.rim = glassFixed(glassBlend(amount, 1.0, 0.6, 0.0));
-    const double alpha = glassBlend(amount, 0.10, 0.35, 0.95);
-    const ui::Color background = ui::Theme::current().background;
+    glass.saturation = glassFixed(blend(1.4, 1.3, 1.0));
+    glass.rim = glassFixed(1.0);
+    // A grey tint, blended as its grey and its alpha; in the dark theme the
+    // theme's own grey. More Tinted reaches the frosted panels' opacity
+    // (kFrostedGlassAlpha); the default is the dock's as it was.
+    const double alpha = dark ? blend(0.12, 0.29, kFrostedGlassAlpha) : blend(0.16, 0.25, kFrostedGlassAlpha);
     // Rounded to 16 bits a component, then wl_fixed.
     const auto component = [](double v) { return glassFixed(colorComponent(std::clamp(v, 0.0, 1.0))); };
-    glass.tintRed = component(background.r / 255.0);
-    glass.tintGreen = component(background.g / 255.0);
-    glass.tintBlue = component(background.b / 255.0);
+    if (dark) {
+        const ui::Color background = ui::Theme::current().background;
+        glass.tintRed = component(background.r / 255.0);
+        glass.tintGreen = component(background.g / 255.0);
+        glass.tintBlue = component(background.b / 255.0);
+    } else {
+        glass.tintRed = glass.tintGreen = glass.tintBlue = component(blend(0.375, 0.6, 1.0));
+    }
     glass.tintAlpha = component(alpha);
     return glass;
+}
+
+render::GlassParams frostedTintedGlass(double tint, bool dark)
+{
+    render::GlassParams glass = tintedGlass(tint, 0.3, dark);
+    glass.blurSigma = glassFixed(kMaxGlassBlurSigma);
+    glass.displacement = 0;
+    return glass;
+}
+
+render::GlassParams frostedPanelGlass(bool dark)
+{
+    // PanelGlass: PopupGlass with a heavier blur and saturation, tinted
+    // PanelStyle.panelTint.
+    render::GlassParams glass = dark ? popupGlass(0.13, 0.13, 0.14, 0.86) : popupGlass(0.94, 0.94, 0.95, 0.86);
+    glass.blurSigma = glassFixed(20.0);
+    glass.saturation = glassFixed(2.4);
+    return glass;
+}
+
+render::GlassParams frostedControlCenterGlass(bool dark)
+{
+    render::GlassParams glass = dark ? popupGlass(0.1, 0.1, 0.11, 0.82) : popupGlass(0.97, 0.97, 0.98, 0.65);
+    glass.blurSigma = glassFixed(20.0);
+    glass.saturation = glassFixed(1.2);
+    return glass;
+}
+
+render::GlassParams frostedPopupGlass(bool dark)
+{
+    return dark ? popupGlass(0.17, 0.17, 0.19, 0.6) : popupGlass(1, 1, 1, 0.6);
+}
+
+render::GlassParams frostedOsdGlass(bool dark)
+{
+    // PanelStyle.glassTint on PopupGlass.
+    return dark ? popupGlass(0.10, 0.10, 0.11, 0.75) : popupGlass(0.90, 0.90, 0.92, 0.72);
 }
 
 } // namespace cutefish::shell

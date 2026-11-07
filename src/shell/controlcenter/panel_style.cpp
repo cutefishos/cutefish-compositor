@@ -39,16 +39,16 @@ ui::Color secondaryTextColor()
     return dark() ? rgba(1, 1, 1, 0.6) : ui::Theme::current().disabledText;
 }
 
-// Both are the dock's glass at the Appearance tint, so every panel of the
-// shell is one material.
+// The shell's glass at the Appearance sliders, one material for every panel;
+// frosted, each its old one.
 render::GlassParams panelGlass()
 {
-    return shellGlass();
+    return shellGlass(GlassRole::Panel);
 }
 
 render::GlassParams controlCenterGlass()
 {
-    return shellGlass();
+    return shellGlass(GlassRole::ControlCenter);
 }
 
 ui::Color statusSurfaceColor()

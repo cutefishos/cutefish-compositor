@@ -72,6 +72,7 @@ Osd::Osd(Shell *shell, std::unique_ptr<OsdLevels> levels)
         if (isShown())
             place();
     }));
+    m_subscriptions.push_back(GlassPreferences::instance().changed.connect([this] { applyGlass(); }));
     update();
 }
 
@@ -130,8 +131,7 @@ void Osd::place()
 
 void Osd::applyGlass()
 {
-    // The dock's glass, at the Appearance tint.
-    m_window->setBackgroundBlur(base::Rect(0, 0, kWidth, kHeight), int(kRadius), shellGlass());
+    m_window->setBackgroundBlur(base::Rect(0, 0, kWidth, kHeight), int(kRadius), shellGlass(GlassRole::Osd));
 }
 
 void Osd::present(Kind kind)
