@@ -664,6 +664,7 @@ protected:
     void place(size_t index, const base::Point& position)
     {
         ASSERT_LT(index, compositor.surfaces().size());
+        compositor.surfaces()[index]->reparentNode(compositor.surfaceContainer());
         compositor.surfaces()[index]->setPosition(position);
     }
 
@@ -988,9 +989,6 @@ TEST_F(SeatProtocolTest, TheCursorSurfaceIsPositionedByItsHotspot)
         c.sync();
         check([&] {
             place(0, base::Point(0, 0));
-            // Out of the way: an unassigned cursor surface is an ordinary
-            // surface, and the compositor cascades new ones near the origin.
-            place(1, base::Point(600, 400));
             seat.onPointerMotion(at(1), base::PointF(50, 60));
         });
         c.sync();
@@ -1012,6 +1010,33 @@ TEST_F(SeatProtocolTest, TheCursorSurfaceIsPositionedByItsHotspot)
         wl_pointer_set_cursor(c.pointer, c.observed.enterSerial, nullptr, 0, 0);
         c.sync();
         check([&] { EXPECT_FALSE(compositor.surfaces()[1]->hasRole()); });
+    });
+}
+
+TEST_F(SeatProtocolTest, ACursorSurfaceRefusedAfterLeaveStaysOffScreen)
+{
+    run([&](Client& c) {
+        c.getPointer();
+        c.makeSurface(base::Size(200, 200));
+        wl_surface* cursor = c.makeSurface(base::Size(24, 24));
+        c.sync();
+        check([&] {
+            place(0, base::Point(0, 0));
+            seat.onPointerMotion(at(1), base::PointF(50, 60));
+        });
+        c.sync();
+        const uint32_t serial = c.observed.enterSerial;
+
+        // A toolkit dragging a tab still names the serial of the enter it left.
+        check([&] { seat.onPointerMotion(at(2), base::PointF(500, 500)); });
+        c.sync();
+        wl_pointer_set_cursor(c.pointer, serial, cursor, 6, 8);
+        c.sync();
+        check([&] {
+            compositor::Surface* cursorSurface = compositor.surfaces()[1];
+            EXPECT_FALSE(cursorSurface->hasRole());
+            EXPECT_EQ(nullptr, cursorSurface->node()->parent());
+        });
     });
 }
 

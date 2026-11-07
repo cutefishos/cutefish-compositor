@@ -29,6 +29,7 @@ compositor::Surface *map(Harness &h, Client &c, int x)
                                nullptr);
     surface->attach(buffer, {});
     surface->commit();
+    surface->reparentNode(h.compositor.surfaceContainer());
     surface->setPosition({x, 0});
     return surface;
 }

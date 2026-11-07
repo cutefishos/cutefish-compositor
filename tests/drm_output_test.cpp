@@ -1350,6 +1350,7 @@ TEST_F(DrmOutputTest, MixedCompositionAndOverlayHaveDifferentWireFlags)
     wl_surface_attach(surface, overlayBuffer, 0, 0);
     auto &overlay = update();
     compositor.updateTextures(*egl);
+    compositor.surfaces().back()->reparentNode(compositor.surfaceContainer());
     compositor.surfaces().back()->setPosition({0, 0});
     auto *top = compositor.surfaces().back()->node();
     storage = std::make_shared<ScanoutStorage>(base::Size(8, 8));

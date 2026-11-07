@@ -27,7 +27,7 @@ const bool sigpipeIgnored = [] {
     return true;
 }();
 
-void map(Client& c)
+void map(Harness& h, Client& c)
 {
     auto* resource = wl_client_get_object(c.serverClient,
                                           wl_proxy_get_id(reinterpret_cast<wl_proxy*>(c.surface)));
@@ -37,6 +37,7 @@ void map(Client& c)
                                      nullptr);
     surface->attach(buffer, {});
     surface->commit();
+    surface->reparentNode(h.compositor.surfaceContainer());
 }
 
 } // namespace
@@ -393,7 +394,7 @@ TEST(ClipboardProtocol, ATouchSerialAuthorizesTheSelection)
 {
     Harness h;
     auto& a = h.addClient();
-    map(a);
+    map(h, a);
     a.getTouch();
     h.focus(a);
     h.seat.onTouchDown({}, 1, {10, 10});

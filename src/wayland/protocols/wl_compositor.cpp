@@ -261,6 +261,8 @@ void compositor_create_surface(wl_client* client, wl_resource* resource, uint32_
 {
     auto* compositor = getUserDataAs<compositor::Compositor>(resource);
     std::unique_ptr<compositor::Surface> surface = compositor->createSurface();
+    // A surface without a role is never shown; the role that takes it places its node.
+    surface->reparentNode(nullptr);
     if (auto* server = Server::serverForDisplay(wl_client_get_display(client))) {
         if (server->clientSurfacesInitiallyHidden(client))
             surface->setHidden(true);

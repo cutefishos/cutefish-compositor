@@ -2758,7 +2758,8 @@ struct XdndPeer {
 };
 
 // A mapped native Wayland surface for the other end of a drag.
-compositor::Surface *mapNativeSurface(clipboard_test::Client &native, const base::Point &position)
+compositor::Surface *mapNativeSurface(clipboard_test::Client &native, scene::Node *container,
+                                      const base::Point &position)
 {
     auto *resource = wl_client_get_object(
             native.serverClient, wl_proxy_get_id(reinterpret_cast<wl_proxy *>(native.surface)));
@@ -2770,6 +2771,7 @@ compositor::Surface *mapNativeSurface(clipboard_test::Client &native, const base
                                        nullptr),
                     {});
     surface->commit();
+    surface->reparentNode(container);
     surface->setPosition(position);
     return surface;
 }
@@ -2786,7 +2788,7 @@ TEST_F(XwaylandTest, WaylandDragDropsOnAnX11Window)
     native.initialize();
     ASSERT_TRUE(until([&] {
         native.pump();
-        return mapNativeSurface(native, {500, 0});
+        return mapNativeSurface(native, compositor->surfaceContainer(), {500, 0});
     }));
     setenv("XAUTHORITY", xwayland->authority().c_str(), 1);
     XdndPeer x;
@@ -2883,7 +2885,7 @@ TEST_F(XwaylandTest, X11DragDropsOnAWaylandSurface)
     native.initialize();
     ASSERT_TRUE(until([&] {
         native.pump();
-        return mapNativeSurface(native, {500, 0});
+        return mapNativeSurface(native, compositor->surfaceContainer(), {500, 0});
     }));
     setenv("XAUTHORITY", xwayland->authority().c_str(), 1);
     XdndPeer x;
@@ -3001,7 +3003,7 @@ TEST_F(XwaylandTest, X11DragWithATypeListCanLeaveAndBeRefused)
     native.initialize();
     ASSERT_TRUE(until([&] {
         native.pump();
-        return mapNativeSurface(native, {500, 0});
+        return mapNativeSurface(native, compositor->surfaceContainer(), {500, 0});
     }));
     setenv("XAUTHORITY", xwayland->authority().c_str(), 1);
     XdndPeer x;
@@ -3127,7 +3129,7 @@ TEST_F(XwaylandTest, WaylandDragFollowsXdndProxyAndCancelsWhenRefused)
     native.initialize();
     ASSERT_TRUE(until([&] {
         native.pump();
-        return mapNativeSurface(native, {500, 0});
+        return mapNativeSurface(native, compositor->surfaceContainer(), {500, 0});
     }));
     setenv("XAUTHORITY", xwayland->authority().c_str(), 1);
     XdndPeer x, proxyPeer;

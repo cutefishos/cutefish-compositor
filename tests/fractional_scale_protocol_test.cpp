@@ -132,6 +132,7 @@ protected:
         viewport = wp_viewporter_get_viewport(manager, surface);
         ASSERT_GE(roundtrip(), 0);
         model = compositor.surfaces().front();
+        model->reparentNode(compositor.surfaceContainer());
         createFractional();
         ASSERT_GE(roundtrip(), 0);
     }

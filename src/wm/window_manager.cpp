@@ -1350,6 +1350,8 @@ void WindowManager::setAuxiliarySurface(compositor::Surface *surface, Window *ow
 {
     if (!surface)
         return;
+    if (surface->node() && !surface->node()->parent() && m_compositor)
+        surface->reparentNode(m_compositor->surfaceContainer());
     const bool added = std::find(m_auxiliarySurfaces.begin(), m_auxiliarySurfaces.end(), surface)
             == m_auxiliarySurfaces.end();
     if (added)

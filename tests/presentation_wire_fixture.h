@@ -138,6 +138,7 @@ protected:
         wl_shm_pool_destroy(pool);
         wl_surface_attach(surface, buffer, 0, 0);
         ASSERT_GE(roundtrip(), 0);
+        compositor.surfaces().front()->reparentNode(compositor.surfaceContainer());
         compositor.surfaces().front()->setPosition({0, 0});
     }
 
