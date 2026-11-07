@@ -296,6 +296,17 @@ render::Texture *shadowTexture(render::Renderer &renderer, const ShadowGeometry 
     return textures.front().get();
 }
 
+// `start` to `end` with both corners on physical pixels. The renderer widens
+// a target to every pixel it touches, so a slice edge inside a pixel would
+// paint that pixel under both slices that meet there.
+base::RectF placeSlice(const render::Renderer &renderer, const base::PointF &start,
+                       const base::PointF &end)
+{
+    const base::PointF first = renderer.pixelAligned(start);
+    const base::PointF last = renderer.pixelAligned(end);
+    return base::RectF::fromEdges(first.x(), first.y(), last.x(), last.y());
+}
+
 // The unit square of a slice to `source`, in texture coordinates of `size`.
 base::AffineTransform sliceMapping(const base::RectF &source, const base::SizeF &size)
 {
@@ -333,8 +344,8 @@ void paintShadow(render::Renderer &renderer, const ShadowGeometry &geometry,
         const base::PointF end(
                 place(target.x() + target.width(), window.width(), body.left(), body.right()),
                 place(target.y() + target.height(), window.height(), body.top(), body.bottom()));
-        const base::RectF placed = base::RectF::fromEdges(start.x(), start.y(), end.x(), end.y());
-        if (!renderer.drawsInto(placed.toEnclosingRect()))
+        const base::RectF placed = placeSlice(renderer, start, end);
+        if (placed.isEmpty() || !renderer.drawsInto(placed.toEnclosingRect()))
             continue;
         // A stretched cut lies in a constant run and any other joins slices
         // drawn at one scale, so filtering across it reads what one image would.
@@ -390,15 +401,15 @@ void paintStretchedShadow(render::Renderer &renderer, const ShadowGeometry &geom
                                         map(top, from.height(), window.height()));
                 const base::Point end(map(right, from.width(), window.width()),
                                       map(bottom, from.height(), window.height()));
-                const base::Rect placed =
-                        base::Rect(start, base::Size(end.x() - start.x(), end.y() - start.y()))
-                                .translated(window.origin());
-                if (placed.isEmpty() || !renderer.drawsInto(placed))
+                const base::RectF placed =
+                        placeSlice(renderer, base::PointF(start + window.origin()),
+                                   base::PointF(end + window.origin()));
+                if (placed.isEmpty() || !renderer.drawsInto(placed.toEnclosingRect()))
                     continue;
                 const base::RectF piece(source.x() + (left - target.x()) * sx,
                                         source.y() + (top - target.y()) * sy, (right - left) * sx,
                                         (bottom - top) * sy);
-                slices.push_back({base::RectF(placed), sliceMapping(piece, base::SizeF(image->size()))});
+                slices.push_back({placed, sliceMapping(piece, base::SizeF(image->size()))});
             }
         }
     }
