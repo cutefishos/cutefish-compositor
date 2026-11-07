@@ -370,14 +370,19 @@ ui::RectF DockIcon::drawnIconRect() const
     // Grown about the icon rect's centre, lifted by the offset, and snapped
     // to whole device pixels of the window, so the artwork is rasterised at
     // the size it shows at and lands on pixels: crisp, and steady as it moves.
+    // Each edge is snapped on its own: snapping the size and then placing it
+    // about the centre carried the size's rounding into the position, which
+    // then stepped back and forth by a device pixel as the icon grew.
     const double ratio = m_dock->pixelRatio();
     const auto snap = [ratio](double value) { return std::round(value * ratio) / ratio; };
     const ui::RectF slot = geometry();
-    const double width = snap(m_iconRect.width * m_magnifyScale);
-    const double height = snap(m_iconRect.height * m_magnifyScale);
-    const double x = snap(slot.x + m_iconRect.x + (m_iconRect.width - width) / 2 + m_magnifyOffset.x) - slot.x;
-    const double y = snap(slot.y + m_iconRect.y + (m_iconRect.height - height) / 2 + m_magnifyOffset.y) - slot.y;
-    return {x, y, width, height};
+    const double width = m_iconRect.width * m_magnifyScale;
+    const double height = m_iconRect.height * m_magnifyScale;
+    const double left = slot.x + m_iconRect.x + (m_iconRect.width - width) / 2 + m_magnifyOffset.x;
+    const double top = slot.y + m_iconRect.y + (m_iconRect.height - height) / 2 + m_magnifyOffset.y;
+    const double x = snap(left);
+    const double y = snap(top);
+    return {x - slot.x, y - slot.y, snap(left + width) - x, snap(top + height) - y};
 }
 
 void DockIcon::setIconRect(const ui::RectF &rect)
