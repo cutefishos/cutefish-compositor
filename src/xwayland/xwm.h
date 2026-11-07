@@ -107,6 +107,13 @@ private:
     base::Size sizeFromX(const base::Size &size) const;
     base::Size sizeToX(const base::Size &size) const;
     base::Region regionFromX(const base::Region &region) const;
+    // An X11 window's rectangle and the body of it the window manager places,
+    // which leaves out the shadow the client declares in _GTK_FRAME_EXTENTS.
+    base::Rect bodyFromX(const X11Window &window, const base::Rect &xRect) const;
+    base::Rect bodyToX(const X11Window &window, const base::Rect &rect) const;
+    // A size hint covers the whole X11 window, that shadow included.
+    base::Size hintFromX(const X11Window &window, const base::Size &size) const;
+    wm::Insets exterior(const X11Window &window) const;
     void publishDpi();
     void ping(uint32_t window);
     bool requestSync(X11Window &window);

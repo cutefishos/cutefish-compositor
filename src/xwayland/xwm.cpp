@@ -109,6 +109,7 @@ const char *const atomNames[] = {"WL_SURFACE_SERIAL",
                                  "_NET_WM_WINDOW_TYPE_DND",
                                  "_NET_WM_WINDOW_TYPE_NOTIFICATION",
                                  "_MOTIF_WM_HINTS",
+                                 "_GTK_FRAME_EXTENTS",
                                  "_NET_FRAME_EXTENTS",
                                  "_NET_REQUEST_FRAME_EXTENTS",
                                  "_NET_WM_MOVERESIZE",
@@ -247,6 +248,8 @@ struct Xwm::X11Window : compositor::SurfaceObserver, wm::WindowObserver {
     // No maximum: an empty size.
     base::Size minimum {1, 1}, maximum, increment {1, 1}, base {0, 0};
     bool mapped = false, overrideRedirect = false, decorated = true;
+    // _GTK_FRAME_EXTENTS, in X11 pixels: the shadow the client draws around its body.
+    wm::Insets extents;
     bool input = true, takeFocus = false, deleteWindow = false, pingable = false;
     // Requested through _NET_WM_STATE; there is no pager, but the state is kept.
     bool above = false, skipTaskbar = false, skipPager = false;
@@ -468,6 +471,31 @@ base::Size Xwm::sizeToX(const base::Size &size) const
 {
     return base::Size(std::max(1, base::roundToInt(size.width() * m_scale)),
                       std::max(1, base::roundToInt(size.height() * m_scale)));
+}
+
+base::Rect Xwm::bodyFromX(const X11Window &w, const base::Rect &xRect) const
+{
+    const base::Rect body = w.extents.inset(xRect);
+    return base::Rect(fromX(body.topLeft()), sizeFromX(body.size()));
+}
+
+base::Rect Xwm::bodyToX(const X11Window &w, const base::Rect &rect) const
+{
+    return w.extents.outset(base::Rect(toX(rect.topLeft()), sizeToX(rect.size())));
+}
+
+base::Size Xwm::hintFromX(const X11Window &w, const base::Size &size) const
+{
+    return sizeFromX(w.extents.inset(size));
+}
+
+wm::Insets Xwm::exterior(const X11Window &w) const
+{
+    auto x = [this](int value) {
+        return base::roundToInt(value / m_scale);
+    };
+    return wm::Insets {x(w.extents.left), x(w.extents.top), x(w.extents.right),
+                       x(w.extents.bottom)};
 }
 
 base::Region Xwm::regionFromX(const base::Region &region) const
@@ -1027,7 +1055,7 @@ std::vector<xcb_atom_t> Xwm::followedProperties()
             atom("WM_PROTOCOLS"),      atom("_MOTIF_WM_HINTS"),     atom("_NET_WM_STATE"),
             atom("_NET_WM_WINDOW_TYPE"), atom("WM_CLIENT_LEADER"), atom("_NET_STARTUP_ID"),
             atom("WM_CLIENT_MACHINE"),   atom("_NET_WM_SYNC_REQUEST_COUNTER"),
-            atom("_NET_WM_WINDOW_OPACITY")};
+            atom("_NET_WM_WINDOW_OPACITY"), atom("_GTK_FRAME_EXTENTS")};
 }
 
 void Xwm::properties(X11Window &w, std::vector<xcb_atom_t> atoms)
@@ -1196,6 +1224,14 @@ void Xwm::properties(X11Window &w, std::vector<xcb_atom_t> atoms)
                       w.decorated = true;
                       if (r->type == a && count >= 3 && (words[0] & 2))
                           w.decorated = words[2] & 1 ? !(words[2] & (1 << 3)) : words[2] & (1 << 3);
+                  } else if (a == atom("_GTK_FRAME_EXTENTS")) {
+                      w.extents = wm::Insets();
+                      if (r->type == XCB_ATOM_CARDINAL && count >= 4) {
+                          auto extent = [words](int i) {
+                              return int(std::min<uint32_t>(words[i], 4096));
+                          };
+                          w.extents = wm::Insets {extent(0), extent(2), extent(1), extent(3)};
+                      }
                   } else if (a == XCB_ATOM_WM_NORMAL_HINTS) {
                       w.minimum = base::Size(1, 1);
                       w.maximum = base::Size();
@@ -1281,8 +1317,8 @@ void Xwm::properties(X11Window &w, std::vector<xcb_atom_t> atoms)
         if (w.window) {
             w.window->setTitle(displayTitle(w));
             w.window->setApplicationId(applicationId(w));
-            w.window->setMinimumSize(sizeFromX(w.minimum));
-            w.window->setMaximumSize(w.maximum.isEmpty() ? base::Size() : sizeFromX(w.maximum));
+            w.window->setMinimumSize(hintFromX(w, w.minimum));
+            w.window->setMaximumSize(w.maximum.isEmpty() ? base::Size() : hintFromX(w, w.maximum));
             w.window->setDecorated(w.decorated);
             w.window->setOpacity(w.opacity);
             w.window->setFocusPolicy(w.input || w.takeFocus ? wm::FocusPolicy::Normal
@@ -1333,9 +1369,13 @@ void Xwm::present(X11Window &w)
         const auto edge = m_manager->eventHandler()->draggedWindow() == w.window
                 ? m_manager->eventHandler()->draggedEdge()
                 : wm::ResizeEdge::None;
-        const auto delta = w.window->contentBounds().size() - w.surface->contentSize();
+        const wm::Insets exterior = this->exterior(w);
+        w.window->setClientExteriorInsets(exterior);
+        const auto delta =
+                w.window->contentBounds().size() - exterior.inset(w.surface->contentSize());
         w.window->setSurfaceOrigin(base::Point(wm::isLeftEdge(edge) ? delta.width() : 0,
-                                          wm::isTopEdge(edge) ? delta.height() : 0));
+                                               wm::isTopEdge(edge) ? delta.height() : 0)
+                                   - exterior.topLeft());
         return;
     }
     wm::WindowInit init;
@@ -1343,9 +1383,9 @@ void Xwm::present(X11Window &w)
     init.applicationId = applicationId(w);
     init.processId = ownerPid(w);
     init.decorated = w.decorated;
-    init.requestedSize = w.surface->contentSize();
-    init.minimumSize = sizeFromX(w.minimum);
-    init.maximumSize = w.maximum.isEmpty() ? base::Size() : sizeFromX(w.maximum);
+    init.requestedSize = exterior(w).inset(w.surface->contentSize());
+    init.minimumSize = hintFromX(w, w.minimum);
+    init.maximumSize = w.maximum.isEmpty() ? base::Size() : hintFromX(w, w.maximum);
     init.focusPolicy = w.input || w.takeFocus ? wm::FocusPolicy::Normal : wm::FocusPolicy::NoFocus;
     auto parent = m_windows.find(w.transient);
     init.transientParent = parent == m_windows.end() ? nullptr : parent->second->window;
@@ -1377,8 +1417,8 @@ void Xwm::present(X11Window &w)
     property(w.id, "_NET_WM_DESKTOP", XCB_ATOM_CARDINAL, {0});
     w.window->addObserver(&w);
     w.window->setOpacity(w.opacity);
-    w.window->setMinimumSize(sizeFromX(w.minimum));
-    w.window->setMaximumSize(w.maximum.isEmpty() ? base::Size() : sizeFromX(w.maximum));
+    w.window->setMinimumSize(hintFromX(w, w.minimum));
+    w.window->setMaximumSize(w.maximum.isEmpty() ? base::Size() : hintFromX(w, w.maximum));
     if (w.maximized)
         w.window->maximize();
     if (w.fullscreen)
@@ -1508,7 +1548,7 @@ void Xwm::synchronize(X11Window &w)
     base::Rect rect = w.window->contentBounds();
     // Size hints are in X11 pixels, so the increments are applied there; a
     // character cell is not a whole number of logical units at every scale.
-    base::Size xSize = sizeToX(rect.size());
+    base::Size xSize = w.extents.outset(sizeToX(rect.size()));
     if (w.window->stateType() == wm::WindowStateType::Normal) {
         base::Size constrained = xSize;
         constrained.setWidth(constrainedExtent(xSize.width(), w.base.width(), w.increment.width(),
@@ -1517,18 +1557,18 @@ void Xwm::synchronize(X11Window &w)
                                                 w.increment.height(), w.minimum.height(),
                                                 w.maximum.height()));
         if (constrained != xSize) {
-            const base::Size size = sizeFromX(constrained);
+            const base::Size size = sizeFromX(w.extents.inset(constrained));
             if (size != rect.size()) {
                 w.window->setBounds(base::Rect(w.window->bounds().topLeft(),
                                                w.window->frameInsets().outset(size)));
                 rect = w.window->contentBounds();
             }
-            xSize = rect.size() == size ? constrained : sizeToX(rect.size());
+            xSize = rect.size() == size ? constrained : w.extents.outset(sizeToX(rect.size()));
         }
     }
     present(w);
-    w.geometry = rect;
-    const base::Point xPosition = toX(rect.topLeft());
+    w.geometry = exterior(w).outset(rect);
+    const base::Point xPosition = bodyToX(w, rect).topLeft();
     // A client that paints to a sync counter takes one size at a time; a newer
     // one waits for the counter, as in KWin, and only the latest is sent.
     bool deferred = false;
@@ -1867,9 +1907,7 @@ void Xwm::event(xcb_generic_event_t *generic)
     } else if (type == XCB_CONFIGURE_REQUEST) {
         auto *e = reinterpret_cast<xcb_configure_request_event_t *>(generic);
         // The request in X11 pixels, then in logical units.
-        base::Rect xRect = w.window ? base::Rect(toX(w.window->contentBounds().topLeft()),
-                                                 sizeToX(w.window->contentBounds().size()))
-                                    : w.xGeometry;
+        base::Rect xRect = w.window ? bodyToX(w, w.window->contentBounds()) : w.xGeometry;
         // The event fills what the request leaves out from the server's geometry, which
         // can predate our answer to an earlier request; it only replaces an unknown size.
         if (!w.window && std::exchange(w.sizeUnknown, false))
@@ -1882,7 +1920,9 @@ void Xwm::event(xcb_generic_event_t *generic)
             xRect.setWidth(std::max<int>(1, e->width));
         if (e->value_mask & XCB_CONFIG_WINDOW_HEIGHT)
             xRect.setHeight(std::max<int>(1, e->height));
-        const base::Rect rect(fromX(xRect.topLeft()), sizeFromX(xRect.size()));
+        const base::Rect rect = w.window
+                ? bodyFromX(w, xRect)
+                : base::Rect(fromX(xRect.topLeft()), sizeFromX(xRect.size()));
         if (w.window) {
             auto insets = w.window->frameInsets();
             w.window->requestBounds(base::Rect(rect.topLeft() - base::Point(insets.left, insets.top),

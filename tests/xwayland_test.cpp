@@ -967,6 +967,69 @@ TEST_F(XwaylandTest, RemovingMaximizedStateLeavesAnUnmaximizedWindowAlone)
     }));
 }
 
+TEST_F(XwaylandTest, GtkFrameExtentsLeaveTheClientShadowOutOfTheWindow)
+{
+    ASSERT_TRUE(start()) << xwayland->error();
+    setenv("XAUTHORITY", xwayland->authority().c_str(), 1);
+    auto *c = xcbReply([&] {
+        return xcb_connect(xwayland->display().c_str(), nullptr);
+    });
+    ASSERT_EQ(xcb_connection_has_error(c), 0);
+    base::ScopeGuard cleanup([&] {
+        xcb_disconnect(c);
+    });
+    auto *screen = xcb_setup_roots_iterator(xcb_get_setup(c)).data;
+    const auto id = xcb_generate_id(c);
+    const uint32_t values[] = {screen->white_pixel};
+    xcb_create_window(c, XCB_COPY_FROM_PARENT, id, screen->root, 0, 0, 340, 240, 0,
+                      XCB_WINDOW_CLASS_INPUT_OUTPUT, screen->root_visual, XCB_CW_BACK_PIXEL,
+                      values);
+    const xcb_atom_t motif = intern(c, "_MOTIF_WM_HINTS");
+    const uint32_t undecorated[] = {2, 0, 0, 0, 0};
+    xcb_change_property(c, XCB_PROP_MODE_REPLACE, id, motif, motif, 32, 5, undecorated);
+    // Left, right, top, bottom.
+    const xcb_atom_t frameExtents = intern(c, "_GTK_FRAME_EXTENTS");
+    const uint32_t extents[] = {20, 20, 10, 30};
+    xcb_change_property(c, XCB_PROP_MODE_REPLACE, id, frameExtents, XCB_ATOM_CARDINAL, 32, 4,
+                        extents);
+    xcb_map_window(c, id);
+    xcb_flush(c);
+    ASSERT_TRUE(until([&] {
+        return manager->windows().size() == 1;
+    }));
+    auto *window = manager->windows()[0];
+    EXPECT_FALSE(window->isDecorated());
+    EXPECT_EQ(window->clientExteriorInsets(), (wm::Insets {20, 10, 20, 30}));
+    EXPECT_EQ(window->contentBounds().size(), base::Size(300, 200));
+    EXPECT_EQ(window->surfaceOrigin(), base::Point(-20, -10));
+
+    auto geometryMatches = [&](const base::Rect &expected) {
+        return until([&] {
+            auto *geometry = xcbReply([&] {
+                return xcb_get_geometry_reply(c, xcb_get_geometry(c, id), nullptr);
+            });
+            if (!geometry)
+                return false;
+            const bool matches = base::Rect(geometry->x, geometry->y, geometry->width,
+                                            geometry->height)
+                    == expected;
+            free(geometry);
+            return matches;
+        });
+    };
+    window->requestBounds(base::Rect(100, 120, 400, 300));
+    EXPECT_TRUE(geometryMatches(base::Rect(80, 110, 440, 340)));
+
+    xcb_delete_property(c, id, frameExtents);
+    xcb_flush(c);
+    EXPECT_TRUE(until([&] {
+        return window->clientExteriorInsets().isNull();
+    }));
+    EXPECT_EQ(window->contentBounds(), base::Rect(100, 120, 400, 300));
+    EXPECT_EQ(window->surfaceOrigin(), base::Point());
+    EXPECT_TRUE(geometryMatches(base::Rect(100, 120, 400, 300)));
+}
+
 TEST_F(XwaylandTest, NetWmWindowOpacityFadesTheWholeWindow)
 {
     ASSERT_TRUE(start()) << xwayland->error();
