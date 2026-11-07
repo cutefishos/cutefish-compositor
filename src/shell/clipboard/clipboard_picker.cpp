@@ -9,6 +9,7 @@
 #include "shell/clipboard/clipboard_history.h"
 #include "shell/clipboard/clipboard_picker_view.h"
 #include "shell/shell_data.h"
+#include "shell/glass_preferences.h"
 #include "shell/shell_window.h"
 #include "ui/theme.h"
 #include "wm/window_manager.h"
@@ -82,14 +83,14 @@ void ClipboardPicker::place()
 void ClipboardPicker::applyGlass()
 {
     const bool dark = ui::Theme::current().darkMode;
-    if (int(dark) == m_glassDark)
+    const double tint = double(GlassPreferences::instance().generation());
+    if (int(dark) == m_glassDark && tint == m_glassTint)
         return;
     m_glassDark = dark;
-    // FishUI.PopupGlass with PanelStyle.glassTint, the OSD's.
-    const render::GlassParams glass = dark ? popupGlass(0.10, 0.10, 0.11, 0.75)
-                                           : popupGlass(0.90, 0.90, 0.92, 0.72);
+    m_glassTint = tint;
+    // The dock's glass, at the Appearance tint.
     m_window->setBackgroundBlur(base::Rect(0, 0, ClipboardPickerView::kWidth, ClipboardPickerView::kHeight),
-                                int(ClipboardPickerView::kCardRadius), glass);
+                                int(ClipboardPickerView::kCardRadius), shellGlass());
 }
 
 void ClipboardPicker::open()

@@ -85,6 +85,7 @@ private:
     base::Job m_cursorSizeLoad;
     ui::RectF m_glassRect;
     bool m_glassDark = false;
+    double m_glassTint = -1;
 };
 
 } // namespace cutefish::shell

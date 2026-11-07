@@ -22,6 +22,7 @@
 #include "shell/dock/dock_icon.h"
 #include "shell/dock/dock_presentation.h"
 #include "shell/dock/dock_tooltip.h"
+#include "shell/glass_preferences.h"
 #include "shell/shell_data.h"
 #include "shell/shell_window.h"
 #include "ui/application.h"
@@ -49,38 +50,6 @@ void callLauncher(base::dbus::Connection *bus, const char *method)
         return;
     bus->send(bus->newMethodCall("org.cutefish.Launcher", "/Launcher", "org.cutefish.Launcher",
                                  method));
-}
-
-// The dock's glass, by the GlassTint slider:
-// 0 is More Clear, 1 More Tinted, 0.5 the default.
-constexpr double kPace[] = {0.000, 0.048, 0.116, 0.174, 0.249, 0.314, 0.361,
-                            0.398, 0.435, 0.469, 0.500, 0.587, 0.630, 0.666,
-                            0.701, 0.739, 0.781, 0.827, 0.879, 0.931, 1.000};
-
-double glassAmount(double tint)
-{
-    const int last = int(std::size(kPace)) - 1;
-    const double x = std::clamp(tint, 0.0, 1.0) * last;
-    const int i = std::min(int(std::floor(x)), last - 1);
-    return kPace[i] + (x - i) * (kPace[i + 1] - kPace[i]);
-}
-
-// A monotone cubic through the More Clear, default and More Tinted values.
-double glassBlend(double amount, double clearValue, double defaultValue, double tintedValue)
-{
-    const double d0 = 2.0 * (defaultValue - clearValue);
-    const double d1 = 2.0 * (tintedValue - defaultValue);
-    const double middle = d0 * d1 > 0 ? 2.0 * d0 * d1 / (d0 + d1) : 0.0;
-    const bool upper = amount > 0.5;
-    const double t = upper ? 2.0 * amount - 1.0 : 2.0 * amount;
-    const double y0 = upper ? defaultValue : clearValue;
-    const double y1 = upper ? tintedValue : defaultValue;
-    const double m0 = 0.5 * (upper ? middle : d0);
-    const double m1 = 0.5 * (upper ? d1 : middle);
-    const double t2 = t * t;
-    const double t3 = t2 * t;
-    return (2.0 * t3 - 3.0 * t2 + 1.0) * y0 + (t3 - 2.0 * t2 + t) * m0
-            + (3.0 * t2 - 2.0 * t3) * y1 + (t3 - t2) * m1;
 }
 
 // A thumbnail is fitted into its slot, and so is the window landing on it.
@@ -310,6 +279,8 @@ DockWindow::DockWindow(Shell *shell, std::unique_ptr<Dock> dock)
     }));
     m_subscriptions.push_back(settings.visibilityChanged.connect([this] { resize(false); }));
     m_subscriptions.push_back(settings.glassTintChanged.connect([this] { updateGlass(); }));
+    // The Blur intensity slider is the Appearance page's, for every glass.
+    m_subscriptions.push_back(GlassPreferences::instance().changed.connect([this] { updateGlass(); }));
     m_subscriptions.push_back(settings.minimizedAreaChanged.connect([this] {
         m_sentTargets.clear();
         updateMinimizeTargets();
@@ -431,29 +402,8 @@ int DockWindow::edgeGap() const
 
 render::GlassParams DockWindow::glass() const
 {
-    const double amount = glassAmount(m_dock->settings().glassTint());
-    const auto blend = [amount](double clear, double middle, double tinted) {
-        return glassBlend(amount, clear, middle, tinted);
-    };
-    render::GlassParams glass = fishuiGlass();
-    // The glass blur kernel is 30 device pixels wide; a larger sigma truncates.
-    glass.blurSigma = glassFixed(blend(0.6, 1.0, 8.0));
-    glass.displacement = glassFixed(blend(36.0, 36.0, 0.0));
-    // A colour split along the lip reads as a rainbow fringe next to the rim.
-    glass.chroma = 0;
-    glass.saturation = glassFixed(blend(1.4, 1.3, 1.0));
-    glass.rim = glassFixed(1.0);
-    // A grey tint as premultiplied value and alpha, blended apart.
-    const bool dark = ui::Theme::current().darkMode;
-    const double alpha = dark ? blend(0.12, 0.29, 0.50) : blend(0.16, 0.25, 0.53);
-    const double value = (dark ? blend(0.046, 0.110, 0.190) : blend(0.060, 0.150, 0.530)) / alpha;
-    // Rounded to 16 bits a component, then wl_fixed.
-    const auto component = [](double v) {
-        return glassFixed(std::round(std::clamp(v, 0.0, 1.0) * 65535.0) / 65535.0);
-    };
-    glass.tintRed = glass.tintGreen = glass.tintBlue = component(value);
-    glass.tintAlpha = component(alpha);
-    return glass;
+    return tintedGlass(m_dock->settings().glassTint(), GlassPreferences::instance().blur(),
+                       ui::Theme::current().darkMode);
 }
 
 std::vector<DockIcon *> DockWindow::icons() const

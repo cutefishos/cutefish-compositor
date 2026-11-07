@@ -56,6 +56,7 @@ private:
     // The keyboard arrives after the window maps; only losing it counts.
     bool m_hadKeyboard = false;
     int m_glassDark = -1;
+    double m_glassTint = -1;
     std::vector<base::Subscription> m_subscriptions;
 };
 

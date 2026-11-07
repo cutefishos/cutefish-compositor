@@ -14,6 +14,7 @@
 #include "shell/notification/notification_motion.h"
 #include "shell/shell.h"
 #include "shell/shell_data.h"
+#include "shell/glass_preferences.h"
 #include "shell/shell_window.h"
 #include "ui/embedded_window.h"
 #include "ui/theme.h"
@@ -167,9 +168,8 @@ void NotificationPopups::Banner::updateTimer()
 
 void NotificationPopups::Banner::updateGlass()
 {
-    const bool dark = ui::Theme::current().darkMode;
-    m_window->setBackgroundBlur(base::Rect(0, 0, kWidth, m_height), int(kRadius),
-                                dark ? popupGlass(0.17, 0.17, 0.19, 0.6) : popupGlass(1, 1, 1, 0.6));
+    // The dock's glass, at the Appearance tint.
+    m_window->setBackgroundBlur(base::Rect(0, 0, kWidth, m_height), int(kRadius), shellGlass());
 }
 
 void NotificationPopups::Banner::place(const base::Point &position)

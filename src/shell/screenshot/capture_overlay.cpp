@@ -15,6 +15,7 @@
 #include "shell/screenshot/capture_toolbar.h"
 #include "shell/screenshot/screen_capture.h"
 #include "shell/shell_data.h"
+#include "shell/glass_preferences.h"
 #include "shell/shell_window.h"
 #include "ui/bubble_shape.h"
 #include "ui/embedded_window.h"
@@ -817,10 +818,12 @@ void CaptureOverlay::updateGlass()
 {
     const ui::RectF rect = toolbarRect();
     const bool dark = ui::Theme::current().darkMode;
-    if (rect == m_glassRect && dark == m_glassDark)
+    const double tint = double(GlassPreferences::instance().generation());
+    if (rect == m_glassRect && dark == m_glassDark && tint == m_glassTint)
         return;
     m_glassRect = rect;
     m_glassDark = dark;
+    m_glassTint = tint;
     if (rect.width <= 0 || rect.height <= 0) {
         m_window->setBackgroundBlur({}, 0);
         return;
@@ -829,8 +832,7 @@ void CaptureOverlay::updateGlass()
     const int top = int(std::lround(rect.y));
     const base::Rect region(left, top, int(std::lround(rect.x + rect.width)) - left,
                             int(std::lround(rect.y + rect.height)) - top);
-    m_window->setBackgroundBlur(region, int(std::lround(m_view->toolbar()->radius())),
-                                dark ? popupGlass(0.17, 0.17, 0.19, 0.6) : popupGlass(1, 1, 1, 0.6));
+    m_window->setBackgroundBlur(region, int(std::lround(m_view->toolbar()->radius())), shellGlass());
 }
 
 void CaptureOverlay::updateCursor()

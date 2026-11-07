@@ -6,6 +6,7 @@
 #define CUTEFISH_SHELL_SHELL_HOST_H_
 
 #include <map>
+#include <utility>
 #include <memory>
 #include <vector>
 
@@ -62,7 +63,8 @@ private:
     // popup from inside input the seat is still dispatching to its surface.
     std::vector<std::unique_ptr<ShellWindow>> m_released;
     // The dark mode each window's glass was tinted for.
-    std::map<const ui::EmbeddedWindow *, bool> m_glassDark;
+    // The theme and tint each popup's glass was set for.
+    std::map<const ui::EmbeddedWindow *, std::pair<bool, double>> m_glassDark;
     std::unique_ptr<ShellDrag> m_drag;
     std::unique_ptr<ShellTextInput> m_textInput;
     std::shared_ptr<bool> m_alive = std::make_shared<bool>(true);

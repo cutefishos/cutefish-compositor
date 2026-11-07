@@ -10,6 +10,7 @@
 #include "shell/dock/dock.h"
 #include "shell/dock/dock_window.h"
 #include "shell/shell_data.h"
+#include "shell/glass_preferences.h"
 #include "shell/shell_host.h"
 #include "shell/shell_window.h"
 #include "ui/bubble_shape.h"
@@ -126,8 +127,7 @@ void DockTooltip::show(const std::string &text, const base::PointF &target, cons
             m_shell->host()->windowFor(static_cast<ui::EmbeddedWindow *>(m_window.get()));
     if (!popup)
         return;
-    const render::GlassParams glass = theme.darkMode ? popupGlass(0.17, 0.17, 0.19, 0.6)
-                                                     : popupGlass(1, 1, 1, 0.6);
+    const render::GlassParams glass = shellGlass();
     const base::Rect region(int(std::floor(body.x)), int(std::floor(body.y)), int(std::ceil(body.width)),
                             int(std::ceil(body.height)));
     const double radius = std::min(bubble.radius, std::min(body.width, body.height) / 2);

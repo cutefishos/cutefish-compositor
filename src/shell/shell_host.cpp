@@ -10,6 +10,7 @@
 #include "core/main_loop.h"
 #include "shell/shell.h"
 #include "shell/shell_data.h"
+#include "shell/glass_preferences.h"
 #include "shell/shell_drag.h"
 #include "shell/shell_text_input.h"
 #include "shell/shell_window.h"
@@ -63,7 +64,8 @@ void ShellHost::windowDestroying(ShellWindow *window)
 void ShellHost::frameStarting(ShellWindow *window)
 {
     const auto it = m_glassDark.find(window->window());
-    if (it != m_glassDark.end() && it->second != ui::Theme::current().darkMode)
+    if (it != m_glassDark.end()
+        && it->second != std::pair(ui::Theme::current().darkMode, double(GlassPreferences::instance().generation())))
         blurChanged(window->window());
 }
 
@@ -125,15 +127,12 @@ void ShellHost::blurChanged(ui::EmbeddedWindow *window)
     const ui::RectF rect = window->blurRect();
     const int left = int(std::lround(rect.x));
     const int top = int(std::lround(rect.y));
-    // FishUI's popups (menus, drop-downs) sit on PopupGlass, outlined and
-    // masked by their bubble.
-    const bool dark = ui::Theme::current().darkMode;
-    m_glassDark[window] = dark;
+    // FishUI's popups (menus, drop-downs) sit on the dock's glass at the
+    // Appearance tint, outlined and masked by their bubble.
+    m_glassDark[window] = {ui::Theme::current().darkMode, double(GlassPreferences::instance().generation())};
     shellWindow->setBackgroundBlur(base::Rect(left, top, int(std::lround(rect.x + rect.width)) - left,
                                               int(std::lround(rect.y + rect.height)) - top),
-                                   int(std::lround(window->blurRadius())),
-                                   dark ? popupGlass(0.17, 0.17, 0.19, 0.6) : popupGlass(1, 1, 1, 0.6),
-                                   window->blurShape());
+                                   int(std::lround(window->blurRadius())), shellGlass(), window->blurShape());
 }
 
 bool ShellHost::startDrag(ui::EmbeddedWindow *window, ui::DragSource source)
