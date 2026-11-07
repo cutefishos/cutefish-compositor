@@ -49,7 +49,7 @@ void SurfaceNode::setOpaque(bool opaque)
     notifyChanged();
 }
 
-void SurfaceNode::setBackgroundBlur(const base::Rect &rect, int radius, const render::GlassParams &glass,
+void SurfaceNode::setBackgroundBlur(const base::RectF &rect, int radius, const render::GlassParams &glass,
                                     const ui::Path &shape)
 {
     if (m_blurRect == rect && m_blurRadius == radius && m_glass == glass && m_blurShape == shape)
@@ -108,7 +108,8 @@ void SurfaceNode::paintBackdrop(render::Renderer &renderer, const base::Rect &ab
         return;
     if (!renderer.drawsInto(absoluteGeometry) || !hasBackgroundBlur() || renderer.suppressBackgroundBlur)
         return;
-    renderer.drawBackgroundBlur(m_blurRect.translated(absoluteGeometry.topLeft()), m_blurRadius, absoluteGeometry,
+    renderer.drawBackgroundBlurF(m_blurRect.translated(base::PointF(absoluteGeometry.topLeft())), m_blurRadius,
+                                 absoluteGeometry,
                                 m_glass, m_blurShape.translated(absoluteGeometry.x(), absoluteGeometry.y()),
                                 damageId());
 }

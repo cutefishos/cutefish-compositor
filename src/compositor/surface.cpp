@@ -305,6 +305,11 @@ void Surface::requestFrameCallback(FrameCallback callback)
 
 void Surface::setBackgroundBlur(const base::Rect &rect, int radius)
 {
+    setBackgroundBlurF(base::RectF(rect), radius);
+}
+
+void Surface::setBackgroundBlurF(const base::RectF &rect, int radius)
+{
     m_pending.basicState.blurRect = rect;
     m_pending.basicState.blurRadius = radius;
 }
@@ -659,7 +664,7 @@ void Surface::applyCachedState()
         // The opaque region is committed state and can change without the
         // buffer changing, so it is applied here rather than at upload.
         m_node->setOpaque(isFullyOpaque());
-        m_node->setBackgroundBlur(backgroundBlurRect(), backgroundBlurRadius(), glass(),
+        m_node->setBackgroundBlur(backgroundBlurRectF(), backgroundBlurRadius(), glass(),
                                   backgroundBlurShape());
     }
     if (m_node)
@@ -1094,7 +1099,7 @@ void Surface::setPosition(const base::Point &position)
         // The opaque region is committed state and can change without the
         // buffer changing, so it is applied here rather than at upload.
         m_node->setOpaque(isFullyOpaque());
-        m_node->setBackgroundBlur(backgroundBlurRect(), backgroundBlurRadius(), glass(),
+        m_node->setBackgroundBlur(backgroundBlurRectF(), backgroundBlurRadius(), glass(),
                                   backgroundBlurShape());
     }
 }

@@ -187,8 +187,13 @@ public:
     void abandonUnsubmittedPresentation(const render::PresentationSubmission &submission);
 
     void setBackgroundBlur(const base::Rect &rect, int radius);
+    // In fractions of a logical pixel, for the shell's own surfaces: the glass
+    // lands on the device grid rather than on whole logical pixels.
+    void setBackgroundBlurF(const base::RectF &rect, int radius);
 
-    base::Rect backgroundBlurRect() const { return m_state.basicState.blurRect; }
+    // The whole logical pixels the blur reaches; backgroundBlurRectF() is exact.
+    base::Rect backgroundBlurRect() const { return m_state.basicState.blurRect.toEnclosingRect(); }
+    base::RectF backgroundBlurRectF() const { return m_state.basicState.blurRect; }
 
     int backgroundBlurRadius() const { return m_state.basicState.blurRadius; }
 
@@ -455,7 +460,7 @@ private:
     struct State {
         std::optional<base::RectF> crop;
         std::optional<base::Size> viewport;
-        base::Rect blurRect;
+        base::RectF blurRect;
         int blurRadius = 0;
         ui::Path blurShape;
         render::GlassParams glass;

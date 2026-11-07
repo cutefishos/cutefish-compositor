@@ -346,7 +346,13 @@ void ShellWindow::setCursor(std::optional<Cursor> cursor)
 void ShellWindow::setBackgroundBlur(const base::Rect &rect, int radius,
                                     const render::GlassParams &glass, const ui::Path &shape)
 {
-    m_surface->setBackgroundBlur(rect, radius);
+    setBackgroundBlur(base::RectF(rect), radius, glass, shape);
+}
+
+void ShellWindow::setBackgroundBlur(const base::RectF &rect, int radius, const render::GlassParams &glass,
+                                    const ui::Path &shape)
+{
+    m_surface->setBackgroundBlurF(rect, radius);
     m_surface->setGlass(glass);
     m_surface->setBackgroundBlurShape(shape);
     if (m_shown)

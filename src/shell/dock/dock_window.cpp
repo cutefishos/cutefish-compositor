@@ -432,7 +432,7 @@ double DockWindow::pixelRatio() const
 
 base::Rect DockWindow::primaryGeometry() const
 {
-    return m_panelRect.translated(m_windowRect.topLeft());
+    return panelRect().translated(m_windowRect.topLeft());
 }
 
 double DockWindow::cornerRadius() const
@@ -737,11 +737,16 @@ void DockWindow::layoutItems()
 
     // The panel and the content's origin along the dock are settled once the
     // magnification is known: the panel grows around the icons as they do.
-    int panelStart = int(std::floor(m_start + 0.5));
-    int panelEnd = int(std::floor(m_start + m_length + 0.5));
+    // Its ends lie on device pixels, not whole logical ones: as it moves with
+    // the pointer it must keep step with the icons, which lie on them too,
+    // or at a fractional scale its edge would jump by more than they move.
+    const double ratio = pixelRatio();
+    const auto onDevicePixel = [ratio](double value) { return std::round(value * ratio) / ratio; };
+    double panelStart = onDevicePixel(m_start);
+    double panelEnd = onDevicePixel(m_start + m_length);
     const int gap = edgeGap();
     const int farSide = (bottom ? m_windowRect.height() : m_windowRect.width()) - gap;
-    base::Rect panel;
+    base::RectF panel;
     double origin = 0;
     const double layoutOrigin = m_start + m_drawn.lengthPadding;
     const double settledStart = std::floor((m_surfaceLength - m_restingLength) / 2);
@@ -977,12 +982,12 @@ void DockWindow::layoutItems()
         return result;
     };
 
-    panelStart = int(std::floor(m_start + base + 0.5));
-    panelEnd = int(std::floor(m_start + m_length + base + totalGrowth + 0.5));
-    panel = bottom ? base::Rect(panelStart, farSide - int(drawnThickness), panelEnd - panelStart,
-                                int(drawnThickness))
-                   : base::Rect(left ? gap : farSide - int(drawnThickness), panelStart,
-                                int(drawnThickness), panelEnd - panelStart);
+    panelStart = onDevicePixel(m_start + base);
+    panelEnd = onDevicePixel(m_start + m_length + base + totalGrowth);
+    panel = bottom ? base::RectF(panelStart, farSide - int(drawnThickness), panelEnd - panelStart,
+                                 int(drawnThickness))
+                   : base::RectF(left ? gap : farSide - int(drawnThickness), panelStart,
+                                 int(drawnThickness), panelEnd - panelStart);
     // The content's origin along the dock, and an item's across from the panel's far side.
     origin = m_drawn.lengthPadding + m_start - panelStart;
 
@@ -1038,7 +1043,7 @@ void DockWindow::retire(DockIcon *icon)
     }
 }
 
-void DockWindow::updatePanelRect(const base::Rect &rect)
+void DockWindow::updatePanelRect(const base::RectF &rect)
 {
     // Magnified icons reach past the panel: the window takes the pointer
     // there too, so they stay grown while it is over them.
@@ -1051,15 +1056,17 @@ void DockWindow::updatePanelRect(const base::Rect &rect)
     m_inputGrown = grown;
     if (changed)
         updateGlass();
+    // Input in whole logical pixels, the panel's enclosing ones.
+    const base::Rect whole = rect.toEnclosingRect();
     const DockSettings::Direction direction = m_dock->settings().direction();
     const base::Rect gap = direction == DockSettings::Bottom
-            ? base::Rect::fromEdges(rect.x(), rect.y() + rect.height() / 2, rect.right(),
+            ? base::Rect::fromEdges(whole.x(), whole.y() + whole.height() / 2, whole.right(),
                                     m_windowRect.height())
             : direction == DockSettings::Left
-            ? base::Rect::fromEdges(0, rect.y(), rect.x() + rect.width() / 2, rect.bottom())
-            : base::Rect::fromEdges(rect.x() + rect.width() / 2, rect.y(), m_windowRect.width(),
-                                    rect.bottom());
-    base::Region region = roundedRegion(rect, cornerRadius()) | gap;
+            ? base::Rect::fromEdges(0, whole.y(), whole.x() + whole.width() / 2, whole.bottom())
+            : base::Rect::fromEdges(whole.x() + whole.width() / 2, whole.y(), m_windowRect.width(),
+                                    whole.bottom());
+    base::Region region = roundedRegion(whole, cornerRadius()) | gap;
     if (grown) {
         // The icons' slots, which take in the grown artwork: not the room
         // past the panel beside and above them, where nothing is drawn.

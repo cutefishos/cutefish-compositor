@@ -57,11 +57,11 @@ public:
     std::shared_ptr<render::Texture> takeTexture();
 
     // `shape` is surface-local; empty for the rounded rectangle.
-    void setBackgroundBlur(const base::Rect &rect, int radius, const render::GlassParams &glass = {},
+    void setBackgroundBlur(const base::RectF &rect, int radius, const render::GlassParams &glass = {},
                            const ui::Path &shape = {});
 
     bool hasBackgroundBlur() const { return !m_blurRect.isEmpty(); }
-    base::Rect backgroundBlurRect() const { return m_blurRect; }
+    base::Rect backgroundBlurRect() const { return m_blurRect.toEnclosingRect(); }
     int backgroundBlurRadius() const { return m_blurRadius; }
     const render::GlassParams &glass() const { return m_glass; }
     const ui::Path &backgroundBlurShape() const { return m_blurShape; }
@@ -130,7 +130,7 @@ private:
     std::shared_ptr<render::Texture> m_texture;
     std::shared_ptr<render::ScanoutBuffer> m_scanoutBuffer;
     render::SyncFence m_acquireFence;
-    base::Rect m_blurRect;
+    base::RectF m_blurRect;
     int m_blurRadius = 0;
     bool m_hiddenWithWindow = false;
     ui::Path m_blurShape;

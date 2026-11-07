@@ -151,6 +151,8 @@ public:
     // the surface blur protocol sets them for a client.
     // `shape`, in window coordinates, masks the glass, outline and shadow,
     // as a bubble's arrow takes them; empty for the rounded rect.
+    void setBackgroundBlur(const base::RectF &rect, int radius, const render::GlassParams &glass,
+                           const ui::Path &shape = {});
     void setBackgroundBlur(const base::Rect &rect, int radius,
                            const render::GlassParams &glass = {}, const ui::Path &shape = {});
 

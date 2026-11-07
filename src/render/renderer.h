@@ -269,6 +269,15 @@ public:
                                     uint64_t owner = 0)
     {
     }
+    // The same with `bounds` in fractions of a logical pixel, for the shell's
+    // own surfaces, which lay their glass on the device grid; a renderer
+    // without the precision rounds them outward.
+    virtual void drawBackgroundBlurF(const base::RectF &bounds, int radius, const base::Rect &clip,
+                                     const GlassParams &glass = {}, const ui::Path &shape = {},
+                                     uint64_t owner = 0)
+    {
+        drawBackgroundBlur(bounds.toEnclosingRect(), radius, clip, glass, shape, owner);
+    }
 
     // Blur results kept between passes into the target `scope` names.
     virtual bool keepsBackdrop(uint64_t /*scope*/, uint64_t /*owner*/) const { return false; }

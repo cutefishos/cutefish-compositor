@@ -52,7 +52,9 @@ public:
     Dock &dock() { return *m_dock; }
     ShellWindow *window() const { return m_window.get(); }
     // The panel in the window's coordinates, and on the screen.
-    base::Rect panelRect() const { return m_panelRect; }
+    // The panel in whole logical pixels; the glass itself lies on the device
+    // grid (m_panelRect), so it moves with the icons rather than in steps.
+    base::Rect panelRect() const { return m_panelRect.toEnclosingRect(); }
     // Device pixels per logical pixel of the dock window.
     double pixelRatio() const;
     base::Rect primaryGeometry() const;
@@ -161,7 +163,7 @@ private:
     // the pointer is over the dock.
     bool advanceMagnification(double stepMs);
     void updateLayoutStart();
-    void updatePanelRect(const base::Rect &rect);
+    void updatePanelRect(const base::RectF &rect);
     void updateStrut();
     void updateGlass();
     void updateMinimizeTargets();
@@ -213,7 +215,7 @@ private:
     DrawnDockMetrics m_fromMetrics;
     DrawnDockMetrics m_drawn;
     base::Rect m_windowRect;
-    base::Rect m_panelRect;
+    base::RectF m_panelRect;
     // The dark mode the glass was tinted for.
     bool m_glassDark = false;
     base::RectF m_divider;

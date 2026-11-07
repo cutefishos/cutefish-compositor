@@ -994,6 +994,12 @@ void EglRenderer::drawBackgroundBlur(const base::Rect &bounds, int radius, const
                                      const GlassParams &glass, const ui::Path &shape,
                                      uint64_t owner)
 {
+    drawBackgroundBlurF(base::RectF(bounds), radius, clip, glass, shape, owner);
+}
+
+void EglRenderer::drawBackgroundBlurF(const base::RectF &bounds, int radius, const base::Rect &clip,
+                                      const GlassParams &glass, const ui::Path &shape, uint64_t owner)
+{
     if (!m_current || !m_backdrop)
         return;
     const double scale = rasterScale();
@@ -1026,7 +1032,7 @@ void EglRenderer::drawBackgroundBlur(const base::Rect &bounds, int radius, const
     m_pass.setGeometry(m_pass.viewport(), offset * scale);
     setRasterScale(1);
     m_backdrop->draw(
-            *this, base::RectF((bounds.topLeft() + snap) * scale, base::SizeF(bounds.size()) * scale),
+            *this, base::RectF((bounds.topLeft() + snap) * scale, bounds.size() * scale),
             base::roundToInt(radius * scale), coverage(clip), glass, scale, shape.translated(snap.x(), snap.y()),
             sources, m_roundedClips,
             [this](const base::RectF &rect, float *vertices) {
