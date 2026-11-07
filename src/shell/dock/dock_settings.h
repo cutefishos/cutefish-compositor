@@ -14,7 +14,7 @@
 namespace cutefish::shell {
 
 // The dock's [Dock] group of shell.conf: icon size, edge, visibility, glass
-// tint and blur and the minimized area. Missing keys are written with their
+// tint and the minimized area. Missing keys are written with their
 // defaults. Read on the file thread;
 // the defaults stand until isReady().
 class DockSettings
@@ -52,10 +52,6 @@ public:
     double glassTint() const { return m_glassTint; }
     // Clamped to 0..1; not a number is the default.
     void setGlassTint(double tint);
-    // How blurred the glass is, 0 Sharper to 1 Softer, 0.3 the blur it had.
-    double glassBlur() const { return m_glassBlur; }
-    // Clamped to 0..1; not a number is the default.
-    void setGlassBlur(double blur);
     bool minimizedArea() const { return m_minimizedArea; }
     void setMinimizedArea(bool enabled);
 
@@ -64,7 +60,6 @@ public:
     base::Signal<> directionChanged;
     base::Signal<> visibilityChanged;
     base::Signal<> glassTintChanged;
-    base::Signal<> glassBlurChanged;
     base::Signal<> minimizedAreaChanged;
 
 private:
@@ -74,7 +69,6 @@ private:
         Visibility visibility = AlwaysShow;
         int edgeMargins = 10;
         double glassTint = 0.5;
-        double glassBlur = 0.3;
         bool minimizedArea = true;
     };
 
@@ -88,7 +82,6 @@ private:
     Visibility m_visibility = AlwaysShow;
     int m_edgeMargins = 10;
     double m_glassTint = 0.5;
-    double m_glassBlur = 0.3;
     bool m_minimizedArea = true;
     base::Timer m_iconSizeSave;
     base::Job m_load;

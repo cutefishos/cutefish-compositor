@@ -12,7 +12,6 @@
 #include "core/main_loop.h"
 #include "shell/osd/level_track.h"
 #include "shell/shell_data.h"
-#include "shell/glass_preferences.h"
 #include "shell/shell_window.h"
 #include "ui/embedded_window.h"
 #include "ui/theme.h"
@@ -72,7 +71,6 @@ Osd::Osd(Shell *shell, std::unique_ptr<OsdLevels> levels)
         if (isShown())
             place();
     }));
-    m_subscriptions.push_back(GlassPreferences::instance().changed.connect([this] { applyGlass(); }));
     update();
 }
 
@@ -131,7 +129,11 @@ void Osd::place()
 
 void Osd::applyGlass()
 {
-    m_window->setBackgroundBlur(base::Rect(0, 0, kWidth, kHeight), int(kRadius), shellGlass(GlassRole::Osd));
+    const bool dark = ui::Theme::current().darkMode;
+    // PanelStyle.glassTint on PopupGlass.
+    const render::GlassParams glass = dark ? popupGlass(0.10, 0.10, 0.11, 0.75)
+                                           : popupGlass(0.90, 0.90, 0.92, 0.72);
+    m_window->setBackgroundBlur(base::Rect(0, 0, kWidth, kHeight), int(kRadius), glass);
 }
 
 void Osd::present(Kind kind)

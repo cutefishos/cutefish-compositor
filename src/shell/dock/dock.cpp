@@ -55,8 +55,6 @@ bool Dock::registerService()
                       dbus::ArgumentNames{{"visibility"}, {}});
     object->addMethod("setGlassTint", [this](double tint) { m_settings.setGlassTint(tint); },
                       dbus::ArgumentNames{{"tint"}, {}});
-    object->addMethod("setGlassBlur", [this](double blur) { m_settings.setGlassBlur(blur); },
-                      dbus::ArgumentNames{{"blur"}, {}});
     object->addMethod("setMinimizedArea", [this](bool enabled) { m_settings.setMinimizedArea(enabled); },
                       dbus::ArgumentNames{{"enabled"}, {}});
     if (!object->publish() || !m_bus->requestName("org.cutefish.Dock", dbus::Connection::DoNotQueue)) {

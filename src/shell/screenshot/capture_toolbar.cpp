@@ -17,7 +17,6 @@
 #include "shell/screenshot/capture_settings.h"
 #include "shell/screenshot/screen_capture.h"
 #include "shell/shell_data.h"
-#include "shell/glass_preferences.h"
 #include "shell/shell_host.h"
 #include "shell/shell_window.h"
 #include "ui/application.h"
@@ -785,7 +784,8 @@ void CaptureTooltip::apply()
     popup->setInputRegion(base::Region());
     // The glass is the body; the arrow outside it continues the glass, and
     // the outline follows the whole bubble.
-    const render::GlassParams glass = shellGlass(GlassRole::Popup);
+    const render::GlassParams glass = theme.darkMode ? popupGlass(0.17, 0.17, 0.19, 0.6)
+                                                     : popupGlass(1, 1, 1, 0.6);
     const base::Rect region(int(std::floor(body.x)), int(std::floor(body.y)), int(std::ceil(body.width)),
                             int(std::ceil(body.height)));
     const double radius = std::min(bubble.radius, std::min(body.width, body.height) / 2);

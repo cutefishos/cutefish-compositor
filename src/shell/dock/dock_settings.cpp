@@ -27,14 +27,12 @@ DockSettings::DockSettings(std::string path)
                                  const bool direction = values.direction != m_direction;
                                  const bool visibility = values.visibility != m_visibility;
                                  const bool tint = values.glassTint != m_glassTint;
-                                 const bool blur = values.glassBlur != m_glassBlur;
                                  const bool area = values.minimizedArea != m_minimizedArea;
                                  m_iconSize = values.iconSize;
                                  m_direction = values.direction;
                                  m_visibility = values.visibility;
                                  m_edgeMargins = values.edgeMargins;
                                  m_glassTint = values.glassTint;
-                                 m_glassBlur = values.glassBlur;
                                  m_minimizedArea = values.minimizedArea;
                                  m_ready = true;
                                  ready();
@@ -46,8 +44,6 @@ DockSettings::DockSettings(std::string path)
                                      visibilityChanged();
                                  if (tint)
                                      glassTintChanged();
-                                 if (blur)
-                                     glassBlurChanged();
                                  if (area)
                                      minimizedAreaChanged();
                              });
@@ -67,8 +63,6 @@ DockSettings::Values DockSettings::load(const std::string &path)
         settings.setValue("Dock/EdgeMargins", 10);
     if (!settings.contains("Dock/GlassTint"))
         settings.setValue("Dock/GlassTint", 0.5);
-    if (!settings.contains("Dock/GlassBlur"))
-        settings.setValue("Dock/GlassBlur", 0.3);
     if (!settings.contains("Dock/MinimizedArea"))
         settings.setValue("Dock/MinimizedArea", true);
     settings.sync();
@@ -79,7 +73,6 @@ DockSettings::Values DockSettings::load(const std::string &path)
     values.visibility = Visibility(settings.intValue("Dock/Visibility", AlwaysShow));
     values.edgeMargins = int(settings.intValue("Dock/EdgeMargins", 10));
     values.glassTint = std::clamp(settings.doubleValue("Dock/GlassTint", 0.5), 0.0, 1.0);
-    values.glassBlur = std::clamp(settings.doubleValue("Dock/GlassBlur", 0.3), 0.0, 1.0);
     values.minimizedArea = settings.boolValue("Dock/MinimizedArea", true);
     return values;
 }
@@ -88,7 +81,7 @@ void DockSettings::write(const char *key, double value)
 {
     const std::string name = key;
     writeSettings(m_path, [name, value](base::Settings &settings) {
-        if (name == "Dock/GlassTint" || name == "Dock/GlassBlur")
+        if (name == "Dock/GlassTint")
             settings.setValue(name, value);
         else
             settings.setValue(name, int64_t(value));
@@ -130,16 +123,6 @@ void DockSettings::setGlassTint(double tint)
     m_glassTint = tint;
     write("Dock/GlassTint", tint);
     glassTintChanged();
-}
-
-void DockSettings::setGlassBlur(double blur)
-{
-    blur = std::isfinite(blur) ? std::clamp(blur, 0.0, 1.0) : 0.3;
-    if (std::abs(m_glassBlur - blur) < 1e-12)
-        return;
-    m_glassBlur = blur;
-    write("Dock/GlassBlur", blur);
-    glassBlurChanged();
 }
 
 void DockSettings::setMinimizedArea(bool enabled)
