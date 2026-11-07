@@ -62,7 +62,7 @@ std::string resourceName(input::CursorShape shape)
     return names[index < names.size() ? index : 1];
 }
 
-std::vector<Frame> readXCursor(std::string_view bytes, int size)
+std::vector<Frame> readXCursor(std::string_view bytes, int size, int *nominal)
 {
     base::ByteReader in(bytes, std::endian::little);
     const uint32_t magic = in.read<uint32_t>();
@@ -133,6 +133,8 @@ std::vector<Frame> readXCursor(std::string_view bytes, int size)
         result.push_back({std::move(image), base::Point(int(xhot), int(yhot)),
                           int(std::clamp(delay, 1u, 60000u))});
     }
+    if (nominal && !result.empty())
+        *nominal = int(bestSize);
     return result;
 }
 
@@ -186,7 +188,7 @@ static std::optional<std::string> readCursorFile(const std::string &path)
     return base::file::read(path);
 }
 
-std::vector<Frame> load(input::CursorShape shape, int size, const std::string &theme)
+std::vector<Frame> load(input::CursorShape shape, int size, const std::string &theme, int *nominal)
 {
     if (shape == input::CursorShape::Hidden)
         return {};
@@ -241,7 +243,7 @@ std::vector<Frame> load(input::CursorShape shape, int size, const std::string &t
                     const auto bytes = readCursorFile(path + "/" + themeName + "/cursors/" + name);
                     if (!bytes)
                         continue;
-                    auto frames = readXCursor(*bytes, size);
+                    auto frames = readXCursor(*bytes, size, nominal);
                     if (!frames.empty())
                         return frames;
                 }
@@ -256,6 +258,8 @@ std::vector<Frame> load(input::CursorShape shape, int size, const std::string &t
         return frames;
     // Keep the pointer visible even when no usable cursor theme is installed.
     const int pixels = std::clamp(size, 16, 256);
+    if (nominal)
+        *nominal = pixels;
     ui::Bitmap image(pixels, pixels, ui::Bitmap::Format::Argb32Premultiplied);
     {
         ui::BitmapPainter painter(image);

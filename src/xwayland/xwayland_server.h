@@ -67,6 +67,9 @@ public:
     // coordinates and Xft.dpi, so they draw sharp instead of being upscaled.
     void setScale(double scale);
 
+    // The cursor theme and logical size X11 clients are told to use.
+    void setCursorTheme(const std::string& theme, int size);
+
     // Xwayland is running and managed. A lazy server has published its display
     // before this.
     bool isReady() const { return m_ready; }
@@ -133,6 +136,8 @@ private:
     std::vector<int> m_listenWatches;
     std::string m_lockFile, m_socketFile;
     double m_scale = 1;
+    std::string m_cursorTheme = "default";
+    int m_cursorSize = 24;
     // The private runtime directory, removed with what is in it.
     std::string m_runtime;
     std::unique_ptr<SurfaceAssociation> m_association;

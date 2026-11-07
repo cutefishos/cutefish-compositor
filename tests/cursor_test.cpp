@@ -93,6 +93,10 @@ TEST(CursorTheme, ReadsPixelsHotspotAndDelay)
     EXPECT_EQ(frames[0].image.pixel(1, 0), 0xffabcdefu);
     EXPECT_EQ(frames[0].hotspot, base::Point(1, 0));
     EXPECT_EQ(frames[0].delayMs, 37);
+    // The size the file has, for one it does not.
+    int nominal = 0;
+    EXPECT_EQ(cursor::readXCursor(cursorFile(), 30, &nominal).size(), 1u);
+    EXPECT_EQ(nominal, 24);
 }
 
 TEST(CursorTheme, RejectsTruncatedAndOversizedFiles)

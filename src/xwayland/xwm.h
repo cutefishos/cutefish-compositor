@@ -55,6 +55,7 @@ public:
     // X11 pixels per logical unit. Xwayland draws at device resolution, so
     // every coordinate crossing between X11 and the window manager is scaled.
     void setScale(double scale);
+    void setCursorTheme(const std::string &theme, int size);
     // How long a client has to answer _NET_WM_PING.
     void setPingTimeout(int milliseconds) { m_pingTimeoutMs = milliseconds; }
     void setWindowLimit(size_t limit) { m_windowLimit = limit; }
@@ -114,7 +115,9 @@ private:
     // A size hint covers the whole X11 window, that shadow included.
     base::Size hintFromX(const X11Window &window, const base::Size &size) const;
     wm::Insets exterior(const X11Window &window) const;
-    void publishDpi();
+    // Xft.dpi and the cursor theme, in the root window's resources and in
+    // XSETTINGS.
+    void publishResources();
     void ping(uint32_t window);
     bool requestSync(X11Window &window);
     // The client's sync counter passed the last request, or it timed out.
@@ -153,6 +156,8 @@ private:
     xcb_void_cookie_t m_redirection {};
     base::Rect m_lastOutput, m_lastWorkArea;
     double m_scale = 1;
+    std::string m_cursorTheme = "default";
+    int m_cursorSize = 24;
     bool m_xsettings = false;
     uint32_t m_xsettingsSerial = 0;
     int m_pingTimeoutMs = 5000;

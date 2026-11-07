@@ -307,6 +307,7 @@ bool XwaylandServer::launch()
     };
     m_xwm = std::make_unique<Xwm>(m_manager, m_association.get());
     m_xwm->setScale(m_scale);
+    m_xwm->setCursorTheme(m_cursorTheme, m_cursorSize);
     m_xwm->setPingTimeout(m_options.pingTimeoutMs);
     m_xwm->setWindowLimit(m_options.windowLimit);
     m_xwm->initialized = [this](bool ok) {
@@ -591,6 +592,14 @@ void XwaylandServer::setScale(double scale)
         return;
     m_scale = scale;
     applyScale();
+}
+
+void XwaylandServer::setCursorTheme(const std::string& theme, int size)
+{
+    m_cursorTheme = theme;
+    m_cursorSize = size;
+    if (m_xwm)
+        m_xwm->setCursorTheme(theme, size);
 }
 
 void XwaylandServer::applyScale()

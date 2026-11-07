@@ -639,6 +639,17 @@ TEST_F(XwaylandTest, ScaledX11ClientsDrawAtDeviceResolution)
     EXPECT_EQ(setting(xsettings(), "Gdk/WindowScalingFactor"), 2);
     EXPECT_EQ(setting(xsettings(), "Xft/DPI"), 192 * 1024);
 
+    // The cursor's logical size reaches X11 clients in X11 pixels.
+    xwayland->setCursorTheme("Adwaita", 24);
+    EXPECT_TRUE(until([&] {
+        const std::string value = resources();
+        return value.find("Xcursor.theme:\tAdwaita\n") != std::string::npos
+                && value.find("Xcursor.size:\t48\n") != std::string::npos;
+    }));
+    EXPECT_EQ(setting(xsettings(), "Gtk/CursorThemeSize"), 48);
+    EXPECT_NE(xsettings().find("Gtk/CursorThemeName"), std::string::npos);
+    EXPECT_NE(xsettings().find("Adwaita"), std::string::npos);
+
     const auto id = xcb_generate_id(c);
     const uint32_t values[] = {screen->white_pixel, XCB_EVENT_MASK_BUTTON_PRESS};
     xcb_create_window(c, XCB_COPY_FROM_PARENT, id, screen->root, 0, 0, 600, 400, 0,

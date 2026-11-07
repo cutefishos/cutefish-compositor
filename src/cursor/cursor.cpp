@@ -237,9 +237,14 @@ void Cursor::setScale(double scale)
 
 void Cursor::setTheme(const std::string &theme, int size)
 {
+    m_theme = validThemeName(theme) ? theme : "default";
+    m_size = std::clamp(size, 16, 64);
     // Preferences reloads on any config write; reprogramming the plane blinks the cursor.
-    if (m_node->setTheme(validThemeName(theme) ? theme : "default", std::clamp(size, 16, 64)))
-        onCursorChanged();
+    if (!m_node->setTheme(m_theme, m_size))
+        return;
+    onCursorChanged();
+    if (themeChanged)
+        themeChanged();
 }
 
 void Cursor::setSink(render::CursorSink *sink)

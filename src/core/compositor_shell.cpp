@@ -983,6 +983,11 @@ void CompositorShell::initXwayland()
     m_xwayland->failure = [this](const std::string &) {
         m_globals->startInputMethod();
     };
+    m_xwayland->setCursorTheme(m_cursor.theme(), m_cursor.size());
+    m_cursor.themeChanged = [this] {
+        if (m_xwayland)
+            m_xwayland->setCursorTheme(m_cursor.theme(), m_cursor.size());
+    };
     if (m_options.xwayland) {
         // The saved display configuration may already be applied, with a
         // scale of its own per display: render at the largest.

@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include <functional>
 #include <string>
 
 #include "base/geometry.h"
@@ -37,6 +38,10 @@ public:
     void setSink(render::CursorSink *sink);
     void setScale(double scale);
     void setTheme(const std::string &theme, int size);
+    // The theme and logical size in use, after the fallbacks setTheme() applies.
+    const std::string &theme() const { return m_theme; }
+    int size() const { return m_size; }
+    std::function<void()> themeChanged;
     void paintForCapture(render::Renderer &renderer) const;
 
     // Where paintForCapture() would draw, in global logical coordinates; empty
@@ -69,6 +74,8 @@ private:
     bool m_hardware = false;
     bool m_held = false;
     double m_scale = 1;
+    std::string m_theme = "default";
+    int m_size = defaultSize();
     class ImageNode;
     input::Seat &m_seat;
     scene::Node &m_container;

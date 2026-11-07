@@ -999,8 +999,8 @@ if(CUTEFISH_ENABLE_XWAYLAND)
         ${xwayland-shell-v1_SOURCES}
         ${xwayland-keyboard-grab-unstable-v1_SOURCES})
     target_include_directories(cutefish-xwayland PUBLIC src ${CUTEFISH_PROTOCOL_DIR})
-    target_link_libraries(cutefish-xwayland PUBLIC cutefish-wayland-private-shell PkgConfig::Xcb Threads::Threads
-        Cutefish::ToolkitBase)
+    target_link_libraries(cutefish-xwayland PUBLIC cutefish-wayland-private-shell cutefish-cursor PkgConfig::Xcb
+        Threads::Threads Cutefish::ToolkitBase)
     target_link_libraries(cutefish-compositor PRIVATE cutefish-xwayland)
     target_compile_definitions(cutefish-compositor PRIVATE CUTEFISH_ENABLE_XWAYLAND)
     install(FILES ${WAYLAND_PROTOCOLS_DATADIR}/staging/xwayland-shell/xwayland-shell-v1.xml

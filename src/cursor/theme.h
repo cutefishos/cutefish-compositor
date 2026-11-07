@@ -22,8 +22,11 @@ struct Frame {
 };
 
 std::string resourceName(input::CursorShape shape);
-std::vector<Frame> readXCursor(std::string_view bytes, int size);
-std::vector<Frame> load(input::CursorShape shape, int size, const std::string &theme = "default");
+// The images of the nominal size closest to `size`, the larger on a tie;
+// `nominal` gets that size.
+std::vector<Frame> readXCursor(std::string_view bytes, int size, int *nominal = nullptr);
+std::vector<Frame> load(input::CursorShape shape, int size, const std::string &theme = "default",
+                        int *nominal = nullptr);
 std::vector<std::string> themePaths();
 // Replaces the search path; an empty list restores the standard one.
 void setThemePathsForTesting(std::vector<std::string> paths);

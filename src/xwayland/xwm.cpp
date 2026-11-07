@@ -22,6 +22,7 @@
 #include <climits>
 #include <csignal>
 #include <unistd.h>
+#include <variant>
 #include <xcb/composite.h>
 #include <xcb/shape.h>
 #include <xcb/sync.h>
@@ -33,6 +34,7 @@
 #include "base/strings.h"
 #include "compositor/surface.h"
 #include "core/main_loop.h"
+#include "cursor/theme.h"
 #include "dnd_bridge.h"
 #include "fd_watch.h"
 #include "input/seat.h"
@@ -534,13 +536,18 @@ base::Region Xwm::regionFromX(const base::Region &region) const
 // X11 clients scale themselves: Qt and Xft read Xft.dpi, GTK reads XSETTINGS.
 // The values follow gsd-xsettings: GTK takes an integer window scale and keeps
 // any fraction as a larger font DPI.
-void Xwm::publishDpi()
+void Xwm::publishResources()
 {
     const int dpi = base::roundToInt(96 * m_scale);
+    // X11 cursors are in X11 pixels, unscaled. Between two sizes the theme has
+    // X11 clients would take either; named exactly, they take the one the
+    // compositor draws.
+    int cursorSize = base::roundToInt(m_cursorSize * m_scale);
+    cursor::load(input::CursorShape::Default, cursorSize, m_cursorTheme, &cursorSize);
     reply(xcb_get_property(m_connection, 0, m_root, XCB_ATOM_RESOURCE_MANAGER, XCB_ATOM_STRING, 0,
                            65536)
                   .sequence,
-          [this, dpi](void *p) {
+          [this, dpi, cursorSize](void *p) {
               auto *r = static_cast<xcb_get_property_reply_t *>(p);
               std::vector<std::string> lines;
               if (r && r->type == XCB_ATOM_STRING && r->format == 8) {
@@ -548,11 +555,15 @@ void Xwm::publishDpi()
                           static_cast<const char *>(xcb_get_property_value(r)),
                           size_t(xcb_get_property_value_length(r)));
                   for (const std::string_view line : base::strings::splitViews(resources, '\n')) {
-                      if (!line.empty() && !line.starts_with("Xft.dpi:"))
+                      if (!line.empty() && !line.starts_with("Xft.dpi:")
+                          && !line.starts_with("Xcursor.theme:")
+                          && !line.starts_with("Xcursor.size:"))
                           lines.emplace_back(line);
                   }
               }
               lines.push_back("Xft.dpi:\t" + std::to_string(dpi));
+              lines.push_back("Xcursor.theme:\t" + m_cursorTheme);
+              lines.push_back("Xcursor.size:\t" + std::to_string(cursorSize));
               const std::string value = base::strings::join(lines, "\n") + '\n';
               xcb_change_property(m_connection, XCB_PROP_MODE_REPLACE, m_root,
                                   XCB_ATOM_RESOURCE_MANAGER, XCB_ATOM_STRING, 8, value.size(),
@@ -562,13 +573,19 @@ void Xwm::publishDpi()
     if (!m_xsettings)
         return;
     const int windowScale = std::max(1, int(std::floor(m_scale)));
-    const std::pair<const char *, int32_t> settings[] = {
+    const std::pair<const char *, std::variant<int32_t, std::string>> settings[] = {
             {"Gdk/UnscaledDPI", dpi * 1024 / windowScale},
             {"Gdk/WindowScalingFactor", windowScale},
+            {"Gtk/CursorThemeName", m_cursorTheme},
+            {"Gtk/CursorThemeSize", cursorSize},
             {"Xft/DPI", dpi * 1024}};
     std::string data;
     auto append = [&data](auto value) {
         data.append(reinterpret_cast<const char *>(&value), sizeof(value));
+    };
+    auto padded = [&data](std::string_view text) {
+        data.append(text);
+        data.append((4 - text.size() % 4) % 4, '\0');
     };
     append(uint8_t(std::endian::native == std::endian::little ? 0 : 1));
     data.append(3, '\0');
@@ -576,13 +593,18 @@ void Xwm::publishDpi()
     append(uint32_t(std::size(settings)));
     for (const auto &[name, value] : settings) {
         const std::string_view key(name);
-        append(uint8_t(0));
+        const auto *text = std::get_if<std::string>(&value);
+        append(uint8_t(text ? 1 : 0));
         data.append(1, '\0');
         append(uint16_t(key.size()));
-        data.append(key);
-        data.append((4 - key.size() % 4) % 4, '\0');
+        padded(key);
         append(uint32_t(m_xsettingsSerial));
-        append(value);
+        if (text) {
+            append(uint32_t(text->size()));
+            padded(*text);
+        } else {
+            append(std::get<int32_t>(value));
+        }
     }
     xcb_change_property(m_connection, XCB_PROP_MODE_REPLACE, m_support,
                         atom("_XSETTINGS_SETTINGS"), atom("_XSETTINGS_SETTINGS"), 8, data.size(),
@@ -784,6 +806,16 @@ void Xwm::applyHints(X11Window &w)
     w.surface->setSkipTaskbar(w.skipTaskbar);
 }
 
+void Xwm::setCursorTheme(const std::string &theme, int size)
+{
+    if (theme == m_cursorTheme && size == m_cursorSize)
+        return;
+    m_cursorTheme = theme;
+    m_cursorSize = size;
+    if (m_ready)
+        publishResources();
+}
+
 void Xwm::setScale(double scale)
 {
     if (scale <= 0 || scale == m_scale)
@@ -792,7 +824,7 @@ void Xwm::setScale(double scale)
     if (!m_ready)
         return;
     roots();
-    publishDpi();
+    publishResources();
     for (auto &[id, w] : m_windows) {
         if (w->window) {
             synchronize(*w);
@@ -974,9 +1006,9 @@ void Xwm::setup()
                                                XCB_EVENT_MASK_STRUCTURE_NOTIFY,
                                                reinterpret_cast<const char *>(&e));
                                 m_xsettings = true;
-                                publishDpi();
+                                publishResources();
                             });
-                      publishDpi();
+                      publishResources();
                   }
                   if (initialized)
                       initialized(m_ready);
