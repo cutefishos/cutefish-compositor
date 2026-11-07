@@ -1057,7 +1057,8 @@ void DockWindow::updatePanelRect(const base::Rect &rect)
     // there too, so they stay grown while it is over them.
     const bool grown = m_magnifyActive;
     const bool changed = rect != m_panelRect;
-    if (!changed && grown == m_inputGrown)
+    // Grown, the slots move with the pointer, so the region is made again.
+    if (!changed && !grown && !m_inputGrown)
         return;
     m_panelRect = rect;
     m_inputGrown = grown;
@@ -1073,11 +1074,13 @@ void DockWindow::updatePanelRect(const base::Rect &rect)
                                     rect.bottom());
     base::Region region = roundedRegion(rect, cornerRadius()) | gap;
     if (grown) {
-        region |= direction == DockSettings::Bottom
-                ? base::Rect::fromEdges(rect.x(), 0, rect.right(), rect.bottom())
-                : direction == DockSettings::Left
-                ? base::Rect::fromEdges(rect.x(), rect.y(), m_windowRect.width(), rect.bottom())
-                : base::Rect::fromEdges(0, rect.y(), rect.right(), rect.bottom());
+        // The icons' slots, which take in the grown artwork: not the room
+        // past the panel beside and above them, where nothing is drawn.
+        for (DockIcon *icon : icons()) {
+            const ui::RectF slot = icon->geometry();
+            region |= base::Rect::fromEdges(int(std::floor(slot.x)), int(std::floor(slot.y)),
+                                            int(std::ceil(slot.x + slot.width)), int(std::ceil(slot.y + slot.height)));
+        }
     }
     m_window->setInputRegion(region);
     if (changed)
