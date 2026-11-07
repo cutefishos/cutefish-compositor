@@ -955,16 +955,15 @@ void DockWindow::layoutItems()
         }
     }
     m_magnifyActive = totalGrowth > 0;
-    // The panel wraps the grown icons, growing toward the half the pointer
-    // is over while its other end stays put; the icons move that way by what
-    // grew before them. Over the middle pitch the growth crosses from one end
-    // to the other on a smooth step, so the panel never jumps. The bell is
-    // five pitches wide, so among evenly spaced icons its samples sum to the
-    // same growth wherever the pointer is: the length changes only near a
-    // divider and at the ends, continuously.
-    const double pitch = m_drawn.iconSize + m_drawn.iconGap;
-    const double crossing = std::clamp((m_magnifyPointer - (m_start + m_length / 2 - pitch / 2)) / pitch, 0.0, 1.0);
-    const double base = -totalGrowth * (1 - crossing * crossing * (3 - 2 * crossing));
+    // The panel wraps the grown icons and shares the growth between its ends
+    // by where the pointer is along it: at an end it all goes that way and
+    // the other end stays put, in the middle half each way; the icons move
+    // by what grew before them. The bell is five pitches wide, so among
+    // evenly spaced icons its samples sum to the same growth wherever the
+    // pointer is: the length changes only near a divider and at the ends,
+    // continuously.
+    const double towardEnd = m_length > 0 ? std::clamp((m_magnifyPointer - m_start) / m_length, 0.0, 1.0) : 0.5;
+    const double base = -totalGrowth * (1 - towardEnd);
     // Along the content, how far what sits at `position` has moved.
     const auto displacement = [&](double position) {
         double result = base;
