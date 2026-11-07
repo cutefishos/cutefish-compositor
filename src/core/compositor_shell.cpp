@@ -490,6 +490,11 @@ void CompositorShell::initAccelerators()
     applyConvention();
     m_inputSubscriptions.push_back(
             m_keyboardSettings.shortcutConventionChanged.connect(applyConvention));
+
+    // Which key is Command, for the input manager's arrangement of the keys.
+    const auto applyCommandKey = [this] { m_seat.setCommandKey(m_keyboardSettings.commandKey()); };
+    applyCommandKey();
+    m_inputSubscriptions.push_back(m_keyboardSettings.commandKeyChanged.connect(applyCommandKey));
 }
 
 void CompositorShell::onThemeChanged()

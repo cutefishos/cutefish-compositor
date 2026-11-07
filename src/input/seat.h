@@ -86,6 +86,11 @@ public:
         m_keyTranslator.setConvention(convention);
     }
 
+    // Which key is Command under the Command convention; see CommandKey.
+    CommandKey commandKey() const { return m_commandKey; }
+
+    void setCommandKey(CommandKey key) { m_commandKey = key; }
+
     // Replaces the keymap of every keyboard; see XkbTracker::updateKeyboardLayout.
     // Keys held across the change stay held in the new state.
     bool setKeyboardLayout(const std::string &name);
@@ -324,6 +329,7 @@ private:
     std::unique_ptr<XkbTracker> m_xkbTracker;
     std::unique_ptr<XkbTracker> m_clientXkbTracker;
     KeyTranslator m_keyTranslator;
+    CommandKey m_commandKey = CommandKey::Auto;
     KeyRepeatSettings m_keyRepeatSettings;
 
     std::vector<SeatObserver *> m_observers;
