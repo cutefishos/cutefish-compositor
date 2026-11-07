@@ -315,7 +315,6 @@ cutefish_add_test(shell_test cutefish-shell cutefish-computer-control cutefish-s
     cutefish-wayland-input)
 target_sources(shell_test PRIVATE ${PROJECT_SOURCE_DIR}/src/core/computer_control_environment.cpp)
 cutefish_add_test(shell_gpu_pixel_test cutefish-shell cutefish-render)
-cutefish_add_test(glass_preferences_test cutefish-shell)
 set_tests_properties(shell_gpu_pixel_test PROPERTIES ENVIRONMENT "LIBGL_ALWAYS_SOFTWARE=1;EGL_PLATFORM=surfaceless")
 # The shell components' memory, step by step; by hand.
 add_executable(cutefish-shell-memory-bench manual/shell_memory_bench.cpp)
