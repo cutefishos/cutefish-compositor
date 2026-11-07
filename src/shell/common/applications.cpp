@@ -5,13 +5,18 @@
 #include "shell/common/applications.h"
 
 #include "base/application_registry.h"
+#include "ui/icon.h"
 
 namespace cutefish::shell {
 
 RegistryApplications::RegistryApplications()
     : m_registry(base::ApplicationRegistry::instance())
 {
-    m_changed = m_registry.changed.connect([this] { changed(); });
+    m_changed = m_registry.changed.connect([this] {
+        // A new application's icons arrive with its desktop entry.
+        ui::reloadThemeIcons();
+        changed();
+    });
 }
 
 bool RegistryApplications::isLoading() const
