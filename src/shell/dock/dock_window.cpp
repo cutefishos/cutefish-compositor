@@ -775,20 +775,23 @@ void DockWindow::layoutItems()
         ui::RectF slot = slotRect(position);
         ui::RectF iconRect = bottom ? ui::RectF {m_drawn.iconGap / 2, across, itemSize, itemSize}
                                     : ui::RectF {across, m_drawn.iconGap / 2, itemSize, itemSize};
-        // The slot is the icon's hit area, so it takes in the magnified artwork:
-        // half the growth to each side, where the neighbours moved apart by as
-        // much, and the growth away from the screen edge, where it rises to.
+        // The slot is the icon's hit area, so magnified it is the artwork's:
+        // half the growth to each side, where the neighbours moved apart by
+        // as much, and away from the screen edge exactly as far as the grown
+        // icon reaches, the panel's padding past it no longer counted.
         if (growth > 0) {
             if (bottom) {
-                slot = {slot.x - growth / 2, slot.y - growth, slot.width + growth, slot.height + growth};
+                slot = {slot.x - growth / 2, slot.y + across - growth, slot.width + growth,
+                        slot.height + growth - across};
                 iconRect.x += growth / 2;
-                iconRect.y += growth;
+                iconRect.y = growth;
             } else if (left) {
-                slot = {slot.x, slot.y - growth / 2, slot.width + growth, slot.height + growth};
+                slot = {slot.x, slot.y - growth / 2, gap + across + itemSize + growth, slot.height + growth};
                 iconRect.y += growth / 2;
             } else {
-                slot = {slot.x - growth, slot.y - growth / 2, slot.width + growth, slot.height + growth};
-                iconRect.x += growth;
+                slot = {slot.x + across - growth, slot.y - growth / 2, slot.width + growth - across,
+                        slot.height + growth};
+                iconRect.x = growth;
                 iconRect.y += growth / 2;
             }
         }
