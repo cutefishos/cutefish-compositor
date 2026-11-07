@@ -132,6 +132,20 @@ public:
         return base::RectF::fromEdges(topLeft.x(), topLeft.y(), bottomRight.x(), bottomRight.y());
     }
 
+    // The physical pixels `logical` touches, partly covered ones included.
+    base::RectF pixelsAround(const base::RectF &logical) const
+    {
+        constexpr double kEpsilon = 0.01;
+        const base::PointF outputOrigin = m_outputContext.logicalViewport.topLeft();
+        const base::PointF start = (logical.topLeft() - outputOrigin) * m_rasterScale;
+        const base::PointF end = (logical.bottomRight() - outputOrigin) * m_rasterScale;
+        const base::PointF first(std::floor(start.x() + kEpsilon), std::floor(start.y() + kEpsilon));
+        const base::PointF last(std::ceil(end.x() - kEpsilon), std::ceil(end.y() - kEpsilon));
+        const base::PointF topLeft = outputOrigin + first / m_rasterScale;
+        const base::PointF bottomRight = outputOrigin + last / m_rasterScale;
+        return base::RectF::fromEdges(topLeft.x(), topLeft.y(), bottomRight.x(), bottomRight.y());
+    }
+
     // Binds `target` and sets up the viewport. Every draw call must sit between
     // beginFrame() and endFrame().
     virtual bool beginFrame(RenderTarget *target) = 0;

@@ -241,3 +241,50 @@ TEST(CapturePixels, AWindowAtAFractionalDeviceOriginKeepsItsLayerOnPixels)
         EXPECT_EQ(image.pixel(x, kPixels / 2), x % 2 ? 0xffffffffu : kBlack) << "column " << x;
     EXPECT_EQ(glGetError(), GL_NO_ERROR);
 }
+
+// A buffer drawn scaled covers every device pixel its edges touch: a surface
+// at a fractional device position leaves no row between it and its parent.
+TEST(CapturePixels, AScaledBufferCoversThePixelsItsEdgesTouch)
+{
+    auto renderer = render::EglRendererTestAccess::create();
+    ASSERT_NE(renderer, nullptr);
+    const EGLint attrs[] = {EGL_WIDTH, 64, EGL_HEIGHT, 48, EGL_NONE};
+    auto surface = eglCreatePbufferSurface(renderer->eglDisplay(), renderer->eglConfig(), attrs);
+    ASSERT_NE(surface, EGL_NO_SURFACE);
+    auto target = std::make_unique<render::EglRenderTarget>(renderer->eglDisplay(), surface,
+                                                            nullptr, base::Size(64, 48));
+    render::TargetRetirement retire {renderer.get(), target.get()};
+    renderer->setOutputContext({"test", base::Rect(0, 0, 64, 48), {64, 48}, 1, 0, 1});
+    ASSERT_TRUE(renderer->beginFrame(target.get()));
+
+    // A green buffer at twice the density, shown at 1.75.
+    constexpr int kPixels = 32;
+    std::vector<uint8_t> green(kPixels * kPixels * 4);
+    for (int i = 0; i < kPixels * kPixels; ++i) {
+        uint8_t *pixel = &green[i * 4];
+        pixel[0] = 0;
+        pixel[1] = 255;
+        pixel[2] = 0;
+        pixel[3] = 255;
+    }
+    auto texture = renderer->createTexture({kPixels, kPixels}, green.data());
+    ASSERT_NE(texture, nullptr);
+
+    // From 1 to 17 logical units: 1.75 to 29.75 device pixels.
+    constexpr int kSide = 36;
+    const render::OutputRenderContext output {"test", base::Rect(0, 0, 20, 20), {kSide, kSide}, 1.75, 0, 1};
+    const ui::Bitmap image = renderer->captureImage(output, {kSide, kSide}, [&] {
+        renderer->fillRectF(base::RectF(0, 0, 20, 20), {1, 0, 0, 1});
+        renderer->drawTextureMapped(texture.get(), base::Rect(1, 1, 16, 16),
+                                    1, base::AffineTransform());
+    });
+    renderer->cancelFrame();
+    ASSERT_EQ(image.size(), base::Size(kSide, kSide));
+    for (int i = 1; i <= 29; ++i) {
+        EXPECT_EQ(image.pixel(i, 15), kGreen) << "column " << i;
+        EXPECT_EQ(image.pixel(15, i), kGreen) << "row " << i;
+    }
+    EXPECT_EQ(image.pixel(0, 15), kRed);
+    EXPECT_EQ(image.pixel(30, 15), kRed);
+    EXPECT_EQ(glGetError(), GL_NO_ERROR);
+}
