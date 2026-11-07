@@ -38,7 +38,6 @@ scene::OverviewWindowFrame overviewWindowFrame(const Theme *theme)
         const auto paint = [&](wm::ShadowElevation elevation, int radius, float alpha) {
             if (elevation == wm::ShadowElevation::None || alpha <= 0)
                 return;
-            radius = std::min(radius, ShadowGeometry::kMaxRadius);
             const ShadowStyle style = theme->metrics().shadowFor(elevation);
             const int rasterScale = int(std::ceil(renderer.rasterScale()));
             // Below the nine-patch's least size every size is a texture of its

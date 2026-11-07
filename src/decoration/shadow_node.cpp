@@ -165,12 +165,8 @@ void Shadow::updateNode()
         const base::Rect glass = m_window->rootSurface()->backgroundBlurRect();
         if (!glass.isEmpty())
             content = content.intersected(glass);
-        // The panel's corners grow with the icon size; past the largest shadow
-        // corner the shadow keeps that corner rather than disappearing.
-        const int panel =
-                base::roundToInt(std::min(content.width(), content.height()) * 28.0 / 86.0);
         m_node->update(content, m_elevation, Corners::all(),
-                       std::min(panel, ShadowGeometry::kMaxRadius));
+                       m_window->rootSurface()->backgroundBlurRadius());
         return;
     }
     const auto visual = wm::WindowVisualController::evaluate(*m_window, m_theme->visualStyle());

@@ -35,10 +35,9 @@ using ShadowStyle = std::array<ShadowLayer, 3>;
 class ShadowGeometry
 {
 public:
-    // Larger corners make no shadow: the corner assets are kept small. The
-    // dock's corner at the largest icon size, 66, is the largest that casts
-    // one; a smaller shadow corner shows past a glass corner as a dark
-    // crescent, and a gap of unshaded wallpaper between the two.
+    // Larger corners cast this one: the corner assets are kept small. The
+    // dock's corner reaches 66 at its largest icon size; a shadow corner
+    // tighter than the glass corner leaves unshaded wallpaper between them.
     static constexpr int kMaxRadius = 72;
 
     // A non-empty `silhouette`, window-local, replaces the rounded rectangle.

@@ -91,7 +91,7 @@ Run longestStraightRun(const std::vector<std::vector<ui::PointF>> &polygons, boo
 ShadowGeometry::ShadowGeometry(const base::Size &windowSize, int radius, const ShadowStyle &style,
                                int rasterScale, const Corners &corners,
                                const ui::Path &silhouette)
-    : m_radius(radius)
+    : m_radius(std::min(radius, kMaxRadius))
     , m_scale(rasterScale)
     , m_corners(corners)
     , m_style(style)
@@ -100,8 +100,8 @@ ShadowGeometry::ShadowGeometry(const base::Size &windowSize, int radius, const S
     // Internal assets have a bounded physical footprint. Scale 1 is the output
     // contract today; integer raster scales 2..4 are exercised independently.
     if (windowSize.isEmpty() || windowSize.width() > (1 << 20) || windowSize.height() > (1 << 20)
-        || rasterScale < 1 || rasterScale > 4 || radius < 0 || radius > kMaxRadius
-        || radius > windowSize.width() / 2 || radius > windowSize.height())
+        || rasterScale < 1 || rasterScale > 4 || m_radius < 0
+        || m_radius > windowSize.width() / 2 || m_radius > windowSize.height())
         return;
 
     int support = 0;

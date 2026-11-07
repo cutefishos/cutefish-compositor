@@ -46,6 +46,11 @@ TEST(ShadowTest, OffsetMarginsAndUnits)
     EXPECT_NE(scale4.key(), scaled.key());
     EXPECT_TRUE(ShadowGeometry({0, 2}, 0, style).paintBounds().isEmpty());
     EXPECT_TRUE(ShadowGeometry({2, 2}, 0, style, 0).paintBounds().isEmpty());
+    const ShadowGeometry largest({1000, 1000}, ShadowGeometry::kMaxRadius, style);
+    const ShadowGeometry larger({1000, 1000}, ShadowGeometry::kMaxRadius + 40, style);
+    EXPECT_FALSE(larger.paintBounds().isEmpty());
+    EXPECT_EQ(larger.key(), largest.key());
+    EXPECT_EQ(larger.rasterSize(), largest.rasterSize());
 }
 
 TEST(ShadowTest, TinyAndLargeSlicesAreBoundedAndDoNotOverlap)
