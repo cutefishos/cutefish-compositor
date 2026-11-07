@@ -60,6 +60,9 @@ public:
 
     // ItemIsMenu: the item only has a menu, which a left click shows too.
     bool itemIsMenu() const { return m_itemIsMenu; }
+    // Status is Passive: the item asks not to be shown (update-notifier
+    // registers its icons and shows them this way), as the protocol says.
+    bool isPassive() const { return m_passive; }
 
     // The exported menu, or null when the item has none; then
     // requestContextMenu() asks the item to show its own.
@@ -105,6 +108,7 @@ private:
     std::vector<ui::Bitmap> m_pixmaps;
     std::string m_applicationIcon;
     bool m_itemIsMenu = false;
+    bool m_passive = false;
     std::unique_ptr<DBusMenu> m_menu;
     base::Job m_decode;
     base::Subscription m_applicationsChanged;

@@ -153,6 +153,10 @@ void SystemTrayView::rebuild()
     const int rows = m_model ? m_model->count() : 0;
     for (int row = 0; row < rows; ++row) {
         StatusNotifierItem *source = m_model->at(row);
+        // A passive item stays registered but out of sight; its view, if it
+        // had one, leaves with the items that are gone.
+        if (source->isPassive())
+            continue;
         auto it = std::find_if(m_items.begin(), m_items.end(),
                                [&](TrayItemView *view) { return view->itemId() == source->id(); });
         TrayItemView *view;
