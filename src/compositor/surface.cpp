@@ -823,6 +823,10 @@ void Surface::removeSubSurface(Surface *child)
         child->m_node->setVisible(false);
     }
     updateSubSurfaceStacking();
+    // The hit-test stack holds raw pointers and is otherwise rebuilt only at
+    // this surface's next commit; the child may be freed before that, and a
+    // pointer motion in between would walk it.
+    updateHitTestRegion();
     if (m_compositor)
         m_compositor->scheduleRepaint();
     // Either side may have waited only behind the other's commits. Not from
