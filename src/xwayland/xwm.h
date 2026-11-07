@@ -117,6 +117,12 @@ private:
     void publishDpi();
     void ping(uint32_t window);
     bool requestSync(X11Window &window);
+    // The client's sync counter passed the last request, or it timed out.
+    void syncReached(X11Window &window);
+    // A cross-fade keeps the window's old picture until the client has
+    // committed what it painted at the size it was last sent.
+    void holdContent(X11Window &window);
+    void releaseContent(X11Window &window);
     void kill(uint32_t window);
     static uint32_t ownerPid(const X11Window &window);
     static std::string displayTitle(const X11Window &window);

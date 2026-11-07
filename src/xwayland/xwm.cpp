@@ -11,6 +11,7 @@
 #include "xwm.h"
 
 #include "scene/surface_node.h"
+#include "scene/window_animation.h"
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
@@ -264,6 +265,12 @@ struct Xwm::X11Window : compositor::SurfaceObserver, wm::WindowObserver {
     xcb_sync_counter_t syncCounter = 0;
     xcb_sync_alarm_t syncAlarm = 0;
     int64_t syncValue = 0;
+    // The size last sent whose painted content has not been committed, in
+    // X11 pixels; synced once the client's counter has passed it, as only a
+    // commit after that holds what it painted rather than a bare new buffer.
+    std::optional<base::Size> awaitedSize;
+    bool awaitedSynced = false;
+    uint64_t awaitRevision = 0;
     bool metadataReady = false, syncing = false;
     bool propertiesPending = false;
     // Changed while a read was on its way, to be read again once it lands.
@@ -294,15 +301,26 @@ struct Xwm::X11Window : compositor::SurfaceObserver, wm::WindowObserver {
 
     void onSurfaceDestroying(compositor::Surface *) override { xwm->detach(*this); }
 
-    void onSurfaceCommit(compositor::Surface *) override { xwm->present(*this); }
+    void onSurfaceCommit(compositor::Surface *surface) override
+    {
+        if (awaitedSize && awaitedSynced && surface->bufferSize() == *awaitedSize)
+            xwm->releaseContent(*this);
+        xwm->present(*this);
+    }
 
     void onWindowDestroying(wm::Window *) override { window = nullptr; }
 
-    void onWindowBoundsChanged(wm::Window *, const base::Rect &) override { xwm->synchronize(*this); }
+    void onWindowBoundsChanged(wm::Window *, const base::Rect &) override
+    {
+        xwm->synchronize(*this);
+        xwm->holdContent(*this);
+    }
 
+    // Comes after the state's cross-fade has started.
     void onWindowStateTypeChanged(wm::Window *, wm::WindowStateType) override
     {
         xwm->synchronize(*this);
+        xwm->holdContent(*this);
     }
 
     void onWindowFrameChanged(wm::Window *) override { xwm->synchronize(*this); }
@@ -675,12 +693,56 @@ bool Xwm::requestSync(X11Window &w)
               if (it == m_windows.end() || it->second->generation != generation
                   || !it->second->syncPending || it->second->syncValue != requested)
                   return;
-              auto &w = *it->second;
-              w.syncPending = false;
-              if (std::exchange(w.syncDeferred, false))
-                  synchronize(w);
+              syncReached(*it->second);
           });
     return true;
+}
+
+void Xwm::syncReached(X11Window &w)
+{
+    w.syncPending = false;
+    if (std::exchange(w.syncDeferred, false))
+        synchronize(w);
+    if (w.syncPending || !w.awaitedSize)
+        return;
+    w.awaitedSynced = true;
+    // Xwayland may have committed the painted buffer before the alarm reached us.
+    after(std::chrono::milliseconds(100), [this, id = w.id, generation = w.generation,
+                                           revision = w.awaitRevision] {
+        auto it = m_windows.find(id);
+        if (it != m_windows.end() && it->second->generation == generation
+            && it->second->awaitRevision == revision)
+            releaseContent(*it->second);
+    });
+}
+
+void Xwm::holdContent(X11Window &w)
+{
+    if (!w.window || !w.awaitedSize)
+        return;
+    auto *animation = dynamic_cast<scene::WindowAnimation *>(w.window->node());
+    if (!animation || !animation->isRunning()
+        || !scene::WindowAnimation::isCrossFade(animation->type()))
+        return;
+    animation->setBoundsContentReady(false);
+    // A client that never paints at the size must not stop the transition.
+    after(std::chrono::milliseconds(kSyncTimeoutMs), [this, id = w.id, generation = w.generation,
+                                                      revision = w.awaitRevision] {
+        auto it = m_windows.find(id);
+        if (it != m_windows.end() && it->second->generation == generation
+            && it->second->awaitRevision == revision)
+            releaseContent(*it->second);
+    });
+}
+
+void Xwm::releaseContent(X11Window &w)
+{
+    w.awaitedSize.reset();
+    ++w.awaitRevision;
+    if (!w.window)
+        return;
+    if (auto *animation = dynamic_cast<scene::WindowAnimation *>(w.window->node()))
+        animation->setBoundsContentReady(true);
 }
 
 void Xwm::applyStateRequest(X11Window &w, const std::array<uint32_t, 3> &request)
@@ -1573,10 +1635,15 @@ void Xwm::synchronize(X11Window &w)
     // one waits for the counter, as in KWin, and only the latest is sent.
     bool deferred = false;
     if (xSize != w.xGeometry.size()) {
+        if (w.awaitedSize != xSize) {
+            w.awaitedSize = xSize;
+            ++w.awaitRevision;
+        }
+        w.awaitedSynced = false;
         if (w.syncPending)
             deferred = w.syncDeferred = true;
         else
-            requestSync(w);
+            w.awaitedSynced = !requestSync(w);
     }
     if (!deferred) {
         w.sizeUnknown = false;
@@ -1707,9 +1774,7 @@ void Xwm::event(xcb_generic_event_t *generic)
         for (auto &[id, w] : m_windows) {
             if (w->syncAlarm != e->alarm)
                 continue;
-            w->syncPending = false;
-            if (std::exchange(w->syncDeferred, false))
-                synchronize(*w);
+            syncReached(*w);
             break;
         }
         return;

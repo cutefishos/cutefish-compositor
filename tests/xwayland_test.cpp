@@ -1338,6 +1338,28 @@ TEST_F(XwaylandTest, NetWmSyncRequestHoldsResizesForTheClientCounter)
         poll();
         return configures.back() == base::Size(300, 150);
     }));
+
+    // A maximize cross-fades from the old picture until the client has
+    // painted at the new size: past its counter, then committed.
+    auto *animation = dynamic_cast<scene::WindowAnimation *>(window->node());
+    ASSERT_TRUE(animation);
+    xcb_sync_set_counter(c, counter, {0, requests.back()});
+    xcb_flush(c);
+    settle(100);
+    const size_t answered = requests.size();
+    window->maximize();
+    ASSERT_TRUE(animation->isRunning());
+    ASSERT_TRUE(scene::WindowAnimation::isCrossFade(animation->type()));
+    settle(200);
+    ASSERT_EQ(requests.size(), answered + 1);
+    EXPECT_TRUE(animation->isWaitingForBoundsContent());
+    xcb_sync_set_counter(c, counter, {0, requests.back()});
+    xcb_clear_area(c, 1, id, 0, 0, 0, 0);
+    xcb_flush(c);
+    EXPECT_TRUE(until([&] {
+        poll();
+        return !animation->isWaitingForBoundsContent();
+    }));
 }
 
 // Xwayland confines the pointer for a grab with confine_to, emulates
