@@ -1296,11 +1296,25 @@ void DockWindow::showTooltip(DockIcon *icon)
     if (m_menuOpen || icon->toolTipText().empty())
         return;
     m_tooltipOwner = icon;
+    // The artwork as drawn: magnified, it is grown and lifted past the panel,
+    // and the bubble keeps clear of it by as much as it reaches past.
     const ui::RectF slot = icon->geometry();
-    const ui::RectF rect = icon->iconRect();
-    m_tooltip->show(icon->toolTipText(),
-                    base::PointF(slot.x + rect.x + rect.width / 2, slot.y + rect.y + rect.height / 2),
-                    icon->bounceOffset());
+    const ui::RectF rect = drawnIconRect(icon);
+    const double top = slot.y + rect.y;
+    const double left = slot.x + rect.x;
+    ui::PointF offset = icon->bounceOffset();
+    switch (m_dock->settings().direction()) {
+    case DockSettings::Bottom:
+        offset.y -= std::max(0.0, m_panelRect.y() - top);
+        break;
+    case DockSettings::Left:
+        offset.x += std::max(0.0, left + rect.width - (m_panelRect.x() + m_panelRect.width()));
+        break;
+    case DockSettings::Right:
+        offset.x -= std::max(0.0, m_panelRect.x() - left);
+        break;
+    }
+    m_tooltip->show(icon->toolTipText(), base::PointF(left + rect.width / 2, top + rect.height / 2), offset);
 }
 
 void DockWindow::iconBounced(DockIcon *icon)
