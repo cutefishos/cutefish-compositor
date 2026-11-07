@@ -354,10 +354,9 @@ DockWindow::DockWindow(Shell *shell, std::unique_ptr<Dock> dock)
     }));
     m_subscriptions.push_back(settings.visibilityChanged.connect([this] { resize(false); }));
     m_subscriptions.push_back(settings.glassTintChanged.connect([this] { updateGlass(); }));
-    // The window makes room for the icons to grow into; what is grown now
-    // settles back if magnification went off.
+    // What is grown now follows the new setting, or settles back if
+    // magnification went off.
     m_subscriptions.push_back(settings.magnificationChanged.connect([this] {
-        resize(false);
         if (m_magnifyAmount > 0 || m_magnifyHover) {
             if (!m_magnifier)
                 m_magnifier = std::make_unique<Magnifier>(this);
@@ -476,10 +475,11 @@ int DockWindow::windowThickness() const
     // Past the panel's far side, the room a magnified icon grows into and a
     // launching icon bounces into. Both lead away from the screen edge and
     // they add up: the icon that is clicked is under the pointer, so it
-    // bounces from its full magnified size.
+    // bounces from its full magnified size. The room is for the largest
+    // magnification whatever the setting, so the slider never resizes the
+    // window and the panel's position does not follow the room's parity.
     const DockMetrics metrics = DockMetrics::forIconSize(m_dock->settings().iconSize());
-    const double magnification = m_dock->settings().magnification();
-    const int growth = int(std::ceil((magnification - 1) * metrics.iconSize));
+    const int growth = metrics.iconSize;
     return metrics.thickness() + std::max(0, growth + metrics.bounceHeight() - metrics.outerPadding);
 }
 
@@ -958,28 +958,11 @@ void DockWindow::layoutItems()
         }
     }
     m_magnifyActive = totalGrowth > 0;
-    // The panel takes the width of the most the icons can grow by at once,
-    // with the pointer on an icon in the middle, and keeps it as long as the
-    // pointer is over the dock: a panel that breathed with every move
-    // between two icons jiggled. The icons flow inside it, the slack left
-    // over from a lesser growth going to the side the pointer is away from.
-    double maxGrowth = totalGrowth;
-    if (m_magnifyAmount > 0) {
-        const double drawnSize = m_drawn.iconSize;
-        const double range = 2.5 * (drawnSize + m_drawn.iconGap);
-        for (size_t at = 0; at < placements.size(); ++at) {
-            double sum = 0;
-            for (size_t i = 0; i < placements.size(); ++i) {
-                const double distance = std::abs(centres[i] - centres[at]) / range;
-                if (distance < 1)
-                    sum += m_magnifyAmount * (magnification - 1) * (1 + std::cos(std::numbers::pi * distance)) / 2
-                            * drawnSize;
-            }
-            maxGrowth = std::max(maxGrowth, sum);
-        }
-    }
-    const double pointerFraction = totalGrowth > 0 ? shift / totalGrowth : 0.5;
-    const double base = -maxGrowth / 2 + (maxGrowth - totalGrowth) * pointerFraction;
+    // The panel wraps the grown icons, the point under the pointer staying
+    // put. The bell is five pitches wide, so among evenly spaced icons its
+    // samples sum to the same growth wherever the pointer is: the length
+    // changes only near a divider and at the ends, continuously.
+    const double base = -shift;
     // Along the content, how far what sits at `position` has moved.
     const auto displacement = [&](double position) {
         double result = base;
@@ -990,8 +973,8 @@ void DockWindow::layoutItems()
         return result;
     };
 
-    panelStart = int(std::floor(m_start - maxGrowth / 2 + 0.5));
-    panelEnd = int(std::floor(m_start + m_length + maxGrowth / 2 + 0.5));
+    panelStart = int(std::floor(m_start + base + 0.5));
+    panelEnd = int(std::floor(m_start + m_length + base + totalGrowth + 0.5));
     panel = bottom ? base::Rect(panelStart, farSide - int(drawnThickness), panelEnd - panelStart,
                                 int(drawnThickness))
                    : base::Rect(left ? gap : farSide - int(drawnThickness), panelStart,
@@ -1089,6 +1072,9 @@ void DockWindow::updatePanelRect(const base::Rect &rect)
 
 void DockWindow::magnifyAt(const ui::PointF &windowPoint)
 {
+    // An open menu holds the magnification as it is.
+    if (m_menuOpen)
+        return;
     if (m_dock->settings().magnification() <= 1 && m_magnifyAmount == 0)
         return;
     const double along = m_dock->settings().direction() == DockSettings::Bottom ? windowPoint.x : windowPoint.y;
@@ -1109,7 +1095,7 @@ void DockWindow::magnifyAt(const ui::PointF &windowPoint)
 
 void DockWindow::magnifyEnd()
 {
-    if (!m_magnifyHover)
+    if (m_menuOpen || !m_magnifyHover)
         return;
     m_magnifyHover = false;
     if (m_magnifyAmount == 0)
@@ -1435,6 +1421,10 @@ void DockWindow::popupMenu(DockIcon *icon, std::unique_ptr<ui::Menu> menu)
     m_menuIcon = icon;
     m_menu->onClosed = [this] {
         m_menuOpen = false;
+        // The magnification held under the menu goes unless the pointer is
+        // back over the dock, where its next move carries it on.
+        if (!m_panel->isHovered())
+            magnifyEnd();
         DockIcon *icon = std::exchange(m_menuIcon, nullptr);
         if (!icon)
             return;
