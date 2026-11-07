@@ -11,6 +11,8 @@
 
 #include "base/geometry.h"
 #include "base/thread_pool.h"
+#include "base/signal.h"
+#include "shell/glass_preferences.h"
 #include "shell/shell.h"
 #include "ui/geometry.h"
 #include "ui/view.h"
@@ -83,8 +85,10 @@ private:
     double m_appliedScale = 0;
     int m_cursorSize = 24;
     base::Job m_cursorSizeLoad;
+    // The toolbar's rect the glass was sent for, and what it was made for.
     ui::RectF m_glassRect;
-    bool m_glassDark = false;
+    std::optional<GlassKey> m_glassKey;
+    base::Subscription m_glassSubscription;
 };
 
 } // namespace cutefish::shell

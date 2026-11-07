@@ -15,6 +15,7 @@
 #include "shell/screenshot/capture_toolbar.h"
 #include "shell/screenshot/screen_capture.h"
 #include "shell/shell_data.h"
+#include "shell/glass_preferences.h"
 #include "shell/shell_window.h"
 #include "ui/bubble_shape.h"
 #include "ui/embedded_window.h"
@@ -417,7 +418,7 @@ protected:
     // A theme change lays every window out again.
     void layout() override
     {
-        if (m_overlay->m_glassDark != ui::Theme::current().darkMode)
+        if (m_overlay->m_glassKey != currentGlassKey())
             m_overlay->updateGlass();
     }
 
@@ -736,6 +737,7 @@ CaptureOverlay::CaptureOverlay(ScreenCapture *capture, Shell *shell, const Shell
     m_window->window()->onPointerPressed = [this](ui::PointF, ui::MouseButton) {
         m_view->toolbar()->pressedOutsideMenu();
     };
+    m_glassSubscription = GlassPreferences::instance().changed.connect([this] { updateGlass(); });
 }
 
 CaptureOverlay::~CaptureOverlay()
@@ -816,11 +818,11 @@ void CaptureOverlay::update()
 void CaptureOverlay::updateGlass()
 {
     const ui::RectF rect = toolbarRect();
-    const bool dark = ui::Theme::current().darkMode;
-    if (rect == m_glassRect && dark == m_glassDark)
+    const GlassKey key = currentGlassKey();
+    if (rect == m_glassRect && m_glassKey == key)
         return;
     m_glassRect = rect;
-    m_glassDark = dark;
+    m_glassKey = key;
     if (rect.width <= 0 || rect.height <= 0) {
         m_window->setBackgroundBlur({}, 0);
         return;
@@ -830,7 +832,7 @@ void CaptureOverlay::updateGlass()
     const base::Rect region(left, top, int(std::lround(rect.x + rect.width)) - left,
                             int(std::lround(rect.y + rect.height)) - top);
     m_window->setBackgroundBlur(region, int(std::lround(m_view->toolbar()->radius())),
-                                dark ? popupGlass(0.17, 0.17, 0.19, 0.6) : popupGlass(1, 1, 1, 0.6));
+                                shellGlass(GlassRole::Popup));
 }
 
 void CaptureOverlay::updateCursor()

@@ -14,6 +14,7 @@
 #include "shell/notification/notification_motion.h"
 #include "shell/shell.h"
 #include "shell/shell_data.h"
+#include "shell/glass_preferences.h"
 #include "shell/shell_window.h"
 #include "ui/embedded_window.h"
 #include "ui/theme.h"
@@ -167,9 +168,7 @@ void NotificationPopups::Banner::updateTimer()
 
 void NotificationPopups::Banner::updateGlass()
 {
-    const bool dark = ui::Theme::current().darkMode;
-    m_window->setBackgroundBlur(base::Rect(0, 0, kWidth, m_height), int(kRadius),
-                                dark ? popupGlass(0.17, 0.17, 0.19, 0.6) : popupGlass(1, 1, 1, 0.6));
+    m_window->setBackgroundBlur(base::Rect(0, 0, kWidth, m_height), int(kRadius), shellGlass(GlassRole::Popup));
 }
 
 void NotificationPopups::Banner::place(const base::Point &position)
@@ -217,6 +216,10 @@ NotificationPopups::NotificationPopups(Shell *shell, NotificationBanners &model)
     m_subscriptions.push_back(model.modelReset.connect([this] { reset(); }));
     // The work area moves with the status bar and the dock.
     m_subscriptions.push_back(shell->windowManager()->outputsChanged.connect([this] { schedulePositioning(); }));
+    m_subscriptions.push_back(GlassPreferences::instance().changed.connect([this] {
+        for (const auto &banner : m_banners)
+            banner->updateGlass();
+    }));
     reset();
 }
 

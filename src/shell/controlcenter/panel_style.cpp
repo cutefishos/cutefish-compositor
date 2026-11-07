@@ -7,6 +7,7 @@
 #include <cmath>
 
 #include "shell/shell_data.h"
+#include "shell/glass_preferences.h"
 #include "ui/painter.h"
 #include "ui/theme.h"
 
@@ -38,21 +39,16 @@ ui::Color secondaryTextColor()
     return dark() ? rgba(1, 1, 1, 0.6) : ui::Theme::current().disabledText;
 }
 
+// The shell's glass at the Appearance sliders, one material for every panel;
+// frosted, each its old one.
 render::GlassParams panelGlass()
 {
-    render::GlassParams glass = dark() ? popupGlass(0.13, 0.13, 0.14, 0.86)
-                                       : popupGlass(0.94, 0.94, 0.95, 0.86);
-    glass.blurSigma = glassFixed(20.0);
-    glass.saturation = glassFixed(2.4);
-    return glass;
+    return shellGlass(GlassRole::Panel);
 }
 
 render::GlassParams controlCenterGlass()
 {
-    render::GlassParams glass = dark() ? popupGlass(0.1, 0.1, 0.11, 0.82) : popupGlass(0.97, 0.97, 0.98, 0.65);
-    glass.blurSigma = glassFixed(20.0);
-    glass.saturation = glassFixed(1.2);
-    return glass;
+    return shellGlass(GlassRole::ControlCenter);
 }
 
 ui::Color statusSurfaceColor()

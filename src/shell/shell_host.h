@@ -9,6 +9,8 @@
 #include <memory>
 #include <vector>
 
+#include "base/signal.h"
+#include "shell/glass_preferences.h"
 #include "ui/embedded_host.h"
 
 namespace cutefish::wayland {
@@ -61,8 +63,9 @@ private:
     // Popups let go of, destroyed on the next loop turn: the toolkit hides a
     // popup from inside input the seat is still dispatching to its surface.
     std::vector<std::unique_ptr<ShellWindow>> m_released;
-    // The dark mode each window's glass was tinted for.
-    std::map<const ui::EmbeddedWindow *, bool> m_glassDark;
+    // The theme and preferences each popup's glass was made for.
+    std::map<ui::EmbeddedWindow *, GlassKey> m_glassKeys;
+    base::Subscription m_glassSubscription;
     std::unique_ptr<ShellDrag> m_drag;
     std::unique_ptr<ShellTextInput> m_textInput;
     std::shared_ptr<bool> m_alive = std::make_shared<bool>(true);

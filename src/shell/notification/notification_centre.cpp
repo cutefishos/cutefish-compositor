@@ -15,6 +15,7 @@
 #include "shell/notification/notification_models.h"
 #include "shell/shell.h"
 #include "shell/shell_data.h"
+#include "shell/glass_preferences.h"
 #include "shell/shell_host.h"
 #include "shell/shell_window.h"
 #include "ui/application.h"
@@ -497,6 +498,7 @@ NotificationCentre::NotificationCentre(Shell *shell, NotificationHistory &histor
         }
     }));
     m_subscriptions.push_back(ui::Application::instance()->languageChanged.connect([this] { retranslate(); }));
+    m_subscriptions.push_back(GlassPreferences::instance().changed.connect([this] { applyGlass(); }));
 }
 
 NotificationCentre::~NotificationCentre()
@@ -669,13 +671,8 @@ void NotificationCentre::applyGlass()
     ShellWindow *window = shellWindow();
     if (!window)
         return;
-    // PanelGlass: PopupGlass with a heavier blur and saturation, tinted
-    // PanelStyle.panelTint.
-    const bool dark = ui::Theme::current().darkMode;
-    render::GlassParams glass = dark ? popupGlass(0.13, 0.13, 0.14, 0.86) : popupGlass(0.94, 0.94, 0.95, 0.86);
-    glass.blurSigma = glassFixed(20.0);
-    glass.saturation = glassFixed(2.4);
-    window->setBackgroundBlur(base::Rect(0, 0, m_geometry.width(), m_geometry.height()), int(kRadius), glass);
+    window->setBackgroundBlur(base::Rect(0, 0, m_geometry.width(), m_geometry.height()), int(kRadius),
+                              shellGlass(GlassRole::Panel));
 }
 
 // --- The model's rows -------------------------------------------------------

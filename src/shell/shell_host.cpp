@@ -10,6 +10,7 @@
 #include "core/main_loop.h"
 #include "shell/shell.h"
 #include "shell/shell_data.h"
+#include "shell/glass_preferences.h"
 #include "shell/shell_drag.h"
 #include "shell/shell_text_input.h"
 #include "shell/shell_window.h"
@@ -25,6 +26,14 @@ ShellHost::ShellHost(Shell *shell, wayland::InputMethodRelay *inputMethod)
     if (inputMethod)
         m_textInput = std::make_unique<ShellTextInput>(inputMethod);
     ui::EmbeddedWindow::setHost(this);
+    // Every popup that is up follows the sliders at once.
+    m_glassSubscription = GlassPreferences::instance().changed.connect([this] {
+        std::vector<ui::EmbeddedWindow *> windows;
+        for (const auto &[window, key] : m_glassKeys)
+            windows.push_back(window);
+        for (ui::EmbeddedWindow *window : windows)
+            blurChanged(window);
+    });
 }
 
 ShellHost::~ShellHost()
@@ -53,7 +62,7 @@ ShellWindow *ShellHost::windowFor(const ui::EmbeddedWindow *window) const
 
 void ShellHost::windowDestroying(ShellWindow *window)
 {
-    m_glassDark.erase(window->window());
+    m_glassKeys.erase(window->window());
     if (m_textInput)
         m_textInput->windowDestroying(window);
     if (m_drag)
@@ -62,8 +71,8 @@ void ShellHost::windowDestroying(ShellWindow *window)
 
 void ShellHost::frameStarting(ShellWindow *window)
 {
-    const auto it = m_glassDark.find(window->window());
-    if (it != m_glassDark.end() && it->second != ui::Theme::current().darkMode)
+    const auto it = m_glassKeys.find(window->window());
+    if (it != m_glassKeys.end() && it->second != currentGlassKey())
         blurChanged(window->window());
 }
 
@@ -125,14 +134,12 @@ void ShellHost::blurChanged(ui::EmbeddedWindow *window)
     const ui::RectF rect = window->blurRect();
     const int left = int(std::lround(rect.x));
     const int top = int(std::lround(rect.y));
-    // FishUI's popups (menus, drop-downs) sit on PopupGlass, outlined and
-    // masked by their bubble.
-    const bool dark = ui::Theme::current().darkMode;
-    m_glassDark[window] = dark;
+    // FishUI's popups (menus, drop-downs) sit on the shell's glass, outlined
+    // and masked by their bubble.
+    m_glassKeys[window] = currentGlassKey();
     shellWindow->setBackgroundBlur(base::Rect(left, top, int(std::lround(rect.x + rect.width)) - left,
                                               int(std::lround(rect.y + rect.height)) - top),
-                                   int(std::lround(window->blurRadius())),
-                                   dark ? popupGlass(0.17, 0.17, 0.19, 0.6) : popupGlass(1, 1, 1, 0.6),
+                                   int(std::lround(window->blurRadius())), shellGlass(GlassRole::Popup),
                                    window->blurShape());
 }
 

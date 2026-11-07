@@ -911,6 +911,7 @@ target_link_libraries(cutefish-switcher PUBLIC cutefish-wm cutefish-decoration c
 add_library(cutefish-shell STATIC
     src/shell/shell.cpp src/shell/shell.h
     src/shell/shell_data.cpp src/shell/shell_data.h
+    src/shell/glass_preferences.cpp src/shell/glass_preferences.h
     src/shell/shell_drag.cpp src/shell/shell_drag.h
     src/shell/shell_host.cpp src/shell/shell_host.h
     src/shell/shell_input.cpp src/shell/shell_input.h
