@@ -35,7 +35,8 @@ StatusNotifierItem::StatusNotifierItem(dbus::Connection *bus, std::string id, Ta
     m_refreshTimer.setSingleShot(true);
     m_refreshTimer.onTimeout = [this] { performRefresh(); };
 
-    for (const char *signal : {"NewTitle", "NewIcon", "NewAttentionIcon", "NewOverlayIcon", "NewToolTip"})
+    for (const char *signal :
+         {"NewTitle", "NewIcon", "NewAttentionIcon", "NewOverlayIcon", "NewToolTip", "NewStatus"})
         m_matches.push_back(m_proxy.onSignal(signal, [this](const dbus::Message &message) {
             if (m_sender->accepts(message))
                 refresh();
@@ -104,6 +105,7 @@ void StatusNotifierItem::apply(const dbus::VariantMap &properties)
     m_appId = property(properties, "Id");
     const auto itemIsMenu = properties.find("ItemIsMenu");
     m_itemIsMenu = itemIsMenu != properties.end() && itemIsMenu->second.value<bool>(false);
+    m_passive = property(properties, "Status") == "Passive";
 
     const auto iconByName = [this](const std::string &name) -> std::string {
         if (name.empty() || !m_iconExists)
