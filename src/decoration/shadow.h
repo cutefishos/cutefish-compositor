@@ -36,9 +36,10 @@ class ShadowGeometry
 {
 public:
     // Larger corners make no shadow: the corner assets are kept small. The
-    // switcher's 36 is the largest corner that casts one; a smaller shadow
-    // corner shows past a glass corner as a dark crescent.
-    static constexpr int kMaxRadius = 36;
+    // dock's corner at the largest icon size, 66, is the largest that casts
+    // one; a smaller shadow corner shows past a glass corner as a dark
+    // crescent, and a gap of unshaded wallpaper between the two.
+    static constexpr int kMaxRadius = 72;
 
     // A non-empty `silhouette`, window-local, replaces the rounded rectangle.
     // Its longest straight run on each axis is stretched the way the
