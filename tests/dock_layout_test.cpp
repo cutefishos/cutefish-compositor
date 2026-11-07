@@ -20,6 +20,7 @@
 #include "wm/dock_layout_manager.h"
 #include "wm/window.h"
 #include "wm/window_manager.h"
+#include "wm/window_visual_controller.h"
 
 using namespace cutefish;
 using namespace cutefish::wm;
@@ -684,6 +685,27 @@ TEST_F(DockLayoutTest, OnlyTheActiveFullscreenWindowIsPushedAndOnlyByTheBar)
     finishSlide();
     EXPECT_EQ(30, reveals.back());
     EXPECT_EQ(base::Point(0, 30), window->presentationOffset());
+}
+
+TEST_F(DockLayoutTest, OutlineGoesUnderTheDockContentButOverAPanel)
+{
+    // Magnified or bouncing icons reach past the dock's panel: an outline
+    // drawn over the content would cross them, so the dock's goes under it.
+    // A panel's content stays inside its body, so its outline stays on top.
+    const auto outlined = [&](Window *window) {
+        window->rootSurface()->setBackgroundBlur(base::Rect(base::Point(), window->bounds().size()), 12);
+        window->rootSurface()->commit();
+        return WindowVisualController::evaluate(*window);
+    };
+    const scene::WindowVisualState dockState = outlined(dock);
+    EXPECT_TRUE(dockState.drawOutline);
+    EXPECT_TRUE(dockState.outlineUnderContent);
+
+    Window *panel = makeWindow(base::Rect(0, 0, 1000, 32));
+    panel->setRole(WindowRole::Notification);
+    const scene::WindowVisualState panelState = outlined(panel);
+    EXPECT_TRUE(panelState.drawOutline);
+    EXPECT_FALSE(panelState.outlineUnderContent);
 }
 
 } // namespace

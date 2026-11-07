@@ -36,6 +36,9 @@ struct WindowVisualState {
     float dimOpacity = 0;
     bool clipContent = false;
     bool drawOutline = false;
+    // Drawn before the content rather than over it: for a body the content
+    // reaches past, such as the dock's panel under its magnified icons.
+    bool outlineUnderContent = false;
 
     const render::RoundedShape &outlined() const
     {

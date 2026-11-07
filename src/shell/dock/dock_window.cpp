@@ -772,10 +772,27 @@ void DockWindow::layoutItems()
     };
     const auto placeIcon = [&](DockIcon *icon, double position, double scale, double opacity, double magnify,
                                double growth) {
-        const ui::RectF slot = slotRect(position);
+        ui::RectF slot = slotRect(position);
+        ui::RectF iconRect = bottom ? ui::RectF {m_drawn.iconGap / 2, across, itemSize, itemSize}
+                                    : ui::RectF {across, m_drawn.iconGap / 2, itemSize, itemSize};
+        // The slot is the icon's hit area, so it takes in the magnified artwork:
+        // half the growth to each side, where the neighbours moved apart by as
+        // much, and the growth away from the screen edge, where it rises to.
+        if (growth > 0) {
+            if (bottom) {
+                slot = {slot.x - growth / 2, slot.y - growth, slot.width + growth, slot.height + growth};
+                iconRect.x += growth / 2;
+                iconRect.y += growth;
+            } else if (left) {
+                slot = {slot.x, slot.y - growth / 2, slot.width + growth, slot.height + growth};
+                iconRect.y += growth / 2;
+            } else {
+                slot = {slot.x - growth, slot.y - growth / 2, slot.width + growth, slot.height + growth};
+                iconRect.x += growth;
+                iconRect.y += growth / 2;
+            }
+        }
         icon->setGeometry({slot.x + panel.x(), slot.y + panel.y(), slot.width, slot.height});
-        const ui::RectF iconRect = bottom ? ui::RectF {m_drawn.iconGap / 2, across, itemSize, itemSize}
-                                          : ui::RectF {across, m_drawn.iconGap / 2, itemSize, itemSize};
         icon->setIconRect(iconRect);
         // Grown about its centre, then moved so it grows away from the screen edge.
         const double rise = growth / 2;

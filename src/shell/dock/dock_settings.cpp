@@ -15,6 +15,13 @@ namespace cutefish::shell {
 
 static constexpr std::chrono::milliseconds kIconSizeSaveDelay(300);
 
+// A magnification from the file or the service: 1..kMaxMagnification, and
+// 1 for anything that is not a number, which std::clamp would pass on.
+static double sanitizedMagnification(double magnification)
+{
+    return std::isfinite(magnification) ? std::clamp(magnification, 1.0, DockSettings::kMaxMagnification) : 1;
+}
+
 DockSettings::DockSettings(std::string path)
     : m_path(std::move(path))
 {
@@ -80,7 +87,7 @@ DockSettings::Values DockSettings::load(const std::string &path)
     values.edgeMargins = int(settings.intValue("Dock/EdgeMargins", 10));
     values.glassTint = std::clamp(settings.doubleValue("Dock/GlassTint", 0.5), 0.0, 1.0);
     values.minimizedArea = settings.boolValue("Dock/MinimizedArea", true);
-    values.magnification = std::clamp(settings.doubleValue("Dock/Magnification", 1.0), 1.0, kMaxMagnification);
+    values.magnification = sanitizedMagnification(settings.doubleValue("Dock/Magnification", 1.0));
     return values;
 }
 
@@ -134,7 +141,7 @@ void DockSettings::setGlassTint(double tint)
 
 void DockSettings::setMagnification(double magnification)
 {
-    magnification = std::isfinite(magnification) ? std::clamp(magnification, 1.0, kMaxMagnification) : 1;
+    magnification = sanitizedMagnification(magnification);
     if (std::abs(m_magnification - magnification) < 1e-12)
         return;
     m_magnification = magnification;

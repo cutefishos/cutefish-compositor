@@ -115,6 +115,23 @@ void WindowVisualNode::render(render::Renderer &renderer) const
         shape.radius = corners->radius;
         shape.radiusScale = corners->radiusScale;
     }
+    const auto paintOutline = [&] {
+        if (!m_state.drawOutline || renderer.suppressWindowOutlines)
+            return;
+        if (!m_state.outlinePath.isEmpty()) {
+            // Rasterized where it lands, so it stays on physical pixels at any scale.
+            auto state = m_state;
+            state.outlinePath.translate(placed.x(), placed.y());
+            paintShapeOutline(renderer, state, base::AffineTransform());
+        } else {
+            auto outline = m_state.outlined();
+            outline.bounds.translate(placed);
+            paintWindowOutline(renderer, outline, m_state);
+        }
+    };
+    // Under the content when the content reaches past the body, over it otherwise.
+    if (m_state.outlineUnderContent)
+        paintOutline();
     const bool clip = m_state.clipContent || corners;
     if (clip)
         renderer.pushRoundedClip(shape);
@@ -124,16 +141,8 @@ void WindowVisualNode::render(render::Renderer &renderer) const
         renderer.fillRectF(shape.bounds, {0, 0, 0, dim});
     if (clip)
         renderer.popRoundedClip();
-    if (m_state.drawOutline && !renderer.suppressWindowOutlines && !m_state.outlinePath.isEmpty()) {
-        // Rasterized where it lands, so it stays on physical pixels at any scale.
-        auto state = m_state;
-        state.outlinePath.translate(placed.x(), placed.y());
-        paintShapeOutline(renderer, state, base::AffineTransform());
-    } else if (m_state.drawOutline && !renderer.suppressWindowOutlines) {
-        auto outline = m_state.outlined();
-        outline.bounds.translate(placed);
-        paintWindowOutline(renderer, outline, m_state);
-    }
+    if (!m_state.outlineUnderContent)
+        paintOutline();
 }
 
 } // namespace cutefish::scene

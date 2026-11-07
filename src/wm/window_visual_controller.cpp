@@ -23,6 +23,9 @@ void setShellOutlineColors(scene::WindowVisualState &state, const Window &window
                            const decoration::WindowVisualStyle &style)
 {
     const auto *surface = window.rootSurface();
+    // The dock's icons reach past its panel, magnified or bouncing: the
+    // outline stays on the panel's edge under them rather than crossing them.
+    state.outlineUnderContent = window.role() == WindowRole::Dock;
     if (surface && surface->glass().enabled && surface->glass().rim > 0) {
         state.outlineColor = {0, 0, 0, 0};
         state.highlightColor = {0, 0, 0, 0};
