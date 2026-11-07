@@ -246,6 +246,8 @@ private:
     bool m_magnifyHover = false;
     bool m_magnifyMoving = false;
     bool m_magnifyActive = false;
+    // The panel's end (rather than its start) is the one that stays put.
+    bool m_magnifyLockEnd = false;
     bool m_inputGrown = false;
     // A returned icon is in its slot from the next frame on; the compositor's
     // copy goes once that frame is out.

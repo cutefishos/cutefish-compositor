@@ -929,7 +929,6 @@ void DockWindow::layoutItems()
     std::vector<double> centres(placements.size());
     std::vector<double> growths(placements.size(), 0);
     double totalGrowth = 0;
-    double shift = 0;
     for (size_t i = 0; i < placements.size(); ++i)
         centres[i] = layoutOrigin + placements[i].position + itemSize / 2;
     {
@@ -953,16 +952,16 @@ void DockWindow::layoutItems()
                     1 + m_magnifyAmount * (magnification - 1) * (1 + std::cos(std::numbers::pi * distance)) / 2;
             growths[i] = (scale - 1) * drawnSize;
             totalGrowth += growths[i];
-            // The part of the growth that lies before the pointer.
-            shift += growths[i] * std::clamp((m_magnifyPointer - centres[i]) / drawnSize + 0.5, 0.0, 1.0);
         }
     }
     m_magnifyActive = totalGrowth > 0;
-    // The panel wraps the grown icons, the point under the pointer staying
-    // put. The bell is five pitches wide, so among evenly spaced icons its
-    // samples sum to the same growth wherever the pointer is: the length
-    // changes only near a divider and at the ends, continuously.
-    const double base = -shift;
+    // The panel wraps the grown icons, growing toward the half the pointer
+    // came in over while its other end stays put (see magnifyAt); the icons
+    // move that way by what grew before them. The bell is five pitches wide,
+    // so among evenly spaced icons its samples sum to the same growth
+    // wherever the pointer is: the length changes only near a divider and at
+    // the ends, continuously.
+    const double base = m_magnifyLockEnd ? -totalGrowth : 0;
     // Along the content, how far what sits at `position` has moved.
     const auto displacement = [&](double position) {
         double result = base;
@@ -1079,6 +1078,11 @@ void DockWindow::magnifyAt(const ui::PointF &windowPoint)
         return;
     const double along = m_dock->settings().direction() == DockSettings::Bottom ? windowPoint.x : windowPoint.y;
     const bool moved = along != m_magnifyPointer || !m_magnifyHover;
+    // The end of the panel away from where the pointer comes in stays put
+    // until the magnification has gone again, so the panel never jumps as
+    // the pointer crosses the middle.
+    if (!m_magnifyHover && m_magnifyAmount == 0)
+        m_magnifyLockEnd = along < m_start + m_length / 2;
     m_magnifyPointer = along;
     m_magnifyHover = true;
     if (!m_magnifier)
