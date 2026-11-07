@@ -54,6 +54,12 @@ public:
     void setGlassTint(double tint);
     bool minimizedArea() const { return m_minimizedArea; }
     void setMinimizedArea(bool enabled);
+    // How much the icons under the pointer grow, as the Mac's dock magnifies
+    // them: 1 for not at all, up to kMaxMagnification times their size.
+    static constexpr double kMaxMagnification = 2;
+    double magnification() const { return m_magnification; }
+    // Clamped to 1..kMaxMagnification; not a number is 1.
+    void setMagnification(double magnification);
 
     base::Signal<> ready;
     base::Signal<> iconSizeChanged;
@@ -61,6 +67,7 @@ public:
     base::Signal<> visibilityChanged;
     base::Signal<> glassTintChanged;
     base::Signal<> minimizedAreaChanged;
+    base::Signal<> magnificationChanged;
 
 private:
     struct Values {
@@ -70,6 +77,7 @@ private:
         int edgeMargins = 10;
         double glassTint = 0.5;
         bool minimizedArea = true;
+        double magnification = 1;
     };
 
     static Values load(const std::string &path);
@@ -83,6 +91,7 @@ private:
     int m_edgeMargins = 10;
     double m_glassTint = 0.5;
     bool m_minimizedArea = true;
+    double m_magnification = 1;
     base::Timer m_iconSizeSave;
     base::Job m_load;
 };

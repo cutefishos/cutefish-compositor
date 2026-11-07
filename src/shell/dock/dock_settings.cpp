@@ -28,12 +28,14 @@ DockSettings::DockSettings(std::string path)
                                  const bool visibility = values.visibility != m_visibility;
                                  const bool tint = values.glassTint != m_glassTint;
                                  const bool area = values.minimizedArea != m_minimizedArea;
+                                 const bool magnification = values.magnification != m_magnification;
                                  m_iconSize = values.iconSize;
                                  m_direction = values.direction;
                                  m_visibility = values.visibility;
                                  m_edgeMargins = values.edgeMargins;
                                  m_glassTint = values.glassTint;
                                  m_minimizedArea = values.minimizedArea;
+                                 m_magnification = values.magnification;
                                  m_ready = true;
                                  ready();
                                  if (iconSize)
@@ -46,6 +48,8 @@ DockSettings::DockSettings(std::string path)
                                      glassTintChanged();
                                  if (area)
                                      minimizedAreaChanged();
+                                 if (magnification)
+                                     magnificationChanged();
                              });
 }
 
@@ -65,6 +69,8 @@ DockSettings::Values DockSettings::load(const std::string &path)
         settings.setValue("Dock/GlassTint", 0.5);
     if (!settings.contains("Dock/MinimizedArea"))
         settings.setValue("Dock/MinimizedArea", true);
+    if (!settings.contains("Dock/Magnification"))
+        settings.setValue("Dock/Magnification", 1.0);
     settings.sync();
 
     Values values;
@@ -74,6 +80,7 @@ DockSettings::Values DockSettings::load(const std::string &path)
     values.edgeMargins = int(settings.intValue("Dock/EdgeMargins", 10));
     values.glassTint = std::clamp(settings.doubleValue("Dock/GlassTint", 0.5), 0.0, 1.0);
     values.minimizedArea = settings.boolValue("Dock/MinimizedArea", true);
+    values.magnification = std::clamp(settings.doubleValue("Dock/Magnification", 1.0), 1.0, kMaxMagnification);
     return values;
 }
 
@@ -81,7 +88,7 @@ void DockSettings::write(const char *key, double value)
 {
     const std::string name = key;
     writeSettings(m_path, [name, value](base::Settings &settings) {
-        if (name == "Dock/GlassTint")
+        if (name == "Dock/GlassTint" || name == "Dock/Magnification")
             settings.setValue(name, value);
         else
             settings.setValue(name, int64_t(value));
@@ -123,6 +130,16 @@ void DockSettings::setGlassTint(double tint)
     m_glassTint = tint;
     write("Dock/GlassTint", tint);
     glassTintChanged();
+}
+
+void DockSettings::setMagnification(double magnification)
+{
+    magnification = std::isfinite(magnification) ? std::clamp(magnification, 1.0, kMaxMagnification) : 1;
+    if (std::abs(m_magnification - magnification) < 1e-12)
+        return;
+    m_magnification = magnification;
+    write("Dock/Magnification", magnification);
+    magnificationChanged();
 }
 
 void DockSettings::setMinimizedArea(bool enabled)

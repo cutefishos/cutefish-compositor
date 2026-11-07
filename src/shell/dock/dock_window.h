@@ -53,6 +53,8 @@ public:
     ShellWindow *window() const { return m_window.get(); }
     // The panel in the window's coordinates, and on the screen.
     base::Rect panelRect() const { return m_panelRect; }
+    // Device pixels per logical pixel of the dock window.
+    double pixelRatio() const;
     base::Rect primaryGeometry() const;
     // The window's geometry for a dock of `thickness` (DockWindow::windowRect).
     base::Rect windowRect(int thickness) const;
@@ -101,9 +103,15 @@ public:
     void iconMenuRequested(DockIcon *icon);
     // Hides the tooltip, as leaving the dock does.
     void hideTooltip();
+    // Called by Panel and DockIcon: the pointer over the dock, in window
+    // coordinates, and its leaving. Under magnification (DockSettings) the
+    // icons near the pointer grow, as the Mac's dock magnifies them.
+    void magnifyAt(const ui::PointF &windowPoint);
+    void magnifyEnd();
 
 private:
     class Panel;
+    class Magnifier;
 
     // A drag this dock started from one of its icons.
     struct IconDrag {
@@ -149,20 +157,24 @@ private:
     void updateMetrics(bool animate);
     void resize(bool animate);
     void layoutItems();
+    // One frame of magnification: true while something is still moving or
+    // the pointer is over the dock.
+    bool advanceMagnification(double stepMs);
     void updateLayoutStart();
     void updatePanelRect(const base::Rect &rect);
     void updateStrut();
     void updateGlass();
     void updateMinimizeTargets();
     void handOffLanded();
-    double pixelRatio() const;
-    // The window across the dock: the configured dock's thickness and its bounce room.
+    // The window across the dock: the configured dock's thickness and the room
+    // past it for a magnified icon's bounce.
     int windowThickness() const;
     base::Rect minimizedSlot(int index, int count) const;
     base::Rect applicationSlot(double position) const;
     double place(double position, double rest) const;
     void showTooltip(DockIcon *icon);
     ui::Bitmap iconImage(DockIcon *icon, double *scale) const;
+    ui::RectF drawnIconRect(DockIcon *icon) const;
     base::PointF iconCentre(DockIcon *icon) const;
     double distanceOffDock(const base::PointF &position) const;
     void onDragStarted();
@@ -225,6 +237,16 @@ private:
     double m_fromEnds = -1;
 
     std::optional<IconDrag> m_drag;
+    // Magnification: how much of it is in effect (0..1, animated in and
+    // out), the pointer along the dock, and whether it is over the dock.
+    std::unique_ptr<Magnifier> m_magnifier;
+    double m_magnifyAmount = 0;
+    double m_magnifyPointer = 0;
+    double m_magnifyStepMs = 0;
+    bool m_magnifyHover = false;
+    bool m_magnifyMoving = false;
+    bool m_magnifyActive = false;
+    bool m_inputGrown = false;
     // A returned icon is in its slot from the next frame on; the compositor's
     // copy goes once that frame is out.
     bool m_releaseReturn = false;

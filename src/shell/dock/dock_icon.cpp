@@ -363,9 +363,30 @@ void DockIcon::applyBadgeOpacity()
         setIconRect(m_iconRect);
 }
 
+ui::RectF DockIcon::drawnIconRect() const
+{
+    if (m_magnifyScale == 1 && m_magnifyOffset == ui::PointF {})
+        return m_iconRect;
+    // Grown about the icon rect's centre, lifted by the offset, and snapped
+    // to whole device pixels of the window, so the artwork is rasterised at
+    // the size it shows at and lands on pixels: crisp, and steady as it moves.
+    const double ratio = m_dock->pixelRatio();
+    const auto snap = [ratio](double value) { return std::round(value * ratio) / ratio; };
+    const ui::RectF slot = geometry();
+    const double width = snap(m_iconRect.width * m_magnifyScale);
+    const double height = snap(m_iconRect.height * m_magnifyScale);
+    const double x = snap(slot.x + m_iconRect.x + (m_iconRect.width - width) / 2 + m_magnifyOffset.x) - slot.x;
+    const double y = snap(slot.y + m_iconRect.y + (m_iconRect.height - height) / 2 + m_magnifyOffset.y) - slot.y;
+    return {x, y, width, height};
+}
+
 void DockIcon::setIconRect(const ui::RectF &rect)
 {
     m_iconRect = rect;
+    // The faces take the drawn rect themselves: under magnification the theme
+    // artwork is rasterised at the grown size rather than a texture at rest
+    // scaled up and filtered. The transform carries only the presentation.
+    const ui::RectF drawn = drawnIconRect();
     const ui::Transform transform = [&] {
         ui::Transform result;
         // ui::Transform scales about the view's centre.
@@ -377,25 +398,25 @@ void DockIcon::setIconRect(const ui::RectF &rect)
                            static_cast<ui::View *>(m_themeMask), static_cast<ui::View *>(m_svgMask)}) {
         if (!face)
             continue;
-        face->setGeometry(rect);
+        face->setGeometry(drawn);
         face->setTransform(transform);
         const bool mask = face == m_themeMask || face == m_svgMask;
         face->setOpacity(m_opacity * (mask ? 0.4 : 1));
     }
     if (m_themeFace)
-        m_themeFace->setSize(rect.width);
+        m_themeFace->setSize(drawn.width);
     if (m_themeMask)
-        m_themeMask->setSize(rect.width);
+        m_themeMask->setSize(drawn.width);
     if (m_badge) {
-        const double size = std::round(rect.width * 0.42);
+        const double size = std::round(drawn.width * 0.42);
         m_badge->setSize(size);
-        m_badge->setGeometry({rect.x + rect.width - size, rect.y + rect.height - size, size, size});
+        m_badge->setGeometry({drawn.x + drawn.width - size, drawn.y + drawn.height - size, size, size});
         m_badge->setOpacity(m_badgeOpacity * m_opacity);
         if (m_thumbnailMask) {
             const ui::RectF shape = thumbnailRect();
             m_thumbnailMask->setGeometry(localRect());
-            m_thumbnailMask->update(shape, std::max(2.0, rect.width * 2 / 54), m_iconName,
-                                    {rect.x + rect.width - size, rect.y + rect.height - size, size, size},
+            m_thumbnailMask->update(shape, std::max(2.0, drawn.width * 2 / 54), m_iconName,
+                                    {drawn.x + drawn.width - size, drawn.y + drawn.height - size, size, size},
                                     m_badgeOpacity);
         }
     }
@@ -419,14 +440,16 @@ void DockIcon::placeCountBadge()
     if (!m_countBadge)
         return;
     raiseChild(m_countBadge);
-    m_countBadge->setIconRect(m_iconRect);
+    const ui::RectF drawn = drawnIconRect();
+    m_countBadge->setIconRect(drawn);
     // Scaled with the icon about the icon's centre; ui::Transform scales
     // about the badge's own.
     const ui::RectF badge = m_countBadge->geometry();
+    const double scale = m_scale;
     ui::Transform transform;
-    transform.scale = m_scale;
-    transform.translation = {(m_scale - 1) * (badge.x + badge.width / 2 - (m_iconRect.x + m_iconRect.width / 2)),
-                             (m_scale - 1) * (badge.y + badge.height / 2 - (m_iconRect.y + m_iconRect.height / 2))};
+    transform.scale = scale;
+    transform.translation = {(scale - 1) * (badge.x + badge.width / 2 - (drawn.x + drawn.width / 2)),
+                             (scale - 1) * (badge.y + badge.height / 2 - (drawn.y + drawn.height / 2))};
     transform.translation += bounceOffset();
     m_countBadge->setTransform(transform);
     m_countBadge->setOpacity(m_opacity);
@@ -445,6 +468,15 @@ void DockIcon::setPresentation(double scale, double opacity)
 void DockIcon::setPresentationOpacity(double opacity)
 {
     setPresentation(m_scale, opacity);
+}
+
+void DockIcon::setMagnification(double scale, const ui::PointF &offset)
+{
+    if (scale == m_magnifyScale && offset == m_magnifyOffset)
+        return;
+    m_magnifyScale = scale;
+    m_magnifyOffset = offset;
+    setIconRect(m_iconRect);
 }
 
 void DockIcon::bounce()
@@ -572,8 +604,8 @@ void DockIcon::paint(ui::Painter &painter)
 ui::RectF DockIcon::thumbnailRect() const
 {
     // Fitted the way the compositor fits the window landing here, to whole
-    // pixels, so the two line up exactly.
-    const ui::RectF &slot = m_iconRect;
+    // pixels, so the two line up exactly; magnified, in the grown rect.
+    const ui::RectF slot = drawnIconRect();
     const bool wide = m_thumbnailAspect > slot.width / std::max(1.0, slot.height);
     const double fitWidth = wide ? slot.width : slot.height * m_thumbnailAspect;
     const double fitHeight = wide ? slot.width / m_thumbnailAspect : slot.height;
@@ -586,7 +618,7 @@ ui::RectF DockIcon::thumbnailRect() const
 
 void DockIcon::paintThumbnail(ui::Painter &painter)
 {
-    const ui::RectF &slot = m_iconRect;
+    const ui::RectF slot = drawnIconRect();
     const ui::RectF rect = thumbnailRect();
     const double radius = std::max(2.0, slot.width * 2 / 54);
     painter.save();

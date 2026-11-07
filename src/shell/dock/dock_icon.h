@@ -74,6 +74,13 @@ public:
     ui::RectF iconRect() const { return m_iconRect; }
     void setPresentation(double scale, double opacity);
     void setPresentationOpacity(double opacity);
+    // Magnified `scale` times about its centre and moved by `offset`, on top
+    // of the presentation; see DockWindow::magnifyAt.
+    void setMagnification(double scale, const ui::PointF &offset);
+    // The rect the icon's artwork is drawn in: the icon rect, or under
+    // magnification the rect grown about its centre and moved by the
+    // magnification offset, in whole device pixels of the window.
+    ui::RectF drawnIconRect() const;
     // Bounces once away from the screen edge as its application starts; one
     // already bouncing runs on.
     void bounce();
@@ -155,6 +162,8 @@ private:
     ui::RectF m_dotRect;
     double m_scale = 1;
     double m_opacity = 1;
+    double m_magnifyScale = 1;
+    ui::PointF m_magnifyOffset;
     std::unique_ptr<Bounce> m_bounce;
     // Of the bounce height, 0 at rest.
     double m_lift = 0;

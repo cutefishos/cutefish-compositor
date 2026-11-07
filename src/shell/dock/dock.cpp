@@ -57,6 +57,9 @@ bool Dock::registerService()
                       dbus::ArgumentNames{{"tint"}, {}});
     object->addMethod("setMinimizedArea", [this](bool enabled) { m_settings.setMinimizedArea(enabled); },
                       dbus::ArgumentNames{{"enabled"}, {}});
+    object->addMethod("setMagnification",
+                      [this](double magnification) { m_settings.setMagnification(magnification); },
+                      dbus::ArgumentNames{{"magnification"}, {}});
     if (!object->publish() || !m_bus->requestName("org.cutefish.Dock", dbus::Connection::DoNotQueue)) {
         CF_WARNING(cfDock) << "Cannot own org.cutefish.Dock";
         return false;
