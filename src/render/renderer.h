@@ -272,6 +272,13 @@ public:
 
     // Blur results kept between passes into the target `scope` names.
     virtual bool keepsBackdrop(uint64_t /*scope*/, uint64_t /*owner*/) const { return false; }
+    // In a pass, for a blur that draws from the result it kept in `scope`: the
+    // logical rectangle of its backdrop it redoes, empty when none. Nothing for
+    // a blur drawn from scratch.
+    virtual std::optional<base::Rect> keptBackdropChange(uint64_t /*scope*/, uint64_t /*owner*/) const
+    {
+        return std::nullopt;
+    }
     virtual void beginBackdropPass(uint64_t /*scope*/, const std::vector<KeptBackdrop> & /*fresh*/) { }
     // Zero outside a BackdropPass, and in the passes nested in one.
     uint64_t backdropScope = 0;

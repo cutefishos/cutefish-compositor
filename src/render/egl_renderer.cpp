@@ -979,6 +979,11 @@ bool EglRenderer::keepsBackdrop(uint64_t scope, uint64_t owner) const
     return m_backdrop && m_backdrop->keeps(scope, owner);
 }
 
+std::optional<base::Rect> EglRenderer::keptBackdropChange(uint64_t scope, uint64_t owner) const
+{
+    return m_backdrop ? m_backdrop->keptChange(scope, owner) : std::nullopt;
+}
+
 void EglRenderer::beginBackdropPass(uint64_t scope, const std::vector<KeptBackdrop> &fresh)
 {
     if (m_backdrop)

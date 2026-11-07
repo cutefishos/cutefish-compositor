@@ -5,6 +5,7 @@
 #pragma once
 
 #include <list>
+#include <optional>
 
 #include "render/gl_program.h"
 #include "render/gl_render_pass.h"
@@ -28,6 +29,9 @@ public:
     void frameEnded();
     // Whether the blur of surface `owner` kept its result in the target `scope` names.
     bool keeps(uint64_t scope, uint64_t owner) const;
+    // In a pass, what of that blur's backdrop its next draw redoes from its
+    // kept result. Nothing when that draw starts from scratch.
+    std::optional<base::Rect> keptChange(uint64_t scope, uint64_t owner) const;
     // Starts a pass into that target: the blurs of `fresh` draw what they kept
     // in the last one, redone where their backdrop changed; the others'
     // results are dropped.
@@ -82,11 +86,15 @@ private:
     // A plain blur's set may be larger than `size`, unless `exact`.
     Scratch &scratch(const base::Size &coverage, const base::Size &size, bool exact = false);
     // Copies `coverage` of the target into `textures.source`, reduced to `reduced`.
+    // A non-empty `texels`, rows top-down, is all of it that is written; the
+    // rest keeps what it holds.
     bool captureBackdrop(Renderer &renderer, Scratch &textures,
                          const std::vector<BackdropSource> &sources, const base::Rect &coverage,
-                         const base::Size &reduced, const base::Rect &allocatedBounds);
+                         const base::Size &reduced, const base::Rect &allocatedBounds,
+                         const base::Rect &texels = {});
     // Copies `coverage` of a lone upright source into the top left of the
-    // bound pass at `reduced` in one blit. False when it cannot, and nothing is drawn.
+    // bound pass at `reduced` in one blit, inside the pass's scissor. False
+    // when it cannot, and nothing is drawn.
     bool blitReduced(const std::vector<BackdropSource> &sources, const base::Rect &coverage,
                      const base::Size &reduced, unsigned int destination);
     Texture *mask(Renderer &renderer, const ui::Path &shape, const ShapeRaster &raster);

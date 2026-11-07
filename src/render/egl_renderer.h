@@ -85,6 +85,7 @@ public:
     void drawTextureTransformed(Texture *texture, const base::RectF &target, const base::AffineTransform &transform,
                                 float alpha) override;
     bool keepsBackdrop(uint64_t scope, uint64_t owner) const override;
+    std::optional<base::Rect> keptBackdropChange(uint64_t scope, uint64_t owner) const override;
     void beginBackdropPass(uint64_t scope, const std::vector<KeptBackdrop> &fresh) override;
     void drawBackgroundBlur(const base::Rect &bounds, int radius, const base::Rect &clip,
                             const GlassParams &glass = {}, const ui::Path &shape = {},

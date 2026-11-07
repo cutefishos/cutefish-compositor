@@ -826,18 +826,26 @@ bool WindowAnimation::textureIsCurrent(render::Renderer &renderer, const base::R
     // have changed wherever this frame draws it again, and nowhere else. One
     // drawn without them reads nothing behind it: the overview's full repaints
     // would otherwise draw every blurred window's texture again each frame.
+    // A blur the output pass redoes in part from its kept result changes only
+    // where that redo reaches.
+    const uint64_t scope = renderer.backdropScope;
+    const auto kept = [&](uint64_t owner) {
+        return renderer.keptBackdropChange(scope, owner).has_value();
+    };
     const base::Region damage = blurSuppressed
             ? m_textureDamage.update(*this, coverage, renderer.rasterScale())
             : m_textureDamage.update(*this, coverage, renderer.rasterScale(), 0,
-                                     [&](const base::Rect &sampled) {
-                                         return renderer.repaints(sampled);
+                                     [&](uint64_t owner, const base::Rect &sampled) {
+                                         if (const auto change = renderer.keptBackdropChange(scope, owner))
+                                             return *change;
+                                         return renderer.repaints(sampled) ? sampled : base::Rect();
                                      });
     const bool valid =
             textureReusable(coverage, outputViewport(renderer, *this), renderer.rasterScale());
     *repaint = !valid ? base::Rect()
             : blurSuppressed
             ? damage.boundingRect()
-            : render::coverSamples(damage.boundingRect(), m_textureDamage.samples());
+            : render::coverSamples(damage.boundingRect(), m_textureDamage.samples(kept));
     // Without blurs the two are the same texture: entering the overview does
     // not draw every window again.
     return valid && damage.isEmpty()

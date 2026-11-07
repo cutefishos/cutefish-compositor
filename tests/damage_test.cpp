@@ -212,8 +212,8 @@ TEST(Damage, ABlurRepaintsWhenWhatItReadsChangesOutOfSight)
     node->setGeometry({100, 100, 50, 50});
     node->setBackgroundBlur({0, 0, 50, 50}, 12);
     bool changed = false;
-    const auto backdropChanged = [&](const base::Rect &) {
-        return changed;
+    const auto backdropChanged = [&](uint64_t, const base::Rect &sampled) {
+        return changed ? sampled : base::Rect();
     };
     const auto kept = [](uint64_t) {
         return true;
@@ -229,6 +229,42 @@ TEST(Damage, ABlurRepaintsWhenWhatItReadsChangesOutOfSight)
               base::Region(base::Rect(99, 99, 52, 52)));
     EXPECT_EQ(tracker.samples(kept),
               (std::vector<base::Rect> {base::Rect(100, 100, 50, 50).adjusted(-halo, -halo, halo, halo)}));
+}
+
+// A window texture's blur that the output redoes in part from its kept
+// result changes only where that redo reaches, and reads only around it.
+TEST(Damage, ABlurRedoneInPartOutOfSightRepaintsOnlyThatPart)
+{
+    scene::Node root;
+    auto *node = static_cast<scene::SurfaceNode *>(
+            root.addChild(std::make_unique<scene::SurfaceNode>()));
+    node->setGeometry({100, 100, 600, 400});
+    node->setBackgroundBlur({0, 0, 600, 400}, 12);
+    base::Rect outside;
+    const auto backdropChanged = [&](uint64_t owner, const base::Rect &) {
+        EXPECT_EQ(owner, node->damageId());
+        return outside;
+    };
+    const auto kept = [](uint64_t) {
+        return true;
+    };
+    scene::DamageTracker tracker;
+    const base::Rect viewport(0, 0, 1000, 800);
+    tracker.update(root, viewport, 1, 0, backdropChanged);
+    EXPECT_TRUE(tracker.update(root, viewport, 1, 0, backdropChanged).isEmpty());
+    // Cut to what the blur samples.
+    outside = base::Rect(720, 300, 100, 200);
+    const auto [shown, read] = render::backdropReach({}, 1);
+    const base::Rect changed(720, 300, 72, 200);
+    EXPECT_EQ(tracker.update(root, viewport, 1, 0, backdropChanged),
+              base::Region(changed.adjusted(-shown, -shown, shown, shown)
+                                   .intersected(base::Rect(99, 99, 602, 402))));
+    const int halo = render::kBackdropBlurSupport + 2;
+    EXPECT_EQ(tracker.samples(kept),
+              std::vector<base::Rect> {changed.adjusted(-read, -read, read, read).intersected(
+                      base::Rect(100, 100, 600, 400).adjusted(-halo, -halo, halo, halo))});
+    EXPECT_EQ(tracker.freshBackdrops(kept),
+              (std::vector<render::KeptBackdrop> {{node->damageId(), changed}}));
 }
 
 TEST(Damage, ABlurDrawnAgainWholeReadsEverythingAgain)

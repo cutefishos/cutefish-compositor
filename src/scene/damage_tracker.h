@@ -42,12 +42,14 @@ public:
         m_childEnd = end;
     }
 
-    // A blur reads what lies behind it. `backdropChanged`, when given, says
-    // whether that changed where the tree tracked here does not reach, as for
-    // a window drawn offscreen over the output.
+    // A blur reads what lies behind it. `backdropChanged`, when given, takes
+    // a blur's surface and sampled region and returns what of that changed
+    // where the tree tracked here does not reach, as for a window drawn
+    // offscreen over the output: none, a part redone from the blur's kept
+    // result, or all of it to draw the blur again whole.
+    using BackdropChanged = std::function<base::Rect(uint64_t, const base::Rect &)>;
     base::Region update(const Node &root, const base::Rect &viewport, double scale = 1,
-                   uint32_t transform = 0,
-                   const std::function<bool(const base::Rect &)> &backdropChanged = {})
+                   uint32_t transform = 0, const BackdropChanged &backdropChanged = {})
     {
         Frame frame;
         if (m_cached && !backdropChanged && m_cached->matches(root, viewport, scale, transform))
@@ -116,6 +118,8 @@ private:
         // What changed of its backdrop, and what redoing that part reads.
         base::Rect changed;
         base::Rect read;
+        // What changed of its backdrop where the tree does not reach.
+        base::Rect outside;
     };
 
     struct Frame {
@@ -144,7 +148,7 @@ private:
     // then reads as unchanged, the way a cc render surface's damage is tracked
     // in the surface's own space and not the target's.
     Frame collect(const Node &root, const base::Rect &viewport, double scale, uint32_t transform,
-                  const std::function<bool(const base::Rect &)> &backdropChanged) const
+                  const BackdropChanged &backdropChanged) const
     {
         Frame frame;
         bool filtered = false;
@@ -206,11 +210,14 @@ private:
                     const base::Rect blurred = surface->backgroundBlurRect().translated(position).united(
                             ui::toBase(surface->backgroundBlurShape().boundingRect()).translated(position)
                                     .toEnclosingRect());
+                    const base::Rect outside = backdropChanged
+                            ? backdropChanged(node.damageId(), sampled).intersected(sampled)
+                            : base::Rect();
                     steps.push_back({{}, blurred.adjusted(-1, -1, 1, 1), frame.blurs.size()});
-                    frame.blurs.push_back(
-                            {sampled, node.damageId(),
-                             changed || redrawn || (backdropChanged && backdropChanged(sampled)),
-                             render::backdropReach(surface->glass(), scale)});
+                    frame.blurs.push_back({sampled, node.damageId(),
+                                           changed || redrawn || outside == sampled,
+                                           render::backdropReach(surface->glass(), scale),
+                                           {}, {}, outside});
                 }
             }
             steps.push_back({damage});
@@ -236,10 +243,11 @@ private:
                 damage += step.blurred.translated(-origin);
                 continue;
             }
-            if (!damage.intersects(sampled))
+            const base::Rect changed = damage.intersected(sampled).boundingRect().united(
+                    blur.outside.translated(-origin));
+            if (changed.isEmpty())
                 continue;
             const auto [shown, read] = blur.reach;
-            const base::Rect changed = damage.intersected(sampled).boundingRect();
             const base::Rect redone = changed.adjusted(-shown, -shown, shown, shown)
                                               .intersected(step.blurred.translated(-origin));
             if (redone.isEmpty())

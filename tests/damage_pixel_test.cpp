@@ -469,6 +469,96 @@ TEST(DamagePixels, APartlyRedoneBlurMatchesTheCompleteFrame)
     renderer->releaseTarget(target.get());
 }
 
+// A window's blur, drawn into the window's texture, that the output redoes in
+// part beside a change: the texture draws only that part again, and the
+// frame matches one drawn whole.
+TEST(DamagePixels, AWindowBlurRedoneInPartMatchesTheCompleteFrame)
+{
+    auto renderer = render::EglRendererTestAccess::create();
+    ASSERT_TRUE(renderer);
+    const base::Size size(400, 400);
+    const EGLint attributes[] = {EGL_WIDTH, 400, EGL_HEIGHT, 400, EGL_NONE};
+    const auto surface =
+            eglCreatePbufferSurface(renderer->eglDisplay(), renderer->eglConfig(), attributes);
+    ASSERT_NE(surface, EGL_NO_SURFACE);
+    auto target = std::make_unique<render::EglRenderTarget>(renderer->eglDisplay(), surface,
+                                                            nullptr, size);
+    for (double scale : {1.0, 1.5}) {
+        scene::Scene scene;
+        scene.setSize(size);
+        const auto add = [&](const render::Color &color, const base::Rect &geometry) {
+            auto *node = scene.root()->addChild(std::make_unique<scene::ColorNode>(color));
+            node->setGeometry(geometry);
+            return node;
+        };
+        add({1, 0, 0, 1}, {60, 60, 40, 40});
+        add({0, 0, 1, 1}, {110, 200, 60, 50});
+        // Beside the window, under it, inside what its blur reads.
+        auto *beside = add({1, 1, 0, 1}, {256, 60, 30, 30});
+        auto *window = static_cast<scene::WindowAnimation *>(
+                scene.root()->addChild(std::make_unique<scene::WindowAnimation>()));
+        window->setGeometry({40, 40, 200, 240});
+        window->finish();
+        auto *content = static_cast<scene::SurfaceNode *>(
+                window->addChild(std::make_unique<scene::SurfaceNode>()));
+        content->setGeometry({0, 0, 200, 240});
+        content->setBackgroundBlur({0, 0, 200, 240}, 12);
+        const render::OutputRenderContext context {"test", base::Rect(base::Point(), size), size,
+                                                   scale};
+        renderer->setOutputContext(context);
+        ASSERT_TRUE(renderer->beginFrame(target.get()));
+        std::vector<uint8_t> pixels(200 * 240 * 4, 0);
+        std::shared_ptr<render::Texture> texture = renderer->createTexture({200, 240}, pixels.data());
+        content->setTexture(texture);
+        scene::DamageTracker tracker;
+        const auto scope = uint64_t(reinterpret_cast<uintptr_t>(&tracker));
+        const auto kept = [&](uint64_t owner) {
+            return renderer->keepsBackdrop(scope, owner);
+        };
+        for (int frame = 0; frame < 8; ++frame) {
+            beside->setGeometry({256, 60 + frame * 17, 30, 30});
+            // A row inside the window changes on its own now and then, as a cursor blinks.
+            if (frame % 3 == 2) {
+                for (int y = 30; y < 40; ++y) {
+                    for (int x = 10; x < 20; ++x)
+                        pixels[(y * 200 + x) * 4 + 3] = pixels[(y * 200 + x) * 4 + 3] ? 0 : 255;
+                }
+                ASSERT_TRUE(renderer->updateTexture(texture.get(), pixels.data(), 800,
+                                                    render::PixelFormat::Rgba8888));
+                content->notifyDamage(base::Rect(10, 30, 10, 10));
+            }
+            const auto damage = tracker.update(*scene.root(), context.logicalViewport, scale);
+            const base::Rect physical = render::physicalDamage(damage, context, size);
+            const base::Rect repaint = render::coverSamples(physical, tracker.samples(kept),
+                                                       context, size);
+            render::EglRendererTestAccess::applyRepaint(*renderer, repaint);
+            {
+                const render::BackdropPass backdrops(*renderer, scope,
+                                                     tracker.freshBackdrops(kept));
+                renderer->clear(scene.background());
+                scene.root()->render(*renderer);
+            }
+            ui::Bitmap partial(size, ui::Bitmap::Format::Rgba8888Premultiplied);
+            glReadPixels(0, 0, 400, 400, GL_RGBA, GL_UNSIGNED_BYTE, partial.bits());
+            partial = partial.mirrored(false, true).converted(ui::Bitmap::Format::Argb32Premultiplied);
+            const auto complete = renderer->captureFrame([&] {
+                scene.render(*renderer);
+            });
+            int worst = 0;
+            for (int y = 0; y < size.height(); ++y) {
+                for (int x = 0; x < size.width(); ++x) {
+                    const uint32_t p = partial.pixel(x, y), c = complete.pixel(x, y);
+                    for (int shift = 0; shift < 32; shift += 8)
+                        worst = std::max(worst, std::abs(int(p >> shift & 0xff) - int(c >> shift & 0xff)));
+                }
+            }
+            EXPECT_EQ(worst, 0) << "scale=" << scale << " frame=" << frame;
+        }
+        renderer->cancelFrame();
+    }
+    renderer->releaseTarget(target.get());
+}
+
 // A window keeps a texture of itself for a close or a minimize to start from.
 // A blur in it reads the output behind the window, which outside a partial
 // repaint still shows the window itself.

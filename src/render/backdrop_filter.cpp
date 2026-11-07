@@ -69,6 +69,16 @@ bool BackdropFilter::keeps(uint64_t scope, uint64_t owner) const
     });
 }
 
+std::optional<base::Rect> BackdropFilter::keptChange(uint64_t scope, uint64_t owner) const
+{
+    for (const Kept &entry : m_kept) {
+        if (entry.scope == scope && entry.owner == owner && entry.result && !entry.drawn
+            && !entry.coverage.isEmpty())
+            return entry.changed;
+    }
+    return std::nullopt;
+}
+
 void BackdropFilter::beginPass(uint64_t scope, const std::vector<KeptBackdrop> &fresh)
 {
     const auto find = [&](uint64_t owner) {
@@ -185,8 +195,6 @@ bool BackdropFilter::blitReduced(const std::vector<BackdropSource> &sources, con
     if (viewport[2] < reduced.width() || viewport[3] < reduced.height())
         return false;
     const base::Rect physical = source.framebufferRect(coverage);
-    const bool scissored = glIsEnabled(GL_SCISSOR_TEST);
-    glDisable(GL_SCISSOR_TEST);
     // Both are bottom-up, as the capture and the draw of it would leave them;
     // the pass's top left is the top of its rows.
     const int top = viewport[1] + viewport[3];
@@ -197,27 +205,38 @@ bool BackdropFilter::blitReduced(const std::vector<BackdropSource> &sources, con
                       viewport[0] + reduced.width(), top, GL_COLOR_BUFFER_BIT,
                       reduced == coverage.size() ? GL_NEAREST : GL_LINEAR);
     glBindFramebuffer(GL_FRAMEBUFFER, destination);
-    if (scissored)
-        glEnable(GL_SCISSOR_TEST);
     return glGetError() == GL_NO_ERROR;
 }
 
 bool BackdropFilter::captureBackdrop(Renderer &renderer, Scratch &textures,
                                      const std::vector<BackdropSource> &sources,
                                      const base::Rect &coverage, const base::Size &reduced,
-                                     const base::Rect &allocatedBounds)
+                                     const base::Rect &allocatedBounds, const base::Rect &texels)
 {
     const base::Rect reducedBounds(base::Point(), reduced);
-    bool copied = true;
+    // The pixels of `coverage` the texels sample, a pixel more each way for
+    // the linear filter.
+    base::Rect copied = coverage;
+    if (!texels.isEmpty()) {
+        const double sx = double(coverage.width()) / reduced.width();
+        const double sy = double(coverage.height()) / reduced.height();
+        copied = base::Rect::fromEdges(coverage.left() + int(std::floor(texels.left() * sx)) - 1,
+                                       coverage.top() + int(std::floor(texels.top() * sy)) - 1,
+                                       coverage.left() + int(std::ceil(texels.right() * sx)) + 1,
+                                       coverage.top() + int(std::ceil(texels.bottom() * sy)) + 1)
+                         .intersected(coverage);
+    }
+    bool complete = true;
     return renderer.renderToTexture(
-                textures.source, allocatedBounds,
+                textures.source, allocatedBounds, texels,
                 [&] {
                     GLint destination = 0;
                     glGetIntegerv(GL_FRAMEBUFFER_BINDING, &destination);
                     if (blitReduced(sources, coverage, reduced, destination))
                         return;
                     for (const auto &source : sources) {
-                        const base::Rect area = coverage.intersected(
+                        // A turned capture is sized by its area, which then keeps its size.
+                        const base::Rect area = (source.transform ? coverage : copied).intersected(
                                 base::Rect(source.offset.toPoint(), source.oriented()));
                         if (area.isEmpty())
                             continue;
@@ -251,9 +270,14 @@ bool BackdropFilter::captureBackdrop(Renderer &renderer, Scratch &textures,
                             }
                             capture = static_cast<GlTexture *>(textures.opaqueCapture.get());
                         } else {
-                            if (!renderer.renderToTexture(
-                                        textures.capture, base::Rect(base::Point(), captureSize), [] { })) {
-                                copied = false;
+                            // Cleared wherever the draw below reads, past this source too.
+                            const base::Rect cleared = source.transform
+                                    ? base::Rect()
+                                    : copied.translated(-coverage.topLeft());
+                            if (!renderer.renderToTexture(textures.capture,
+                                                          base::Rect(base::Point(), captureSize),
+                                                          cleared, [] { })) {
+                                complete = false;
                                 break;
                             }
                             capture = static_cast<GlTexture *>(textures.capture.get());
@@ -292,7 +316,7 @@ bool BackdropFilter::captureBackdrop(Renderer &renderer, Scratch &textures,
                         renderer.drawTextureTransformed(capture, lying, turn, 1);
                     }
                 })
-            && copied;
+            && complete;
 }
 
 void BackdropFilter::draw(Renderer &renderer, const base::RectF &exactLens, int radius,
@@ -436,8 +460,16 @@ void BackdropFilter::draw(Renderer &renderer, const base::RectF &exactLens, int 
     } restoreClips {clips, std::exchange(clips, {})};
 
     std::unique_ptr<Texture> &result = kept ? kept->result : textures->result;
+    // A redo reads the captured texels the kernel reaches past what it writes,
+    // across and down, the horizontal pass covering the rows the vertical reads.
+    const base::Rect sampledTexels = redoing
+            ? redo.adjusted(-kGaussianMaxReach - 1, -kGaussianMaxReach - 1, kGaussianMaxReach + 1,
+                            kGaussianMaxReach + 1)
+                      .intersected(reducedBounds)
+            : base::Rect();
     if ((!reused || redoing)
-        && !captureBackdrop(renderer, *textures, sources, coverage, reduced, allocatedBounds))
+        && !captureBackdrop(renderer, *textures, sources, coverage, reduced, allocatedBounds,
+                            sampledTexels))
         return;
 
     const auto drawQuad = [&](const GlProgram &program, Texture *input, const base::Rect &target,
