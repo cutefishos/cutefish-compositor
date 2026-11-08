@@ -66,6 +66,15 @@ public:
     const render::GlassParams &glass() const { return m_glass; }
     const ui::Path &backgroundBlurShape() const { return m_blurShape; }
 
+    // Surface-local; blurs the subsurfaces placed below this one with what is
+    // behind them, before this surface's own content. Its kept result goes by
+    // subsurfaceBlurId().
+    void setSubsurfaceBlur(const base::Rect &rect, int radius);
+    bool hasSubsurfaceBlur() const { return !m_subsurfaceBlurRect.isEmpty(); }
+    base::Rect subsurfaceBlurRect() const { return m_subsurfaceBlurRect; }
+    int subsurfaceBlurRadius() const { return m_subsurfaceBlurRadius; }
+    uint64_t subsurfaceBlurId() const { return m_subsurfaceBlurId; }
+
     // Mapped, but hidden with its window: drawn anyway where the renderer
     // reveals hidden surfaces.
     void setHiddenWithWindow(bool hidden) { m_hiddenWithWindow = hidden; }
@@ -123,8 +132,12 @@ public:
 protected:
     void paint(render::Renderer &renderer, const base::Rect &absoluteGeometry) const override;
     void paintBackdrop(render::Renderer &renderer, const base::Rect &absoluteGeometry) const override;
+    void paintOverChildrenBelow(render::Renderer &renderer, const base::Rect &absoluteGeometry) const override;
 
 private:
+    base::Rect m_subsurfaceBlurRect;
+    int m_subsurfaceBlurRadius = 0;
+    const uint64_t m_subsurfaceBlurId = nextDamageId();
     std::shared_ptr<render::PresentationContent> m_presentationContent;
     base::AffineTransform m_textureMapping;
     std::shared_ptr<render::Texture> m_texture;

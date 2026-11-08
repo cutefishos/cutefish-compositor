@@ -61,6 +61,15 @@ void SurfaceNode::setBackgroundBlur(const base::Rect &rect, int radius, const re
     notifyChanged();
 }
 
+void SurfaceNode::setSubsurfaceBlur(const base::Rect &rect, int radius)
+{
+    if (m_subsurfaceBlurRect == rect && m_subsurfaceBlurRadius == radius)
+        return;
+    m_subsurfaceBlurRect = rect;
+    m_subsurfaceBlurRadius = radius;
+    notifyChanged();
+}
+
 void SurfaceNode::render(render::Renderer &renderer) const
 {
     if (!isVisible() && m_hiddenWithWindow && renderer.revealHiddenSurfaces) {
@@ -111,6 +120,17 @@ void SurfaceNode::paintBackdrop(render::Renderer &renderer, const base::Rect &ab
     renderer.drawBackgroundBlur(m_blurRect.translated(absoluteGeometry.topLeft()), m_blurRadius, absoluteGeometry,
                                 m_glass, m_blurShape.translated(absoluteGeometry.x(), absoluteGeometry.y()),
                                 damageId());
+}
+
+// The second stage: what the subsurfaces below drew, over what was behind them.
+void SurfaceNode::paintOverChildrenBelow(render::Renderer &renderer, const base::Rect &absoluteGeometry) const
+{
+    if (!hasSubsurfaceBlur() || absoluteGeometry.isEmpty() || renderer.suppressBackgroundBlur)
+        return;
+    const base::Rect bounds = m_subsurfaceBlurRect.translated(absoluteGeometry.topLeft());
+    if (!renderer.drawsInto(bounds))
+        return;
+    renderer.drawBackgroundBlur(bounds, m_subsurfaceBlurRadius, absoluteGeometry, {}, {}, m_subsurfaceBlurId);
 }
 
 } // namespace cutefish::scene

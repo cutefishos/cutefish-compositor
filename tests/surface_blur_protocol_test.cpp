@@ -277,6 +277,32 @@ TEST_F(SurfaceBlurProtocolTest, MalformedShapePostsProtocolError)
     wl_proxy_destroy(reinterpret_cast<wl_proxy *>(surface));
 }
 
+TEST_F(SurfaceBlurProtocolTest, BlurOverSubsurfacesIsPendingStateApartFromTheBackgroundBlur)
+{
+    auto *surface = wl_compositor_create_surface(clientCompositor);
+    cutefish_surface_blur_v1_set_over_subsurfaces(blur, surface, 10, 20, 200, 60, 50);
+    ASSERT_GE(roundtrip(), 0);
+    ASSERT_EQ(compositor.surfaces().size(), 1u);
+    auto *model = compositor.surfaces().front();
+    EXPECT_TRUE(model->subsurfaceBlurRect().isEmpty());
+    wl_surface_commit(surface);
+    ASSERT_GE(roundtrip(), 0);
+    EXPECT_EQ(model->subsurfaceBlurRect(), base::Rect(10, 20, 200, 60));
+    EXPECT_EQ(model->subsurfaceBlurRadius(), 30);
+    EXPECT_TRUE(model->backgroundBlurRect().isEmpty());
+    cutefish_surface_blur_v1_set(blur, surface, 0, 0, 30, 20, 4);
+    cutefish_surface_blur_v1_unset_over_subsurfaces(blur, surface);
+    wl_surface_commit(surface);
+    ASSERT_GE(roundtrip(), 0);
+    EXPECT_TRUE(model->subsurfaceBlurRect().isEmpty());
+    EXPECT_EQ(model->backgroundBlurRect(), base::Rect(0, 0, 30, 20));
+    cutefish_surface_blur_v1_set_over_subsurfaces(blur, surface, 0, 0, 10, 0, 0);
+    EXPECT_LT(roundtrip(), 0);
+    EXPECT_EQ(wl_display_get_protocol_error(client, nullptr, nullptr),
+              CUTEFISH_SURFACE_BLUR_V1_ERROR_INVALID_GEOMETRY);
+    wl_proxy_destroy(reinterpret_cast<wl_proxy *>(surface));
+}
+
 TEST_F(SurfaceBlurProtocolTest, InvalidGeometryPostsProtocolError)
 {
     auto *surface = wl_compositor_create_surface(clientCompositor);

@@ -177,6 +177,12 @@ protected:
     // What the node draws of the content behind it (a background blur), before
     // the children placed below it: those are its own, not behind it.
     virtual void paintBackdrop(render::Renderer &renderer, const base::Rect &absoluteGeometry) const;
+    // What the node draws over the children placed below it, before its own
+    // paint (a blur of them).
+    virtual void paintOverChildrenBelow(render::Renderer &renderer, const base::Rect &absoluteGeometry) const;
+
+    // A fresh damage id, for something a node draws that is kept apart.
+    static uint64_t nextDamageId();
 
     // render() whether or not this node itself is visible, for a subtree drawn
     // somewhere of its own while hidden, as a desk preview draws another desk.

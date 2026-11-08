@@ -14,15 +14,18 @@ namespace cutefish::scene {
 uint64_t Node::s_mutations = 0;
 
 Node::Node(std::string name)
-    : m_damageId([] {
-        static std::atomic<uint64_t> next {0};
-        return ++next;
-    }())
+    : m_damageId(nextDamageId())
     , m_name(std::move(name))
 {
 }
 
 Node::~Node() = default;
+
+uint64_t Node::nextDamageId()
+{
+    static std::atomic<uint64_t> next {0};
+    return ++next;
+}
 
 Node *Node::addChild(std::unique_ptr<Node> child)
 {
@@ -245,8 +248,10 @@ void Node::renderSubtree(render::Renderer &renderer) const
         paintBackdrop(renderer, absoluteGeometry());
     for (size_t i = first; i < split; ++i)
         m_childOrder[i]->render(renderer);
-    if (first <= split)
+    if (first <= split) {
+        paintOverChildrenBelow(renderer, absoluteGeometry());
         paint(renderer, absoluteGeometry());
+    }
     size_t next = std::max(split, first);
     for (size_t i = m_childOrder.size(); i-- > next + 1;) {
         if (m_childOrder[i]->renderSiblingsBelow(renderer, next, i)) {
@@ -268,13 +273,17 @@ void Node::renderForCapture(render::Renderer &renderer) const
     if (first <= split)
         paintBackdrop(renderer, absoluteGeometry());
     for (size_t i = first; i < m_childOrder.size(); ++i) {
-        if (i == split)
+        if (i == split) {
+            paintOverChildrenBelow(renderer, absoluteGeometry());
             paint(renderer, absoluteGeometry());
+        }
         if (!m_childOrder[i]->isExcludedFromCapture())
             m_childOrder[i]->render(renderer);
     }
-    if (split >= m_childOrder.size() && first <= split)
+    if (split >= m_childOrder.size() && first <= split) {
+        paintOverChildrenBelow(renderer, absoluteGeometry());
         paint(renderer, absoluteGeometry());
+    }
 }
 
 void Node::releaseRenderResources()
@@ -303,6 +312,10 @@ void Node::paint(render::Renderer &, const base::Rect &) const
 }
 
 void Node::paintBackdrop(render::Renderer &, const base::Rect &) const
+{
+}
+
+void Node::paintOverChildrenBelow(render::Renderer &, const base::Rect &) const
 {
 }
 

@@ -210,6 +210,16 @@ public:
 
     const render::GlassParams &glass() const { return m_state.basicState.glass; }
 
+    // Drawn over the subsurfaces placed below this one, before its own content.
+    void setSubsurfaceBlur(const base::Rect &rect, int radius)
+    {
+        m_pending.basicState.subsurfaceBlurRect = rect;
+        m_pending.basicState.subsurfaceBlurRadius = radius;
+    }
+
+    base::Rect subsurfaceBlurRect() const { return m_state.basicState.subsurfaceBlurRect; }
+    int subsurfaceBlurRadius() const { return m_state.basicState.subsurfaceBlurRadius; }
+
     void setOpaqueRegion(const base::Region &region);
     void setInputRegion(const base::Region &region);
     void resetInputRegion();
@@ -459,6 +469,8 @@ private:
         int blurRadius = 0;
         ui::Path blurShape;
         render::GlassParams glass;
+        base::Rect subsurfaceBlurRect;
+        int subsurfaceBlurRadius = 0;
         base::Region opaqueRegion;
         // Unset means "the whole surface accepts input", which is the default
         // and is not the same as an empty region.

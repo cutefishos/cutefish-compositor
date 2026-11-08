@@ -322,9 +322,30 @@ void setGlassRim(wl_client *, wl_resource *resource, wl_resource *surfaceResourc
     surface->setGlass(glass);
 }
 
+void setOverSubsurfaces(wl_client *, wl_resource *resource, wl_resource *surfaceResource, int32_t x,
+                        int32_t y, int32_t width, int32_t height, int32_t radius)
+{
+    if (width <= 0 || height <= 0 || radius < 0
+        || int64_t(x) + width > std::numeric_limits<int32_t>::max()
+        || int64_t(y) + height > std::numeric_limits<int32_t>::max()) {
+        wl_resource_post_error(resource, CUTEFISH_SURFACE_BLUR_V1_ERROR_INVALID_GEOMETRY,
+                               "invalid blur rectangle or radius");
+        return;
+    }
+    auto *surface = getUserDataAs<compositor::Surface>(surfaceResource);
+    surface->setSubsurfaceBlur(clientRect(x, y, width, height),
+                               std::min(radius, std::min(width, height) / 2));
+}
+
+void unsetOverSubsurfaces(wl_client *, wl_resource *, wl_resource *surfaceResource)
+{
+    getUserDataAs<compositor::Surface>(surfaceResource)->setSubsurfaceBlur({}, 0);
+}
+
 const struct cutefish_surface_blur_v1_interface implementation = {
         destroy,          set,          unset,    setGlass,   unsetGlass,         setGlassMaterial,
-        setGlassLighting, setGlassTint, setShape, unsetShape, setGlassSaturation, setGlassRim};
+        setGlassLighting, setGlassTint, setShape, unsetShape, setGlassSaturation, setGlassRim,
+        setOverSubsurfaces, unsetOverSubsurfaces};
 
 void bind(wl_client *client, void *, uint32_t, uint32_t id)
 {

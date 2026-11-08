@@ -661,6 +661,8 @@ void Surface::applyCachedState()
         m_node->setOpaque(isFullyOpaque());
         m_node->setBackgroundBlur(backgroundBlurRect(), backgroundBlurRadius(), glass(),
                                   backgroundBlurShape());
+        m_node->setSubsurfaceBlur(subsurfaceBlurRect().intersected(base::Rect(contentSize())),
+                                  subsurfaceBlurRadius());
     }
     if (m_node)
         m_node->notifyDamage(damageRegion());
@@ -1096,6 +1098,8 @@ void Surface::setPosition(const base::Point &position)
         m_node->setOpaque(isFullyOpaque());
         m_node->setBackgroundBlur(backgroundBlurRect(), backgroundBlurRadius(), glass(),
                                   backgroundBlurShape());
+        m_node->setSubsurfaceBlur(subsurfaceBlurRect().intersected(base::Rect(contentSize())),
+                                  subsurfaceBlurRadius());
     }
 }
 

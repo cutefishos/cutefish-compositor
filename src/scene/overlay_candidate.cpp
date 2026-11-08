@@ -46,7 +46,7 @@ bool hasBackgroundBlur(const Node &node)
     if (!node.isVisible())
         return false;
     if (const auto *surface = dynamic_cast<const SurfaceNode *>(&node);
-        surface && surface->hasBackgroundBlur())
+        surface && (surface->hasBackgroundBlur() || surface->hasSubsurfaceBlur()))
         return true;
     return std::any_of(node.children().begin(), node.children().end(), [](const Node *child) {
         return hasBackgroundBlur(*child);

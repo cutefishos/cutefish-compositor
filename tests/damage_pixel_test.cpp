@@ -687,3 +687,117 @@ TEST(DamagePixels, AWindowSnapshotDrawnByACaptureServesTheNextFrame)
     renderer->cancelFrame();
     renderer->releaseTarget(target.get());
 }
+
+// The second blur stage reads what the children placed below a surface drew:
+// their edges come out soft under it, and nowhere else.
+TEST(DamagePixels, ABlurOverChildrenBelowBlursThem)
+{
+    auto renderer = render::EglRendererTestAccess::create();
+    ASSERT_TRUE(renderer);
+    const base::Size size(400, 400);
+    const EGLint attributes[] = {EGL_WIDTH, 400, EGL_HEIGHT, 400, EGL_NONE};
+    const auto surface =
+            eglCreatePbufferSurface(renderer->eglDisplay(), renderer->eglConfig(), attributes);
+    ASSERT_NE(surface, EGL_NO_SURFACE);
+    auto target = std::make_unique<render::EglRenderTarget>(renderer->eglDisplay(), surface,
+                                                            nullptr, size);
+    scene::Scene scene;
+    scene.setSize(size);
+    auto *parent = static_cast<scene::SurfaceNode *>(
+            scene.root()->addChild(std::make_unique<scene::SurfaceNode>()));
+    parent->setGeometry({100, 100, 200, 160});
+    auto *below = parent->addChild(std::make_unique<scene::ColorNode>(render::Color {1, 1, 1, 1}));
+    below->setGeometry({90, 0, 20, 160});
+    parent->setChildrenBelowParent(1);
+    const render::OutputRenderContext context {"test", base::Rect(base::Point(), size), size, 1};
+    renderer->setOutputContext(context);
+    ASSERT_TRUE(renderer->beginFrame(target.get()));
+    std::vector<uint8_t> pixels(200 * 160 * 4, 0);
+    parent->setTexture(renderer->createTexture({200, 160}, pixels.data()));
+    const auto frame = [&] {
+        return renderer->captureFrame([&] {
+            scene.render(*renderer);
+        });
+    };
+    const auto red = [](uint32_t pixel) { return int(pixel >> 16 & 0xff); };
+    const ui::Bitmap sharp = frame();
+    EXPECT_EQ(red(sharp.pixel(186, 180)), 0);
+    EXPECT_EQ(red(sharp.pixel(192, 180)), 255);
+    // Over the lower half only.
+    parent->setSubsurfaceBlur({0, 80, 200, 80}, 12);
+    const ui::Bitmap blurred = frame();
+    EXPECT_GT(red(blurred.pixel(186, 220)), 20);
+    EXPECT_LT(red(blurred.pixel(192, 220)), 250);
+    EXPECT_EQ(blurred.pixel(186, 130), sharp.pixel(186, 130));
+    EXPECT_EQ(blurred.pixel(192, 130), sharp.pixel(192, 130));
+    parent->setSubsurfaceBlur({}, 0);
+    EXPECT_EQ(frame(), sharp);
+    renderer->cancelFrame();
+    renderer->releaseTarget(target.get());
+}
+
+// Partial frames, a child below changing under the blur and something above
+// it moving, kept results and all, match frames drawn whole.
+TEST(DamagePixels, ABlurOverChildrenBelowRedoneInPartMatchesTheCompleteFrame)
+{
+    auto renderer = render::EglRendererTestAccess::create();
+    ASSERT_TRUE(renderer);
+    const base::Size size(400, 400);
+    const EGLint attributes[] = {EGL_WIDTH, 400, EGL_HEIGHT, 400, EGL_NONE};
+    const auto surface =
+            eglCreatePbufferSurface(renderer->eglDisplay(), renderer->eglConfig(), attributes);
+    ASSERT_NE(surface, EGL_NO_SURFACE);
+    auto target = std::make_unique<render::EglRenderTarget>(renderer->eglDisplay(), surface,
+                                                            nullptr, size);
+    for (double scale : {1.0, 1.5}) {
+        scene::Scene scene;
+        scene.setSize(size);
+        auto *backdrop = scene.root()->addChild(
+                std::make_unique<scene::ColorNode>(render::Color {0, 0, 1, 1}));
+        backdrop->setGeometry({60, 60, 30, 300});
+        auto *parent = static_cast<scene::SurfaceNode *>(
+                scene.root()->addChild(std::make_unique<scene::SurfaceNode>()));
+        parent->setGeometry({50, 50, 300, 300});
+        auto *below = parent->addChild(std::make_unique<scene::ColorNode>(render::Color {1, 1, 1, 1}));
+        parent->setChildrenBelowParent(1);
+        parent->setSubsurfaceBlur({40, 40, 200, 120}, 12);
+        auto *above = scene.root()->addChild(
+                std::make_unique<scene::ColorNode>(render::Color {1, 0, 0, 1}));
+        const render::OutputRenderContext context {"test", base::Rect(base::Point(), size), size, scale};
+        renderer->setOutputContext(context);
+        ASSERT_TRUE(renderer->beginFrame(target.get()));
+        std::vector<uint8_t> pixels(300 * 300 * 4, 0);
+        parent->setTexture(renderer->createTexture({300, 300}, pixels.data()));
+        scene::DamageTracker tracker;
+        const auto scope = uint64_t(reinterpret_cast<uintptr_t>(&tracker));
+        const auto kept = [&](uint64_t owner) {
+            return renderer->keepsBackdrop(scope, owner);
+        };
+        for (int frame = 0; frame < 6; ++frame) {
+            // What the child below shows changes on the second and fifth frames.
+            below->setGeometry({frame >= 4 ? 120 : frame >= 1 ? 100 : 80, 20, 16, 260});
+            above->setGeometry({150 + frame * 7, 260, 8, 8});
+            const auto damage = tracker.update(*scene.root(), context.logicalViewport, scale);
+            const base::Rect physical = render::physicalDamage(damage, context, size);
+            const base::Rect repaint = render::coverSamples(physical, tracker.samples(kept), context, size);
+            // At 1.5 the blur and its halo reach over the whole output.
+            if (frame && scale == 1)
+                EXPECT_LT(repaint.width() * repaint.height(), size.width() * size.height()) << "frame=" << frame;
+            render::EglRendererTestAccess::applyRepaint(*renderer, repaint);
+            {
+                const render::BackdropPass backdrops(*renderer, scope, tracker.freshBackdrops(kept));
+                renderer->clear(scene.background());
+                scene.root()->render(*renderer);
+            }
+            ui::Bitmap partial(size, ui::Bitmap::Format::Rgba8888Premultiplied);
+            glReadPixels(0, 0, 400, 400, GL_RGBA, GL_UNSIGNED_BYTE, partial.bits());
+            partial = partial.mirrored(false, true).converted(ui::Bitmap::Format::Argb32Premultiplied);
+            const auto complete = renderer->captureFrame([&] {
+                scene.render(*renderer);
+            });
+            EXPECT_EQ(partial, complete) << "scale=" << scale << " frame=" << frame;
+        }
+        renderer->cancelFrame();
+    }
+    renderer->releaseTarget(target.get());
+}

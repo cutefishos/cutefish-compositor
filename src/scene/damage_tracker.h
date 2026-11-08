@@ -199,6 +199,24 @@ private:
             for (size_t i = 0; i < split; ++i)
                 self(self, *children[i], changed, redrawsChildren);
             const auto *surface = dynamic_cast<const SurfaceNode *>(&node);
+            // The second stage reads what the children below drew too.
+            if (surface && surface->hasSubsurfaceBlur()) {
+                if (transform != 0 || scale <= 0) {
+                    filtered |= absolute.intersects(viewport);
+                } else {
+                    const base::Rect blurred = surface->subsurfaceBlurRect().translated(node.absolutePosition());
+                    const int halo = render::kBackdropBlurSupport + int(std::ceil(2 / scale));
+                    const base::Rect sampled = blurred.adjusted(-halo, -halo, halo, halo);
+                    const uint64_t owner = surface->subsurfaceBlurId();
+                    const base::Rect outside = backdropChanged
+                            ? backdropChanged(owner, sampled).intersected(sampled)
+                            : base::Rect();
+                    steps.push_back({{}, blurred.adjusted(-1, -1, 1, 1), frame.blurs.size()});
+                    frame.blurs.push_back({sampled, owner, changed || redrawn || outside == sampled,
+                                           render::backdropReach(render::GlassParams {}, scale),
+                                           {}, {}, outside});
+                }
+            }
             if (surface && surface->hasBackgroundBlur()) {
                 if (transform != 0 || scale <= 0) {
                     filtered |= absolute.intersects(viewport);
