@@ -41,10 +41,10 @@ public:
     int chargePercent() const;
     const std::string &statusString() const;
 
-    // battery-level-<0..100 in tens>[-charging]-symbolic.svg, as the bar's
-    // images are named.
-    std::string iconSource() const;
-    static std::string iconSource(int percent, bool onBattery);
+    // battery-level-<0..100 in tens>[-charging][-saver]-symbolic.svg, as the
+    // bar's images are named; -saver has a yellow level and no empty battery.
+    std::string iconSource(bool powerSaver) const;
+    static std::string iconSource(int percent, bool onBattery, bool powerSaver = false);
 
     bool showPercentage() const { return m_showPercentage; }
     void setShowPercentage(bool enabled);

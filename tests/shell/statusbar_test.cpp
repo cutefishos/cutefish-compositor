@@ -435,6 +435,10 @@ TEST(BatteryTest, PicksTheIconForTheLevel)
     EXPECT_EQ(shell::Battery::iconSource(15, true), "battery-level-20-symbolic.svg");
     EXPECT_EQ(shell::Battery::iconSource(14, true), "battery-level-10-symbolic.svg");
     EXPECT_EQ(shell::Battery::iconSource(4, true), "battery-level-0-symbolic.svg");
+
+    EXPECT_EQ(shell::Battery::iconSource(50, true, true), "battery-level-50-saver-symbolic.svg");
+    EXPECT_EQ(shell::Battery::iconSource(94, false, true), "battery-level-90-charging-saver-symbolic.svg");
+    EXPECT_EQ(shell::Battery::iconSource(4, false, true), "battery-level-0-charging-symbolic.svg");
 }
 
 // cutefish-services comes up after the shell: the battery shows once it does.

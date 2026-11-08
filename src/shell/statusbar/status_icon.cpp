@@ -113,10 +113,10 @@ void StatusIcon::setIndicatorColor(std::optional<ui::Color> color)
     updateContent();
 }
 
-void StatusIcon::showBattery(const Battery &battery, bool percentage)
+void StatusIcon::showBattery(const Battery &battery, bool percentage, bool powerSaver)
 {
     setVisible(battery.isAvailable());
-    std::string icon = battery.iconSource();
+    std::string icon = battery.iconSource(powerSaver);
     if (icon.ends_with(".svg"))
         icon.resize(icon.size() - 4);
     setIconName(icon);

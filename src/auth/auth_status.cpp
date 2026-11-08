@@ -7,6 +7,7 @@
 #include "base/dbus.h"
 #include "core/main_loop.h"
 #include "core/preferences.h"
+#include "cutefish/powerprofiles/power_profiles.h"
 #include "cutefish/upower/battery_status.h"
 #include "shell/statusbar/battery.h"
 #include "shell/statusbar/status_icon.h"
@@ -41,8 +42,10 @@ AuthStatus::AuthStatus(bool login)
             return std::make_shared<upower::BatteryStatus>(sessionBus, systemBus);
         });
     }
+    m_powerProfiles = std::make_unique<powerprofiles::PowerProfiles>(systemBus);
     m_wirelessStatus = std::make_unique<shell::WirelessStatus>();
     m_subscriptions.push_back(m_batteryStatus->changed.connect([this] { updateBattery(); }));
+    m_subscriptions.push_back(m_powerProfiles->activeProfileChanged.connect([this] { updateBattery(); }));
     m_subscriptions.push_back(m_wirelessStatus->changed.connect([this] { updateNetwork(); }));
 
     updateBattery();
@@ -65,7 +68,7 @@ void AuthStatus::setLightContents(bool light)
 
 void AuthStatus::updateBattery()
 {
-    m_battery->showBattery(*m_batteryStatus, true);
+    m_battery->showBattery(*m_batteryStatus, true, m_powerProfiles->activeProfile() == "power-saver");
     requestLayout();
 }
 

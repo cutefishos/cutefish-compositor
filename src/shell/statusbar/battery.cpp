@@ -73,12 +73,12 @@ const std::string &Battery::statusString() const
     return m_status->statusString();
 }
 
-std::string Battery::iconSource() const
+std::string Battery::iconSource(bool powerSaver) const
 {
-    return iconSource(m_status->chargePercent(), m_status->onBattery());
+    return iconSource(m_status->chargePercent(), m_status->onBattery(), powerSaver);
 }
 
-std::string Battery::iconSource(int percent, bool onBattery)
+std::string Battery::iconSource(int percent, bool onBattery, bool powerSaver)
 {
     // 95 and up show full, then a step every ten from 5.
     int range = 0;
@@ -86,9 +86,12 @@ std::string Battery::iconSource(int percent, bool onBattery)
         range = 100;
     else if (percent >= 5)
         range = (percent + 5) / 10 * 10;
-    if (onBattery)
-        return "battery-level-" + std::to_string(range) + "-symbolic.svg";
-    return "battery-level-" + std::to_string(range) + "-charging-symbolic.svg";
+    std::string name = "battery-level-" + std::to_string(range);
+    if (!onBattery)
+        name += "-charging";
+    if (powerSaver && range > 0)
+        name += "-saver";
+    return name + "-symbolic.svg";
 }
 
 void Battery::setShowPercentage(bool enabled)

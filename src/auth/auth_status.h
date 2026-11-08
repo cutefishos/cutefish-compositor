@@ -11,6 +11,10 @@
 #include "base/signal.h"
 #include "shell/statusbar/bar_item.h"
 
+namespace cutefish::powerprofiles {
+class PowerProfiles;
+} // namespace cutefish::powerprofiles
+
 namespace cutefish::shell {
 class Battery;
 class StatusIcon;
@@ -53,6 +57,7 @@ private:
     std::vector<shell::StatusIcon *> shownIcons() const;
 
     std::unique_ptr<shell::Battery> m_batteryStatus;
+    std::unique_ptr<powerprofiles::PowerProfiles> m_powerProfiles;
     std::unique_ptr<shell::WirelessStatus> m_wirelessStatus;
     shell::StatusIcon *m_network = nullptr;
     shell::StatusIcon *m_battery = nullptr;

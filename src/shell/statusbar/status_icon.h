@@ -36,9 +36,9 @@ public:
     // The dot after the icon; none when unset.
     void setIndicatorColor(std::optional<ui::Color> color);
 
-    // The battery's level, and its percentage with `percentage`; hidden
-    // without a battery.
-    void showBattery(const Battery &battery, bool percentage);
+    // The battery's level, yellow with `powerSaver`, and its percentage with
+    // `percentage`; hidden without a battery.
+    void showBattery(const Battery &battery, bool percentage, bool powerSaver);
     // The Wi-Fi state; hidden without Wi-Fi hardware.
     void showNetwork(const StatusBarIndicators::Network &network);
 

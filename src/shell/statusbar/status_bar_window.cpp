@@ -16,6 +16,7 @@
 #include "base/dbus.h"
 #include "base/locale.h"
 #include "core/main_loop.h"
+#include "cutefish/powerprofiles/power_profiles.h"
 #include "shell/shell_window.h"
 #include "shell/statusbar/clock_format.h"
 #include "shell/statusbar/status_bar.h"
@@ -190,6 +191,7 @@ StatusBarWindow::StatusBarWindow(Shell *shell, std::unique_ptr<StatusBar> status
     Battery &battery = m_statusBar->battery();
     m_subscriptions.push_back(battery.changed.connect([this] { updateBattery(); }));
     m_subscriptions.push_back(battery.showPercentageChanged.connect([this] { updateBattery(); }));
+    m_subscriptions.push_back(m_statusBar->powerProfiles().activeProfileChanged.connect([this] { updateBattery(); }));
 
     m_subscriptions.push_back(m_backdrop->changed.connect([this] { updateLook(); }));
     if (bus)
@@ -347,7 +349,8 @@ void StatusBarWindow::updatePlateBlur()
 void StatusBarWindow::updateBattery()
 {
     const Battery &battery = m_statusBar->battery();
-    m_battery->showBattery(battery, battery.showPercentage());
+    const bool powerSaver = m_statusBar->powerProfiles().activeProfile() == "power-saver";
+    m_battery->showBattery(battery, battery.showPercentage(), powerSaver);
     layoutRow();
 }
 
