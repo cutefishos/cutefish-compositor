@@ -113,7 +113,12 @@ void WindowState::onEvent(const WMEvent &event)
         enterState(isMaximized() ? restoreStateType() : WindowStateType::Maximized);
         break;
     case WMEventType::ToggleFullscreen:
-        enterState(isFullscreen() ? restoreStateType() : WindowStateType::Fullscreen);
+        // Upstream: ToggleFullScreen. A window that cannot go fullscreen can
+        // still be restored from it; the client's own request is not a toggle.
+        if (isFullscreen())
+            enterState(restoreStateType());
+        else if (m_window->isResizable())
+            enterState(WindowStateType::Fullscreen);
         break;
     case WMEventType::SetBounds: {
         const auto &setBounds = static_cast<const SetBoundsWMEvent &>(event);

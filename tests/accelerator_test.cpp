@@ -718,6 +718,24 @@ TEST_F(AcceleratorTest, WindowActionsApplyToTheActiveWindow)
     EXPECT_EQ(1, closes);
 }
 
+TEST_F(AcceleratorTest, AFixedSizeWindowNeitherMaximizesNorGoesFullscreen)
+{
+    wm::Window *window = makeWindow(base::Rect(100, 100, 300, 200));
+    window->setResizable(false);
+    manager.activation()->activate(window);
+
+    chord({KEY_LEFTMETA}, KEY_UP);
+    EXPECT_EQ(wm::WindowStateType::Normal, window->stateType());
+    chord({KEY_LEFTMETA}, KEY_F);
+    EXPECT_EQ(wm::WindowStateType::Normal, window->stateType());
+
+    // Fullscreen it asked for itself still ends with the shortcut.
+    window->setFullscreen(true);
+    ASSERT_EQ(wm::WindowStateType::Fullscreen, window->stateType());
+    chord({KEY_LEFTMETA}, KEY_F);
+    EXPECT_EQ(wm::WindowStateType::Normal, window->stateType());
+}
+
 TEST_F(AcceleratorTest, ActionsRunWithoutAKeyUnderTheSameRestrictions)
 {
     // A hot corner runs an action with no key behind it.
