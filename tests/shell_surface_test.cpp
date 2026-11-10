@@ -621,6 +621,28 @@ TEST_F(ShellSurfaceTest, AClientGrowingPastTheWorkAreaIsToldTheSizeItKeeps)
     EXPECT_EQ(base::Size(300, workArea.height()), recorder->last().size);
 }
 
+TEST_F(ShellSurfaceTest, AFixedSizeClientGrowingPastTheWorkAreaIsLimitedToo)
+{
+    Recorder *recorder = nullptr;
+    ShellSurface *shell = makeMappedToplevel(base::Size(300, 200), &recorder);
+    ASSERT_TRUE(shell->acknowledgeConfigure(recorder->serials.back()));
+    const base::Rect workArea = manager.workAreaFor(shell->window());
+    shell->window()->setBounds(base::Rect(100, workArea.top() + 40, 300, 200));
+
+    // A window that cannot be resized states its new size as both limits.
+    const base::Size grown(300, workArea.height() + 100);
+    shell->setMinimumSize(grown);
+    shell->setMaximumSize(grown);
+    shell->rootSurface()->commit();
+    ASSERT_TRUE(shell->acknowledgeConfigure(recorder->serials.back()));
+    attach(shell->rootSurface(), grown);
+    shell->rootSurface()->commit();
+
+    // Only the size is limited; the position stays where the window was.
+    EXPECT_EQ(base::Rect(100, workArea.top() + 40, 300, workArea.height()), shell->window()->bounds());
+    EXPECT_EQ(base::Size(300, workArea.height()), recorder->last().size);
+}
+
 TEST_F(ShellSurfaceTest, ACentreAnchoredClientResizeKeepsTheWindowCentre)
 {
     Recorder *recorder = nullptr;
