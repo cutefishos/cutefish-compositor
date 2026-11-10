@@ -162,8 +162,13 @@ TEST_F(DockLayoutTest, PanelOnlyGivesWayToFullscreen)
     EXPECT_TRUE(panel->isPresentationHidden());
     EXPECT_EQ(base::Point(0, -30), panel->presentationOffset());
 
-    // The top edge brings it back over the fullscreen window.
+    // The top edge leaves it away over a window that has not declared its
+    // bars, and brings it back once the window has.
     moveTo(base::PointF(500, 2));
+    waitForReveal();
+    EXPECT_EQ(DockAutoHideState::Hidden, layout.autoHideState(panel));
+    window->rootSurface()->setFullscreenBars(0, false);
+    layout.update();
     waitForReveal();
     EXPECT_EQ(DockAutoHideState::Shown, layout.autoHideState(panel));
 

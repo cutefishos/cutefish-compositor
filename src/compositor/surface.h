@@ -151,10 +151,12 @@ public:
     void setOpacity(float opacity);
     // Read when the top panel slides over the window in the fullscreen
     // state; see set_fullscreen_bars.
+    bool hasFullscreenBars() const { return m_hasFullscreenBars; }
     int fullscreenBarsHeight() const { return m_fullscreenBarsHeight; }
     bool fullscreenBarsPush() const { return m_fullscreenBarsPush; }
     void setFullscreenBars(int height, bool push)
     {
+        m_hasFullscreenBars = true;
         m_fullscreenBarsHeight = height;
         m_fullscreenBarsPush = push;
     }
@@ -576,6 +578,7 @@ private:
     bool m_alwaysOnTop = false;
     bool m_castsShadow = true;
     float m_opacity = 1;
+    bool m_hasFullscreenBars = false;
     int m_fullscreenBarsHeight = 0;
     bool m_fullscreenBarsPush = false;
     ResizeAnchor m_resizeAnchor = ResizeAnchor::TopLeft;

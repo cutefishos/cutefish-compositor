@@ -67,10 +67,11 @@ enum class WorkspaceState {
 // dock or at its edge, a menu of the dock's, the launcher - and from whether
 // there is a window to make room for at all. Showing, and hiding because the
 // pointer left, wait kAutoHideDelayMs; anything else hides at once.
-// A panel along the top edge tells a fullscreen window under it when it
-// comes and goes, keeps itself shown while the pointer is over the bars the
-// window shows under it, and pushes the window down with it when the window
-// asks for that.
+// A panel along the top edge comes back to the pointer over a fullscreen
+// window only once the window has declared its bars; it then tells the
+// window when it comes and goes, keeps itself shown while the pointer is over
+// those bars, and pushes the window down with it when the window asks for
+// that.
 // A dock or panel that maps slides in from its edge, as the session starts.
 // The window overview pushes the panels off their edge as it comes in,
 // following its progress, and lets them back as it leaves.

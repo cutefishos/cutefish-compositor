@@ -312,12 +312,16 @@ DockAutoHideState DockLayoutManager::computeAutoHideState(const Window *dock, co
     if (!hasVisibleWindow(output))
         return DockAutoHideState::Shown;
 
+    if (isTopBar(dock, entry, output)) {
+        const Window *fullscreen = fullscreenWindowFor(output);
+        if (!fullscreen || !fullscreen->rootSurface() || !fullscreen->rootSurface()->hasFullscreenBars())
+            return DockAutoHideState::Hidden;
+    }
+
     if (m_pointer) {
         base::Rect region = shownRegion(dock->bounds(), output, entry.edge);
-        if (isTopBar(dock, entry, output)) {
-            if (const Window *fullscreen = fullscreenWindowFor(output); fullscreen && fullscreen->rootSurface())
-                region.setBottom(region.bottom() + fullscreen->rootSurface()->fullscreenBarsHeight());
-        }
+        if (isTopBar(dock, entry, output))
+            region.setBottom(region.bottom() + fullscreenWindowFor(output)->rootSurface()->fullscreenBarsHeight());
         if (revealing && region.contains(m_pointer->toPoint()))
             return DockAutoHideState::Shown;
         if (revealStrip(output, entry.edge).contains(m_pointer->toPoint()))
