@@ -5,6 +5,8 @@
 #ifndef CUTEFISH_RENDER_GLASS_H_
 #define CUTEFISH_RENDER_GLASS_H_
 
+#include <algorithm>
+
 namespace cutefish::render {
 
 // The glass effect material. The backdrop is softened, refracted through
@@ -69,6 +71,35 @@ struct GlassParams {
     float opacity = 1.0f;
     // The plain blur's sigma, smaller for a window drawn smaller.
     float plainSigma = 30.0f;
+    // What the plain blur lays over the blurred backdrop before the surface
+    // draws: a premultiplied tint, then a straight colour blended over that
+    // by fillMode (a BackdropBlend; none by default), as a material whose
+    // content blends with what is behind it.
+    float fillTint[4] = {0, 0, 0, 0};
+    int fillMode = 0;
+    float fillColor[4] = {0, 0, 0, 0};
+};
+
+// How a plain blur's fill colour blends over the tinted backdrop, as the
+// W3C compositing modes do.
+enum class BackdropBlend {
+    None,
+    Normal,
+    Multiply,
+    Screen,
+    Overlay,
+    Darken,
+    Lighten,
+    ColorDodge,
+    ColorBurn,
+    HardLight,
+    SoftLight,
+    Difference,
+    Exclusion,
+    Hue,
+    Saturation,
+    Color,
+    Luminosity,
 };
 
 inline bool operator==(const GlassParams &a, const GlassParams &b)
@@ -82,7 +113,9 @@ inline bool operator==(const GlassParams &a, const GlassParams &b)
             && a.ambientOcclusionRadius == b.ambientOcclusionRadius
             && a.saturation == b.saturation && a.rim == b.rim && a.tintRed == b.tintRed
             && a.tintGreen == b.tintGreen && a.tintBlue == b.tintBlue && a.tintAlpha == b.tintAlpha
-            && a.opacity == b.opacity && a.plainSigma == b.plainSigma;
+            && a.opacity == b.opacity && a.plainSigma == b.plainSigma && a.fillMode == b.fillMode
+            && std::equal(a.fillTint, a.fillTint + 4, b.fillTint)
+            && std::equal(a.fillColor, a.fillColor + 4, b.fillColor);
 }
 
 inline bool operator!=(const GlassParams &a, const GlassParams &b)

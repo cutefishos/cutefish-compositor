@@ -736,6 +736,77 @@ TEST(DamagePixels, ABlurOverChildrenBelowBlursThem)
     renderer->releaseTarget(target.get());
 }
 
+// A shape blurs only the areas it outlines in the rect: two panels over one
+// child below, with the gap between them left sharp. A pass that leaves the
+// background blur out, as a window's snapshot for its animations is drawn,
+// still blurs the children below.
+TEST(DamagePixels, ABlurOverChildrenBelowKeepsToItsShapeAndToSnapshots)
+{
+    auto renderer = render::EglRendererTestAccess::create();
+    ASSERT_TRUE(renderer);
+    const base::Size size(400, 400);
+    const EGLint attributes[] = {EGL_WIDTH, 400, EGL_HEIGHT, 400, EGL_NONE};
+    const auto surface =
+            eglCreatePbufferSurface(renderer->eglDisplay(), renderer->eglConfig(), attributes);
+    ASSERT_NE(surface, EGL_NO_SURFACE);
+    auto target = std::make_unique<render::EglRenderTarget>(renderer->eglDisplay(), surface,
+                                                            nullptr, size);
+    scene::Scene scene;
+    scene.setSize(size);
+    auto *parent = static_cast<scene::SurfaceNode *>(
+            scene.root()->addChild(std::make_unique<scene::SurfaceNode>()));
+    parent->setGeometry({100, 100, 200, 160});
+    auto *below = parent->addChild(std::make_unique<scene::ColorNode>(render::Color {1, 1, 1, 1}));
+    below->setGeometry({90, 0, 20, 160});
+    parent->setChildrenBelowParent(1);
+    const render::OutputRenderContext context {"test", base::Rect(base::Point(), size), size, 1};
+    renderer->setOutputContext(context);
+    ASSERT_TRUE(renderer->beginFrame(target.get()));
+    std::vector<uint8_t> pixels(200 * 160 * 4, 0);
+    parent->setTexture(renderer->createTexture({200, 160}, pixels.data()));
+    const auto frame = [&] {
+        return renderer->captureFrame([&] {
+            scene.render(*renderer);
+        });
+    };
+    const auto red = [](uint32_t pixel) { return int(pixel >> 16 & 0xff); };
+    const ui::Bitmap sharp = frame();
+    // Rows 10-50 and 110-150 of the surface; 60-100 between them is not.
+    ui::Path shape;
+    shape.addRect({0, 10, 200, 40});
+    shape.addRect({0, 110, 200, 40});
+    parent->setSubsurfaceBlur({0, 0, 200, 160}, 0, shape);
+    const ui::Bitmap blurred = frame();
+    EXPECT_GT(red(blurred.pixel(186, 130)), 20);
+    EXPECT_GT(red(blurred.pixel(186, 230)), 20);
+    EXPECT_EQ(blurred.pixel(186, 180), sharp.pixel(186, 180));
+    EXPECT_EQ(blurred.pixel(192, 180), sharp.pixel(192, 180));
+
+    renderer->suppressBackgroundBlur = true;
+    const ui::Bitmap snapshot = frame();
+    renderer->suppressBackgroundBlur = false;
+    EXPECT_GT(red(snapshot.pixel(186, 130)), 20);
+    EXPECT_EQ(snapshot.pixel(186, 180), sharp.pixel(186, 180));
+
+    // Red blended as a colour over the blurred child: the child's light in
+    // red's hue, black where the backdrop is, and the gap untouched.
+    render::GlassParams fill;
+    fill.fillMode = int(render::BackdropBlend::Color);
+    fill.fillColor[0] = 1;
+    fill.fillColor[3] = 1;
+    parent->setSubsurfaceBlur({0, 0, 200, 160}, 0, shape, fill);
+    const ui::Bitmap recoloured = frame();
+    const uint32_t lit = recoloured.pixel(200, 130);
+    EXPECT_GT(red(lit), int(lit >> 8 & 0xff) + 10);
+    EXPECT_GT(red(lit), int(lit & 0xff) + 10);
+    EXPECT_LT(red(recoloured.pixel(110, 130)), 20);
+    EXPECT_EQ(recoloured.pixel(192, 180), sharp.pixel(192, 180));
+    parent->setSubsurfaceBlur({}, 0);
+    EXPECT_EQ(frame(), sharp);
+    renderer->cancelFrame();
+    renderer->releaseTarget(target.get());
+}
+
 // Partial frames, a child below changing under the blur and something above
 // it moving, kept results and all, match frames drawn whole.
 TEST(DamagePixels, ABlurOverChildrenBelowRedoneInPartMatchesTheCompleteFrame)

@@ -220,6 +220,18 @@ public:
     base::Rect subsurfaceBlurRect() const { return m_state.basicState.subsurfaceBlurRect; }
     int subsurfaceBlurRadius() const { return m_state.basicState.subsurfaceBlurRadius; }
 
+    // Surface-local; empty for the rounded rectangle.
+    void setSubsurfaceBlurShape(const ui::Path &shape) { m_pending.basicState.subsurfaceBlurShape = shape; }
+
+    // What that blur lays over the blurred subsurfaces: the fill fields of
+    // the parameters only.
+    void setSubsurfaceBlurFill(const render::GlassParams &fill) { m_pending.basicState.subsurfaceBlurFill = fill; }
+    const render::GlassParams &subsurfaceBlurFill() const { return m_state.basicState.subsurfaceBlurFill; }
+
+    // The committed shape clipped to the rectangle; empty when there is none
+    // or no rectangle.
+    ui::Path subsurfaceBlurShape() const;
+
     void setOpaqueRegion(const base::Region &region);
     void setInputRegion(const base::Region &region);
     void resetInputRegion();
@@ -471,6 +483,8 @@ private:
         render::GlassParams glass;
         base::Rect subsurfaceBlurRect;
         int subsurfaceBlurRadius = 0;
+        ui::Path subsurfaceBlurShape;
+        render::GlassParams subsurfaceBlurFill;
         base::Region opaqueRegion;
         // Unset means "the whole surface accepts input", which is the default
         // and is not the same as an empty region.

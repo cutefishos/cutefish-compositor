@@ -326,6 +326,19 @@ ui::Path Surface::backgroundBlurShape() const
     return shape.intersected(bounds);
 }
 
+ui::Path Surface::subsurfaceBlurShape() const
+{
+    const base::Rect rect = subsurfaceBlurRect();
+    const ui::Path &shape = m_state.basicState.subsurfaceBlurShape;
+    if (rect.isEmpty() || shape.isEmpty())
+        return {};
+    if (rectFContains(rect, shape.controlPointRect()))
+        return shape;
+    ui::Path bounds;
+    bounds.addRect(ui::RectF {double(rect.x()), double(rect.y()), double(rect.width()), double(rect.height())});
+    return shape.intersected(bounds);
+}
+
 void Surface::setOpaqueRegion(const base::Region &region)
 {
     m_pending.basicState.opaqueRegion = region;
@@ -662,7 +675,7 @@ void Surface::applyCachedState()
         m_node->setBackgroundBlur(backgroundBlurRect(), backgroundBlurRadius(), glass(),
                                   backgroundBlurShape());
         m_node->setSubsurfaceBlur(subsurfaceBlurRect().intersected(base::Rect(contentSize())),
-                                  subsurfaceBlurRadius());
+                                  subsurfaceBlurRadius(), subsurfaceBlurShape(), subsurfaceBlurFill());
     }
     if (m_node)
         m_node->notifyDamage(damageRegion());
@@ -1099,7 +1112,7 @@ void Surface::setPosition(const base::Point &position)
         m_node->setBackgroundBlur(backgroundBlurRect(), backgroundBlurRadius(), glass(),
                                   backgroundBlurShape());
         m_node->setSubsurfaceBlur(subsurfaceBlurRect().intersected(base::Rect(contentSize())),
-                                  subsurfaceBlurRadius());
+                                  subsurfaceBlurRadius(), subsurfaceBlurShape(), subsurfaceBlurFill());
     }
 }
 

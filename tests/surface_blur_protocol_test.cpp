@@ -303,6 +303,50 @@ TEST_F(SurfaceBlurProtocolTest, BlurOverSubsurfacesIsPendingStateApartFromTheBac
     wl_proxy_destroy(reinterpret_cast<wl_proxy *>(surface));
 }
 
+TEST_F(SurfaceBlurProtocolTest, BlurOverSubsurfacesTakesAShape)
+{
+    auto *surface = wl_compositor_create_surface(clientCompositor);
+    wl_array path;
+    wl_array_init(&path);
+    const auto add = [&](int32_t value) {
+        *static_cast<int32_t *>(wl_array_add(&path, sizeof(int32_t))) = value;
+    };
+    for (const int top : {10, 60}) {
+        add(CUTEFISH_SURFACE_BLUR_V1_PATH_COMMAND_MOVE_TO);
+        add(wl_fixed_from_int(0));
+        add(wl_fixed_from_int(top));
+        add(CUTEFISH_SURFACE_BLUR_V1_PATH_COMMAND_LINE_TO);
+        add(wl_fixed_from_int(100));
+        add(wl_fixed_from_int(top));
+        add(CUTEFISH_SURFACE_BLUR_V1_PATH_COMMAND_LINE_TO);
+        add(wl_fixed_from_int(100));
+        add(wl_fixed_from_int(top + 20));
+        add(CUTEFISH_SURFACE_BLUR_V1_PATH_COMMAND_CLOSE);
+    }
+    cutefish_surface_blur_v1_set_over_subsurfaces(blur, surface, 0, 0, 100, 100, 0);
+    cutefish_surface_blur_v1_set_over_subsurfaces_shape(blur, surface, &path);
+    wl_surface_commit(surface);
+    ASSERT_GE(roundtrip(), 0);
+    ASSERT_EQ(compositor.surfaces().size(), 1u);
+    auto *model = compositor.surfaces().front();
+    EXPECT_FALSE(model->subsurfaceBlurShape().isEmpty());
+    EXPECT_TRUE(model->backgroundBlurShape().isEmpty());
+    cutefish_surface_blur_v1_unset_over_subsurfaces_shape(blur, surface);
+    cutefish_surface_blur_v1_set_over_subsurfaces_fill(
+            blur, surface, wl_fixed_from_double(1), wl_fixed_from_double(1), wl_fixed_from_double(1),
+            wl_fixed_from_double(0.5), CUTEFISH_SURFACE_BLUR_V1_BACKDROP_BLEND_COLOR, wl_fixed_from_double(0.2),
+            wl_fixed_from_double(0.4), wl_fixed_from_double(0.6), wl_fixed_from_double(1));
+    wl_surface_commit(surface);
+    ASSERT_GE(roundtrip(), 0);
+    EXPECT_TRUE(model->subsurfaceBlurShape().isEmpty());
+    EXPECT_EQ(model->subsurfaceBlurFill().fillMode, int(render::BackdropBlend::Color));
+    EXPECT_FLOAT_EQ(model->subsurfaceBlurFill().fillTint[3], 0.5f);
+    EXPECT_FLOAT_EQ(model->subsurfaceBlurFill().fillTint[0], 0.5f);
+    EXPECT_EQ(model->subsurfaceBlurRect(), base::Rect(0, 0, 100, 100));
+    wl_array_release(&path);
+    wl_proxy_destroy(reinterpret_cast<wl_proxy *>(surface));
+}
+
 TEST_F(SurfaceBlurProtocolTest, InvalidGeometryPostsProtocolError)
 {
     auto *surface = wl_compositor_create_surface(clientCompositor);

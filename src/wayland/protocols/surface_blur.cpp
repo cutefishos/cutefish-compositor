@@ -342,10 +342,56 @@ void unsetOverSubsurfaces(wl_client *, wl_resource *, wl_resource *surfaceResour
     getUserDataAs<compositor::Surface>(surfaceResource)->setSubsurfaceBlur({}, 0);
 }
 
+void setOverSubsurfacesShape(wl_client *, wl_resource *resource, wl_resource *surfaceResource, wl_array *array)
+{
+    ui::Path path;
+    if (!pathFromArray(array, &path)) {
+        wl_resource_post_error(resource, CUTEFISH_SURFACE_BLUR_V1_ERROR_INVALID_GEOMETRY,
+                               "invalid blur shape");
+        return;
+    }
+    getUserDataAs<compositor::Surface>(surfaceResource)->setSubsurfaceBlurShape(path);
+}
+
+void unsetOverSubsurfacesShape(wl_client *, wl_resource *, wl_resource *surfaceResource)
+{
+    getUserDataAs<compositor::Surface>(surfaceResource)->setSubsurfaceBlurShape({});
+}
+
+void setOverSubsurfacesFill(wl_client *, wl_resource *resource, wl_resource *surfaceResource, wl_fixed_t tintRed,
+                            wl_fixed_t tintGreen, wl_fixed_t tintBlue, wl_fixed_t tintAlpha, uint32_t mode,
+                            wl_fixed_t red, wl_fixed_t green, wl_fixed_t blue, wl_fixed_t alpha)
+{
+    if (mode > CUTEFISH_SURFACE_BLUR_V1_BACKDROP_BLEND_LUMINOSITY) {
+        wl_resource_post_error(resource, CUTEFISH_SURFACE_BLUR_V1_ERROR_INVALID_GEOMETRY, "invalid blend mode");
+        return;
+    }
+    const auto component = [](wl_fixed_t value) {
+        const double number = wl_fixed_to_double(value);
+        return float(std::isfinite(number) ? std::clamp(number, 0.0, 1.0) : 0.0);
+    };
+    render::GlassParams fill;
+    fill.fillMode = int(mode);
+    if (mode != CUTEFISH_SURFACE_BLUR_V1_BACKDROP_BLEND_NONE) {
+        // The tint goes over premultiplied.
+        const float tint = component(tintAlpha);
+        fill.fillTint[0] = component(tintRed) * tint;
+        fill.fillTint[1] = component(tintGreen) * tint;
+        fill.fillTint[2] = component(tintBlue) * tint;
+        fill.fillTint[3] = tint;
+        fill.fillColor[0] = component(red);
+        fill.fillColor[1] = component(green);
+        fill.fillColor[2] = component(blue);
+        fill.fillColor[3] = component(alpha);
+    }
+    getUserDataAs<compositor::Surface>(surfaceResource)->setSubsurfaceBlurFill(fill);
+}
+
 const struct cutefish_surface_blur_v1_interface implementation = {
         destroy,          set,          unset,    setGlass,   unsetGlass,         setGlassMaterial,
         setGlassLighting, setGlassTint, setShape, unsetShape, setGlassSaturation, setGlassRim,
-        setOverSubsurfaces, unsetOverSubsurfaces};
+        setOverSubsurfaces, unsetOverSubsurfaces, setOverSubsurfacesShape, unsetOverSubsurfacesShape,
+        setOverSubsurfacesFill};
 
 void bind(wl_client *client, void *, uint32_t, uint32_t id)
 {

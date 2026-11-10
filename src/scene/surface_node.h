@@ -69,11 +69,14 @@ public:
     // Surface-local; blurs the subsurfaces placed below this one with what is
     // behind them, before this surface's own content. Its kept result goes by
     // subsurfaceBlurId().
-    void setSubsurfaceBlur(const base::Rect &rect, int radius);
+    void setSubsurfaceBlur(const base::Rect &rect, int radius, const ui::Path &shape = {},
+                           const render::GlassParams &fill = {});
     bool hasSubsurfaceBlur() const { return !m_subsurfaceBlurRect.isEmpty(); }
     base::Rect subsurfaceBlurRect() const { return m_subsurfaceBlurRect; }
     int subsurfaceBlurRadius() const { return m_subsurfaceBlurRadius; }
     uint64_t subsurfaceBlurId() const { return m_subsurfaceBlurId; }
+    // Several areas in the rect, or empty for its rounded rect alone.
+    const ui::Path &subsurfaceBlurShape() const { return m_subsurfaceBlurShape; }
 
     // Mapped, but hidden with its window: drawn anyway where the renderer
     // reveals hidden surfaces.
@@ -137,6 +140,8 @@ protected:
 private:
     base::Rect m_subsurfaceBlurRect;
     int m_subsurfaceBlurRadius = 0;
+    ui::Path m_subsurfaceBlurShape;
+    render::GlassParams m_subsurfaceBlurFill;
     const uint64_t m_subsurfaceBlurId = nextDamageId();
     std::shared_ptr<render::PresentationContent> m_presentationContent;
     base::AffineTransform m_textureMapping;

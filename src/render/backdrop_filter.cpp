@@ -559,8 +559,14 @@ void BackdropFilter::draw(Renderer &renderer, const base::RectF &exactLens, int 
     glUniform2f(program.uniform("uSize"), bounds.width(), bounds.height());
     glUniform1f(program.uniform("uRadius"),
                 std::clamp(radius, 0, std::min(lens.width(), lens.height()) / 2));
-    if (!glass.enabled)
+    if (!glass.enabled) {
         glUniform1f(program.uniform("uOpacity"), std::clamp(glass.opacity, 0.0f, 1.0f));
+        glUniform4f(program.uniform("uFillTint"), glass.fillTint[0], glass.fillTint[1], glass.fillTint[2],
+                    glass.fillTint[3]);
+        glUniform1f(program.uniform("uFillMode"), float(glass.fillMode));
+        glUniform4f(program.uniform("uFillColor"), glass.fillColor[0], glass.fillColor[1], glass.fillColor[2],
+                    glass.fillColor[3]);
+    }
     if (glass.enabled) {
         applyGlassMaterial(program, glass, coverage.size(), scale);
         glUniform2f(program.uniform("uBackdropSize"), reduced.width(), reduced.height());

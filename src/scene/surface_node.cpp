@@ -61,12 +61,16 @@ void SurfaceNode::setBackgroundBlur(const base::Rect &rect, int radius, const re
     notifyChanged();
 }
 
-void SurfaceNode::setSubsurfaceBlur(const base::Rect &rect, int radius)
+void SurfaceNode::setSubsurfaceBlur(const base::Rect &rect, int radius, const ui::Path &shape,
+                                    const render::GlassParams &fill)
 {
-    if (m_subsurfaceBlurRect == rect && m_subsurfaceBlurRadius == radius)
+    if (m_subsurfaceBlurRect == rect && m_subsurfaceBlurRadius == radius && m_subsurfaceBlurShape == shape
+        && m_subsurfaceBlurFill == fill)
         return;
     m_subsurfaceBlurRect = rect;
     m_subsurfaceBlurRadius = radius;
+    m_subsurfaceBlurShape = shape;
+    m_subsurfaceBlurFill = fill;
     notifyChanged();
 }
 
@@ -123,14 +127,19 @@ void SurfaceNode::paintBackdrop(render::Renderer &renderer, const base::Rect &ab
 }
 
 // The second stage: what the subsurfaces below drew, over what was behind them.
+// It stays in a window's snapshot (its open, close and overview frames), which
+// holds the subsurfaces though not what is behind the window: the blur there
+// is of them alone, drawn again for every snapshot.
 void SurfaceNode::paintOverChildrenBelow(render::Renderer &renderer, const base::Rect &absoluteGeometry) const
 {
-    if (!hasSubsurfaceBlur() || absoluteGeometry.isEmpty() || renderer.suppressBackgroundBlur)
+    if (!hasSubsurfaceBlur() || absoluteGeometry.isEmpty())
         return;
     const base::Rect bounds = m_subsurfaceBlurRect.translated(absoluteGeometry.topLeft());
     if (!renderer.drawsInto(bounds))
         return;
-    renderer.drawBackgroundBlur(bounds, m_subsurfaceBlurRadius, absoluteGeometry, {}, {}, m_subsurfaceBlurId);
+    renderer.drawBackgroundBlur(bounds, m_subsurfaceBlurRadius, absoluteGeometry, m_subsurfaceBlurFill,
+                                m_subsurfaceBlurShape.translated(absoluteGeometry.x(), absoluteGeometry.y()),
+                                renderer.suppressBackgroundBlur ? 0 : m_subsurfaceBlurId);
 }
 
 } // namespace cutefish::scene
