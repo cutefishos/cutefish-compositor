@@ -114,6 +114,8 @@ ui::RectF parityPlate(const ui::RectF &slot, double glyph, double scale)
 void paintTile(ui::Painter &painter, const ui::RectF &rect)
 {
     // The window's corner style, so the curves stay concentric.
+    painter.drawOuterShadow(rect, kTileRadius, ui::themeCorners(), kTileShadowSigma,
+                            dark() ? rgba(0, 0, 0, 0.24) : rgba(0, 0, 0, 0.08), {0, kTileShadowOffset});
     painter.fillRoundedRect(rect, kTileRadius, tileColor(), ui::themeCorners());
 }
 

@@ -28,6 +28,9 @@ inline constexpr double kPanelRadius = 16;
 // The control centre's tiles. Concentric with the window across their 10 px
 // inset would leave 6, too tight against the round plates and pills inside.
 inline constexpr double kTileRadius = 12;
+// A faint drop shadow under each tile, within the 10 px inset.
+inline constexpr double kTileShadowSigma = 1.5;
+inline constexpr double kTileShadowOffset = 1;
 
 bool dark();
 // PanelStyle.tileColor: a lift of the panel rather than a card on it.
@@ -61,7 +64,7 @@ ui::Color shade(ui::Color base, double amount);
 // glyph's parity, so the snapped plate and the snapped glyph share a centre
 // at fractional scales (CardItem, the panels' badges).
 ui::RectF parityPlate(const ui::RectF &slot, double glyph, double scale);
-// TileBackground: a continuous-corner rect of the tile colour.
+// TileBackground: a continuous-corner rect of the tile colour over a faint shadow.
 void paintTile(ui::Painter &painter, const ui::RectF &rect);
 
 // The status bar's images: `light/<name>.svg` (#383838 artwork) or
