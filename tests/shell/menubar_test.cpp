@@ -709,3 +709,48 @@ TEST_F(MenuBarTest, AnApplicationThatLeavesTakesItsOpenMenu)
     frame();
     EXPECT_TRUE(manager.popupGrabs().empty());
 }
+
+TEST_F(MenuBarTest, AnOpenMenuStaysOpenWhenTheApplicationRenumbersItsMenus)
+{
+    test::DBusTestClient application;
+    FakeMenuExporter exporter(application.connection.get(), "/MenuBar");
+    exporter.layouts[0] = layout(0, {},
+                                 {layout(1, {{"label", label("_File")}, {"children-display", submenu()}}),
+                                  layout(2, {{"label", label("_Edit")}, {"children-display", submenu()}})});
+    exporter.layouts[1] = layout(1, {}, {layout(10, {{"label", label("_Open")}})});
+    exporter.layouts[2] = layout(2, {}, {layout(20, {{"label", label("_Undo")}})});
+
+    shell::TaskWindow terminal;
+    terminal.appId = "terminal";
+    terminal.title = "Terminal window";
+    terminal.pid = 4242;
+    terminal.menuService = application.connection->uniqueName();
+    terminal.menuPath = "/MenuBar";
+    windows->setActive(windows->add(terminal));
+    ASSERT_TRUE(test::runUntil([&] { return view->model().count() == 4; }));
+    frame();
+    click(entryCentre(2).x(), 16);
+    ASSERT_EQ(2, view->currentIndex());
+
+    // The application lays out its whole bar again under new ids while File
+    // is open: File stays open, and moving on still switches menus.
+    exporter.layouts.clear();
+    exporter.layouts[0] = layout(0, {},
+                                 {layout(101, {{"label", label("_File")}, {"children-display", submenu()}}),
+                                  layout(102, {{"label", label("_Edit")}, {"children-display", submenu()}})});
+    exporter.layouts[101] = layout(101, {}, {layout(110, {{"label", label("_Open")}})});
+    exporter.layouts[102] = layout(102, {}, {layout(120, {{"label", label("_Undo")}})});
+    exporter.object.emitSignal("LayoutUpdated", ++exporter.revision, int32_t(0));
+    ASSERT_TRUE(test::runUntil([&] { return view->model().rows()[2].id == 101; }));
+    frame();
+    EXPECT_EQ(2, view->currentIndex());
+    ASSERT_TRUE(view->openMenu() && view->openMenu()->isOpen());
+    EXPECT_EQ(int(std::lround(entryRect(2).x + 3)), menuBounds()->x());
+    EXPECT_EQ(1u, manager.popupGrabs().size());
+
+    move(entryCentre(3).x(), 16);
+    frame();
+    EXPECT_EQ(3, view->currentIndex());
+    EXPECT_TRUE(view->openMenu() && view->openMenu()->isOpen());
+    EXPECT_TRUE(test::runUntil([&] { return exporter.called("AboutToShow 102"); }));
+}

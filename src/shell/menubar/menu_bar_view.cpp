@@ -4,6 +4,9 @@
 
 #include "shell/menubar/menu_bar_view.h"
 
+#include <algorithm>
+#include <optional>
+
 #include <pwd.h>
 #include <unistd.h>
 
@@ -188,6 +191,10 @@ void MenuBarView::barChanged()
 void MenuBarView::rebuildEntries()
 {
     const std::vector<MenuBarModel::Row> &rows = m_model->rows();
+    std::optional<MenuBarModel::Row> openRow;
+    if (m_currentIndex >= 0 && size_t(m_currentIndex) < m_entries.size() && m_openMenu && m_openMenu->isOpen())
+        openRow = m_entries[size_t(m_currentIndex)]->row();
+
     // The user's entry stays put; the application's are swapped out and in.
     size_t keep = 0;
     while (keep < m_entries.size() && keep < rows.size() && m_entries[keep]->row() == rows[keep]
@@ -225,8 +232,22 @@ void MenuBarView::rebuildEntries()
     // The open menu stays while its entry does.
     if (m_currentIndex >= 0) {
         if (size_t(m_currentIndex) >= rows.size() || m_model->menuAt(size_t(m_currentIndex)) != m_openMenu
-            || !m_openMenu || !m_openMenu->isOpen())
+            || !m_openMenu || !m_openMenu->isOpen()) {
+            // An application that lays its menus out again under new ids
+            // while one is open keeps that entry open.
+            const auto same = openRow ? std::find_if(rows.begin(), rows.end(),
+                                                     [&](const MenuBarModel::Row &row) {
+                                                         return row.kind == openRow->kind && row.title == openRow->title;
+                                                     })
+                                      : rows.end();
+            if (same != rows.end()) {
+                // The menu opens under the new entry's plate.
+                layout();
+                open(int(same - rows.begin()));
+                return;
+            }
             close();
+        }
     }
     for (size_t i = 0; i < m_entries.size(); ++i)
         m_entries[i]->setChecked(int(i) == m_currentIndex);
