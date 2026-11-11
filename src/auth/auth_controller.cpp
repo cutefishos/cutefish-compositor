@@ -8,6 +8,8 @@
 
 #include "base/logging.h"
 #include "base/strings.h"
+#include "core/main_loop.h"
+#include "cutefish/accounts/user_account.h"
 #include <algorithm>
 #include <cassert>
 #include <pwd.h>
@@ -55,6 +57,16 @@ std::string accountIcon(const std::string &userName)
     return {};
 }
 
+// The service copies every picture it is given to the same name.
+std::string pictureStamp(const std::string &path)
+{
+    struct stat info;
+    if (path.empty() || stat(path.c_str(), &info) != 0)
+        return path;
+    return path + "|" + std::to_string(info.st_ino) + ":" + std::to_string(info.st_size) + ":"
+            + std::to_string(info.st_mtim.tv_sec) + "." + std::to_string(info.st_mtim.tv_nsec);
+}
+
 } // namespace
 
 AuthController::AuthController(Mode mode, AuthBackend *backend)
@@ -94,14 +106,6 @@ std::vector<std::string> AuthController::userNames() const
     return names;
 }
 
-std::vector<std::string> AuthController::userIcons() const
-{
-    std::vector<std::string> icons;
-    for (const std::string &user : m_users)
-        icons.push_back(accountIcon(user));
-    return icons;
-}
-
 int AuthController::userIndex() const
 {
     const auto found = std::find(m_users.begin(), m_users.end(), m_userName);
@@ -111,6 +115,13 @@ int AuthController::userIndex() const
 void AuthController::setUsers(std::vector<std::string> users)
 {
     m_users = std::move(users);
+    m_userIcons.clear();
+    m_userIconStamps.clear();
+    for (const std::string &user : m_users) {
+        watchAccount(user);
+        m_userIcons.push_back(iconFor(user));
+        m_userIconStamps.push_back(pictureStamp(m_userIcons.back()));
+    }
     usersChanged();
     if (m_users.empty() || userIndex() >= 0) {
         userChanged();
@@ -184,7 +195,9 @@ void AuthController::resolveUser()
             m_userName = entry->pw_name ? entry->pw_name : "";
     }
     m_displayName = m_userName.empty() ? std::string() : accountDisplayName(m_userName);
-    m_iconSource = m_userName.empty() ? std::string() : accountIcon(m_userName);
+    watchAccount(m_userName);
+    m_iconSource = m_userName.empty() ? std::string() : iconFor(m_userName);
+    m_iconStamp = pictureStamp(m_iconSource);
     userChanged();
 }
 
@@ -194,9 +207,57 @@ void AuthController::setUserName(const std::string &name)
         return;
     m_userName = std::string(trimmed(name));
     m_displayName = accountDisplayName(m_userName);
-    m_iconSource = accountIcon(m_userName);
+    watchAccount(m_userName);
+    m_iconSource = iconFor(m_userName);
+    m_iconStamp = pictureStamp(m_iconSource);
     userChanged();
     selectSessionFor(m_userName);
+}
+
+void AuthController::watchAccount(const std::string &userName)
+{
+    if (userName.empty() || m_accounts.contains(userName))
+        return;
+    const passwd *entry = getpwnam(userName.c_str());
+    base::dbus::Connection *bus = entry ? base::dbus::Connection::system(core::mainLoop()) : nullptr;
+    if (!bus)
+        return;
+    WatchedAccount &watched = m_accounts[userName];
+    watched.account = std::make_unique<accounts::UserAccount>(int64_t(entry->pw_uid), bus);
+    watched.changed = watched.account->changed.connect([this, userName] { accountChanged(userName); });
+}
+
+void AuthController::accountChanged(const std::string &userName)
+{
+    const std::string icon = iconFor(userName);
+    const std::string stamp = pictureStamp(icon);
+    if (userName == m_userName && stamp != m_iconStamp) {
+        m_iconSource = icon;
+        m_iconStamp = stamp;
+        userChanged();
+    }
+    const auto listed = std::find(m_users.begin(), m_users.end(), userName);
+    if (listed == m_users.end())
+        return;
+    const size_t index = size_t(listed - m_users.begin());
+    if (stamp == m_userIconStamps[index])
+        return;
+    m_userIcons[index] = icon;
+    m_userIconStamps[index] = stamp;
+    usersChanged();
+}
+
+// The service's choice once it has answered; until then, or without it, the
+// files it and the account keep.
+std::string AuthController::iconFor(const std::string &userName) const
+{
+    const auto found = m_accounts.find(userName);
+    if (found != m_accounts.end()) {
+        std::string icon = found->second.account->iconFileName();
+        if (!icon.empty())
+            return icon;
+    }
+    return accountIcon(userName);
 }
 
 void AuthController::start()

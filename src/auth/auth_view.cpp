@@ -217,10 +217,7 @@ public:
     void setUser(const std::string &userName, const std::string &icon)
     {
         m_disc->setColor(ui::Color::rgb(accounts::pictureColor(userName)));
-        if (icon != m_icon) {
-            m_icon = icon;
-            m_picture->setSource(m_icon);
-        }
+        m_picture->setSource(icon);
     }
 
     void setSwappable(bool swappable)
@@ -310,7 +307,6 @@ private:
     Disc *m_disc;
     ui::ImageView *m_picture;
     SwapOverlay *m_overlay;
-    std::string m_icon;
     bool m_swappable = false;
 };
 

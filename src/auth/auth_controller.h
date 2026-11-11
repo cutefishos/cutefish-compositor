@@ -5,11 +5,17 @@
 #ifndef CUTEFISH_AUTH_AUTH_CONTROLLER_H
 #define CUTEFISH_AUTH_AUTH_CONTROLLER_H
 
+#include <map>
+#include <memory>
 #include <string>
 #include <vector>
 
 #include "auth/login_sessions.h"
 #include "base/signal.h"
+
+namespace cutefish::accounts {
+class UserAccount;
+}
 
 namespace cutefish::auth {
 
@@ -56,7 +62,7 @@ public:
     // Their login names, in the same order.
     std::vector<std::string> userLogins() const { return m_users; }
     // Their pictures, in the same order; empty where an account has none.
-    std::vector<std::string> userIcons() const;
+    std::vector<std::string> userIcons() const { return m_userIcons; }
     int userIndex() const;
     void setUserIndex(int index);
     bool canPickUser() const { return m_users.size() > 1; }
@@ -95,6 +101,9 @@ private:
     void setState(State state, const std::string &errorMessage = {});
     void resolveUser();
     void selectSessionFor(const std::string &userName);
+    void watchAccount(const std::string &userName);
+    void accountChanged(const std::string &userName);
+    std::string iconFor(const std::string &userName) const;
 
     Mode m_mode;
     AuthBackend *m_backend = nullptr;
@@ -102,14 +111,26 @@ private:
     std::string m_userName;
     std::string m_displayName;
     std::string m_iconSource;
+    std::string m_iconStamp;
     std::string m_errorMessage;
     std::vector<std::string> m_users;
+    std::vector<std::string> m_userIcons;
+    std::vector<std::string> m_userIconStamps;
     std::vector<LoginSession> m_sessions;
     int m_sessionIndex = -1;
     // accept() is irreversible - it unlocks the session or starts one - so it
     // is guarded rather than merely called from a single place.
     bool m_accepted = false;
     std::vector<base::Subscription> m_backendSubscriptions;
+
+    // The accounts service's record of each account shown. Only it knows the
+    // picture chosen last: a copy it made of an earlier one stays on disk.
+    struct WatchedAccount
+    {
+        std::unique_ptr<accounts::UserAccount> account;
+        base::Subscription changed;
+    };
+    std::map<std::string, WatchedAccount> m_accounts;
 };
 
 } // namespace cutefish::auth
