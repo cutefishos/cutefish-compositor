@@ -292,6 +292,10 @@ public:
         return m_lastCommitBufferSupportsExplicitSync;
     }
 
+    // A desynchronized subsurface its parent moved since it last applied a
+    // buffer: what it shows was drawn for where it used to be.
+    bool isMovedAheadOfContent() const { return m_movedAheadOfContent; }
+
     // Caches pending state once its buffer is ready; applies it atomically if
     // not synchronized.
     void commit();
@@ -553,6 +557,7 @@ private:
     base::Region m_uploadDamage;
     bool m_uploadAll = true;
     bool m_lastCommitAttachedBuffer = false;
+    bool m_movedAheadOfContent = false;
     bool m_lastCommitBufferSupportsExplicitSync = false;
 
     // Callbacks for state that has been drawn into the frame now on its way to

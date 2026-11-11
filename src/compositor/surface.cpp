@@ -637,6 +637,7 @@ void Surface::applyCachedState()
         m_cached.buffer.reset();
         m_uploadBuffer = std::move(incoming);
         m_textureDirty = true;
+        m_movedAheadOfContent = false;
     }
     // Damage invalidates the committed contents, not released client storage.
     // A new attachment is required before uploading that storage again.
@@ -665,6 +666,16 @@ void Surface::applyCachedState()
     m_state.bufferDamage = {};
     if (m_node)
         m_node->setTextureMapping(textureMapping());
+    for (const SubSurfaceEntry &entry : m_cachedSubSurfaces) {
+        if (entry.surface == this || entry.surface->isSynchronized())
+            continue;
+        const auto old = std::find_if(m_subSurfaces.begin(), m_subSurfaces.end(),
+                                      [&entry](const SubSurfaceEntry &current) {
+                                          return current.surface == entry.surface;
+                                      });
+        if (old != m_subSurfaces.end() && old->position != entry.position)
+            entry.surface->m_movedAheadOfContent = true;
+    }
     m_subSurfaces = m_cachedSubSurfaces;
     updateSubSurfaceStacking();
     if (m_node) {

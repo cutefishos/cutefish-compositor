@@ -13,10 +13,12 @@
 
 #include <algorithm>
 #include <cassert>
+#include <chrono>
 
 #include "compositor/compositor.h"
 #include "compositor/surface.h"
 #include "core/logging.h"
+#include "core/main_loop.h"
 #include "input/seat.h"
 #include "scene/node.h"
 #include "scene/surface_node.h"
@@ -32,6 +34,15 @@
 #include "wm/wm_event.h"
 
 namespace cutefish::wm {
+
+namespace {
+
+// How long a cross-fade waits for a moved subsurface to draw for its new
+// place, or for a client left to pick its size to draw another one, so a
+// client that never does still lets it run.
+constexpr std::chrono::milliseconds kContentAwaitTimeout(100);
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 // ShellSurface, ScopedConfigure:
@@ -68,9 +79,15 @@ ShellSurface::ShellSurface(WindowManager *manager, compositor::Surface *surface)
     : m_self(std::make_shared<ShellSurface *>(this))
     , m_manager(manager)
     , m_surface(surface)
+    , m_contentAwaitTimer(core::mainLoop())
 {
     if (m_surface)
         m_surface->addSurfaceObserver(this);
+    m_contentAwaitTimer.setSingleShot(true);
+    m_contentAwaitTimer.setInterval(kContentAwaitTimeout);
+    m_contentAwaitTimer.onTimeout = [this] {
+        finishAwaitingContent();
+    };
 }
 
 ShellSurface::~ShellSurface()
@@ -78,6 +95,7 @@ ShellSurface::~ShellSurface()
     // Anything still on the stack below a client callback learns from this that
     // it must not touch this object again.
     *m_self = nullptr;
+    stopAwaitingContent();
     unmapChildPopups();
 
     // Out of every registry the rest of the compositor can reach before
@@ -548,9 +566,13 @@ base::Point ShellSurface::absoluteOrigin() const
 
 void ShellSurface::onSurfaceDestroying(compositor::Surface *surface)
 {
-    if (surface != m_surface)
+    if (surface != m_surface) {
+        // The wait times out instead of finishing inside the teardown.
+        std::erase(m_awaitedContent, surface);
         return;
+    }
 
+    stopAwaitingContent();
     unmapChildPopups();
 
     // Off every registry first; the teardown below re-enters the window manager
@@ -579,7 +601,15 @@ void ShellSurface::onSurfaceDestroying(compositor::Surface *surface)
 
 void ShellSurface::onSurfaceCommit(compositor::Surface *surface)
 {
-    if (surface != m_surface || m_role == Role::None)
+    if (surface != m_surface) {
+        if (!surface->isMovedAheadOfContent() && std::erase(m_awaitedContent, surface)) {
+            surface->removeSurfaceObserver(this);
+            if (m_awaitedContent.empty())
+                finishAwaitingContent();
+        }
+        return;
+    }
+    if (m_role == Role::None)
         return;
 
     if (!m_committed)
@@ -641,13 +671,77 @@ void ShellSurface::onSurfaceCommit(compositor::Surface *surface)
             || surface->contentSize() != m_boundsTransitionOldContentSize;
     const auto &ack = committed.acknowledgedConfigure;
     const bool acknowledged = !m_configureCallback
-            || (ack && ack->size == m_window->contentBounds().size()
+            || (ack && (ack->size.isEmpty() || ack->size == m_window->contentBounds().size())
                 && ack->stateType == m_window->presentedStateType());
-    if (acknowledged && surface->lastCommitAttachedBuffer() && resized) {
-        if (auto *animation = dynamic_cast<scene::WindowAnimation *>(m_window->node()))
-            animation->setBoundsContentReady(true);
-    }
+    if (acknowledged && surface->lastCommitAttachedBuffer() && resized)
+        markBoundsContentReady();
+    else if (acknowledged && ack && ack->size.isEmpty())
+        awaitSizeChoice();
     updateChildPopupPositions();
+}
+
+void ShellSurface::markBoundsContentReady()
+{
+    auto *animation = dynamic_cast<scene::WindowAnimation *>(m_window->node());
+    // A wait for subsurfaces keeps its deadline: the commits that follow must
+    // not push it back.
+    if (!animation || !animation->isWaitingForBoundsContent() || !m_awaitedContent.empty())
+        return;
+    stopAwaitingContent();
+
+    // A desynchronized subsurface the commit moved still shows what it drew
+    // for its old place, and draws for the new one only after it.
+    std::vector<compositor::Surface *> pending {m_surface};
+    while (!pending.empty()) {
+        compositor::Surface *surface = pending.back();
+        pending.pop_back();
+        for (const auto &[child, position] : surface->subSurfaceStack()) {
+            if (child == surface)
+                continue;
+            pending.push_back(child);
+            // One without a buffer shows nothing out of place.
+            if (child->isMovedAheadOfContent() && child->hasContents()) {
+                child->addSurfaceObserver(this);
+                m_awaitedContent.push_back(child);
+            }
+        }
+    }
+    if (m_awaitedContent.empty()) {
+        animation->setBoundsContentReady(true);
+        return;
+    }
+
+    m_contentAwaitTimer.start();
+}
+
+void ShellSurface::awaitSizeChoice()
+{
+    if (m_contentAwaitTimer.isActive())
+        return;
+    auto *animation = dynamic_cast<scene::WindowAnimation *>(m_window->node());
+    if (animation && animation->isWaitingForBoundsContent())
+        m_contentAwaitTimer.start();
+}
+
+void ShellSurface::finishAwaitingContent()
+{
+    stopAwaitingContent();
+    if (!m_window)
+        return;
+    if (auto *animation = dynamic_cast<scene::WindowAnimation *>(m_window->node()))
+        animation->setBoundsContentReady(true);
+    // A scope still open applies the bounds when it ends.
+    if (m_scopedConfigure)
+        return;
+    updateWindowBoundsFromClient();
+    updateFromWindowGeometry();
+}
+
+void ShellSurface::stopAwaitingContent()
+{
+    for (compositor::Surface *surface : std::exchange(m_awaitedContent, {}))
+        surface->removeSurfaceObserver(this);
+    m_contentAwaitTimer.stop();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -714,6 +808,10 @@ void ShellSurface::onWindowStateTypeChanged(Window *window, WindowStateType oldT
         return;
     CF_DEBUG(cfCompositor) << "xdg toplevel state:" << m_applicationId << toString(oldType) << "->"
                          << toString(window->stateType()) << window->bounds();
+    // Dropped normal out of a drag, the window keeps the size it was dragged
+    // at; a drag reverted or dropped back into a tiled state leaves it none.
+    if (window->isDragged() && window->state()->isNormal())
+        m_clientChoosesNormalSize = false;
     const base::Size targetSize = window->contentBounds().size();
     const auto targetState = window->presentedStateType();
     // Drag completion repeats the restored state without requiring another frame.
@@ -728,6 +826,7 @@ void ShellSurface::onWindowStateTypeChanged(Window *window, WindowStateType oldT
                     && window->contentBounds().size() != m_surface->contentSize()
             ? m_surface->contentSize()
             : base::Size();
+    stopAwaitingContent();
     if (auto *animation = dynamic_cast<scene::WindowAnimation *>(window->node()))
         animation->setBoundsContentReady(!m_configureCallback);
     configure();
@@ -777,7 +876,10 @@ void ShellSurface::configure()
     ResizeEdge resizeEdge = ResizeEdge::None;
 
     if (m_window) {
-        state.size = m_window->contentBounds().size();
+        // Zero lets the client pick its own size, as at the initial configure.
+        state.size = m_clientChoosesNormalSize && m_window->state()->isNormal()
+                ? base::Size(0, 0)
+                : m_window->contentBounds().size();
         m_configuredContentBounds = m_window->contentBounds();
         state.stateType = m_window->presentedStateType();
         state.restoreStateType = m_window->state()->restoreStateType();
@@ -915,14 +1017,13 @@ void ShellSurface::mapToplevel()
 
     // Mapped maximized or fullscreen, the window has no normal bounds to come
     // back to; give it those it would have had mapping normal at its own size.
+    // Without a restore size, the client picks one when it is first normal.
     const base::Size restoreSize = m_surface->restoreSize();
-    if (!restoreSize.isEmpty()
-        && (m_window->state()->isMaximized() || m_window->state()->isFullscreen())) {
-        base::Rect bounds = Placement().place(normalFrameInsets().outset(restoreSize),
-                                         m_manager->workAreaFor(m_window));
-        if (isPositionManaged())
-            bounds = m_manager->boundsForNewWindow(m_window, bounds);
-        m_window->state()->setRestoreBounds(bounds);
+    if (m_window->state()->isMaximized() || m_window->state()->isFullscreen()) {
+        if (!restoreSize.isEmpty())
+            m_window->state()->setRestoreBounds(placeNormalWindow(restoreSize));
+        else
+            m_clientChoosesNormalSize = true;
     }
     // A position asked for places only the next map.
     m_surface->setRequestedPosition(std::nullopt);
@@ -1137,41 +1238,50 @@ void ShellSurface::updateWindowBoundsFromClient()
         return;
 
     const base::Size size = visibleBounds().size();
-    if (size.isEmpty() || size == m_window->contentBounds().size())
+    if (size.isEmpty())
+        return;
+
+    const bool placing = std::exchange(m_clientChoosesNormalSize, false);
+    if (!placing && size == m_window->contentBounds().size())
         return;
 
     base::Rect bounds = m_window->bounds();
-    const base::Size oldSize = bounds.size();
-    bounds.setSize(m_window->frameInsets().outset(size));
-    if (m_surface->resizeAnchor() == compositor::ResizeAnchor::Center) {
-        // Halves of the difference rather than moveCenter(): an integer centre
-        // would drift a pixel on every odd-sized step.
-        bounds.translate((oldSize.width() - bounds.width()) / 2,
-                         (oldSize.height() - bounds.height()) / 2);
-        const base::Rect workArea = m_manager->workAreaFor(m_window);
-        if (!workArea.isEmpty()) {
-            bounds.moveLeft(std::max(workArea.left(),
-                                     std::min(bounds.left(), workArea.right() - bounds.width())));
-            bounds.moveTop(std::max(workArea.top(),
-                                    std::min(bounds.top(), workArea.bottom() - bounds.height())));
+    if (placing) {
+        bounds = placeNormalWindow(size);
+    } else {
+        const base::Size oldSize = bounds.size();
+        bounds.setSize(m_window->frameInsets().outset(size));
+        if (m_surface->resizeAnchor() == compositor::ResizeAnchor::Center) {
+            // Halves of the difference rather than moveCenter(): an integer
+            // centre would drift a pixel on every odd-sized step.
+            bounds.translate((oldSize.width() - bounds.width()) / 2,
+                             (oldSize.height() - bounds.height()) / 2);
+            const base::Rect workArea = m_manager->workAreaFor(m_window);
+            if (!workArea.isEmpty()) {
+                bounds.moveLeft(std::max(workArea.left(),
+                                         std::min(bounds.left(),
+                                                  workArea.right() - bounds.width())));
+                bounds.moveTop(std::max(workArea.top(),
+                                        std::min(bounds.top(),
+                                                 workArea.bottom() - bounds.height())));
+            }
         }
+        // A client may not grow past the work area, as Ash's
+        // SetBoundsConstrained keeps a widget's bounds whatever its minimum
+        // size.
+        const base::Rect workArea =
+                m_window->isPopup() ? base::Rect() : m_manager->workAreaFor(m_window, bounds);
+        if (!workArea.isEmpty())
+            adjustBoundsSmallerThan(workArea.size(), &bounds);
     }
-    // A client may not grow past the work area, as Ash's SetBoundsConstrained
-    // keeps a widget's bounds whatever its minimum size; it is told the size it
-    // keeps instead.
-    const base::Rect workArea =
-            m_window->isPopup() ? base::Rect() : m_manager->workAreaFor(m_window, bounds);
-    if (!workArea.isEmpty()) {
-        base::Rect limited = bounds;
-        adjustBoundsSmallerThan(workArea.size(), &limited);
-        if (limited != bounds) {
-            // A new size configures the client from onWindowBoundsChanged.
-            const bool resized = limited.size() != m_window->bounds().size();
-            m_window->setBounds(limited);
-            if (!resized)
-                configure();
-            return;
-        }
+    if (m_window->frameInsets().inset(bounds.size()) != size) {
+        // The client is told the size it keeps instead; a new size configures
+        // it from onWindowBoundsChanged.
+        const bool resized = bounds.size() != m_window->bounds().size();
+        m_window->setBounds(bounds);
+        if (!resized)
+            configure();
+        return;
     }
     m_applyingClientBounds = true;
     m_window->setBounds(bounds);
@@ -1190,6 +1300,15 @@ void ShellSurface::updateSizeConstraints()
             m_pendingConfigs.empty() ? m_acknowledgedConfigure : m_pendingConfigs.back().state;
     if (last && last->maximizable != m_window->isResizable())
         configure();
+}
+
+base::Rect ShellSurface::placeNormalWindow(const base::Size &size) const
+{
+    base::Rect bounds = Placement().place(normalFrameInsets().outset(size),
+                                          m_manager->workAreaFor(m_window));
+    if (isPositionManaged())
+        bounds = m_manager->boundsForNewWindow(m_window, bounds);
+    return bounds;
 }
 
 base::Size ShellSurface::configureBounds() const
@@ -1261,6 +1380,8 @@ void ShellSurface::resetConfigureState()
     m_pendingPopupBounds.reset();
     m_configuredContentBounds = base::Rect();
     m_boundsTransitionOldContentSize = base::Size();
+    m_clientChoosesNormalSize = false;
+    stopAwaitingContent();
 }
 
 bool ShellSurface::hasPopupDescendant(const compositor::Surface *root) const

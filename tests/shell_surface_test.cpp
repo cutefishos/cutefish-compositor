@@ -25,6 +25,7 @@
 #include "base/geometry.h"
 #include "compositor/compositor.h"
 #include "compositor/shm_pool.h"
+#include "compositor/sub_surface.h"
 #include "compositor/surface.h"
 #include "decoration/decoration_theme.h"
 #include "decoration/shadow_node.h"
@@ -32,6 +33,7 @@
 #include "fake_renderer.h"
 #include "input/input_manager.h"
 #include "input/seat.h"
+#include "loop_test_util.h"
 #include "scene/node.h"
 #include "scene/scene.h"
 #include "scene/surface_node.h"
@@ -322,7 +324,7 @@ TEST_F(ShellSurfaceTest, AWindowMappedMaximizedRestoresToItsRestoreSize)
     EXPECT_EQ(base::Size(300, 200), recorder->last().size);
 }
 
-TEST_F(ShellSurfaceTest, AWindowMappedMaximizedWithoutARestoreSizeRestoresInsideTheWorkArea)
+TEST_F(ShellSurfaceTest, AWindowMappedMaximizedWithoutARestoreSizeChoosesItsOwnOnRestore)
 {
     Recorder *recorder = nullptr;
     ShellSurface *shell = makeShell(&recorder);
@@ -335,7 +337,160 @@ TEST_F(ShellSurfaceTest, AWindowMappedMaximizedWithoutARestoreSizeRestoresInside
 
     shell->unmaximize();
 
-    EXPECT_EQ(kOutput.adjusted(10, 10, -10, -10), shell->window()->bounds());
+    EXPECT_EQ(WindowStateType::Normal, recorder->last().stateType);
+    EXPECT_EQ(base::Size(0, 0), recorder->last().size);
+
+    ASSERT_TRUE(shell->acknowledgeConfigure(recorder->serials.back()));
+    auto chosenBuffer =
+            pool->createBuffer({300, 200}, 0, 300 * 4, render::PixelFormat::Bgrx8888, nullptr);
+    shell->rootSurface()->attach(chosenBuffer, {});
+    shell->rootSurface()->commit();
+
+    // Placed as if it had mapped normal at that size.
+    EXPECT_EQ(base::Rect(350, 300, 300, 200), shell->window()->bounds());
+
+    // From then on it has normal bounds of its own to come back to.
+    shell->maximize();
+    ASSERT_TRUE(shell->acknowledgeConfigure(recorder->serials.back()));
+    auto maximizedBuffer = pool->createBuffer(kOutput.size(), 0, kOutput.width() * 4,
+                                              render::PixelFormat::Bgrx8888, nullptr);
+    shell->rootSurface()->attach(maximizedBuffer, {});
+    shell->rootSurface()->commit();
+    shell->unmaximize();
+
+    EXPECT_EQ(base::Rect(350, 300, 300, 200), shell->window()->bounds());
+    EXPECT_EQ(base::Size(300, 200), recorder->last().size);
+}
+
+TEST_F(ShellSurfaceTest, ASizeChosenOnRestorePastTheWorkAreaIsPlacedInsideIt)
+{
+    Recorder *recorder = nullptr;
+    ShellSurface *shell = makeShell(&recorder);
+    shell->setToplevel();
+    shell->maximize();
+    shell->rootSurface()->commit();
+    ASSERT_TRUE(shell->acknowledgeConfigure(recorder->serials.back()));
+    attach(shell->rootSurface(), kOutput.size());
+    shell->rootSurface()->commit();
+
+    shell->unmaximize();
+    ASSERT_TRUE(shell->acknowledgeConfigure(recorder->serials.back()));
+    auto chosenBuffer =
+            pool->createBuffer({1060, 850}, 0, 1060 * 4, render::PixelFormat::Bgrx8888, nullptr);
+    shell->rootSurface()->attach(chosenBuffer, {});
+    shell->rootSurface()->commit();
+
+    EXPECT_EQ(kOutput, shell->window()->bounds());
+    EXPECT_EQ(WindowStateType::Normal, recorder->last().stateType);
+    EXPECT_EQ(kOutput.size(), recorder->last().size);
+}
+
+TEST_F(ShellSurfaceTest, AWindowMappedMaximizedAndDraggedOutKeepsTheDraggedSize)
+{
+    Recorder *recorder = nullptr;
+    ShellSurface *shell = makeShell(&recorder);
+    shell->setToplevel();
+    shell->maximize();
+    shell->rootSurface()->commit();
+    ASSERT_TRUE(shell->acknowledgeConfigure(recorder->serials.back()));
+    attach(shell->rootSurface(), kOutput.size());
+    shell->rootSurface()->commit();
+    compositor.updateTextures(renderer);
+    Window *window = shell->window();
+
+    ASSERT_TRUE(manager.eventHandler()->beginMove(window, base::PointF(kOutput.width() / 2, 10)));
+    manager.eventHandler()->onPointerMotion(base::PointF(kOutput.width() / 2, 300));
+
+    ASSERT_EQ(WindowStateType::Normal, window->presentedStateType());
+    EXPECT_FALSE(recorder->last().size.isEmpty());
+
+    manager.eventHandler()->completeDrag(ToplevelEventHandler::DragResult::Success);
+
+    ASSERT_EQ(WindowStateType::Normal, window->stateType());
+    EXPECT_EQ(WindowStateType::Normal, recorder->last().stateType);
+    EXPECT_EQ(window->contentBounds().size(), recorder->last().size);
+}
+
+TEST_F(ShellSurfaceTest, ARevertedDragOutOfAWindowMappedMaximizedStillLeavesItsSizeToTheClient)
+{
+    Recorder *recorder = nullptr;
+    ShellSurface *shell = makeShell(&recorder);
+    shell->setToplevel();
+    shell->maximize();
+    shell->rootSurface()->commit();
+    ASSERT_TRUE(shell->acknowledgeConfigure(recorder->serials.back()));
+    attach(shell->rootSurface(), kOutput.size());
+    shell->rootSurface()->commit();
+    compositor.updateTextures(renderer);
+    Window *window = shell->window();
+
+    ASSERT_TRUE(manager.eventHandler()->beginMove(window, base::PointF(kOutput.width() / 2, 10)));
+    manager.eventHandler()->onPointerMotion(base::PointF(kOutput.width() / 2, 300));
+    ASSERT_EQ(WindowStateType::Normal, window->presentedStateType());
+    manager.eventHandler()->completeDrag(ToplevelEventHandler::DragResult::Revert);
+    ASSERT_EQ(WindowStateType::Maximized, window->stateType());
+
+    shell->unmaximize();
+
+    EXPECT_EQ(WindowStateType::Normal, recorder->last().stateType);
+    EXPECT_EQ(base::Size(0, 0), recorder->last().size);
+}
+
+TEST_F(ShellSurfaceTest, AWindowKeepingItsSizeOnRestoreIsTakenToHaveChosenIt)
+{
+    Recorder *recorder = nullptr;
+    ShellSurface *shell = makeShell(&recorder);
+    shell->setToplevel();
+    shell->maximize();
+    shell->rootSurface()->commit();
+    ASSERT_TRUE(shell->acknowledgeConfigure(recorder->serials.back()));
+    attach(shell->rootSurface(), kOutput.size());
+    shell->rootSurface()->commit();
+    auto *animation = static_cast<scene::WindowAnimation *>(shell->window()->node());
+
+    shell->unmaximize();
+    ASSERT_TRUE(shell->acknowledgeConfigure(recorder->serials.back()));
+    // The size it had: its choice, or a frame drawn before the configure.
+    auto keptBuffer = pool->createBuffer(kOutput.size(), 0, kOutput.width() * 4,
+                                         render::PixelFormat::Bgrx8888, nullptr);
+    shell->rootSurface()->attach(keptBuffer, {});
+    shell->rootSurface()->commit();
+    EXPECT_TRUE(animation->isWaitingForBoundsContent());
+
+    EXPECT_TRUE(test::runUntil([animation] {
+        return !animation->isWaitingForBoundsContent();
+    }));
+    EXPECT_EQ(WindowStateType::Normal, shell->window()->stateType());
+    EXPECT_EQ(kOutput, shell->window()->bounds());
+}
+
+TEST_F(ShellSurfaceTest, AFrameDrawnBeforeTheRestoreConfigureIsNotTheSizeChosen)
+{
+    Recorder *recorder = nullptr;
+    ShellSurface *shell = makeShell(&recorder);
+    shell->setToplevel();
+    shell->maximize();
+    shell->rootSurface()->commit();
+    ASSERT_TRUE(shell->acknowledgeConfigure(recorder->serials.back()));
+    attach(shell->rootSurface(), kOutput.size());
+    shell->rootSurface()->commit();
+    auto *animation = static_cast<scene::WindowAnimation *>(shell->window()->node());
+
+    shell->unmaximize();
+    ASSERT_TRUE(shell->acknowledgeConfigure(recorder->serials.back()));
+    auto staleBuffer = pool->createBuffer(kOutput.size(), 0, kOutput.width() * 4,
+                                          render::PixelFormat::Bgrx8888, nullptr);
+    shell->rootSurface()->attach(staleBuffer, {});
+    shell->rootSurface()->commit();
+    ASSERT_TRUE(animation->isWaitingForBoundsContent());
+
+    auto chosenBuffer =
+            pool->createBuffer({300, 200}, 0, 300 * 4, render::PixelFormat::Bgrx8888, nullptr);
+    shell->rootSurface()->attach(chosenBuffer, {});
+    shell->rootSurface()->commit();
+
+    EXPECT_FALSE(animation->isWaitingForBoundsContent());
+    EXPECT_EQ(base::Rect(350, 300, 300, 200), shell->window()->bounds());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1389,6 +1544,99 @@ TEST_F(ShellSurfaceTest, RestoredBufferDoesNotWaitForLaterActivationConfigure)
     EXPECT_FALSE(animation->isWaitingForBoundsContent());
     manager.eventHandler()->completeDrag(ToplevelEventHandler::DragResult::Success);
     EXPECT_FALSE(animation->isWaitingForBoundsContent());
+}
+
+TEST_F(ShellSurfaceTest, ACrossFadeWaitsForAMovedDesynchronizedSubsurfaceToRedraw)
+{
+    Recorder *recorder = nullptr;
+    auto *shell = makeMappedToplevel({400, 300}, &recorder);
+    auto *animation = static_cast<scene::WindowAnimation *>(shell->window()->node());
+    compositor::Surface *content = makeSurface();
+    std::unique_ptr<compositor::SubSurface> sub =
+            compositor::SubSurface::create(content, shell->rootSurface());
+    sub->setPosition({20, 20});
+    sub->setCommitBehavior(false);
+    auto contentBuffer =
+            pool->createBuffer({360, 260}, 0, 360 * 4, render::PixelFormat::Bgrx8888, nullptr);
+    content->attach(contentBuffer, {});
+    content->commit();
+    shell->rootSurface()->commit();
+
+    shell->maximize();
+    ASSERT_TRUE(shell->acknowledgeConfigure(recorder->serials.back()));
+    // The content moves with the frame's commit, and is drawn for the new
+    // size only afterwards.
+    sub->setPosition({0, 0});
+    auto maximizedBuffer = pool->createBuffer(kOutput.size(), 0, kOutput.width() * 4,
+                                              render::PixelFormat::Bgrx8888, nullptr);
+    shell->rootSurface()->attach(maximizedBuffer, {});
+    shell->rootSurface()->commit();
+    EXPECT_TRUE(content->isMovedAheadOfContent());
+    EXPECT_TRUE(animation->isWaitingForBoundsContent());
+
+    // A commit without a buffer is not the redraw.
+    content->commit();
+    EXPECT_TRUE(animation->isWaitingForBoundsContent());
+
+    auto maximizedContent = pool->createBuffer(kOutput.size(), 0, kOutput.width() * 4,
+                                               render::PixelFormat::Bgrx8888, nullptr);
+    content->attach(maximizedContent, {});
+    content->commit();
+    EXPECT_FALSE(content->isMovedAheadOfContent());
+    EXPECT_FALSE(animation->isWaitingForBoundsContent());
+}
+
+TEST_F(ShellSurfaceTest, ACrossFadeDoesNotWaitForAMovedSubsurfaceWithoutContent)
+{
+    Recorder *recorder = nullptr;
+    auto *shell = makeMappedToplevel({400, 300}, &recorder);
+    auto *animation = static_cast<scene::WindowAnimation *>(shell->window()->node());
+    compositor::Surface *empty = makeSurface();
+    std::unique_ptr<compositor::SubSurface> sub =
+            compositor::SubSurface::create(empty, shell->rootSurface());
+    sub->setPosition({-200, -200});
+    sub->setCommitBehavior(false);
+    shell->rootSurface()->commit();
+
+    shell->maximize();
+    ASSERT_TRUE(shell->acknowledgeConfigure(recorder->serials.back()));
+    sub->setPosition({-198, -198});
+    auto maximizedBuffer = pool->createBuffer(kOutput.size(), 0, kOutput.width() * 4,
+                                              render::PixelFormat::Bgrx8888, nullptr);
+    shell->rootSurface()->attach(maximizedBuffer, {});
+    shell->rootSurface()->commit();
+
+    EXPECT_FALSE(animation->isWaitingForBoundsContent());
+}
+
+TEST_F(ShellSurfaceTest, ACrossFadeStopsWaitingForASubsurfaceThatNeverRedraws)
+{
+    Recorder *recorder = nullptr;
+    auto *shell = makeMappedToplevel({400, 300}, &recorder);
+    auto *animation = static_cast<scene::WindowAnimation *>(shell->window()->node());
+    compositor::Surface *content = makeSurface();
+    std::unique_ptr<compositor::SubSurface> sub =
+            compositor::SubSurface::create(content, shell->rootSurface());
+    sub->setPosition({20, 20});
+    sub->setCommitBehavior(false);
+    auto contentBuffer =
+            pool->createBuffer({360, 260}, 0, 360 * 4, render::PixelFormat::Bgrx8888, nullptr);
+    content->attach(contentBuffer, {});
+    content->commit();
+    shell->rootSurface()->commit();
+
+    shell->maximize();
+    ASSERT_TRUE(shell->acknowledgeConfigure(recorder->serials.back()));
+    sub->setPosition({0, 0});
+    auto maximizedBuffer = pool->createBuffer(kOutput.size(), 0, kOutput.width() * 4,
+                                              render::PixelFormat::Bgrx8888, nullptr);
+    shell->rootSurface()->attach(maximizedBuffer, {});
+    shell->rootSurface()->commit();
+    ASSERT_TRUE(animation->isWaitingForBoundsContent());
+
+    EXPECT_TRUE(test::runUntil([animation] {
+        return !animation->isWaitingForBoundsContent();
+    }));
 }
 
 TEST_F(ShellSurfaceTest, DragReleaseBeforeCsdRedrawKeepsWaitingUntilRestoredBuffer)

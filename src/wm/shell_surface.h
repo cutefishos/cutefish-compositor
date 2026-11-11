@@ -32,6 +32,7 @@
 #include <vector>
 
 #include "base/geometry.h"
+#include "base/timer.h"
 #include "compositor/surface_observer.h"
 #include "wm/types.h"
 #include "wm/window_observer.h"
@@ -329,6 +330,14 @@ private:
     };
 
     void configure();
+    // The client has drawn the size a bounds transition is waiting for, unless
+    // a subsurface it moved has not caught up yet.
+    void markBoundsContentReady();
+    // Left to pick its size, the client may keep the one it has; nothing it
+    // draws then looks any different from a frame it drew before the configure.
+    void awaitSizeChoice();
+    void finishAwaitingContent();
+    void stopAwaitingContent();
     void sendPopupConfigure(const base::Rect &bounds, bool reposition);
     void applyCommittedState(const CommittedState &state);
     void mapToplevel();
@@ -350,6 +359,8 @@ private:
     void updateWindowBoundsFromClient();
     void updateSizeConstraints();
     base::Size configureBounds() const;
+    // Where the window would have opened had it mapped normal at `size`.
+    base::Rect placeNormalWindow(const base::Size &size) const;
     // The frame a normal window would have, whatever the current state.
     Insets normalFrameInsets() const;
     bool computeResizable() const;
@@ -443,6 +454,17 @@ private:
     // Set while the window bounds are being changed to follow the client's own
     // geometry, so that change does not bounce a configure back at it.
     bool m_applyingClientBounds = false;
+
+    // Mapped maximized or fullscreen with no restore size: the next normal
+    // configure leaves the size to the client, and the window is placed once
+    // the client has chosen one.
+    bool m_clientChoosesNormalSize = false;
+
+    // Subsurfaces whose next buffer the bounds transition waits for, and how
+    // long it waits: for them, or for a client left to pick its size to draw
+    // another one.
+    std::vector<compositor::Surface *> m_awaitedContent;
+    base::Timer m_contentAwaitTimer;
 
     ShellSurface *m_parentShell = nullptr;
     ShellSurface *m_transientParentShell = nullptr;
