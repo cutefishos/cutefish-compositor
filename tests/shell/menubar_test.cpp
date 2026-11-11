@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <functional>
 #include <map>
 #include <tuple>
 
@@ -93,6 +94,22 @@ public:
         itemChanged(id);
     }
 
+    // As a main menu's client changes it: each insertion and removal on its
+    // own, the removed entry still there while its menu hears.
+    void insert(int32_t parent, int32_t id, const std::string &label)
+    {
+        add(parent, id, label);
+        menuUpdated(parent);
+    }
+
+    void remove(int32_t id)
+    {
+        const int32_t parent = m_items[id].parent;
+        std::erase(m_items[parent].children, id);
+        menuUpdated(parent);
+        m_items.erase(id);
+    }
+
     int prepared(int32_t id) const { return int(std::count(m_prepared.begin(), m_prepared.end(), id)); }
     int closedCount(int32_t id) const { return int(std::count(m_closed.begin(), m_closed.end(), id)); }
 
@@ -159,6 +176,8 @@ public:
             call.read(id, event);
             calls.push_back("Event " + std::to_string(id) + " " + event);
             call.reply();
+            if (onEvent)
+                onEvent(id, event);
         });
         object.addSignal("LayoutUpdated", "ui");
         object.addSignal("ItemsPropertiesUpdated", "a(ia{sv})a(ias)");
@@ -168,11 +187,22 @@ public:
 
     int count(const std::string &what) const { return int(std::count(calls.begin(), calls.end(), what)); }
     bool called(const std::string &what) const { return count(what) > 0; }
+    // The "opened" events, whichever menu they were for.
+    int openedEvents() const
+    {
+        return int(std::count_if(calls.begin(), calls.end(),
+                                 [](const std::string &call) { return call.ends_with(" opened"); }));
+    }
+
+    // The application says the menu `parent` changed under it.
+    void layoutUpdated(int32_t parent = 0) { object.emitSignal("LayoutUpdated", ++revision, parent); }
 
     dbus::Object object;
     std::map<int32_t, dbus::Variant> layouts;
     std::vector<std::string> calls;
     uint32_t revision = 1;
+    // After an event is answered.
+    std::function<void(int32_t id, const std::string &event)> onEvent;
 };
 
 // The desktop's File and Edit menus.
@@ -401,6 +431,28 @@ protected:
         EXPECT_TRUE(test::runUntil([this] { return view->model().count() == 4; }));
         frame();
         return desktop;
+    }
+
+    // A focused terminal window whose menus `application` exports at
+    // /MenuBar, once the bar shows `count` entries.
+    void showTerminal(test::DBusTestClient &application, size_t count)
+    {
+        shell::TaskWindow terminal;
+        terminal.appId = "terminal";
+        terminal.title = "Terminal window";
+        terminal.pid = 4242;
+        terminal.menuService = application.connection->uniqueName();
+        terminal.menuPath = "/MenuBar";
+        windows->setActive(windows->add(terminal));
+        ASSERT_TRUE(test::runUntil([&] { return view->model().count() == count; }));
+        frame();
+    }
+
+    // The first row of the open menu, chosen from the keyboard.
+    void chooseFirstRow()
+    {
+        key(KEY_DOWN);
+        key(KEY_ENTER);
     }
 };
 
@@ -719,38 +771,263 @@ TEST_F(MenuBarTest, AnOpenMenuStaysOpenWhenTheApplicationRenumbersItsMenus)
                                   layout(2, {{"label", label("_Edit")}, {"children-display", submenu()}})});
     exporter.layouts[1] = layout(1, {}, {layout(10, {{"label", label("_Open")}})});
     exporter.layouts[2] = layout(2, {}, {layout(20, {{"label", label("_Undo")}})});
-
-    shell::TaskWindow terminal;
-    terminal.appId = "terminal";
-    terminal.title = "Terminal window";
-    terminal.pid = 4242;
-    terminal.menuService = application.connection->uniqueName();
-    terminal.menuPath = "/MenuBar";
-    windows->setActive(windows->add(terminal));
-    ASSERT_TRUE(test::runUntil([&] { return view->model().count() == 4; }));
-    frame();
+    showTerminal(application, 4);
     click(entryCentre(2).x(), 16);
     ASSERT_EQ(2, view->currentIndex());
+    ASSERT_TRUE(test::runUntil([&] { return exporter.called("Event 1 opened"); }));
 
     // The application lays out its whole bar again under new ids while File
-    // is open: File stays open, and moving on still switches menus.
+    // is open: File stays open where it was, shows the new File's entries
+    // once they are in, and is not opened again.
     exporter.layouts.clear();
     exporter.layouts[0] = layout(0, {},
                                  {layout(101, {{"label", label("_File")}, {"children-display", submenu()}}),
                                   layout(102, {{"label", label("_Edit")}, {"children-display", submenu()}})});
     exporter.layouts[101] = layout(101, {}, {layout(110, {{"label", label("_Open")}})});
     exporter.layouts[102] = layout(102, {}, {layout(120, {{"label", label("_Undo")}})});
-    exporter.object.emitSignal("LayoutUpdated", ++exporter.revision, int32_t(0));
+    exporter.layoutUpdated();
     ASSERT_TRUE(test::runUntil([&] { return view->model().rows()[2].id == 101; }));
+    ASSERT_TRUE(test::runUntil([&] { return exporter.called("GetLayout 101"); }));
+    test::runFor(std::chrono::milliseconds(50));
     frame();
     EXPECT_EQ(2, view->currentIndex());
     ASSERT_TRUE(view->openMenu() && view->openMenu()->isOpen());
     EXPECT_EQ(int(std::lround(entryRect(2).x + 3)), menuBounds()->x());
     EXPECT_EQ(1u, manager.popupGrabs().size());
+    EXPECT_EQ(1, exporter.openedEvents());
 
+    // Its rows are the new File's, and closing reaches the new File.
+    chooseFirstRow();
+    EXPECT_EQ(-1, view->currentIndex());
+    ASSERT_TRUE(test::runUntil([&] { return exporter.called("Event 101 closed"); }));
+    EXPECT_TRUE(exporter.called("Event 110 clicked"));
+    EXPECT_FALSE(exporter.called("Event 1 closed"));
+    EXPECT_EQ(1, exporter.openedEvents());
+
+    // Moving on still switches menus.
+    click(entryCentre(2).x(), 16);
+    ASSERT_EQ(2, view->currentIndex());
     move(entryCentre(3).x(), 16);
     frame();
     EXPECT_EQ(3, view->currentIndex());
     EXPECT_TRUE(view->openMenu() && view->openMenu()->isOpen());
-    EXPECT_TRUE(test::runUntil([&] { return exporter.called("AboutToShow 102"); }));
+    EXPECT_TRUE(test::runUntil([&] { return exporter.called("Event 102 opened"); }));
+}
+
+TEST_F(MenuBarTest, OnlyAClickChoosesAPlainActionEntry)
+{
+    test::DBusTestClient application;
+    FakeMenuExporter exporter(application.connection.get(), "/MenuBar");
+    exporter.layouts[0] = layout(0, {},
+                                 {layout(1, {{"label", label("_File")}, {"children-display", submenu()}}),
+                                  layout(4, {{"label", label("_Run")}}),
+                                  layout(2, {{"label", label("_Edit")}, {"children-display", submenu()}})});
+    exporter.layouts[1] = layout(1, {}, {layout(10, {{"label", label("_Open")}})});
+    exporter.layouts[2] = layout(2, {}, {layout(20, {{"label", label("_Undo")}})});
+    showTerminal(application, 5);
+    ASSERT_EQ(titles(), (std::vector<std::string> {"", "Terminal", "File", "Run", "Edit"}));
+
+    // With File open, moving onto Run leaves File open.
+    click(entryCentre(2).x(), 16);
+    ASSERT_EQ(2, view->currentIndex());
+    move(entryCentre(3).x(), 16);
+    frame();
+    EXPECT_EQ(2, view->currentIndex());
+    EXPECT_TRUE(view->openMenu() && view->openMenu()->isOpen());
+
+    // Right and Left pass over it.
+    key(KEY_RIGHT);
+    EXPECT_EQ(4, view->currentIndex());
+    key(KEY_LEFT);
+    EXPECT_EQ(2, view->currentIndex());
+
+    // The application asking for it opens nothing either.
+    key(KEY_ESC);
+    ASSERT_EQ(-1, view->currentIndex());
+    exporter.object.emitSignal("ItemActivationRequested", int32_t(4), uint32_t(0));
+    test::runFor(std::chrono::milliseconds(50));
+    frame();
+    EXPECT_EQ(-1, view->currentIndex());
+    EXPECT_FALSE(exporter.called("Event 4 clicked"));
+
+    // A click chooses it, and closes the open menu.
+    click(entryCentre(2).x(), 16);
+    ASSERT_EQ(2, view->currentIndex());
+    click(entryCentre(3).x(), 16);
+    EXPECT_EQ(-1, view->currentIndex());
+    EXPECT_TRUE(manager.popupGrabs().empty());
+    EXPECT_TRUE(test::runUntil([&] { return exporter.called("Event 4 clicked"); }));
+    EXPECT_EQ(1, exporter.count("Event 4 clicked"));
+}
+
+TEST_F(MenuBarTest, AMenusLayoutUpdateAfterItShowedIsNotLost)
+{
+    test::DBusTestClient application;
+    FakeMenuExporter exporter(application.connection.get(), "/MenuBar");
+    exporter.layouts[0] = layout(0, {}, {layout(1, {{"label", label("_File")}, {"children-display", submenu()}})});
+    exporter.layouts[1] = layout(1, {}, {layout(10, {{"label", label("_Open")}})});
+    showTerminal(application, 3);
+    // Readied for the bar: asked AboutToShow and fetched.
+    ASSERT_TRUE(test::runUntil([&] { return exporter.count("GetLayout 1") == 1; }));
+
+    // The application changes File and says so: the next show has it.
+    exporter.layouts[1] = layout(1, {}, {layout(11, {{"label", label("_Save")}})});
+    exporter.layoutUpdated(1);
+    ASSERT_TRUE(test::runUntil([&] { return exporter.count("GetLayout 1") == 2; }));
+    test::runFor(std::chrono::milliseconds(50));
+    click(entryCentre(2).x(), 16);
+    ASSERT_EQ(2, view->currentIndex());
+    test::runFor(std::chrono::milliseconds(50));
+    frame();
+    chooseFirstRow();
+    EXPECT_TRUE(test::runUntil([&] { return exporter.called("Event 11 clicked"); }));
+    EXPECT_FALSE(exporter.called("Event 10 clicked"));
+}
+
+TEST_F(MenuBarTest, ARootLayoutUpdateRefreshesLoadedMenus)
+{
+    test::DBusTestClient application;
+    FakeMenuExporter exporter(application.connection.get(), "/MenuBar");
+    exporter.layouts[0] = layout(0, {}, {layout(1, {{"label", label("_File")}, {"children-display", submenu()}})});
+    exporter.layouts[1] = layout(1, {}, {layout(10, {{"label", label("_Open")}})});
+    showTerminal(application, 3);
+    click(entryCentre(2).x(), 16);
+    ASSERT_EQ(2, view->currentIndex());
+    test::runFor(std::chrono::milliseconds(50));
+    const int fetched = exporter.count("GetLayout 1");
+
+    // A layout update of the root, as some exporters send for any change,
+    // with every id kept: the open File is fetched again and changes.
+    exporter.layouts[1] = layout(1, {}, {layout(11, {{"label", label("_Save")}})});
+    exporter.layoutUpdated();
+    ASSERT_TRUE(test::runUntil([&] { return exporter.count("GetLayout 1") > fetched; }));
+    test::runFor(std::chrono::milliseconds(50));
+    frame();
+    ASSERT_EQ(2, view->currentIndex());
+    chooseFirstRow();
+    EXPECT_TRUE(test::runUntil([&] { return exporter.called("Event 11 clicked"); }));
+
+    // Closed, File changes again: it is current when it next shows.
+    exporter.layouts[1] = layout(1, {}, {layout(12, {{"label", label("_Close")}})});
+    const int roots = exporter.count("GetLayout 0");
+    exporter.layoutUpdated();
+    ASSERT_TRUE(test::runUntil([&] { return exporter.count("GetLayout 0") > roots; }));
+    test::runFor(std::chrono::milliseconds(50));
+    click(entryCentre(2).x(), 16);
+    ASSERT_EQ(2, view->currentIndex());
+    test::runFor(std::chrono::milliseconds(50));
+    frame();
+    chooseFirstRow();
+    EXPECT_TRUE(test::runUntil([&] { return exporter.called("Event 12 clicked"); }));
+}
+
+TEST_F(MenuBarTest, AnOpenMenuStaysOpenWhenAMainMenuIsBuiltAgain)
+{
+    auto menu = std::make_shared<FakeMainMenu>();
+    menu->add(1, 10, "Open");
+    menu->add(0, 1, "File");
+    menu->add(2, 20, "Undo");
+    menu->add(0, 2, "Edit");
+
+    shell::TaskWindow archiver;
+    archiver.appId = "archiver";
+    archiver.title = "Archiver";
+    archiver.pid = 4343;
+    archiver.mainMenu = menu;
+    windows->setActive(windows->add(archiver));
+    ASSERT_TRUE(test::runUntil([&] { return view->model().count() == 4; }));
+    frame();
+    click(entryCentre(2).x(), 16);
+    ASSERT_EQ(2, view->currentIndex());
+    ASSERT_EQ(1, menu->prepared(1));
+
+    // The client takes every entry of its bar away and makes them again,
+    // one request at a time: the bar changes once, and File stays open on
+    // the new File without the client hearing of another opening.
+    int changes = 0;
+    auto subscription = view->model().rowsChanged.connect([&] { ++changes; });
+    menu->remove(1);
+    menu->remove(2);
+    menu->add(3, 30, "Close");
+    menu->insert(0, 3, "File");
+    menu->add(4, 40, "Redo");
+    menu->insert(0, 4, "Edit");
+    test::runFor(std::chrono::milliseconds(20));
+    frame();
+    EXPECT_EQ(1, changes);
+    EXPECT_EQ(titles(), (std::vector<std::string> {"", "Archiver", "File", "Edit"}));
+    EXPECT_EQ(3, view->model().rows()[2].id);
+    EXPECT_EQ(2, view->currentIndex());
+    ASSERT_TRUE(view->openMenu() && view->openMenu()->isOpen());
+    EXPECT_EQ(0, menu->prepared(3));
+    EXPECT_EQ(0, menu->closedCount(1));
+
+    chooseFirstRow();
+    EXPECT_EQ(std::vector<int32_t> {30}, menu->activated);
+    EXPECT_EQ(1, menu->closedCount(3));
+    EXPECT_EQ(0, menu->closedCount(1));
+}
+
+TEST_F(MenuBarTest, AnOpenSubmenuStaysOpenWhenOpeningItRenumbersTheMenus)
+{
+    // View > Toolbars, every id in it offset by `base`.
+    const auto lay = [](FakeMenuExporter &exporter, int32_t base) {
+        exporter.layouts.clear();
+        exporter.layouts[0] =
+                layout(0, {}, {layout(base + 1, {{"label", label("_View")}, {"children-display", submenu()}})});
+        exporter.layouts[base + 1] =
+                layout(base + 1, {},
+                       {layout(base + 10, {{"label", label("_Toolbars")}, {"children-display", submenu()}}),
+                        layout(base + 11, {{"label", label("_Zoom")}})});
+        exporter.layouts[base + 10] = layout(base + 10, {},
+                                             {layout(base + 100, {{"label", label("_Menu Bar")}}),
+                                              layout(base + 101, {{"label", label("_Bookmarks")}})});
+    };
+    test::DBusTestClient application;
+    FakeMenuExporter exporter(application.connection.get(), "/MenuBar");
+    lay(exporter, 0);
+    // An application that lays out its whole menu again under new ids each
+    // time Toolbars opens.
+    int32_t base = 0;
+    int toolbarsOpened = 0;
+    exporter.onEvent = [&](int32_t id, const std::string &event) {
+        if (event != "opened" || id != base + 10)
+            return;
+        ++toolbarsOpened;
+        base += 1000;
+        lay(exporter, base);
+        exporter.layoutUpdated();
+    };
+    showTerminal(application, 3);
+
+    click(entryCentre(2).x(), 16);
+    ASSERT_EQ(2, view->currentIndex());
+    ASSERT_TRUE(test::runUntil([&] { return exporter.called("GetLayout 10"); }));
+    test::runFor(std::chrono::milliseconds(50));
+    frame();
+    key(KEY_DOWN);
+    key(KEY_RIGHT);
+    ASSERT_TRUE(test::runUntil([&] { return toolbarsOpened == 1; }));
+    ASSERT_TRUE(test::runUntil([&] { return exporter.called("GetLayout 1010"); }));
+    test::runFor(std::chrono::milliseconds(200));
+    frame();
+
+    // Both menus stay open, now on the new ids, and Toolbars was opened once.
+    EXPECT_EQ(1, toolbarsOpened);
+    EXPECT_EQ(1000, base);
+    EXPECT_EQ(1001, view->model().rows()[2].id);
+    ASSERT_TRUE(view->openMenu() && view->openMenu()->isOpen());
+    ASSERT_TRUE(view->openMenu()->submenu(0) && view->openMenu()->submenu(0)->isOpen());
+    EXPECT_EQ(2, exporter.openedEvents());
+
+    // Its lit first row is the new Menu Bar; closing reaches the new ids.
+    key(KEY_ENTER);
+    EXPECT_EQ(-1, view->currentIndex());
+    ASSERT_TRUE(test::runUntil([&] { return exporter.called("Event 1001 closed"); }));
+    EXPECT_TRUE(test::runUntil([&] { return exporter.called("Event 1010 closed"); }));
+    EXPECT_TRUE(exporter.called("Event 1100 clicked"));
+    EXPECT_FALSE(exporter.called("Event 100 clicked"));
+    EXPECT_FALSE(exporter.called("Event 1 closed"));
+    EXPECT_FALSE(exporter.called("Event 10 closed"));
+    EXPECT_EQ(1, toolbarsOpened);
 }

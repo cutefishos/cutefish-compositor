@@ -29,16 +29,16 @@ DBusMenu::DBusMenu(dbus::Connection *bus, std::string service, std::string path)
     m_layoutTimer.setSingleShot(true);
     m_layoutTimer.onTimeout = [this] {
         const std::set<int32_t> ids = std::exchange(m_pendingLayoutUpdates, {});
-        for (int32_t id : ids)
+        for (int32_t id : ids) {
+            invalidate(id);
             refresh(id);
+        }
     };
 
     m_matches.push_back(m_proxy.onSignal("LayoutUpdated", [this](const dbus::Message &message) {
         uint32_t revision = 0;
         int32_t parent = 0;
         if (!m_sender.accepts(message) || !message.read(revision, parent))
-            return;
-        if (m_refreshedByAboutToShow.erase(parent))
             return;
         m_pendingLayoutUpdates.insert(parent);
         if (!m_layoutTimer.isActive())
@@ -129,6 +129,12 @@ void DBusMenu::applyLayout(int32_t parentId, const dbus::Variant &layout)
             it = m_items.emplace(id, std::move(item)).first;
             applyProperties(it->second, properties, true);
         } else {
+            // A whole layout leaves out the properties at their defaults.
+            for (const char *key : {"label", "enabled", "visible", "toggle-state", "icon-name", "shortcut"})
+                resetProperty(it->second, key);
+            // A picture still being decoded stays until the new one is in.
+            if (!properties.count("icon-data"))
+                resetProperty(it->second, "icon-data");
             applyProperties(it->second, properties, false);
             if (it->second.parent != parentId) {
                 // An entry that moved to another menu leaves the old one.
@@ -164,10 +170,28 @@ void DBusMenu::removeItem(int32_t id)
     const std::vector<int32_t> children = it->second.children;
     m_items.erase(it);
     m_iconJobs.erase(id);
+    m_open.erase(id);
     for (int32_t child : children) {
         const auto childIt = m_items.find(child);
         if (childIt != m_items.end() && childIt->second.parent == id)
             removeItem(child);
+    }
+}
+
+void DBusMenu::invalidate(int32_t id)
+{
+    const auto it = m_items.find(id);
+    if (it == m_items.end())
+        return;
+    for (int32_t child : it->second.children) {
+        const auto childIt = m_items.find(child);
+        if (childIt == m_items.end() || childIt->second.parent != id)
+            continue;
+        // The rows it shows stay until the new ones are in.
+        childIt->second.childrenLoaded = false;
+        if (m_open.count(child))
+            refresh(child);
+        invalidate(child);
     }
 }
 
@@ -278,9 +302,6 @@ void DBusMenu::prepare(int32_t id)
     if (!m_items.count(id))
         return;
 
-    // A refetch from the last show whose LayoutUpdated never came must not
-    // swallow the next real update; this show refetches anyway.
-    m_refreshedByAboutToShow.erase(id);
     m_calls.track([&](std::function<void()> finished) {
         return m_proxy.callAsync(
                 "AboutToShow",
@@ -289,8 +310,7 @@ void DBusMenu::prepare(int32_t id)
                     if (it != m_items.end()) {
                         if (reply.isError()) {
                             menuUpdated(id);
-                        } else if (reply.value<bool>().value_or(false) || it->second.children.empty()) {
-                            m_refreshedByAboutToShow.insert(id);
+                        } else if (reply.value<bool>().value_or(false) || !it->second.childrenLoaded) {
                             refresh(id);
                         } else {
                             menuUpdated(id);
@@ -304,11 +324,13 @@ void DBusMenu::prepare(int32_t id)
 
 void DBusMenu::opened(int32_t id)
 {
+    m_open.insert(id);
     sendEvent(id, "opened");
 }
 
 void DBusMenu::closed(int32_t id)
 {
+    m_open.erase(id);
     sendEvent(id, "closed");
 }
 

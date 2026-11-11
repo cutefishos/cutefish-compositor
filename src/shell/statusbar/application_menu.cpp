@@ -142,17 +142,16 @@ void ApplicationMenu::onImported(const std::string &key, int32_t id)
     if (it == m_imports.end() || id != 0)
         return;
     Import &import = it->second;
-    const bool first = !import.ready;
     import.ready = true;
 
-    // The first level of submenus is what the bar pops up: have it ready.
-    // Later changes to them arrive through the exporter's own signals.
-    if (first) {
-        for (int32_t child : import.menu->root().children) {
-            const compositor::MenuItem *item = import.menu->item(child);
-            if (item && item->hasSubmenu)
-                import.menu->aboutToShow(child);
-        }
+    // The first level of submenus is what the bar pops up: have the ones not
+    // fetched yet ready, without an "opened" that no "closed" would follow.
+    // One fetched before waits for its next show: its application may answer
+    // being asked by laying the bar out again.
+    for (int32_t child : import.menu->root().children) {
+        const compositor::MenuItem *item = import.menu->item(child);
+        if (item && item->hasSubmenu && !item->childrenLoaded && item->children.empty())
+            import.menu->prepare(child);
     }
 
     if (key == m_pendingKey)

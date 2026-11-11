@@ -4,7 +4,6 @@
 
 #include "shell/menubar/menu_bar_view.h"
 
-#include <algorithm>
 #include <optional>
 
 #include <pwd.h>
@@ -191,9 +190,6 @@ void MenuBarView::barChanged()
 void MenuBarView::rebuildEntries()
 {
     const std::vector<MenuBarModel::Row> &rows = m_model->rows();
-    std::optional<MenuBarModel::Row> openRow;
-    if (m_currentIndex >= 0 && size_t(m_currentIndex) < m_entries.size() && m_openMenu && m_openMenu->isOpen())
-        openRow = m_entries[size_t(m_currentIndex)]->row();
 
     // The user's entry stays put; the application's are swapped out and in.
     size_t keep = 0;
@@ -214,10 +210,14 @@ void MenuBarView::rebuildEntries()
         entry->onClicked = [this, index](const ui::PointerEvent &event) {
             if (event.button != ui::MouseButton::Left)
                 return;
-            if (m_currentIndex == index)
+            if (m_currentIndex == index) {
                 close();
-            else
+            } else if (m_model->hasMenu(size_t(index))) {
                 open(index);
+            } else {
+                close();
+                m_model->trigger(size_t(index));
+            }
         };
         // While one menu is open, moving onto another entry switches to it.
         entry->onEntered = [this, index] {
@@ -229,25 +229,14 @@ void MenuBarView::rebuildEntries()
     if (!m_entries.empty())
         m_entries.front()->setAvatar(m_userIcon, m_userColor);
 
-    // The open menu stays while its entry does.
+    // The open menu stays while its entry does, wherever that went.
     if (m_currentIndex >= 0) {
-        if (size_t(m_currentIndex) >= rows.size() || m_model->menuAt(size_t(m_currentIndex)) != m_openMenu
-            || !m_openMenu || !m_openMenu->isOpen()) {
-            // An application that lays its menus out again under new ids
-            // while one is open keeps that entry open.
-            const auto same = openRow ? std::find_if(rows.begin(), rows.end(),
-                                                     [&](const MenuBarModel::Row &row) {
-                                                         return row.kind == openRow->kind && row.title == openRow->title;
-                                                     })
-                                      : rows.end();
-            if (same != rows.end()) {
-                // The menu opens under the new entry's plate.
-                layout();
-                open(int(same - rows.begin()));
-                return;
-            }
+        const std::optional<size_t> row =
+                m_openMenu && m_openMenu->isOpen() ? m_model->rowOf(m_openMenu) : std::nullopt;
+        if (row)
+            m_currentIndex = int(*row);
+        else
             close();
-        }
     }
     for (size_t i = 0; i < m_entries.size(); ++i)
         m_entries[i]->setChecked(int(i) == m_currentIndex);
@@ -273,19 +262,15 @@ void MenuBarView::open(int index, bool keyboard)
     ui::Window *window = this->window();
     if (!window)
         return;
+    // A plain action entry is only chosen by a click.
+    ui::Menu *menu = m_model->menuAt(size_t(index));
+    if (!menu)
+        return;
 
     if (m_host.closePanels)
         m_host.closePanels();
     if (m_host.closeTrayMenu)
         m_host.closeTrayMenu();
-
-    ui::Menu *menu = m_model->menuAt(size_t(index));
-    // An entry can be a plain action instead of a menu.
-    if (!menu) {
-        close();
-        m_model->trigger(size_t(index));
-        return;
-    }
 
     // Closing the previous menu here is part of the switch, not a dismissal.
     m_switching = true;
@@ -342,10 +327,15 @@ void MenuBarView::onMenuClosed()
 
 void MenuBarView::step(int step)
 {
+    // Plain action entries are passed over.
     const int count = int(m_entries.size());
-    if (count == 0)
-        return;
-    open((m_currentIndex + step + count) % count, true);
+    for (int offset = 1; offset < count; ++offset) {
+        const int index = ((m_currentIndex + step * offset) % count + count) % count;
+        if (m_model->hasMenu(size_t(index))) {
+            open(index, true);
+            return;
+        }
+    }
 }
 
 } // namespace cutefish::shell

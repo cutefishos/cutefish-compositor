@@ -2,6 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <functional>
@@ -322,11 +323,24 @@ TEST_F(MainMenuProtocolTest, AWindowsMainMenuIsItsSurfacesModel)
             subscriptions.clear();
         });
 
-        // Destroying the menu takes it from the window.
+        // Destroying the menu takes it from the window; a bar still showing
+        // it hears that it has no entries left.
+        std::shared_ptr<compositor::MenuModel> shown;
+        check([&] {
+            shown = mainMenu();
+            updated.clear();
+            subscriptions.push_back(shown->menuUpdated.connect([&](int32_t id) { updated.push_back(id); }));
+        });
         cutefish_menu_v1_destroy(main->menu);
         main->menu = nullptr;
         c.sync();
-        check([&] { EXPECT_FALSE(mainMenu()); });
+        check([&] {
+            EXPECT_FALSE(mainMenu());
+            EXPECT_NE(updated.end(), std::find(updated.begin(), updated.end(), 0));
+            EXPECT_TRUE(shown->root().children.empty());
+            subscriptions.clear();
+            shown.reset();
+        });
     });
 }
 

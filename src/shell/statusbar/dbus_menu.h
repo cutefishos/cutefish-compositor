@@ -30,8 +30,10 @@ namespace cutefish::shell {
 // An entry keeps the kind it had when it
 // first arrived (type, toggle-type and children-display are not changed by a
 // later layout), a submenu that opens is asked AboutToShow and refetched when
-// the application says so or it has no entries yet, and "opened", "closed"
-// and "clicked" events go along.
+// the application says so or its entries are not current, and "opened",
+// "closed" and "clicked" events go along. A LayoutUpdated makes everything
+// under its parent out of date: open menus are refetched at once, the others
+// when they next show.
 class DBusMenu : public compositor::MenuModel
 {
 public:
@@ -64,6 +66,7 @@ private:
     void applyProperties(compositor::MenuItem &item, const base::dbus::VariantMap &properties, bool created);
     void resetProperty(compositor::MenuItem &item, const std::string &key);
     void removeItem(int32_t id);
+    void invalidate(int32_t id);
     void decodeIcon(int32_t id, const std::string &bytes);
     void sendEvent(int32_t id, const std::string &event);
 
@@ -75,9 +78,9 @@ private:
     std::unordered_map<int32_t, compositor::MenuItem> m_items;
     std::vector<base::dbus::Match> m_matches;
     PendingCalls m_calls;
-    // A LayoutUpdated for one of these is the refetch AboutToShow asked for.
-    std::set<int32_t> m_refreshedByAboutToShow;
     std::set<int32_t> m_pendingLayoutUpdates;
+    // The menus between "opened" and "closed".
+    std::set<int32_t> m_open;
     base::Timer m_layoutTimer;
     std::unordered_map<int32_t, base::Job> m_iconJobs;
 };

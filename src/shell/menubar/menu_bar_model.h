@@ -9,10 +9,12 @@
 #include <cstdint>
 #include <map>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
 #include "base/signal.h"
+#include "base/timer.h"
 
 namespace cutefish::ui {
 class Menu;
@@ -68,9 +70,14 @@ public:
     const std::vector<Row> &rows() const { return m_rows; }
     size_t count() const { return m_rows.size(); }
 
+    // Whether the entry at `row` opens a menu rather than being a plain
+    // action.
+    bool hasMenu(size_t row) const;
     // The menu of the entry at `row`, or null when the entry is a plain
     // action; made on first use and kept until the bar switches.
     ui::Menu *menuAt(size_t row);
+    // The row whose menu `menu` is, if any.
+    std::optional<size_t> rowOf(const ui::Menu *menu) const;
     // A plain action entry was clicked.
     void trigger(size_t row);
 
@@ -78,7 +85,9 @@ public:
     bool isDesktop() const { return m_desktop; }
 
     // The rows changed: the bar switched, the name changed, or the shown
-    // menu gained, lost or renamed an entry.
+    // menu gained, lost or renamed an entry. Changes of the shown menu come
+    // together on the next turn of the loop, and an open menu whose entry
+    // was replaced by one of the same title stays open on the new one.
     base::Signal<> rowsChanged;
     // The bar now belongs to another application, or none: an open menu of
     // the previous one has to go. Comes before rowsChanged.
@@ -101,7 +110,12 @@ private:
     void updateDesktopMenu();
     void updateShown();
     void watchShown();
+    void scheduleRows();
     void updateRows();
+    // The id of the entry that took the place of `previous`'s entry `id`:
+    // the same kind and title, a menu, and no popup yet.
+    std::optional<int32_t> successor(const std::vector<Row> &previous, int32_t id,
+                                     const std::map<int32_t, std::unique_ptr<MenuPopup>> &carried) const;
 
     Shell *m_shell;
     PowerActions *m_power;
@@ -115,6 +129,7 @@ private:
     compositor::MenuModel *m_shown = nullptr;
     std::vector<base::Subscription> m_shownSubscriptions;
     std::vector<Row> m_rows;
+    base::Timer m_rowsTimer;
 
     std::unique_ptr<ui::Menu> m_userMenu;
     std::unique_ptr<ui::Menu> m_applicationRowMenu;

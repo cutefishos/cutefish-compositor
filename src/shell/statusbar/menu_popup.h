@@ -9,6 +9,7 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "base/signal.h"
@@ -28,7 +29,9 @@ namespace cutefish::shell {
 // again while it is open as the application changes its entries; the
 // application hears that the menu is about to show, opened and closed, and a
 // chosen row is activated. Hidden entries have no row, and separators only
-// stand between two entries.
+// stand between two entries. Rows that keep their kind change in place even
+// when the application gave their entries new ids: a submenu then shows the
+// new entry, open or not, without being opened again.
 class MenuPopup
 {
 public:
@@ -48,6 +51,10 @@ public:
     // The opener already prepared the menu and waited for its entries: its
     // next opening only says it opened.
     void setPrepared();
+    // The menu now shows `id`, which took the place of the entry it showed:
+    // it stays open, the application hears nothing of an opening, and its
+    // rows change once the entries of `id` are in.
+    void rebind(int32_t id);
 
     // The menu closed, by a choice, Escape or a press elsewhere.
     std::function<void()> onClosed;
@@ -56,7 +63,12 @@ private:
     struct State;
 
     static void fill(const std::shared_ptr<State> &state, ui::Menu &menu, int32_t id);
-    static void wire(const std::shared_ptr<State> &state, ui::Menu &menu, int32_t id);
+    static void wire(const std::shared_ptr<State> &state, ui::Menu &menu, int32_t id, bool root);
+    // The menus showing the first ids of `moves` show the second ones.
+    static void repoint(const std::shared_ptr<State> &state, const std::vector<std::pair<int32_t, int32_t>> &moves);
+    // The menu that now shows `id`: filled if its entries are in, else once
+    // they arrive.
+    static void refill(const std::shared_ptr<State> &state, int32_t id);
     // The open menu showing `id`, if any, brought up to date.
     static void update(const std::shared_ptr<State> &state, int32_t id);
 

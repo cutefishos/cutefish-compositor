@@ -5,6 +5,7 @@
 #include "shell/menubar/menu_bar_model.h"
 
 #include <algorithm>
+#include <chrono>
 
 #include "base/i18n.h"
 #include "compositor/menu_model.h"
@@ -38,6 +39,8 @@ MenuBarModel::MenuBarModel(Shell *shell, AppMenuRegistrar *registrar, PowerActio
     m_applicationRowMenu->onAboutToShow = [this] { fillApplicationMenu(); };
     m_userMenu->onClosed = [this] { menuClosed(); };
     m_applicationRowMenu->onClosed = [this] { menuClosed(); };
+    m_rowsTimer.setSingleShot(true);
+    m_rowsTimer.onTimeout = [this] { updateRows(); };
 
     m_subscriptions.push_back(m_applicationMenu->switched.connect([this] { updateShown(); }));
     m_subscriptions.push_back(m_applicationMenu->titleChanged.connect([this] { updateRows(); }));
@@ -218,16 +221,23 @@ void MenuBarModel::watchShown()
     if (!m_shown)
         return;
     // The bar's entries are the root's children: a new layout of the root or
-    // a change to one of them renames, adds or removes an entry.
+    // a change to one of them renames, adds or removes an entry. An
+    // application may rebuild its bar one entry at a time.
     m_shownSubscriptions.push_back(m_shown->menuUpdated.connect([this](int32_t id) {
         if (id == 0)
-            updateRows();
+            scheduleRows();
     }));
     m_shownSubscriptions.push_back(m_shown->itemChanged.connect([this](int32_t id) {
         const compositor::MenuItem *item = m_shown->item(id);
         if (item && item->parent == 0)
-            updateRows();
+            scheduleRows();
     }));
+}
+
+void MenuBarModel::scheduleRows()
+{
+    if (!m_rowsTimer.isActive())
+        m_rowsTimer.start(std::chrono::nanoseconds(0));
 }
 
 void MenuBarModel::updateRows()
@@ -253,10 +263,12 @@ void MenuBarModel::updateRows()
     }
     if (rows == m_rows)
         return;
-    m_rows = std::move(rows);
+    const std::vector<Row> previous = std::exchange(m_rows, std::move(rows));
 
-    // Menus of entries that are gone go with them.
+    // Menus of entries that are gone go with them, except an open one whose
+    // entry came back under another id: it shows that one from now on.
     std::vector<std::unique_ptr<MenuPopup>> gone;
+    std::map<int32_t, std::unique_ptr<MenuPopup>> carried;
     for (auto it = m_popups.begin(); it != m_popups.end();) {
         const bool kept = std::any_of(m_rows.begin(), m_rows.end(),
                                       [&](const Row &row) { return row.kind != Kind::User && row.id == it->first; });
@@ -264,39 +276,88 @@ void MenuBarModel::updateRows()
             ++it;
             continue;
         }
-        gone.push_back(std::move(it->second));
+        const std::optional<int32_t> id =
+                it->second->menu().isOpen() ? successor(previous, it->first, carried) : std::nullopt;
+        if (id) {
+            it->second->rebind(*id);
+            carried[*id] = std::move(it->second);
+        } else {
+            gone.push_back(std::move(it->second));
+        }
         it = m_popups.erase(it);
     }
+    m_popups.merge(carried);
     rowsChanged();
     gone.clear();
 }
 
-ui::Menu *MenuBarModel::menuAt(size_t row)
+std::optional<int32_t> MenuBarModel::successor(const std::vector<Row> &previous, int32_t id,
+                                               const std::map<int32_t, std::unique_ptr<MenuPopup>> &carried) const
+{
+    const auto old = std::find_if(previous.begin(), previous.end(),
+                                  [&](const Row &row) { return row.kind != Kind::User && row.id == id; });
+    if (old == previous.end())
+        return std::nullopt;
+    const auto fits = [&](size_t index) {
+        const Row &row = m_rows[index];
+        return row.kind == old->kind && row.title == old->title && row.id >= 0 && !m_popups.count(row.id)
+                && !carried.count(row.id) && hasMenu(index);
+    };
+    const size_t index = size_t(old - previous.begin());
+    if (index < m_rows.size() && fits(index))
+        return m_rows[index].id;
+    for (size_t i = 0; i < m_rows.size(); ++i) {
+        if (fits(i))
+            return m_rows[i].id;
+    }
+    return std::nullopt;
+}
+
+bool MenuBarModel::hasMenu(size_t row) const
 {
     if (row >= m_rows.size())
-        return nullptr;
-    switch (m_rows[row].kind) {
-    case Kind::User:
-        return m_userMenu.get();
-    case Kind::Application:
-        if (m_rows[row].id < 0)
-            return m_applicationRowMenu.get();
-        break;
-    case Kind::Menu:
-        break;
-    }
+        return false;
+    if (m_rows[row].kind == Kind::User || (m_rows[row].kind == Kind::Application && m_rows[row].id < 0))
+        return true;
     const compositor::MenuItem *item = m_shown ? m_shown->item(m_rows[row].id) : nullptr;
-    if (!item || !(item->hasSubmenu || !item->children.empty()))
+    return item && (item->hasSubmenu || !item->children.empty());
+}
+
+ui::Menu *MenuBarModel::menuAt(size_t row)
+{
+    if (!hasMenu(row))
         return nullptr;
-    std::unique_ptr<MenuPopup> &popup = m_popups[item->id];
+    if (m_rows[row].kind == Kind::User)
+        return m_userMenu.get();
+    if (m_rows[row].kind == Kind::Application && m_rows[row].id < 0)
+        return m_applicationRowMenu.get();
+    const int32_t id = m_rows[row].id;
+    std::unique_ptr<MenuPopup> &popup = m_popups[id];
     if (!popup) {
         Shell *shell = m_shell;
-        popup = std::make_unique<MenuPopup>(m_shown, item->id, [shell](const std::string &key, uint32_t modifiers) {
+        popup = std::make_unique<MenuPopup>(m_shown, id, [shell](const std::string &key, uint32_t modifiers) {
             return shell->shortcutText(key, modifiers, true);
         });
         popup->onClosed = [this] { menuClosed(); };
     }
     return &popup->menu();
+}
+
+std::optional<size_t> MenuBarModel::rowOf(const ui::Menu *menu) const
+{
+    for (size_t i = 0; i < m_rows.size(); ++i) {
+        const Row &row = m_rows[i];
+        if (row.kind == Kind::User) {
+            if (menu == m_userMenu.get())
+                return i;
+        } else if (row.kind == Kind::Application && row.id < 0) {
+            if (menu == m_applicationRowMenu.get())
+                return i;
+        } else if (const auto it = m_popups.find(row.id); it != m_popups.end() && &it->second->menu() == menu) {
+            return i;
+        }
+    }
+    return std::nullopt;
 }
 
 void MenuBarModel::trigger(size_t row)

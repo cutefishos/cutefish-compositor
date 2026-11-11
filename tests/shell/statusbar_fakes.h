@@ -71,6 +71,7 @@ public:
     {
         return std::find(calls.begin(), calls.end(), what) != calls.end();
     }
+    int count(const std::string &what) const { return int(std::count(calls.begin(), calls.end(), what)); }
 
     dbus::Object object;
     std::map<int32_t, dbus::Variant> layouts;

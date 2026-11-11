@@ -2,6 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include <algorithm>
 #include <tuple>
 
 #include <gtest/gtest.h>
@@ -135,6 +136,70 @@ TEST(DBusMenuTest, DecodesIconsAndRefusesHugeOnes)
     EXPECT_EQ(menu.item(1)->icon->pixel(1, 1), 0xffff0000u);
     test::runFor(std::chrono::milliseconds(20));
     EXPECT_EQ(menu.item(2)->icon, nullptr);
+}
+
+TEST(DBusMenuTest, AWholeLayoutResetsWhatItLeavesOut)
+{
+    test::DBusTestClient application;
+    FakeMenuExporter exporter(application.connection.get(), "/MenuBar");
+    exporter.layouts[0] = layout(
+            0, {},
+            {layout(1, {{"label", dbus::Variant(std::string("_Open"))},
+                        {"enabled", dbus::Variant(false)},
+                        {"shortcut", dbus::Variant(std::vector<std::vector<std::string>>{{"Control", "o"}})}})});
+    shell::DBusMenu menu(sessionBus(), application.connection->uniqueName(), "/MenuBar");
+    ASSERT_TRUE(test::runUntil([&] { return menu.item(1) != nullptr; }));
+    EXPECT_FALSE(menu.item(1)->enabled);
+
+    // Exporters leave out what is at its default.
+    exporter.layouts[0] = layout(0, {}, {layout(1, {{"label", dbus::Variant(std::string("_Open"))}})});
+    exporter.object.emitSignal("LayoutUpdated", uint32_t(2), int32_t(0));
+    ASSERT_TRUE(test::runUntil([&] { return menu.item(1)->enabled; }));
+    EXPECT_TRUE(menu.item(1)->shortcut.empty());
+    EXPECT_EQ(menu.item(1)->label, "_Open");
+}
+
+TEST(DBusMenuTest, ALayoutUpdateMakesEverythingUnderItCurrentAgain)
+{
+    test::DBusTestClient application;
+    FakeMenuExporter exporter(application.connection.get(), "/MenuBar");
+    exporter.layouts[0] = menuWithFileAndEdit();
+    exporter.layouts[1] = layout(1, {}, {layout(10, {{"label", dbus::Variant(std::string("_Open"))}})});
+    exporter.layouts[2] = layout(2, {}, {layout(20, {{"label", dbus::Variant(std::string("_Undo"))}})});
+    shell::DBusMenu menu(sessionBus(), application.connection->uniqueName(), "/MenuBar");
+    ASSERT_TRUE(test::runUntil([&] { return menu.root().childrenLoaded; }));
+    menu.aboutToShow(1);
+    menu.prepare(2);
+    ASSERT_TRUE(test::runUntil([&] { return menu.item(1)->childrenLoaded && menu.item(2)->childrenLoaded; }));
+
+    // A show of a current menu fetches nothing.
+    menu.prepare(2);
+    ASSERT_TRUE(test::runUntil([&] { return exporter.count("AboutToShow 2") == 2; }));
+    test::runFor(std::chrono::milliseconds(20));
+    EXPECT_EQ(exporter.count("GetLayout 2 1"), 1);
+
+    // Every id kept, the root's layout changed: the open File is fetched at
+    // once, Edit as it next shows, and both keep their entries until then.
+    exporter.layouts[1] = layout(1, {}, {layout(11, {{"label", dbus::Variant(std::string("_Save"))}})});
+    exporter.layouts[2] = layout(2, {}, {layout(21, {{"label", dbus::Variant(std::string("_Redo"))}})});
+    exporter.object.emitSignal("LayoutUpdated", uint32_t(2), int32_t(0));
+    ASSERT_TRUE(test::runUntil([&] { return menu.item(1)->children == std::vector<int32_t>{11}; }));
+    ASSERT_TRUE(test::runUntil([&] { return exporter.count("GetLayout 0 1") == 2; }));
+    test::runFor(std::chrono::milliseconds(20));
+    EXPECT_EQ(menu.item(2)->children, std::vector<int32_t>{20});
+    EXPECT_FALSE(menu.item(2)->childrenLoaded);
+    menu.prepare(2);
+    EXPECT_TRUE(test::runUntil([&] { return menu.item(2)->children == std::vector<int32_t>{21}; }));
+
+    // Once closed, File waits for its next show too.
+    menu.closed(1);
+    exporter.layouts[1] = layout(1, {}, {layout(12, {{"label", dbus::Variant(std::string("_Close"))}})});
+    exporter.object.emitSignal("LayoutUpdated", uint32_t(3), int32_t(0));
+    ASSERT_TRUE(test::runUntil([&] { return exporter.count("GetLayout 0 1") == 3; }));
+    test::runFor(std::chrono::milliseconds(20));
+    EXPECT_EQ(menu.item(1)->children, std::vector<int32_t>{11});
+    menu.prepare(1);
+    EXPECT_TRUE(test::runUntil([&] { return menu.item(1)->children == std::vector<int32_t>{12}; }));
 }
 
 TEST(SystemTrayTest, RegistersItemsAndReadsThem)
@@ -403,6 +468,60 @@ TEST(ApplicationMenuTest, SwitchesWithTheActiveApplicationOnceItsMenuIsIn)
     menu.setDesktop(false);
     ASSERT_TRUE(test::runUntil([&] { return menu.title().empty(); }));
     EXPECT_GE(switches, 3);
+}
+
+TEST(ApplicationMenuTest, ReadiesTheBarsMenusWithoutOpeningThem)
+{
+    test::DBusTestClient application;
+    FakeMenuExporter exporter(application.connection.get(), "/MenuBar");
+    exporter.layouts[0] = menuWithFileAndEdit();
+    exporter.layouts[1] = layout(1, {}, {layout(10, {{"label", dbus::Variant(std::string("_Open"))}})});
+    exporter.layouts[2] = layout(2, {}, {layout(20, {{"label", dbus::Variant(std::string("_Undo"))}})});
+
+    test::FakeApplications applications;
+    applications.addSimple("org.example.Editor", "Editor");
+    applications.scan();
+    test::FakeTaskWindows windows;
+    shell::TaskManager tasks(windows, applications, [](int64_t) { return shell::ProcessCommand(); });
+    shell::ApplicationMenu menu(sessionBus(), windows, tasks, nullptr);
+
+    shell::TaskWindow editor;
+    editor.appId = "org.example.Editor";
+    editor.title = "Draft";
+    editor.menuService = application.connection->uniqueName();
+    editor.menuPath = "/MenuBar";
+    windows.setActive(windows.add(editor));
+    ASSERT_TRUE(test::runUntil([&] { return exporter.called("GetLayout 1 1") && exporter.called("GetLayout 2 1"); }));
+    EXPECT_TRUE(exporter.called("AboutToShow 1"));
+    EXPECT_TRUE(exporter.called("AboutToShow 2"));
+
+    // The application lays its bar out again under new ids: the new menus
+    // are readied too.
+    exporter.layouts = {
+            {0, layout(0, {},
+                       {layout(101, {{"label", dbus::Variant(std::string("_File"))},
+                                     {"children-display", dbus::Variant(std::string("submenu"))}}),
+                        layout(102, {{"label", dbus::Variant(std::string("_Edit"))},
+                                     {"children-display", dbus::Variant(std::string("submenu"))}})})},
+            {101, layout(101, {}, {layout(110, {{"label", dbus::Variant(std::string("_Open"))}})})},
+            {102, layout(102, {}, {layout(120, {{"label", dbus::Variant(std::string("_Undo"))}})})}};
+    exporter.object.emitSignal("LayoutUpdated", uint32_t(2), int32_t(0));
+    ASSERT_TRUE(test::runUntil([&] {
+        return exporter.called("GetLayout 101 1") && exporter.called("GetLayout 102 1");
+    }));
+    EXPECT_TRUE(exporter.called("AboutToShow 101"));
+    EXPECT_TRUE(exporter.called("AboutToShow 102"));
+
+    // A layout update that keeps the ids asks none of them again.
+    const int roots = exporter.count("GetLayout 0 1");
+    exporter.object.emitSignal("LayoutUpdated", uint32_t(3), int32_t(0));
+    ASSERT_TRUE(test::runUntil([&] { return exporter.count("GetLayout 0 1") > roots; }));
+    test::runFor(std::chrono::milliseconds(20));
+    EXPECT_EQ(exporter.count("AboutToShow 101"), 1);
+    EXPECT_EQ(exporter.count("AboutToShow 102"), 1);
+    EXPECT_EQ(std::count_if(exporter.calls.begin(), exporter.calls.end(),
+                            [](const std::string &call) { return call.starts_with("Event"); }),
+              0);
 }
 
 TEST(ClockFormatTest, FollowsTheLocalesOrderWithoutCommas)

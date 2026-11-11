@@ -53,11 +53,19 @@ KeyEquivalent keyEquivalentOf(const compositor::MenuItem &item)
 // What the menus' closures share with the popup: the model is null once it
 // or the popup is gone, so a menu still on its way out reaches nothing.
 struct MenuPopup::State {
+    // The entry a toolkit menu shows, read by its closures as they run, so
+    // that the menu can move to an entry that took its place.
+    struct Binding {
+        int32_t id = 0;
+        bool root = false;
+    };
+
     // A toolkit menu showing one entry's submenu, and the entries its rows
     // were made from (-1 for a separator). `alive` expires with the menu.
     struct Shown {
         ui::Menu *menu = nullptr;
         std::weak_ptr<void> alive;
+        std::shared_ptr<Binding> binding;
         std::vector<int32_t> rows;
         std::vector<bool> submenus;
     };
@@ -77,7 +85,7 @@ MenuPopup::MenuPopup(compositor::MenuModel *menu, int32_t id, ShortcutText short
     m_state->model = menu;
     m_state->owner = this;
     m_state->shortcutText = std::move(shortcutText);
-    wire(m_state, *m_menu, m_id);
+    wire(m_state, *m_menu, m_id, true);
     std::weak_ptr<State> weak = m_state;
     m_subscriptions.push_back(menu->menuUpdated.connect([weak](int32_t updated) {
         if (const std::shared_ptr<State> state = weak.lock())
@@ -112,33 +120,76 @@ void MenuPopup::setPrepared()
     m_state->prepared = true;
 }
 
-void MenuPopup::wire(const std::shared_ptr<State> &state, ui::Menu &menu, int32_t id)
+void MenuPopup::rebind(int32_t id)
+{
+    if (id == m_id)
+        return;
+    repoint(m_state, {{m_id, id}});
+    m_id = id;
+    refill(m_state, m_id);
+}
+
+void MenuPopup::wire(const std::shared_ptr<State> &state, ui::Menu &menu, int32_t id, bool root)
 {
     ui::Menu *target = &menu;
     // The token lives in the menu's own closure, so it expires with the menu.
     auto alive = std::make_shared<char>(0);
-    state->shown[id] = {target, alive, {}, {}};
+    auto binding = std::make_shared<State::Binding>(State::Binding {id, root});
+    state->shown[id] = {target, alive, binding, {}, {}};
     // The application fills the menu as it is about to show, and the rows
     // show what has arrived so far.
-    const bool root = id == (state->owner ? state->owner->m_id : -1);
-    menu.onAboutToShow = [state, target, id, root] {
+    menu.onAboutToShow = [state, target, binding] {
         if (!state->model)
             return;
-        if (root && state->prepared) {
+        if (binding->root && state->prepared) {
             state->prepared = false;
-            state->model->opened(id);
+            state->model->opened(binding->id);
         } else {
-            state->model->aboutToShow(id);
+            state->model->aboutToShow(binding->id);
         }
-        fill(state, *target, id);
+        fill(state, *target, binding->id);
     };
-    menu.onClosed = [state, id, root, alive] {
+    menu.onClosed = [state, binding, alive] {
         if (!state->model)
             return;
-        state->model->closed(id);
-        if (root && state->owner && state->owner->onClosed)
+        state->model->closed(binding->id);
+        if (binding->root && state->owner && state->owner->onClosed)
             state->owner->onClosed();
     };
+}
+
+void MenuPopup::repoint(const std::shared_ptr<State> &state, const std::vector<std::pair<int32_t, int32_t>> &moves)
+{
+    // All taken out before any goes back, as two entries may swap ids.
+    std::vector<std::pair<int32_t, State::Shown>> moved;
+    for (const auto &[from, to] : moves) {
+        const auto it = state->shown.find(from);
+        if (it == state->shown.end())
+            continue;
+        moved.emplace_back(to, std::move(it->second));
+        state->shown.erase(it);
+    }
+    for (auto &[to, shown] : moved) {
+        shown.binding->id = to;
+        state->shown[to] = std::move(shown);
+    }
+    std::erase_if(state->shown, [](const auto &entry) { return entry.second.alive.expired(); });
+}
+
+void MenuPopup::refill(const std::shared_ptr<State> &state, int32_t id)
+{
+    const auto it = state->shown.find(id);
+    const compositor::MenuItem *item = state->model ? state->model->item(id) : nullptr;
+    if (it == state->shown.end() || !item)
+        return;
+    if (!item->childrenLoaded) {
+        state->model->refresh(id);
+        return;
+    }
+    ui::Menu *menu = it->second.menu;
+    fill(state, *menu, id);
+    if (menu->isOpen())
+        menu->itemsChanged();
 }
 
 void MenuPopup::update(const std::shared_ptr<State> &state, int32_t id)
@@ -165,6 +216,9 @@ void MenuPopup::fill(const std::shared_ptr<State> &state, ui::Menu &menu, int32_
         menu.clear();
         return;
     }
+    // Until its entries are in, the menu keeps the rows it has.
+    if (!parent->childrenLoaded)
+        return;
 
     std::vector<const compositor::MenuItem *> rows;
     for (int32_t childId : parent->children) {
@@ -186,13 +240,24 @@ void MenuPopup::fill(const std::shared_ptr<State> &state, ui::Menu &menu, int32_
         submenus.push_back(!row->separator && (row->hasSubmenu || !row->children.empty()));
     }
 
-    // The same rows as before change in place, so an open submenu stays open.
+    // Rows of the same kinds as before change in place, so an open submenu
+    // stays open; one whose entry has a new id follows it.
     State::Shown &shown = state->shown[id];
-    const bool rebuild = ids != shown.rows || submenus != shown.submenus;
+    bool rebuild = ids.size() != shown.rows.size() || submenus != shown.submenus;
+    for (size_t index = 0; !rebuild && index < ids.size(); ++index)
+        rebuild = (ids[index] < 0) != (shown.rows[index] < 0);
+    std::vector<std::pair<int32_t, int32_t>> moves;
+    for (size_t index = 0; !rebuild && index < ids.size(); ++index) {
+        if (submenus[index] && ids[index] != shown.rows[index])
+            moves.emplace_back(shown.rows[index], ids[index]);
+    }
+    const std::shared_ptr<State::Binding> binding = shown.binding;
     shown.rows = ids;
     shown.submenus = submenus;
-    if (rebuild)
+    if (rebuild) {
         menu.clear();
+        std::erase_if(state->shown, [](const auto &entry) { return entry.second.alive.expired(); });
+    }
 
     // Rows are counted as the menu counts them, separators included.
     for (size_t index = 0; index < rows.size(); ++index) {
@@ -205,15 +270,17 @@ void MenuPopup::fill(const std::shared_ptr<State> &state, ui::Menu &menu, int32_
         const std::string text = compositor::plainMenuLabel(row->label);
         if (rebuild) {
             if (submenus[index]) {
-                wire(state, *menu.addSubmenu(text), row->id);
+                wire(state, *menu.addSubmenu(text), row->id, false);
                 // Its rows ready for when it opens.
                 if (!row->childrenLoaded)
                     model->refresh(row->id);
             } else {
-                const int32_t rowId = row->id;
-                menu.addItem(text, [state, rowId] {
-                    if (state->model)
-                        state->model->activate(rowId);
+                menu.addItem(text, [state, binding, index] {
+                    if (!state->model)
+                        return;
+                    const auto it = state->shown.find(binding->id);
+                    if (it != state->shown.end() && index < it->second.rows.size())
+                        state->model->activate(it->second.rows[index]);
                 });
             }
         } else {
@@ -234,6 +301,10 @@ void MenuPopup::fill(const std::shared_ptr<State> &state, ui::Menu &menu, int32_
         if (themed || !rebuild)
             menu.setItemIcon(index, themed ? row->iconName : std::string());
     }
+
+    repoint(state, moves);
+    for (const auto &move : moves)
+        refill(state, move.second);
 }
 
 } // namespace cutefish::shell

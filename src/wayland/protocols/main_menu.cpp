@@ -181,6 +181,7 @@ public:
                 surface->setMainMenu(nullptr);
         }
         m_surfaces.clear();
+        menuUpdated(0);
     }
 
     void addSurface(compositor::Surface *surface)

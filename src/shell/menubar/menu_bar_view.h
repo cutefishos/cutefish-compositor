@@ -48,11 +48,12 @@ public:
     void closeMenu() override { close(); }
     void barChanged() override;
 
-    // Opens the menu of the entry at `index` (a plain action entry is
-    // triggered instead), closing the bar's panels and the tray's menu.
+    // Opens the menu of the entry at `index` (nothing for a plain action
+    // entry, which only a click chooses), closing the bar's panels and the
+    // tray's menu.
     void open(int index, bool keyboard = false);
     void close();
-    // Left and Right: the neighbouring entry, wrapping around.
+    // Left and Right: the neighbouring entry with a menu, wrapping around.
     void step(int step);
 
     // The entry whose menu is open, or -1.
