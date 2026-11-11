@@ -1195,11 +1195,18 @@ TEST(WindowAnimation, CrossFadeKeepsHigherResolutionSnapshotOnTop)
     node->start(Type::Bounds, oldBounds, newBounds);
     scene.render(renderer);
     EXPECT_EQ(renderer.calls.back().texture, oldTexture);
-    now = 175;
+    // A tenth of the way through, the old content is three tenths dissolved.
+    now = 35;
     scene.render(renderer);
     EXPECT_EQ(renderer.calls.back().texture, oldTexture);
-    EXPECT_FLOAT_EQ(renderer.calls.back().alpha, .25);
+    EXPECT_FLOAT_EQ(renderer.calls.back().alpha, .49);
     EXPECT_FLOAT_EQ(renderer.calls[renderer.calls.size() - 2].alpha, 1);
+
+    // A third of the way through, only the new content is drawn.
+    now = 117;
+    scene.render(renderer);
+    EXPECT_NE(renderer.calls.back().texture, oldTexture);
+    EXPECT_FLOAT_EQ(renderer.calls.back().alpha, 1);
 }
 
 namespace {
@@ -1225,8 +1232,9 @@ struct ExteriorMorph {
     double progress = 0;
     base::RectF bounds;
 
-    // Renders the cross-fade from `from` to `to` halfway through.
-    ExteriorMorph(const base::Rect &from, const base::Rect &to)
+    // Renders the cross-fade from `from` to `to`, halfway through unless told
+    // otherwise.
+    ExteriorMorph(const base::Rect &from, const base::Rect &to, double at = .5)
     {
         node = static_cast<Animation *>(scene.root()->addChild(std::make_unique<Animation>([this] {
             return now;
@@ -1243,7 +1251,7 @@ struct ExteriorMorph {
         node->setGeometry(to);
         node->start(Type::Bounds, from, to);
         scene.render(renderer);
-        now = Animation::duration(Type::Bounds, from, to) / 2;
+        now = int64_t(Animation::duration(Type::Bounds, from, to) * at);
         const auto sample = Animation::sample(Type::Bounds, from, to, double(now)
                                                       / Animation::duration(Type::Bounds, from, to));
         bounds = sample.bounds;
@@ -1278,16 +1286,29 @@ TEST(WindowAnimation, MaximizeCarriesTheCornersShadowAndOutlineAcross)
     EXPECT_EQ(bodyClip.bounds, morph.bounds);
 
     // The old shadow fades out underneath, then the body is drawn inside the
-    // morphed corners, and the old content dissolves over it.
+    // morphed corners; the old content has dissolved by now.
     const auto &calls = morph.renderer.calls;
-    ASSERT_EQ(calls.size(), 4);
+    ASSERT_EQ(calls.size(), 3);
     EXPECT_EQ(calls[1].texture, morph.oldTexture);
     EXPECT_NEAR(calls[1].alpha, 1 - morph.progress, 1e-6);
     EXPECT_NE(calls[2].texture, morph.oldTexture);
     EXPECT_FLOAT_EQ(calls[2].alpha, 1);
-    EXPECT_EQ(calls[3].texture, morph.oldTexture);
     ASSERT_EQ(morph.renderer.outlines.size(), 1);
     EXPECT_NEAR(morph.renderer.outlines[0], 1 - morph.progress, 1e-6);
+}
+
+TEST(WindowAnimation, TheOldContentDissolvesInsideTheMorphedCornersFirst)
+{
+    const base::Rect normal(100, 100, 400, 300), maximized(0, 0, 800, 600);
+    ExteriorMorph morph(normal, maximized, .1);
+
+    const auto &calls = morph.renderer.calls;
+    ASSERT_EQ(calls.size(), 4);
+    EXPECT_NE(calls[2].texture, morph.oldTexture);
+    EXPECT_FLOAT_EQ(calls[2].alpha, 1);
+    EXPECT_EQ(calls[3].texture, morph.oldTexture);
+    EXPECT_GT(calls[3].alpha, 0);
+    EXPECT_LT(calls[3].alpha, 1);
 }
 
 TEST(WindowAnimation, RestoreFromMaximizedGrowsTheExteriorBack)
@@ -1305,12 +1326,11 @@ TEST(WindowAnimation, RestoreFromMaximizedGrowsTheExteriorBack)
 
     // The new shadow fades in around a body drawn once at full opacity.
     const auto &calls = morph.renderer.calls;
-    ASSERT_EQ(calls.size(), 4);
+    ASSERT_EQ(calls.size(), 3);
     EXPECT_NE(calls[1].texture, morph.oldTexture);
     EXPECT_NEAR(calls[1].alpha, morph.progress, 1e-6);
     EXPECT_EQ(calls[2].texture, calls[1].texture);
     EXPECT_FLOAT_EQ(calls[2].alpha, 1);
-    EXPECT_EQ(calls[3].texture, morph.oldTexture);
     ASSERT_EQ(morph.renderer.outlines.size(), 1);
     EXPECT_NEAR(morph.renderer.outlines[0], morph.progress, 1e-6);
 }
@@ -1359,9 +1379,9 @@ TEST(WindowAnimation, ADragCrossFadeChasesTheWindowItDissolvesInto)
     // And it lands exactly on the window.
     EXPECT_NEAR(700, renderer.calls.back().rect.centerF().x(), 1);
     EXPECT_NEAR(450, renderer.calls.back().rect.centerF().y(), 1);
-    // The content underneath is drawn at its natural size, plus the 64px halo
-    // the snapshot coverage carries on each side.
-    const base::RectF content = renderer.calls[renderer.calls.size() - 2].rect;
+    // The content, alone by now, is drawn at its natural size, plus the 64px
+    // halo the snapshot coverage carries on each side.
+    const base::RectF content = renderer.calls.back().rect;
     EXPECT_NEAR(double(moved.width()), content.width() - 128, 1);
     EXPECT_NEAR(double(moved.height()), content.height() - 128, 1);
 }

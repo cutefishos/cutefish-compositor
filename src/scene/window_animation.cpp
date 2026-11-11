@@ -64,6 +64,10 @@ constexpr int kCloseDurationMs = 220;
 // A preview growing into the window it stands for, on the ease-out of a window
 // opening, without the spring's overshoot.
 constexpr int kScaleDurationMs = 250;
+// The share of a cross-fade over which the old content dissolves. A client
+// that lays itself out differently at the new size would otherwise show both
+// layouts at once for most of the scale.
+constexpr double kCrossFadeContentShare = 1.0 / 3;
 
 // A spring's step response from rest `elapsed` ms in. Early on it runs in real
 // time; its tail is warped to end at `duration` with no speed left, instead of
@@ -498,7 +502,8 @@ void WindowAnimation::drawExteriorMorph(render::Renderer &renderer, const Sample
     renderer.pushRoundedClip(body);
     if (exterior < 1)
         draw(renderer, m_texture.get(), m_coverage, m_textureBounds, value);
-    draw(renderer, m_oldTexture.get(), m_oldCoverage, m_oldBounds, value, 1 - blend);
+    if (blend < 1)
+        draw(renderer, m_oldTexture.get(), m_oldCoverage, m_oldBounds, value, 1 - blend);
     renderer.popRoundedClip();
 
     const float outline = (oldExterior ? 1 - progress : 0) + (newExterior ? progress : 0);
@@ -1194,8 +1199,8 @@ void WindowAnimation::render(render::Renderer &renderer) const
         // The clip and resampling are already baked into the image sent to the dock.
         renderer.drawTextureF(m_landingTexture.get(), value.bounds, value.opacity);
     } else if (!frozen || m_running || m_holding) {
-        const float blend =
-                m_running && isCrossFade(m_type) ? 1 - std::pow(1 - value.progress, 2) : 1;
+        const double dissolved = std::min(value.progress / kCrossFadeContentShare, 1.0);
+        const float blend = m_running && isCrossFade(m_type) ? 1 - std::pow(1 - dissolved, 2) : 1;
         // The current snapshot supplies the exterior once. Old content fades
         // only inside its silhouette, so a square old buffer cannot leak out.
         const float exterior = exteriorOpacity(value);
@@ -1213,7 +1218,7 @@ void WindowAnimation::render(render::Renderer &renderer) const
             } else {
                 draw(renderer, m_texture.get(), m_coverage, m_textureBounds, value);
             }
-            if (m_oldTexture) {
+            if (m_oldTexture && blend < 1) {
                 if (m_visual.clipContent)
                     renderer.pushRoundedClip(
                             transformedShape(m_visual.shape, m_textureBounds, value));
