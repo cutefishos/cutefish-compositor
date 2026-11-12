@@ -48,7 +48,9 @@ struct LauncherItem {
 // folder Folder<n>/name and Folder<n>/apps), new applications appended and
 // marked, alphabetical the first time. A search keeps that order, looks into
 // the folders and matches the name, generic name, comment or id, ignoring
-// case.
+// case. An application whose entry goes away, as during a package upgrade,
+// leaves the rows at once but keeps its place and folder until the next
+// login, and comes back there if the entry returns.
 class LauncherModel : public ListModelSignals
 {
 public:
@@ -120,8 +122,22 @@ private:
         std::vector<LauncherItem> items;
         std::vector<std::string> newAppIds;
     };
+    // An application shown this session whose entry is gone, or a folder
+    // whose applications all are; a folder's record holds no children.
+    struct Absent {
+        LauncherItem item;
+        // The folder it was in; empty at the top level.
+        std::string folder;
+        // The item before it there; empty when it was first.
+        std::string after;
+    };
 
     static Stored load(const std::string &path);
+    // Puts a record back among `items`, after the item it followed or, while
+    // that one is absent too, after where that one goes; at the end when
+    // the item before is gone for good. False when its folder is not there.
+    static bool placeAbsent(std::vector<LauncherItem> *items, const std::vector<Absent> &absent,
+                            const Absent &record);
     void onApplicationsChanged();
     // Brings the items up to date with the applications, without showing
     // or saving them; false while either is still loading.
@@ -130,6 +146,8 @@ private:
     // Takes an application out of the top level or its folder; a folder
     // left with one application gives way to it, and one left empty goes.
     std::optional<LauncherItem> takeApplication(const std::string &id);
+    // The items with every absent one back in its place.
+    std::vector<LauncherItem> itemsWithAbsent() const;
     std::string newFolderId() const;
     void changed();
     void updateRows();
@@ -139,6 +157,8 @@ private:
     ApplicationLauncher &m_launcher;
     std::string m_path;
     std::vector<LauncherItem> m_items;
+    // In the order they went.
+    std::vector<Absent> m_absent;
     SyncedList<LauncherItem> m_rows;
     std::string m_searchKey;
     // Opened before the registry listed them; they do not arrive as new.

@@ -129,7 +129,7 @@ void LauncherModel::save()
     std::vector<std::string> newAppIds;
     // Each folder's number, name and applications.
     std::vector<std::tuple<std::string, std::string, std::vector<std::string>>> folders;
-    for (const LauncherItem &item : m_items) {
+    for (const LauncherItem &item : itemsWithAbsent()) {
         order.push_back(item.id);
         if (!item.isFolder()) {
             if (item.newInstalled)
@@ -332,7 +332,7 @@ std::string LauncherModel::folderOf(const std::string &id) const
 std::string LauncherModel::newFolderId() const
 {
     // One past the highest number in use, also by the order a drag may
-    // put back.
+    // put back and by a hidden folder.
     int highest = 0;
     const auto note = [&highest](const std::vector<LauncherItem> &items) {
         for (const LauncherItem &item : items) {
@@ -343,6 +343,8 @@ std::string LauncherModel::newFolderId() const
     note(m_items);
     if (m_reorderBase)
         note(*m_reorderBase);
+    for (const Absent &record : m_absent)
+        note({record.item});
     return LauncherItem::kFolderPrefix + std::to_string(highest + 1);
 }
 
@@ -371,6 +373,59 @@ std::optional<LauncherItem> LauncherModel::takeApplication(const std::string &id
         return item;
     }
     return std::nullopt;
+}
+
+bool LauncherModel::placeAbsent(std::vector<LauncherItem> *items, const std::vector<Absent> &absent,
+                                const Absent &record)
+{
+    std::vector<LauncherItem> *list = items;
+    if (!record.folder.empty()) {
+        const auto folder = std::find_if(items->begin(), items->end(),
+                                         [&record](const LauncherItem &item) { return item.id == record.folder; });
+        if (folder == items->end())
+            return false;
+        list = &folder->children;
+    }
+
+    size_t index = list->size();
+    std::string after = record.after;
+    std::set<std::string> visited;
+    while (true) {
+        if (after.empty()) {
+            index = 0;
+            break;
+        }
+        if (!visited.insert(after).second)
+            break;
+        const auto found = std::find_if(list->begin(), list->end(),
+                                        [&after](const LauncherItem &item) { return item.id == after; });
+        if (found != list->end()) {
+            index = size_t(found - list->begin()) + 1;
+            break;
+        }
+        const auto before = std::find_if(absent.begin(), absent.end(), [&record, &after](const Absent &other) {
+            return other.folder == record.folder && other.item.id == after;
+        });
+        if (before == absent.end())
+            break;
+        after = before->after;
+    }
+    list->insert(list->begin() + std::ptrdiff_t(index), record.item);
+    return true;
+}
+
+std::vector<LauncherItem> LauncherModel::itemsWithAbsent() const
+{
+    std::vector<LauncherItem> items = m_items;
+    for (const Absent &record : m_absent) {
+        if (record.folder.empty())
+            placeAbsent(&items, m_absent, record);
+    }
+    for (const Absent &record : m_absent) {
+        if (!record.folder.empty() && !placeAbsent(&items, m_absent, record))
+            items.push_back(record.item);
+    }
+    return items;
 }
 
 void LauncherModel::changed()
@@ -539,42 +594,115 @@ bool LauncherModel::reconcile()
 
     std::vector<LauncherItem> updated;
     std::set<std::string> seen;
+    const auto find = [&byId, &byPath](const std::string &id) -> DesktopEntryPtr {
+        if (const auto it = byId.find(id); it != byId.end())
+            return it->second;
+        if (const auto path = byPath.find(absolutePath(id)); path != byPath.end())
+            return path->second;
+        return nullptr;
+    };
     // The application still there, brought up to date; false when it went.
-    const auto refresh = [&byId, &byPath, &seen](LauncherItem *item) {
-        DesktopEntryPtr entry;
-        if (const auto it = byId.find(item->id); it != byId.end())
-            entry = it->second;
-        else if (const auto path = byPath.find(absolutePath(item->id)); path != byPath.end())
-            entry = path->second;
+    const auto refresh = [&find, &seen](LauncherItem *item) {
+        const DesktopEntryPtr entry = find(item->id);
         if (!entry || entry->terminal || seen.count(entry->id))
             return false;
         updateItem(item, *entry);
         seen.insert(entry->id);
         return true;
     };
-    for (LauncherItem item : m_items) {
+    // Gone, but shown this session: an id read at login has no name yet,
+    // and one not found then goes for good.
+    const auto goneForNow = [&find](const LauncherItem &item) { return !item.name.empty() && !find(item.id); };
+    // Through the absent ones too, so each records the item it followed.
+    std::set<std::string> absentIds;
+    for (const Absent &record : m_absent)
+        absentIds.insert(record.item.id);
+    std::string previous;
+    for (LauncherItem item : itemsWithAbsent()) {
+        const std::string after = std::exchange(previous, item.id);
+        if (absentIds.count(item.id))
+            continue;
         if (!item.isFolder()) {
             if (refresh(&item))
                 updated.push_back(item);
+            else if (goneForNow(item))
+                m_absent.push_back({item, {}, after});
             continue;
         }
-        // A folder keeps its applications still there, and goes with the
-        // last; one that loses all but one gives way to it.
         std::vector<LauncherItem> children;
+        std::string previousChild;
         for (LauncherItem child : item.children) {
+            const std::string childAfter = std::exchange(previousChild, child.id);
+            if (absentIds.count(child.id))
+                continue;
             if (refresh(&child))
                 children.push_back(std::move(child));
+            else if (goneForNow(child))
+                m_absent.push_back({child, item.id, childAfter});
         }
-        if (children.empty())
+        // A folder keeps its applications still there, and goes with the
+        // last; one that loses all but one gives way to it. While one of
+        // its applications may come back, it stays, hidden when empty.
+        const bool waiting = std::any_of(m_absent.begin(), m_absent.end(),
+                                         [&item](const Absent &record) { return record.folder == item.id; });
+        if (children.empty()) {
+            if (waiting) {
+                item.children.clear();
+                m_absent.push_back({item, {}, after});
+            }
             continue;
-        if (children.size() == 1 && item.children.size() > 1) {
+        }
+        if (children.size() == 1 && item.children.size() > 1 && !waiting) {
             updated.push_back(std::move(children.front()));
             continue;
         }
         item.children = std::move(children);
-        item.newInstalled = std::any_of(item.children.begin(), item.children.end(),
-                                        [](const LauncherItem &child) { return child.newInstalled; });
         updated.push_back(std::move(item));
+    }
+
+    // Applications back in their places, a hidden folder with its first.
+    std::vector<Absent> returning;
+    std::vector<Absent> remaining;
+    for (const Absent &record : m_absent) {
+        const DesktopEntryPtr entry = record.item.isFolder() ? nullptr : find(record.item.id);
+        if (!entry) {
+            remaining.push_back(record);
+            continue;
+        }
+        if (entry->terminal || seen.count(entry->id))
+            continue;
+        Absent back = record;
+        updateItem(&back.item, *entry);
+        seen.insert(entry->id);
+        returning.push_back(std::move(back));
+    }
+    for (const Absent &record : returning) {
+        const auto folderShown = std::any_of(updated.begin(), updated.end(),
+                                             [&record](const LauncherItem &item) { return item.id == record.folder; });
+        if (!record.folder.empty() && !folderShown) {
+            const auto folder = std::find_if(remaining.begin(), remaining.end(), [&record](const Absent &other) {
+                return other.folder.empty() && other.item.id == record.folder;
+            });
+            if (folder != remaining.end()) {
+                placeAbsent(&updated, m_absent, *folder);
+                remaining.erase(folder);
+            }
+        }
+        if (!placeAbsent(&updated, m_absent, record))
+            updated.push_back(record.item);
+    }
+    // A hidden folder waits only for its applications.
+    std::set<std::string> awaited;
+    for (const Absent &record : remaining)
+        awaited.insert(record.folder);
+    std::erase_if(remaining,
+                  [&awaited](const Absent &record) { return record.item.isFolder() && !awaited.count(record.item.id); });
+    m_absent = std::move(remaining);
+
+    for (LauncherItem &item : updated) {
+        if (item.isFolder())
+            item.newInstalled = std::any_of(item.children.begin(), item.children.end(),
+                                            [](const LauncherItem &child) { return child.newInstalled; });
     }
 
     for (const DesktopEntryPtr &entry : available) {

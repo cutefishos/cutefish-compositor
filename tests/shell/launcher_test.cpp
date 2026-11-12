@@ -203,12 +203,99 @@ TEST_F(LauncherTest, AFolderLeftWithOneApplicationGivesWayToIt)
     EXPECT_EQ(ids(), (std::vector<std::string>{"alpha", "mid", "zeta"}));
 
     // An application uninstalled from a folder of two leaves the other in
-    // its place.
+    // its place at the next login; until then the folder waits for it.
     model().merge("zeta", "mid", "Pair");
     EXPECT_EQ(ids(), (std::vector<std::string>{"alpha", "folder:1"}));
     applications.remove("zeta");
     applications.scan();
+    EXPECT_EQ(ids(), (std::vector<std::string>{"alpha", "folder:1"}));
+    ASSERT_EQ(model().item("folder:1")->children.size(), 1u);
+    model().save();
+    shell::waitForFileThread();
+    launcher.reset();
+    start();
+    applications.scan();
+    ASSERT_TRUE(test::runUntil([&] { return model().count() == 2; }));
     EXPECT_EQ(ids(), (std::vector<std::string>{"alpha", "mid"}));
+}
+
+TEST_F(LauncherTest, AnEntryGoneForAMomentKeepsItsPlace)
+{
+    applications.addSimple("beta", "Beta");
+    applications.addSimple("gamma", "Gamma");
+    start("[Launcher]\norder=zeta, folder:1, mid, folder:2\nFolder1/name=Games\nFolder1/apps=alpha, beta\n"
+          "Folder2/name=Tools\nFolder2/apps=gamma\n");
+    applications.scan();
+    ASSERT_TRUE(test::runUntil([&] { return model().count() == 4; }));
+    const auto children = [this](const std::string &folder) {
+        std::vector<std::string> list;
+        if (const shell::LauncherItem *item = model().item(folder)) {
+            for (const auto &child : item->children)
+                list.push_back(child.id);
+        }
+        return list;
+    };
+
+    // As a package upgrade replaces the entries: they leave the rows, a
+    // folder of two keeps the other, and an emptied folder hides.
+    applications.remove("alpha");
+    applications.remove("zeta");
+    applications.remove("gamma");
+    applications.scan();
+    EXPECT_EQ(ids(), (std::vector<std::string>{"folder:1", "mid"}));
+    EXPECT_EQ(children("folder:1"), (std::vector<std::string>{"beta"}));
+
+    // Saved in their places meanwhile.
+    model().save();
+    shell::waitForFileThread();
+    {
+        const base::Settings settings(directory.filePath("shell.conf"));
+        EXPECT_EQ(settings.stringListValue("Launcher/order"),
+                  (std::vector<std::string>{"zeta", "folder:1", "mid", "folder:2"}));
+        EXPECT_EQ(settings.stringListValue("Launcher/Folder1/apps"), (std::vector<std::string>{"alpha", "beta"}));
+        EXPECT_EQ(settings.stringListValue("Launcher/Folder2/apps"), (std::vector<std::string>{"gamma"}));
+    }
+
+    // A new folder takes a number not held by the hidden one.
+    EXPECT_EQ(model().createFolder("mid", "New"), "folder:3");
+    model().ungroupFolder("folder:3");
+
+    applications.addSimple("gamma", "Gamma");
+    applications.addSimple("zeta", "Zeta");
+    applications.scan();
+    applications.addSimple("alpha", "Alpha");
+    applications.scan();
+    EXPECT_EQ(ids(), (std::vector<std::string>{"zeta", "folder:1", "mid", "folder:2"}));
+    EXPECT_EQ(children("folder:1"), (std::vector<std::string>{"alpha", "beta"}));
+    EXPECT_EQ(children("folder:2"), (std::vector<std::string>{"gamma"}));
+    EXPECT_EQ(model().item("folder:2")->name, "Tools");
+    for (const shell::LauncherItem &item : model().allItems()) {
+        EXPECT_FALSE(item.newInstalled) << item.id;
+        for (const shell::LauncherItem &child : item.children)
+            EXPECT_FALSE(child.newInstalled) << child.id;
+    }
+}
+
+TEST_F(LauncherTest, NeighboursGoneTogetherComeBackInOrder)
+{
+    applications.addSimple("beta", "Beta");
+    start("[Launcher]\norder=alpha, beta, mid, zeta\n");
+    applications.scan();
+    ASSERT_TRUE(test::runUntil([&] { return model().count() == 4; }));
+
+    applications.remove("beta");
+    applications.scan();
+    applications.remove("mid");
+    applications.scan();
+    EXPECT_EQ(ids(), (std::vector<std::string>{"alpha", "zeta"}));
+    // Moved meanwhile, each still follows the one it followed.
+    model().move(0, 1);
+    applications.addSimple("mid", "Middle");
+    applications.scan();
+    EXPECT_EQ(ids(), (std::vector<std::string>{"zeta", "alpha", "mid"}));
+    applications.addSimple("beta", "Beta");
+    applications.scan();
+    EXPECT_EQ(ids(), (std::vector<std::string>{"zeta", "alpha", "beta", "mid"}));
 }
 
 TEST_F(LauncherTest, PagesFollowTheList)
