@@ -405,6 +405,7 @@ protected:
         surface = static_cast<scene::SurfaceNode *>(
                 window->addChild(std::make_unique<scene::SurfaceNode>()));
         surface->setGeometry({0, 0, 400, 300});
+        surface->setOpaque(true);
         surface->setTexture(std::make_shared<testsupport::FakeTexture>(
                 base::Size(400, 300), pixels.data(), 400 * 4, render::PixelFormat::Rgba8888));
         scene.render(renderer);
@@ -485,6 +486,7 @@ TEST(WindowAnimation, ChangesFarApartGoThroughTheSnapshot)
     auto *surface = static_cast<scene::SurfaceNode *>(
             window->addChild(std::make_unique<scene::SurfaceNode>()));
     surface->setGeometry({0, 0, 400, 300});
+    surface->setOpaque(true);
     const std::vector<uint8_t> pixels(400 * 300 * 4, 255);
     surface->setTexture(std::make_shared<testsupport::FakeTexture>(
             base::Size(400, 300), pixels.data(), 400 * 4, render::PixelFormat::Rgba8888));
@@ -570,6 +572,20 @@ TEST_F(SnapshotReuse, APopupChangingEveryFrameIsDrawnThroughItsSnapshot)
     scene.render(renderer);
     EXPECT_EQ(renderer.captures, 5);
     EXPECT_EQ(renderer.kinds().back(), "texture");
+}
+
+TEST_F(SnapshotReuse, AWindowWithNoOpaqueSurfaceIsDrawnThroughItsSnapshot)
+{
+    // It can fade itself away frame by frame and then close: drawn directly,
+    // its close would fade an earlier, more visible frame back in.
+    surface->setOpaque(false);
+    scene.render(renderer);
+    const int before = renderer.captures;
+    for (int frame = 0; frame < 4; ++frame) {
+        surface->notifyDamage(base::Rect(0, 0, 400, 300));
+        scene.render(renderer);
+        EXPECT_EQ(renderer.captures, before + frame + 1);
+    }
 }
 
 TEST_F(SnapshotReuse, APlanePromotionIsNeverKeptForALaterFrame)

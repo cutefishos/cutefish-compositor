@@ -749,7 +749,21 @@ bool WindowAnimation::drawsDirectly(bool contentChanged) const
         return false;
     const double period = m_framePeriod > 0 ? m_framePeriod : 1000.0 / 60;
     return contentChanged && m_contentChanged && m_directFrames < kDirectRefresh - 1
-            && m_now() - m_textureDrawnAt < (kDirectRefresh - 0.5) * period && settled();
+            && m_now() - m_textureDrawnAt < (kDirectRefresh - 0.5) * period && settled()
+            && hasOpaqueSurface();
+}
+
+bool WindowAnimation::hasOpaqueSurface() const
+{
+    const std::function<bool(const Node &)> visit = [&](const Node &node) {
+        for (const Node *child : node.children()) {
+            const auto *surface = dynamic_cast<const SurfaceNode *>(child);
+            if ((surface && surface->isOpaque()) || visit(*child))
+                return true;
+        }
+        return false;
+    };
+    return visit(*this);
 }
 
 bool WindowAnimation::renderSiblingsBelow(render::Renderer &renderer, size_t begin,

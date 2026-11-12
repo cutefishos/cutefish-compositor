@@ -266,7 +266,10 @@ private:
     // and any frame once the texture is that many refresh intervals old, draws
     // the texture again: a close, a minimize or a cross-fade starts from it.
     // A popup never does: its close must fade out the frame that was on screen.
+    // Nor does a window with no opaque surface, which can fade itself away
+    // before it closes.
     bool drawsDirectly(bool contentChanged) const;
+    bool hasOpaqueSurface() const;
     // Drawn as it is, unscaled and unblended.
     bool settled() const;
     static constexpr int kDirectRefresh = 8;
