@@ -441,17 +441,22 @@ void SecureContainer::refreshWallpaper(bool crossfade)
         // The settings file and the wallpaper are replaced by rename; their
         // directories are what is watched, so the new file is followed too.
         const auto follow = [this, loop](const std::string &path, std::string &watched,
-                                         base::FileWatch &watch) {
+                                         base::FileWatch &watch, bool picture) {
             if (path == watched && watch.isActive())
                 return;
             watched = path;
-            watch = base::FileWatch::file(path, [this] {
-                if (!m_blocked)
-                    refreshWallpaper();
+            watch = base::FileWatch::file(path, [this, picture] {
+                if (m_blocked)
+                    return;
+                // A picture rewritten within one timestamp tick of its last
+                // write keeps its modification time.
+                if (picture)
+                    m_wallpaperKey.clear();
+                refreshWallpaper();
             }, loop);
         };
-        follow(settings.path(), m_watchedSettings, m_settingsWatch);
-        follow(file, m_watchedWallpaper, m_wallpaperWatch);
+        follow(settings.path(), m_watchedSettings, m_settingsWatch, false);
+        follow(file, m_watchedWallpaper, m_wallpaperWatch, true);
     }
     m_picture = settings.intValue("Appearance/BackgroundType", 0) == 0 ? file : std::string();
     const std::string key = path + '|' + settings.stringValue("Appearance/BackgroundType", "0")

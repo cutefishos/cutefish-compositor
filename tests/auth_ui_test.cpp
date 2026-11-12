@@ -26,10 +26,12 @@
 #include <array>
 #include <cmath>
 #include <cstdlib>
+#include <fcntl.h>
 #include <filesystem>
 #include <linux/input-event-codes.h>
 #include <memory>
 #include <optional>
+#include <sys/stat.h>
 #include <tuple>
 
 #include <gtest/gtest.h>
@@ -252,8 +254,13 @@ TEST(AuthUiTest, WallpaperFollowsSettingsWhileUnlocked)
     settings.setValue("Appearance/Wallpaper", save("blue.png", 0xff0000ff));
     settings.sync();
     EXPECT_TRUE(test::runUntil([&] { return shown() == kBlue; }));
-    // The same file, rewritten in place.
+    // The same file, rewritten in place within the timestamp tick of its last
+    // write, so its modification time stays.
+    struct stat blue;
+    ASSERT_EQ(0, stat(files.filePath("blue.png").c_str(), &blue));
     save("blue.png", 0xff00ff00);
+    const struct timespec times[2] = {blue.st_atim, blue.st_mtim};
+    ASSERT_EQ(0, utimensat(AT_FDCWD, files.filePath("blue.png").c_str(), times, 0));
     EXPECT_TRUE(test::runUntil([&] { return shown() == kGreen; }));
     std::filesystem::remove(settings.path());
 }
