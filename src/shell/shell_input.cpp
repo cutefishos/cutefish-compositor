@@ -53,6 +53,56 @@ input::CursorShape seatCursor(ui::CursorShape shape)
         return input::CursorShape::EwResize;
     case ui::CursorShape::ResizeVertical:
         return input::CursorShape::NsResize;
+    case ui::CursorShape::Crosshair:
+        return input::CursorShape::Crosshair;
+    case ui::CursorShape::Copy:
+        return input::CursorShape::Copy;
+    case ui::CursorShape::ContextMenu:
+        return input::CursorShape::ContextMenu;
+    case ui::CursorShape::Help:
+        return input::CursorShape::Help;
+    case ui::CursorShape::Progress:
+        return input::CursorShape::Progress;
+    case ui::CursorShape::Wait:
+        return input::CursorShape::Wait;
+    case ui::CursorShape::Cell:
+        return input::CursorShape::Cell;
+    case ui::CursorShape::VerticalText:
+        return input::CursorShape::VerticalText;
+    case ui::CursorShape::Alias:
+        return input::CursorShape::Alias;
+    case ui::CursorShape::NoDrop:
+        return input::CursorShape::NoDrop;
+    case ui::CursorShape::AllScroll:
+        return input::CursorShape::AllScroll;
+    case ui::CursorShape::ColumnResize:
+        return input::CursorShape::ColResize;
+    case ui::CursorShape::RowResize:
+        return input::CursorShape::RowResize;
+    case ui::CursorShape::ResizeNorth:
+        return input::CursorShape::NResize;
+    case ui::CursorShape::ResizeEast:
+        return input::CursorShape::EResize;
+    case ui::CursorShape::ResizeSouth:
+        return input::CursorShape::SResize;
+    case ui::CursorShape::ResizeWest:
+        return input::CursorShape::WResize;
+    case ui::CursorShape::ResizeNorthEast:
+        return input::CursorShape::NeResize;
+    case ui::CursorShape::ResizeNorthWest:
+        return input::CursorShape::NwResize;
+    case ui::CursorShape::ResizeSouthEast:
+        return input::CursorShape::SeResize;
+    case ui::CursorShape::ResizeSouthWest:
+        return input::CursorShape::SwResize;
+    case ui::CursorShape::ResizeNorthEastSouthWest:
+        return input::CursorShape::NeswResize;
+    case ui::CursorShape::ResizeNorthWestSouthEast:
+        return input::CursorShape::NwseResize;
+    case ui::CursorShape::ZoomIn:
+        return input::CursorShape::ZoomIn;
+    case ui::CursorShape::ZoomOut:
+        return input::CursorShape::ZoomOut;
     }
     return input::CursorShape::Default;
 }
