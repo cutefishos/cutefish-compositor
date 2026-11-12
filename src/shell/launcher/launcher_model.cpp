@@ -171,10 +171,9 @@ void LauncherModel::beginReorder()
 {
     m_reorderBase = m_items;
     // A save already due would write the drag's moves.
-    if (m_saveTimer.isActive()) {
-        m_saveTimer.stop();
-        m_savePending = true;
-    }
+    m_saveDueBeforeReorder = m_saveTimer.isActive();
+    m_saveTimer.stop();
+    m_savePending = false;
 }
 
 void LauncherModel::endReorder(bool keep)
@@ -182,7 +181,14 @@ void LauncherModel::endReorder(bool keep)
     if (!m_reorderBase)
         return;
     std::vector<LauncherItem> base = *std::exchange(m_reorderBase, std::nullopt);
-    if (!keep) {
+    bool save = std::exchange(m_saveDueBeforeReorder, false);
+    if (keep) {
+        save = std::exchange(m_savePending, false) || save;
+    } else {
+        // What was saved, or due to be; the drag's own changes, which ask
+        // for a save as they happen, are dropped with it.
+        const std::vector<LauncherItem> before = base;
+        m_savePending = false;
         // The order and folders as they were, with what the applications
         // became during the drag: those that arrived stay after the others,
         // and those opened are no longer new.
@@ -208,10 +214,11 @@ void LauncherModel::endReorder(bool keep)
                 base.push_back(item);
         }
         m_items = std::move(base);
-        onApplicationsChanged();
+        reconcile();
         updateRows();
+        save = save || m_items != before;
     }
-    if (std::exchange(m_savePending, false))
+    if (save)
         delaySave();
 }
 
@@ -509,8 +516,16 @@ bool LauncherModel::launch(const std::string &idOrPath)
 
 void LauncherModel::onApplicationsChanged()
 {
-    if (!m_loaded || m_applications.isLoading())
+    if (!reconcile())
         return;
+    updateRows();
+    delaySave();
+}
+
+bool LauncherModel::reconcile()
+{
+    if (!m_loaded || m_applications.isLoading())
+        return false;
 
     // Only entries that pass the display rules: a saved list must not bring
     // back an application that is now hidden or not for this desktop.
@@ -581,8 +596,7 @@ void LauncherModel::onApplicationsChanged()
     }
 
     m_items = std::move(updated);
-    updateRows();
-    delaySave();
+    return true;
 }
 
 LauncherPageModel::LauncherPageModel(LauncherModel &source)

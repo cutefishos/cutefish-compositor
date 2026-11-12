@@ -83,7 +83,8 @@ public:
     ui::Bitmap dragImage(double scale);
 
     // In the cell's coordinates.
-    ui::RectF iconRect() const;
+    ui::RectF iconRect() const { return iconRect(m_metrics); }
+    static ui::RectF iconRect(const LauncherMetrics &metrics);
     // The selection plate, in the cell's coordinates; empty while hidden.
     ui::RectF selectionRect() const;
     // The new mark, in the cell's coordinates; empty while hidden.

@@ -17,7 +17,8 @@
 
 namespace cutefish::ui {
 class Bitmap;
-}
+class Painter;
+} // namespace cutefish::ui
 
 namespace cutefish::shell {
 
@@ -53,6 +54,9 @@ public:
     // What the icons sit on: the colour, or the blurred picture's average
     // under the dimmer; black while unknown.
     ui::Color backdropColor() const;
+    // The picture under the dimmer over `bounds`, or the colour. Until the
+    // picture has decoded, the dimmer darkens what is behind.
+    void paint(ui::Painter &painter, const ui::RectF &bounds) const;
 
     base::Signal<> changed;
 

@@ -476,6 +476,19 @@ TEST_F(LauncherWindowTest, ACancelledDragPutsTheOrderBackUnsaved)
     };
     const std::vector<std::string> before = order();
     ASSERT_EQ("app00", before.front());
+    // A save rewrites the group, so a key of its own there shows whether
+    // one ran, even with the order unchanged.
+    test::runFor(shell::LauncherModel::kSaveDelay + std::chrono::milliseconds(200));
+    shell::waitForFileThread();
+    {
+        base::Settings settings(directory.filePath("shell.conf"));
+        settings.setValue("Launcher/marker", std::string("unsaved"));
+        settings.sync();
+    }
+    const auto marked = [this] {
+        shell::waitForFileThread();
+        return base::Settings(directory.filePath("shell.conf")).contains("Launcher/marker");
+    };
     const ui::PointF from = iconCentre(0);
     const ui::PointF to = besideIcon(3);
     const auto dragToFourth = [&] {
@@ -499,6 +512,7 @@ TEST_F(LauncherWindowTest, ACancelledDragPutsTheOrderBackUnsaved)
     EXPECT_EQ(before, order());
     test::runFor(shell::LauncherModel::kSaveDelay + std::chrono::milliseconds(200));
     EXPECT_EQ(before, saved());
+    EXPECT_TRUE(marked());
 
     // Dropped on the launcher, the move stays and is written.
     frame();
@@ -509,6 +523,7 @@ TEST_F(LauncherWindowTest, ACancelledDragPutsTheOrderBackUnsaved)
     test::runFor(shell::LauncherModel::kSaveDelay + std::chrono::milliseconds(200));
     EXPECT_EQ(3, model().findById("app00"));
     EXPECT_EQ(order(), saved());
+    EXPECT_FALSE(marked());
 }
 
 TEST_F(LauncherWindowTest, ThePictureIsTheDesktopsDecodeShrunkAndBlurred)
@@ -639,6 +654,22 @@ TEST_F(LauncherWindowTest, DroppedOnAnIconAnApplicationMakesAFolder)
     EXPECT_TRUE(open->folder().empty());
     EXPECT_FALSE(open->isVisible());
     EXPECT_TRUE(launcher().isShown());
+}
+
+TEST_F(LauncherWindowTest, ANewFolderIsNumberedPastTheNamesInUse)
+{
+    directory.write("shell.conf",
+                    "[Launcher]\norder=folder:1, app02, app03\nFolder1/name=New Folder\nFolder1/apps=app00, app01\n");
+    open(30);
+    launcher().show();
+    frame();
+    startDrag(iconCentre(2));
+    const ui::PointF onto = iconCentre(1);
+    move(onto.x, onto.y);
+    ASSERT_TRUE(test::runUntil([this] { return view()->mergeTargetId() == "app02"; }));
+    release();
+    ASSERT_TRUE(test::runUntil([this] { return model().item("folder:2") != nullptr; }));
+    EXPECT_EQ("New Folder 2", model().item("folder:2")->name);
 }
 
 TEST_F(LauncherWindowTest, DraggedOutOfItsFolderAnApplicationLeavesIt)

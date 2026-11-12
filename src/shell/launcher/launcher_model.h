@@ -38,6 +38,8 @@ struct LauncherItem {
     static constexpr const char *kFolderPrefix = "folder:";
     static bool isFolderId(const std::string &id) { return id.rfind(kFolderPrefix, 0) == 0; }
     bool isFolder() const { return isFolderId(id); }
+
+    bool operator==(const LauncherItem &) const = default;
 };
 
 // The launcher's applications and folders in the user's order, or the
@@ -121,6 +123,9 @@ private:
 
     static Stored load(const std::string &path);
     void onApplicationsChanged();
+    // Brings the items up to date with the applications, without showing
+    // or saving them; false while either is still loading.
+    bool reconcile();
     LauncherItem *findItem(const std::string &id);
     // Takes an application out of the top level or its folder; a folder
     // left with one application gives way to it, and one left empty goes.
@@ -143,6 +148,7 @@ private:
     base::Timer m_saveTimer;
     // The items when a drag began, while it runs.
     std::optional<std::vector<LauncherItem>> m_reorderBase;
+    bool m_saveDueBeforeReorder = false;
     bool m_savePending = false;
     base::Job m_load;
     base::Subscription m_applicationsChanged;

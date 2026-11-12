@@ -400,12 +400,7 @@ void LauncherFolderView::paint(ui::Painter &painter)
     // The launcher's own backdrop, so the grid does not show through the
     // panel, a shade darker.
     const ui::RectF bounds = localRect();
-    if (m_wallpaper.isPicture()) {
-        painter.drawImage(m_wallpaper.image(), bounds);
-        painter.fillRect(bounds, ui::Color {0, 0, 0, 102});
-    } else {
-        painter.fillRect(bounds, m_wallpaper.color());
-    }
+    m_wallpaper.paint(painter, bounds);
     painter.fillRect(bounds, ui::Color {0, 0, 0, 38});
 }
 

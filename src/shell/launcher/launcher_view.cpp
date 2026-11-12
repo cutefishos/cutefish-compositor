@@ -67,10 +67,19 @@ static int64_t badgeCount(const ApplicationBadges &badges, const LauncherModel &
     return count;
 }
 
-// The name a new folder starts with.
-static std::string newFolderName()
+// The name a new folder starts with, numbered past the folders that have it.
+static std::string newFolderName(const LauncherModel &model)
 {
-    return tr("New Folder");
+    std::set<std::string> names;
+    for (const LauncherItem &item : model.allItems()) {
+        if (item.isFolder())
+            names.insert(item.name);
+    }
+    const std::string base = tr("New Folder");
+    std::string name = base;
+    for (int number = 2; names.count(name); ++number)
+        name = base + ' ' + std::to_string(number);
+    return name;
 }
 
 // One page of the grid. It slides by its transform, so a page in motion is
@@ -452,14 +461,7 @@ void LauncherView::layout()
 
 void LauncherView::paint(ui::Painter &painter)
 {
-    const ui::RectF bounds = localRect();
-    if (!m_wallpaper.isPicture()) {
-        painter.fillRect(bounds, m_wallpaper.color());
-        return;
-    }
-    // Until it has decoded, the dimmer darkens what is behind the window.
-    painter.drawImage(m_wallpaper.image(), bounds);
-    painter.fillRect(bounds, ui::Color {0, 0, 0, 102});
+    m_wallpaper.paint(painter, localRect());
 }
 
 void LauncherView::updateBackdrop()
@@ -1080,7 +1082,7 @@ void LauncherView::openMenu(LauncherCell *cell, ui::PointF windowPosition)
         if (!isSearching()) {
             if (model.folderOf(id).empty()) {
                 menu->addItem(tr("New Folder"), [this, &model, id] {
-                    const std::string created = model.createFolder(id, newFolderName());
+                    const std::string created = model.createFolder(id, newFolderName(model));
                     if (!created.empty())
                         openFolder(created, true);
                 });
@@ -1234,7 +1236,7 @@ void LauncherView::merge(const std::string &id, const std::string &target)
     LauncherModel &model = m_launcher.applications();
     const LauncherItem *item = model.item(target);
     const bool created = item && !item->isFolder();
-    const std::string folder = model.merge(id, target, newFolderName());
+    const std::string folder = model.merge(id, target, newFolderName(model));
     // The model's signals have made the folder's cell by now.
     LauncherCell *cell = this->cell(folder);
     if (cell && m_shown)
@@ -1391,10 +1393,8 @@ void LauncherView::updateDragTarget(ui::PointF position)
             if (!hovered.empty() && hovered != m_draggedId && !m_draggedId.empty()
                 && !LauncherItem::isFolderId(m_draggedId)) {
                 const base::Rect slot = m_metrics.cellRect(index % m_metrics.pageCount);
-                const double size = m_metrics.iconSize;
-                const ui::RectF icon {slot.x() + double(jsRound((m_metrics.cellWidth - size) / 2)),
-                                      double(slot.y() + m_metrics.cellPaddingV), size, size};
-                if (icon.contains({x, position.y})) {
+                const ui::RectF icon = LauncherCell::iconRect(m_metrics);
+                if (icon.contains({x - slot.x(), position.y - slot.y()})) {
                     mergeTarget = hovered;
                     hovered.clear();
                 }

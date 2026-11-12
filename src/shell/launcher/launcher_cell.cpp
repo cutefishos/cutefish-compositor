@@ -344,10 +344,10 @@ ui::Bitmap LauncherCell::dragImage(double scale)
     return image;
 }
 
-ui::RectF LauncherCell::iconRect() const
+ui::RectF LauncherCell::iconRect(const LauncherMetrics &metrics)
 {
-    const double size = m_metrics.iconSize;
-    return {double(jsRound((m_metrics.cellWidth - size) / 2)), double(m_metrics.cellPaddingV), size, size};
+    const double size = metrics.iconSize;
+    return {double(jsRound((metrics.cellWidth - size) / 2)), double(metrics.cellPaddingV), size, size};
 }
 
 static ui::RectF labelArea(const LauncherMetrics &metrics)

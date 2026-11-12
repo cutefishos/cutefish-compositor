@@ -10,6 +10,7 @@
 
 #include "shell/wallpaper/wallpaper.h"
 #include "ui/bitmap.h"
+#include "ui/painter.h"
 
 namespace cutefish::shell {
 
@@ -191,6 +192,16 @@ ui::Color LauncherWallpaper::backdropColor() const
     const ui::Color base = m_average.value_or(ui::Color {0, 0, 0, 255});
     const auto dim = [](uint8_t channel) { return uint8_t(std::lround(channel * (1 - kDimmer))); };
     return {dim(base.r), dim(base.g), dim(base.b), 255};
+}
+
+void LauncherWallpaper::paint(ui::Painter &painter, const ui::RectF &bounds) const
+{
+    if (!m_picture) {
+        painter.fillRect(bounds, m_color);
+        return;
+    }
+    painter.drawImage(m_image, bounds);
+    painter.fillRect(bounds, ui::Color {0, 0, 0, 102});
 }
 
 LauncherWallpaper::Result *LauncherWallpaper::shrink(const ui::Bitmap &decode, const base::Size &target)
