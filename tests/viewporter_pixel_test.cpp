@@ -14,6 +14,7 @@
 #include <fcntl.h>
 #include <gbm.h>
 #include <gtest/gtest.h>
+#include <poll.h>
 #include <vector>
 
 #include "compositor/compositor.h"
@@ -551,13 +552,17 @@ TEST_F(ViewporterPixelTest, RealDmaBufImportWhenRenderNodeIsAvailable)
         }
     }
     gbm_bo_unmap(bo.get(), mapData);
+    ScopedFd plane(gbm_bo_get_fd(bo.get()));
+    ASSERT_TRUE(plane.isValid());
+    // The unmap may copy the pixels in on the GPU without waiting, and an
+    // importer that reads the memory itself does not wait either.
+    pollfd written {plane.get(), POLLIN, 0};
+    ASSERT_EQ(1, poll(&written, 1, 5000));
     render::DmaBufAttributes attributes;
     attributes.size = {64, 32};
     attributes.format = DRM_FORMAT_XRGB8888;
     attributes.modifier = DRM_FORMAT_MOD_INVALID;
-    attributes.planes.push_back(
-            {ScopedFd(gbm_bo_get_fd(bo.get())), 0, gbm_bo_get_stride(bo.get())});
-    ASSERT_TRUE(attributes.planes.front().fd.isValid());
+    attributes.planes.push_back({std::move(plane), 0, gbm_bo_get_stride(bo.get())});
     std::shared_ptr<compositor::DmaBufBuffer> buffer =
             compositor::DmaBufBuffer::create(renderer.get(), std::move(attributes));
     ASSERT_TRUE(buffer);
