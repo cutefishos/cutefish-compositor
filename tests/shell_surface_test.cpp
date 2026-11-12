@@ -304,6 +304,37 @@ TEST_F(ShellSurfaceTest, AStateRequestedBeforeMappingIsAppliedOnMap)
     EXPECT_EQ(kOutput, shell->window()->bounds());
 }
 
+TEST_F(ShellSurfaceTest, ANewWindowOfAnApplicationWithAMaximizedWindowOpensNormal)
+{
+    Recorder *firstRecorder = nullptr;
+    ShellSurface *first = makeShell(&firstRecorder);
+    first->setToplevel();
+    first->setApplicationId("app");
+    first->maximize();
+    first->rootSurface()->commit();
+    ASSERT_TRUE(first->acknowledgeConfigure(firstRecorder->serials.back()));
+    attach(first->rootSurface(), kOutput.size());
+    first->rootSurface()->commit();
+    ASSERT_NE(nullptr, first->window());
+    ASSERT_TRUE(first->window()->state()->isMaximized());
+
+    Recorder *recorder = nullptr;
+    ShellSurface *shell = makeShell(&recorder);
+    shell->setToplevel();
+    shell->setApplicationId("app");
+    shell->rootSurface()->commit();
+
+    ASSERT_EQ(1u, recorder->configures.size());
+    EXPECT_EQ(WindowStateType::Normal, recorder->last().stateType);
+    EXPECT_EQ(base::Size(0, 0), recorder->last().size);
+    ASSERT_TRUE(shell->acknowledgeConfigure(recorder->serials.back()));
+    attach(shell->rootSurface(), base::Size(300, 200));
+    shell->rootSurface()->commit();
+    ASSERT_NE(nullptr, shell->window());
+    EXPECT_EQ(WindowStateType::Normal, shell->window()->stateType());
+    EXPECT_EQ(base::Size(300, 200), shell->window()->bounds().size());
+}
+
 TEST_F(ShellSurfaceTest, AWindowMappedMaximizedRestoresToItsRestoreSize)
 {
     Recorder *recorder = nullptr;
@@ -2040,11 +2071,12 @@ TEST_F(MultiDisplayShellSurfaceTest, TheActiveApplicationWindowDecidesTheOutput)
     ASSERT_TRUE(files->window()->isActive());
     ASSERT_EQ(kSecondaryWorkArea, files->window()->bounds());
 
-    // Inherited state and initial size come from the same output as placement.
+    // The initial maximized size comes from the same output as placement.
     Recorder *recorder = nullptr;
     ShellSurface *shell = makeShell(&recorder);
     shell->setToplevel();
     shell->setApplicationId("files");
+    shell->maximize();
     shell->rootSurface()->commit();
     ASSERT_EQ(1u, recorder->configures.size());
     EXPECT_EQ(WindowStateType::Maximized, recorder->configures.back().stateType);

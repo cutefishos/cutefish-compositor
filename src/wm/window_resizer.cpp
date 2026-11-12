@@ -131,7 +131,7 @@ base::Rect WindowResizer::calculateBoundsForDrag(const base::PointF &location) c
     base::Point origin = m_initialBounds.topLeft();
     if (!isResize()) {
         // Unlike ash, a move leaves the size alone: a client may resize while
-        // it is dragged, as a pulled-out tab's window leaving an inherited state does.
+        // it is dragged.
         size = m_window->bounds().size();
         origin += base::Point(deltaX, deltaY);
         if (!m_restoreBounds.isEmpty() && !m_initialBounds.isEmpty()) {

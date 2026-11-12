@@ -29,7 +29,6 @@
 #include "wm/window.h"
 #include "wm/window_frame.h"
 #include "wm/window_manager.h"
-#include "wm/window_positioner.h"
 #include "wm/window_state.h"
 #include "wm/wm_event.h"
 
@@ -208,7 +207,6 @@ void ShellSurface::clearRole()
     m_modal = false;
     resetConfigureState();
     m_initialStateType = WindowStateType::Normal;
-    m_initialStateInherited = false;
     m_initialOutput = base::Rect();
 }
 
@@ -396,7 +394,6 @@ void ShellSurface::applyDecorationMode()
 void ShellSurface::maximize()
 {
     if (!m_window) {
-        m_initialStateInherited = false;
         m_initialStateType = WindowStateType::Maximized;
         return;
     }
@@ -407,7 +404,6 @@ void ShellSurface::maximize()
 void ShellSurface::unmaximize()
 {
     if (!m_window) {
-        m_initialStateInherited = false;
         if (m_initialStateType == WindowStateType::Maximized)
             m_initialStateType = WindowStateType::Normal;
         return;
@@ -420,7 +416,6 @@ void ShellSurface::unmaximize()
 void ShellSurface::minimize()
 {
     if (!m_window) {
-        m_initialStateInherited = false;
         m_initialStateType = WindowStateType::Minimized;
         return;
     }
@@ -431,7 +426,6 @@ void ShellSurface::minimize()
 void ShellSurface::setFullscreen(bool fullscreen)
 {
     if (!m_window) {
-        m_initialStateInherited = false;
         if (fullscreen)
             m_initialStateType = WindowStateType::Fullscreen;
         else if (m_initialStateType == WindowStateType::Fullscreen)
@@ -448,16 +442,6 @@ void ShellSurface::setFullscreen(bool fullscreen)
         m_fullscreenOutputName.clear();
         m_manager->clearWindowOutput(m_window);
     }
-}
-
-void ShellSurface::dropInheritedState()
-{
-    if (m_window || !m_initialStateInherited)
-        return;
-    m_initialStateInherited = false;
-    m_initialStateType = WindowStateType::Normal;
-    if (m_initialConfigureSent)
-        configure();
 }
 
 void ShellSurface::setFullscreenOutput(const std::string &waylandName)
@@ -647,12 +631,6 @@ void ShellSurface::onSurfaceCommit(compositor::Surface *surface)
             if (!m_initialConfigureSent) {
                 m_initialConfigureSent = true;
                 m_initialOutput = isPositionManaged() ? m_manager->outputForNewWindow() : base::Rect();
-                if (isPositionManaged() && computeResizable()) {
-                    const WindowStateType requested = m_initialStateType;
-                    m_initialStateType = window_positioner::showStateForNewWindow(
-                            m_manager, m_initialOutput, m_applicationId, requested);
-                    m_initialStateInherited = m_initialStateType != requested;
-                }
                 configure();
             }
             return;
@@ -993,11 +971,7 @@ void ShellSurface::mapToplevel()
     updateSizeConstraints();
     updateFromWindowGeometry();
 
-    // Shell metadata may arrive after the initial configure that inherited a state.
-    const WindowStateType initialStateType = m_initialStateInherited && !isPositionManaged()
-            ? WindowStateType::Normal
-            : m_initialStateType;
-    switch (initialStateType) {
+    switch (m_initialStateType) {
     case WindowStateType::Maximized:
         m_window->maximize();
         break;

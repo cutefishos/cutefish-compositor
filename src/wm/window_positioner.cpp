@@ -79,14 +79,4 @@ base::Rect boundsForNewWindow(const Window *window, base::Rect bounds)
     return bounds;
 }
 
-WindowStateType showStateForNewWindow(WindowManager *manager, const base::Rect &output,
-                                      const std::string &applicationId, WindowStateType requested)
-{
-    if (requested != WindowStateType::Normal)
-        return requested;
-    const Window *top = referenceWindow(manager, output, applicationId, false, nullptr);
-    return top && top->state()->isMaximized() ? WindowStateType::Maximized
-                                              : WindowStateType::Normal;
-}
-
 } // namespace cutefish::wm::window_positioner

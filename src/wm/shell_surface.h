@@ -221,12 +221,6 @@ public:
     void setFullscreen(bool fullscreen);
     void setFullscreenOutput(const std::string &waylandName);
 
-    // A toplevel attached to a drag before it maps follows the pointer, so it
-    // maps in the normal state instead of one it would inherit from another
-    // window of its application. The client is configured again if it was
-    // told that state.
-    void dropInheritedState();
-
     // Both validate nothing: the protocol layer checks the serial first.
     // `byTouch` drags with the newest touch point still down on the window,
     // and fails if there is none; otherwise the pointer drags.
@@ -410,10 +404,8 @@ private:
     // The state the client asked for before it was mapped. Applied when the
     // window is created, and reported in the initial configure.
     WindowStateType m_initialStateType = WindowStateType::Normal;
-    // Set when the window positioner, not the client, chose m_initialStateType.
-    bool m_initialStateInherited = false;
     // The output chosen for an ordinary window at its initial configure, so the
-    // inherited state, the initial size and the placement all agree on it.
+    // initial size and the placement agree on it.
     base::Rect m_initialOutput;
     std::string m_fullscreenOutputName;
     bool m_initialConfigureSent = false;

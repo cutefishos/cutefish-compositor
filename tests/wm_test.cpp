@@ -47,7 +47,6 @@
 #include "wm/window.h"
 #include "wm/window_manager.h"
 #include "wm/window_modality_controller.h"
-#include "wm/window_positioner.h"
 #include "wm/window_resizer.h"
 #include "wm/window_snap.h"
 #include "wm/window_state.h"
@@ -2509,21 +2508,6 @@ TEST_F(WmTest, ANewWindowCascadesFromAMaximizedOnesRestoreBounds)
     Window *second = mapManagedWindow(base::Size(200, 100));
     EXPECT_EQ(base::Rect(382, 332, 200, 100), second->bounds());
     EXPECT_EQ(kOutput, first->bounds());
-}
-
-TEST_F(WmTest, OnlyTheSameApplicationsMaximizedStateIsInherited)
-{
-    mapManagedWindow(base::Size(300, 200))->maximize();
-
-    EXPECT_EQ(WindowStateType::Maximized,
-              window_positioner::showStateForNewWindow(&manager, kOutput, "app",
-                                                       WindowStateType::Normal));
-    EXPECT_EQ(WindowStateType::Fullscreen,
-              window_positioner::showStateForNewWindow(&manager, kOutput, "app",
-                                                       WindowStateType::Fullscreen));
-    EXPECT_EQ(WindowStateType::Normal,
-              window_positioner::showStateForNewWindow(&manager, kOutput, "other",
-                                                       WindowStateType::Normal));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

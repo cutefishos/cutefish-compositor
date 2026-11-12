@@ -531,11 +531,9 @@ TEST_F(XdgToplevelDragProtocolTest, AnIconFadesIntoThePreviewAsThePointerMovesOn
     });
 }
 
-// A new window of an application with a maximized window is told to maximize
-// in its initial configure. Qt maps it at that size before the attach reaches
-// the compositor, so it must neither be maximized after it is placed under the
-// pointer nor have its client's resize undone by the move.
-TEST_F(XdgToplevelDragProtocolTest, AnAttachedWindowTakesNoInheritedStateAndMayResize)
+// Qt maps a pulled-out tab's window at one size and then resizes it while it is
+// dragged; the move must not undo the resize.
+TEST_F(XdgToplevelDragProtocolTest, AnAttachedWindowMayResizeWhileItIsDragged)
 {
     run([&](Client &c) {
         Toplevel *origin = mapSourceWindowAndPress(c, "tabs");
@@ -543,29 +541,20 @@ TEST_F(XdgToplevelDragProtocolTest, AnAttachedWindowTakesNoInheritedStateAndMayR
         auto *drag = xdg_toplevel_drag_manager_v1_get_xdg_toplevel_drag(c.dragManager, source);
         wl_data_device_start_drag(c.dataDevice, source, origin->surface, nullptr, c.buttonSerial);
         c.sync();
-        check([&] {
-            ASSERT_TRUE(seat.drag()->active());
-            windowAt(0)->maximize();
-        });
+        check([&] { ASSERT_TRUE(seat.drag()->active()); });
 
         Toplevel *detached = c.makeToplevel("tabs");
-        EXPECT_TRUE(detached->maximized);
-        const uint32_t maximizedSerial = detached->configureSerial;
-        xdg_toplevel_drag_v1_attach(drag, detached->toplevel, 20, 10);
-        c.sync();
-        // Normal, at a size of the client's choosing.
         EXPECT_FALSE(detached->maximized);
         EXPECT_EQ(base::Size(0, 0), detached->configuredSize);
-        EXPECT_NE(maximizedSerial, detached->configureSerial);
+        xdg_toplevel_drag_v1_attach(drag, detached->toplevel, 20, 10);
+        c.sync();
 
-        // Drawn for the configure the attach overtook.
-        xdg_surface_ack_configure(detached->xdgSurface, maximizedSerial);
-        wl_buffer *maximizedBuffer = c.makeBuffer(kOutput.size());
-        wl_surface_attach(detached->surface, maximizedBuffer, 0, 0);
+        xdg_surface_ack_configure(detached->xdgSurface, detached->configureSerial);
+        wl_buffer *largeBuffer = c.makeBuffer(kOutput.size());
+        wl_surface_attach(detached->surface, largeBuffer, 0, 0);
         wl_surface_damage(detached->surface, 0, 0, kOutput.width(), kOutput.height());
         wl_surface_commit(detached->surface);
         c.sync();
-        // Nothing holds the client to the size it mapped at.
         EXPECT_FALSE(detached->maximized);
         EXPECT_EQ(base::Size(0, 0), detached->configuredSize);
         check([&] {
@@ -579,7 +568,11 @@ TEST_F(XdgToplevelDragProtocolTest, AnAttachedWindowTakesNoInheritedStateAndMayR
                                      ->presentationScale());
         });
 
-        c.map(detached, base::Size(200, 150));
+        wl_buffer *smallBuffer = c.makeBuffer(base::Size(200, 150));
+        wl_surface_attach(detached->surface, smallBuffer, 0, 0);
+        wl_surface_damage(detached->surface, 0, 0, 200, 150);
+        wl_surface_commit(detached->surface);
+        c.sync();
         check([&] {
             wm::Window *window = windowAt(1);
             ASSERT_NE(nullptr, window);
@@ -597,7 +590,8 @@ TEST_F(XdgToplevelDragProtocolTest, AnAttachedWindowTakesNoInheritedStateAndMayR
 
         xdg_toplevel_drag_v1_destroy(drag);
         wl_data_source_destroy(source);
-        wl_buffer_destroy(maximizedBuffer);
+        wl_buffer_destroy(largeBuffer);
+        wl_buffer_destroy(smallBuffer);
         c.sync();
     });
 }

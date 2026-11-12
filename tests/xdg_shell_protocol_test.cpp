@@ -1288,7 +1288,7 @@ TEST_F(XdgShellProtocolTest, AToplevelWithAPlacementAnchorMapsNextToIt)
     });
 }
 
-TEST_F(XdgShellProtocolTest, ANewToplevelIsConfiguredMaximizedAfterAMaximizedOne)
+TEST_F(XdgShellProtocolTest, ANewToplevelIsConfiguredNormalAfterAMaximizedOne)
 {
     run([&](Client &c) {
         XdgWindow *first = c.makeToplevel();
@@ -1304,22 +1304,9 @@ TEST_F(XdgShellProtocolTest, ANewToplevelIsConfiguredMaximizedAfterAMaximizedOne
         wl_surface_commit(second->surface);
         c.sync();
         ASSERT_FALSE(second->toplevelConfigures.empty());
-        EXPECT_TRUE(second->lastToplevel().has(XDG_TOPLEVEL_STATE_MAXIMIZED));
-        EXPECT_EQ(kOutput.width(), second->lastToplevel().width);
-
-        // Neither another application nor a dialog is.
-        XdgWindow *other = c.makeToplevel();
-        xdg_toplevel_set_app_id(other->toplevel, "org.cutefish.other");
-        wl_surface_commit(other->surface);
-        XdgWindow *dialog = c.makeToplevel();
-        xdg_toplevel_set_app_id(dialog->toplevel, "org.cutefish.test");
-        xdg_toplevel_set_parent(dialog->toplevel, first->toplevel);
-        wl_surface_commit(dialog->surface);
-        c.sync();
-        ASSERT_FALSE(other->toplevelConfigures.empty());
-        EXPECT_FALSE(other->lastToplevel().has(XDG_TOPLEVEL_STATE_MAXIMIZED));
-        ASSERT_FALSE(dialog->toplevelConfigures.empty());
-        EXPECT_FALSE(dialog->lastToplevel().has(XDG_TOPLEVEL_STATE_MAXIMIZED));
+        EXPECT_FALSE(second->lastToplevel().has(XDG_TOPLEVEL_STATE_MAXIMIZED));
+        EXPECT_EQ(0, second->lastToplevel().width);
+        EXPECT_EQ(0, second->lastToplevel().height);
     });
 }
 
