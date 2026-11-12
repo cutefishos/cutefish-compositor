@@ -85,7 +85,10 @@ public:
     DrmOutput(DrmDeviceApi *device, Config config, std::function<bool()> sessionActive,
               bool monotonicClock,
               std::function<render::OutputScheduler::Time()> now =
-                      render::OutputScheduler::Clock::now);
+                      render::OutputScheduler::Clock::now,
+              // The mode describes the host's panel, not the display this
+              // device drives: what virtio-gpu advertises from the host's EDID.
+              bool syntheticModeRefresh = false);
     ~DrmOutput() override;
 
     struct CompositedBuffer {
@@ -148,7 +151,7 @@ public:
     double refreshRate() const;
 
     // The rate frames are scheduled and reported at: the mode's refresh, or
-    // 60 Hz once flips show the device has no vblank to back that refresh.
+    // 60 Hz when the mode describes the host's panel instead of this display.
     double pacingRate() const;
 
     const drmModeModeInfo &mode() const { return m_config.mode; }
@@ -402,6 +405,9 @@ private:
     DrmDeviceApi *m_device = nullptr;
     std::function<bool()> m_sessionActive;
     bool m_monotonicClock = false;
+    // virtio-gpu: the connector's modes are the host's EDID, so their refresh
+    // need not be the rate the host panel actually runs at.
+    bool m_syntheticModeRefresh = false;
     AcquireBuffer m_acquireBuffer;
     CreateTarget m_createTarget;
 
