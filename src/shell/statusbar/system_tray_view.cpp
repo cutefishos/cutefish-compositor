@@ -29,6 +29,10 @@ static constexpr double kMenuGap = 6;
 static constexpr double kDragThreshold = 10;
 static constexpr char kTrayItemMimeType[] = "application/x-cutefish-tray-item";
 
+// How far a channel of an opaque pixel may stray from the first one's in a
+// single-colour icon: rounding in its export and in the 32 px rendering.
+static constexpr int kMonochromeSlack = 8;
+
 // FishUI's ThemeManager::isMonochromeIcon on a 32 px rendering: every
 // opaque pixel one colour, and that colour nearly grey.
 static bool isMonochromeBitmap(const ui::Bitmap &bitmap)
@@ -52,7 +56,10 @@ static bool isMonochromeBitmap(const ui::Bitmap &bitmap)
                 first = opaque;
                 continue;
             }
-            if (opaque != first)
+            const auto differs = [opaque, first](int shift) {
+                return std::abs(int((opaque >> shift) & 0xff) - int((first >> shift) & 0xff)) > kMonochromeSlack;
+            };
+            if (differs(16) || differs(8) || differs(0))
                 return false;
         }
     }
@@ -424,7 +431,9 @@ void TrayItemView::setIcon(const std::string &name, const std::vector<ui::Bitmap
     std::string themeName;
     std::string file;
     std::vector<ui::Bitmap> pictures;
-    if (!name.empty()) {
+    if (!name.empty() && name.front() == '/') {
+        file = name;
+    } else if (!name.empty()) {
         themeName = name;
     } else if (!pixmaps.empty()) {
         pictures = pixmaps;

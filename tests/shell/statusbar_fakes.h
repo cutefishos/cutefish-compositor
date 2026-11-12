@@ -100,7 +100,7 @@ public:
         object.addProperty("Id", [this] { return id; });
         object.addProperty("Title", [this] { return title; });
         object.addProperty("IconName", [this] { return iconName; });
-        object.addProperty("IconThemePath", [] { return std::string("/nonexistent/icons/"); });
+        object.addProperty("IconThemePath", [this] { return iconThemePath; });
         object.addProperty("IconPixmap", [this] { return pixmaps; });
         object.addProperty("ToolTip", [this] {
             return std::tuple<std::string, std::vector<Pixmap>, std::string, std::string>("", {}, toolTip, "sub");
@@ -124,6 +124,7 @@ public:
     std::string id = "example";
     std::string title = "Example";
     std::string iconName;
+    std::string iconThemePath = "/nonexistent/icons/";
     std::string toolTip = "Tip";
     std::vector<Pixmap> pixmaps;
     std::string menuPath = "/NO_DBUSMENU";

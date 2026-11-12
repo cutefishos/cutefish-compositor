@@ -108,7 +108,20 @@ void StatusNotifierItem::apply(const dbus::VariantMap &properties)
     m_passive = property(properties, "Status") == "Passive";
 
     const auto iconByName = [this](const std::string &name) -> std::string {
-        if (name.empty() || !m_iconExists)
+        if (name.empty())
+            return {};
+        // The item's own directory is looked in first: a theme lookup would
+        // otherwise settle on a copy elsewhere and draw it as an application
+        // icon.
+        if (!m_iconThemePath.empty() && name.find('/') == std::string::npos) {
+            std::error_code error;
+            for (const char *suffix : {".png", ".svg"}) {
+                const std::string file = m_iconThemePath + '/' + name + suffix;
+                if (std::filesystem::is_regular_file(file, error))
+                    return file;
+            }
+        }
+        if (!m_iconExists)
             return {};
         if (m_iconExists(name, m_iconThemePath))
             return name;

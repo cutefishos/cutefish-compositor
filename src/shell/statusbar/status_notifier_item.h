@@ -48,8 +48,9 @@ public:
     const std::string &title() const { return m_title; }
     // The tooltip's title.
     const std::string &toolTip() const { return m_toolTip; }
-    // A theme icon that exists: IconName, else Id, each as given or as its
-    // -symbolic variant. Kept as a name, so a new icon theme applies.
+    // An icon that exists: IconName, else Id, each as an absolute path to the
+    // file in IconThemePath, else as a theme name as given or as its -symbolic
+    // variant. A theme name is kept, so a new icon theme applies.
     const std::string &iconName() const { return m_iconName; }
     const std::string &iconThemePath() const { return m_iconThemePath; }
     // IconPixmap, one per size; empty while decoding or when there are none.

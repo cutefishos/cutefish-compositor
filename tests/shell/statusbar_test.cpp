@@ -271,6 +271,31 @@ TEST(SystemTrayTest, RegistersItemsAndReadsThem)
     EXPECT_TRUE(watcher.items().empty());
 }
 
+TEST(SystemTrayTest, TakesAnIconFromTheItemsOwnDirectoryFirst)
+{
+    shell::StatusNotifierWatcher watcher(sessionBus());
+    ASSERT_TRUE(watcher.registerService());
+    // The theme would have every name, as it does through the pixmaps directory.
+    shell::SystemTrayModel tray(watcher, sessionBus(), nullptr,
+                                [](const std::string &, const std::string &) { return true; });
+    test::TemporaryDirectory directory;
+    ASSERT_TRUE(directory.write("app_tray_mono.png", "png"));
+
+    test::DBusTestClient application;
+    FakeTrayItem item(application.connection.get());
+    item.iconName = "app_tray_mono";
+    item.iconThemePath = directory.path() + "/";
+    application.call("org.kde.StatusNotifierWatcher", "/StatusNotifierWatcher", "org.kde.StatusNotifierWatcher",
+                     "RegisterStatusNotifierItem", std::string("/StatusNotifierItem"));
+    ASSERT_TRUE(test::runUntil([&] { return tray.count() == 1 && !tray.at(0)->title().empty(); }));
+    EXPECT_EQ(tray.at(0)->iconName(), directory.filePath("app_tray_mono.png"));
+
+    // A name the directory lacks is the theme's.
+    item.iconName = "other";
+    item.object.emitSignal("NewIcon");
+    EXPECT_TRUE(test::runUntil([&] { return tray.at(0)->iconName() == "other"; }));
+}
+
 TEST(SystemTrayTest, RefusesItemsOfServicesNotOnTheBus)
 {
     shell::StatusNotifierWatcher watcher(sessionBus());
