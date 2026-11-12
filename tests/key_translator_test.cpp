@@ -271,6 +271,24 @@ TEST_F(KeyTranslatorTest, TerminalsGetNoOtherCommandControlCharacters)
               take());
 }
 
+TEST_F(KeyTranslatorTest, TerminalRulesReadTheLatinKeyUnderANonLatinLayout)
+{
+    ASSERT_TRUE(keymap.updateKeyboardLayout("ru"));
+    terminal = true;
+    press(KEY_LEFTMETA);
+    tap(KEY_C);
+    release(KEY_LEFTMETA);
+    EXPECT_EQ(std::vector<Delivered>({down(KEY_LEFTCTRL), down(KEY_LEFTSHIFT), down(KEY_C),
+                                      up(KEY_C), up(KEY_LEFTSHIFT), up(KEY_LEFTCTRL)}),
+              take());
+
+    press(KEY_LEFTMETA);
+    tap(KEY_D);
+    tap(KEY_LEFTBRACE);
+    release(KEY_LEFTMETA);
+    EXPECT_TRUE(take().empty());
+}
+
 TEST_F(KeyTranslatorTest, OtherApplicationsGetTheirShortcutsAsCtrl)
 {
     // No rule depends on the application: browser and file manager keys go

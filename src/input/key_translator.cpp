@@ -47,6 +47,49 @@ constexpr std::array<uint32_t, 6> kTerminalCtrlShiftKeys = {XKB_KEY_c, XKB_KEY_v
 constexpr std::array<uint32_t, 4> kTerminalControlKeys = {XKB_KEY_bracketleft, XKB_KEY_backslash,
                                                          XKB_KEY_bracketright, XKB_KEY_slash};
 
+// The Latin keysym of the keys the terminal rules look at, where a US layout
+// has them; 0 for others.
+uint32_t usKeysym(uint32_t code)
+{
+    static constexpr std::array<std::pair<uint32_t, uint32_t>, 30> keys = {{
+            {KEY_A, XKB_KEY_a},
+            {KEY_B, XKB_KEY_b},
+            {KEY_C, XKB_KEY_c},
+            {KEY_D, XKB_KEY_d},
+            {KEY_E, XKB_KEY_e},
+            {KEY_F, XKB_KEY_f},
+            {KEY_G, XKB_KEY_g},
+            {KEY_H, XKB_KEY_h},
+            {KEY_I, XKB_KEY_i},
+            {KEY_J, XKB_KEY_j},
+            {KEY_K, XKB_KEY_k},
+            {KEY_L, XKB_KEY_l},
+            {KEY_M, XKB_KEY_m},
+            {KEY_N, XKB_KEY_n},
+            {KEY_O, XKB_KEY_o},
+            {KEY_P, XKB_KEY_p},
+            {KEY_Q, XKB_KEY_q},
+            {KEY_R, XKB_KEY_r},
+            {KEY_S, XKB_KEY_s},
+            {KEY_T, XKB_KEY_t},
+            {KEY_U, XKB_KEY_u},
+            {KEY_V, XKB_KEY_v},
+            {KEY_W, XKB_KEY_w},
+            {KEY_X, XKB_KEY_x},
+            {KEY_Y, XKB_KEY_y},
+            {KEY_Z, XKB_KEY_z},
+            {KEY_LEFTBRACE, XKB_KEY_bracketleft},
+            {KEY_BACKSLASH, XKB_KEY_backslash},
+            {KEY_RIGHTBRACE, XKB_KEY_bracketright},
+            {KEY_SLASH, XKB_KEY_slash},
+    }};
+    for (const auto &[key, keysym] : keys) {
+        if (key == code)
+            return keysym;
+    }
+    return 0;
+}
+
 uint32_t defaultCode(ModifierKind kind)
 {
     switch (kind) {
@@ -336,7 +379,13 @@ bool KeyTranslator::applyRule(Timestamp timestamp, uint32_t code)
         return false;
 
     uint32_t kinds = NoKind;
-    const uint32_t keysym = m_keymap->baseKeysym(code);
+    // A key that types no ASCII character stands for the one a US layout has
+    // there, as toolkits match shortcuts on such layouts.
+    uint32_t keysym = m_keymap->baseKeysym(code);
+    if (keysym >= 0x80) {
+        if (const uint32_t us = usKeysym(code))
+            keysym = us;
+    }
     if (roles == Command
         && std::find(kTerminalCtrlShiftKeys.begin(), kTerminalCtrlShiftKeys.end(), keysym)
                 != kTerminalCtrlShiftKeys.end()) {
