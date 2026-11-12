@@ -800,7 +800,8 @@ TEST_F(MenuBarTest, AnOpenMenuStaysOpenWhenTheApplicationRenumbersItsMenus)
     chooseFirstRow();
     EXPECT_EQ(-1, view->currentIndex());
     ASSERT_TRUE(test::runUntil([&] { return exporter.called("Event 101 closed"); }));
-    EXPECT_TRUE(exporter.called("Event 110 clicked"));
+    // Sent after the close, so it may still be on its way.
+    EXPECT_TRUE(test::runUntil([&] { return exporter.called("Event 110 clicked"); }));
     EXPECT_FALSE(exporter.called("Event 1 closed"));
     EXPECT_EQ(1, exporter.openedEvents());
 
@@ -1025,7 +1026,7 @@ TEST_F(MenuBarTest, AnOpenSubmenuStaysOpenWhenOpeningItRenumbersTheMenus)
     EXPECT_EQ(-1, view->currentIndex());
     ASSERT_TRUE(test::runUntil([&] { return exporter.called("Event 1001 closed"); }));
     EXPECT_TRUE(test::runUntil([&] { return exporter.called("Event 1010 closed"); }));
-    EXPECT_TRUE(exporter.called("Event 1100 clicked"));
+    EXPECT_TRUE(test::runUntil([&] { return exporter.called("Event 1100 clicked"); }));
     EXPECT_FALSE(exporter.called("Event 100 clicked"));
     EXPECT_FALSE(exporter.called("Event 1 closed"));
     EXPECT_FALSE(exporter.called("Event 10 closed"));
