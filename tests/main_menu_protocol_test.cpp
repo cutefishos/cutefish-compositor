@@ -175,6 +175,15 @@ protected:
     std::function<void()> pendingCheck;
 
     // The window's main menu, as the status bar finds it.
+    std::shared_ptr<compositor::MenuModel> dockMenu() const
+    {
+        for (compositor::Surface *surface : compositor.surfaces()) {
+            if (surface->dockMenu())
+                return surface->dockMenu();
+        }
+        return nullptr;
+    }
+
     std::shared_ptr<compositor::MenuModel> mainMenu() const
     {
         for (compositor::Surface *surface : compositor.surfaces()) {
@@ -341,6 +350,35 @@ TEST_F(MainMenuProtocolTest, AWindowsMainMenuIsItsSurfacesModel)
             subscriptions.clear();
             shown.reset();
         });
+    });
+}
+
+TEST_F(MainMenuProtocolTest, AWindowsDockMenuIsItsOwnModel)
+{
+    run([&](Client &c) {
+        Menu *dock = c.makeMenu();
+        Item *newWindow = c.append(dock, "New Window");
+        c.append(dock, "New Private Window");
+        cutefish_main_menu_manager_v1_set_dock_menu(c.menus, c.surface, dock->menu);
+        c.sync();
+
+        check([&] {
+            const std::shared_ptr<compositor::MenuModel> model = dockMenu();
+            ASSERT_TRUE(model);
+            EXPECT_FALSE(mainMenu());
+            EXPECT_EQ((std::vector<std::string> {"New Window", "New Private Window"}), labels(*model, 0));
+            // The dock asks for the entries before it shows them.
+            model->prepare(0);
+            model->activate(model->root().children[0]);
+        });
+        c.sync();
+        EXPECT_EQ(1u, dock->willOpen.size());
+        EXPECT_EQ(1, newWindow->activated);
+        cutefish_menu_v1_ready(dock->menu, dock->willOpen.back());
+
+        cutefish_main_menu_manager_v1_set_dock_menu(c.menus, c.surface, nullptr);
+        c.sync();
+        check([&] { EXPECT_FALSE(dockMenu()); });
     });
 }
 

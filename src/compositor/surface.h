@@ -178,6 +178,9 @@ public:
     // none. Takes precedence over the menu address.
     const std::shared_ptr<MenuModel> &mainMenu() const { return m_mainMenu; }
     void setMainMenu(std::shared_ptr<MenuModel> menu);
+    // The entries the dock's menu for the window's application shows.
+    const std::shared_ptr<MenuModel> &dockMenu() const { return m_dockMenu; }
+    void setDockMenu(std::shared_ptr<MenuModel> menu);
 
     // --- Requests. All of these are pending until commit(). ---
 
@@ -579,6 +582,7 @@ private:
     uint64_t m_nextMenuSource = 0;
     MenuAddress m_menuAddress;
     std::shared_ptr<MenuModel> m_mainMenu;
+    std::shared_ptr<MenuModel> m_dockMenu;
     bool m_skipTaskbar = false;
     bool m_alwaysOnTop = false;
     bool m_castsShadow = true;

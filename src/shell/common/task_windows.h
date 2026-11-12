@@ -47,6 +47,7 @@ struct TaskWindow {
     // The main menu it shows through cutefish_main_menu_v1, which takes
     // precedence; null for none.
     std::shared_ptr<compositor::MenuModel> mainMenu;
+    std::shared_ptr<compositor::MenuModel> dockMenu;
 
     bool isTaskListWindow() const { return id != 0 && !skipTaskbar; }
 };

@@ -26,6 +26,10 @@
 #include "ui/geometry.h"
 #include "shell/shell.h"
 
+namespace cutefish::compositor {
+class MenuModel;
+}
+
 namespace cutefish::ui {
 class DropOffer;
 class Menu;
@@ -217,6 +221,8 @@ private:
     DockIcon *iconAt(const ui::PointF &position) const;
     void reorderMinimized();
     void retire(DockIcon *icon);
+    void prepareDockMenu(const std::string &id, const std::shared_ptr<compositor::MenuModel> &dockMenu);
+    static bool addDockMenuEntries(ui::Menu &menu, const std::shared_ptr<compositor::MenuModel> &model, int32_t id);
     void popupMenu(DockIcon *icon, std::unique_ptr<ui::Menu> menu);
 
     Shell *m_shell;
@@ -279,6 +285,11 @@ private:
     std::unique_ptr<ui::Menu> m_menu;
     DockIcon *m_menuIcon = nullptr;
     bool m_menuOpen = false;
+    // An application's own entries are brought up to date before its menu
+    // shows; the wait ends when they arrive or the time is up.
+    base::Timer m_dockMenuWait;
+    base::Subscription m_dockMenuUpdate;
+    bool m_dockMenuPrepared = false;
 
     // Minimized windows whose thumbnail shows now, for the window manager to
     // stop drawing them once that frame is composed.

@@ -1367,6 +1367,14 @@ void Surface::setMainMenu(std::shared_ptr<MenuModel> menu)
     notifyMenuChanged();
 }
 
+void Surface::setDockMenu(std::shared_ptr<MenuModel> menu)
+{
+    if (menu == m_dockMenu)
+        return;
+    m_dockMenu = std::move(menu);
+    notifyMenuChanged();
+}
+
 void Surface::notifyMenuChanged()
 {
     for (auto *observer : std::vector<SurfaceObserver *>(m_observers)) {

@@ -17,6 +17,10 @@
 #include "shell/common/applications.h"
 #include "shell/common/list_model.h"
 
+namespace cutefish::compositor {
+class MenuModel;
+}
+
 namespace cutefish::shell {
 
 class ApplicationLauncher;
@@ -124,6 +128,9 @@ public:
     };
     // The application's windows in the order they opened.
     std::vector<WindowInfo> windows(const std::string &id) const;
+    // The entries the application gives its dock menu, from the first of
+    // its windows that has them.
+    std::shared_ptr<compositor::MenuModel> dockMenu(const std::string &id) const;
 
     bool openNewInstance(const std::string &id);
     void quit(const std::string &id);

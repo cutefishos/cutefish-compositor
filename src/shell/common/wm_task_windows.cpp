@@ -177,6 +177,7 @@ TaskWindow WmTaskWindows::describe(wm::Window *window) const
         info.menuService = surface->menuAddress().service;
         info.menuPath = surface->menuAddress().path;
         info.mainMenu = surface->mainMenu();
+        info.dockMenu = surface->dockMenu();
     }
     return info;
 }
@@ -210,7 +211,8 @@ void WmTaskWindows::refresh(wm::Window *window)
         changes |= kSkipTaskbarChange;
     if (old.geometry != info.geometry)
         changes |= kGeometryChange;
-    if (old.menuService != info.menuService || old.menuPath != info.menuPath || old.mainMenu != info.mainMenu)
+    if (old.menuService != info.menuService || old.menuPath != info.menuPath || old.mainMenu != info.mainMenu
+        || old.dockMenu != info.dockMenu)
         changes |= kApplicationMenuChange;
     if (old.parent != info.parent)
         changes |= kParentChange;

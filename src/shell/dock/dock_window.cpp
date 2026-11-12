@@ -12,6 +12,7 @@
 #include "base/i18n.h"
 #include "base/strings.h"
 #include "base/url.h"
+#include "compositor/menu_model.h"
 #include "core/main_loop.h"
 #include "input/drag.h"
 #include "input/seat.h"
@@ -240,6 +241,7 @@ DockWindow::DockWindow(Shell *shell, std::unique_ptr<Dock> dock)
     , m_raiseTimer(core::mainLoop())
     , m_reorderTimer(core::mainLoop())
     , m_tooltipHide(core::mainLoop())
+    , m_dockMenuWait(core::mainLoop())
     , m_strutSettle(core::mainLoop())
 {
     m_window = std::make_unique<ShellWindow>(shell, wm::WindowRole::Dock);
@@ -269,6 +271,8 @@ DockWindow::DockWindow(Shell *shell, std::unique_ptr<Dock> dock)
     m_tooltipHide.setSingleShot(true);
     m_tooltipHide.setInterval(std::chrono::milliseconds(150));
     m_tooltipHide.onTimeout = [this] { hideTooltip(); };
+    m_dockMenuWait.setSingleShot(true);
+    m_dockMenuWait.setInterval(std::chrono::milliseconds(150));
     m_strutSettle.setSingleShot(true);
     m_strutSettle.setInterval(std::chrono::milliseconds(200));
     m_strutSettle.onTimeout = [this] { updateStrut(); };
@@ -1406,6 +1410,11 @@ void DockWindow::iconMenuRequested(DockIcon *icon)
         if (row < 0)
             return;
         const DockItem &item = model.at(row);
+        const std::shared_ptr<compositor::MenuModel> dockMenu = item.running ? model.dockMenu(id) : nullptr;
+        if (dockMenu && !std::exchange(m_dockMenuPrepared, false)) {
+            prepareDockMenu(id, dockMenu);
+            return;
+        }
         const auto windows = model.windows(id);
         for (const DockModel::WindowInfo &window : windows) {
             const size_t index = menu->addItem(window.title.empty() ? item.visibleName : window.title,
@@ -1415,6 +1424,8 @@ void DockWindow::iconMenuRequested(DockIcon *icon)
             menu->setItemMaximumWidth(index, 320);
         }
         if (!windows.empty())
+            menu->addSeparator();
+        if (dockMenu && addDockMenuEntries(*menu, dockMenu, 0))
             menu->addSeparator();
         // A missing bundle keeps its place until it is unpinned.
         if (item.pinnable() || (item.missing && item.isPinned)) {
@@ -1447,6 +1458,63 @@ void DockWindow::iconMenuRequested(DockIcon *icon)
     }
     }
     popupMenu(icon, std::move(menu));
+}
+
+void DockWindow::prepareDockMenu(const std::string &id, const std::shared_ptr<compositor::MenuModel> &dockMenu)
+{
+    auto show = [this, id] {
+        m_dockMenuWait.stop();
+        m_dockMenuUpdate = {};
+        if (DockIcon *icon = applicationIcon(id)) {
+            m_dockMenuPrepared = true;
+            iconMenuRequested(icon);
+        }
+    };
+    m_dockMenuUpdate = dockMenu->menuUpdated.connect([show](int32_t menuId) {
+        if (menuId == 0)
+            show();
+    });
+    m_dockMenuWait.onTimeout = show;
+    m_dockMenuWait.start();
+    dockMenu->prepare(0);
+}
+
+// The application's entries under `id` as rows, a submenu for each entry
+// that opens one; true when there were any.
+bool DockWindow::addDockMenuEntries(ui::Menu &menu, const std::shared_ptr<compositor::MenuModel> &model, int32_t id)
+{
+    const compositor::MenuItem *parent = model->item(id);
+    if (!parent)
+        return false;
+    bool any = false;
+    bool separatorPending = false;
+    for (int32_t child : parent->children) {
+        const compositor::MenuItem *entry = model->item(child);
+        if (!entry || !entry->visible)
+            continue;
+        if (entry->separator) {
+            separatorPending = any;
+            continue;
+        }
+        if (std::exchange(separatorPending, false))
+            menu.addSeparator();
+        const std::string label = compositor::plainMenuLabel(entry->label);
+        if (entry->hasSubmenu) {
+            ui::Menu *submenu = menu.addSubmenu(label);
+            addDockMenuEntries(*submenu, model, child);
+        } else {
+            std::weak_ptr<compositor::MenuModel> weak = model;
+            const size_t index = menu.addItem(label, [weak, child] {
+                if (std::shared_ptr<compositor::MenuModel> owner = weak.lock())
+                    owner->activate(child);
+            });
+            menu.setItemEnabled(index, entry->enabled);
+            if (entry->toggle != compositor::MenuItem::Toggle::None)
+                menu.setItemChecked(index, entry->toggleState == 1);
+        }
+        any = true;
+    }
+    return any;
 }
 
 void DockWindow::popupMenu(DockIcon *icon, std::unique_ptr<ui::Menu> menu)

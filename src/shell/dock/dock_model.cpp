@@ -283,6 +283,19 @@ std::vector<DockModel::WindowInfo> DockModel::windows(const std::string &id) con
     return list;
 }
 
+std::shared_ptr<compositor::MenuModel> DockModel::dockMenu(const std::string &id) const
+{
+    const DockItem *item = findById(id);
+    if (!item)
+        return nullptr;
+    for (uint64_t window : item->windows) {
+        const TaskWindow *client = m_windows.window(window);
+        if (client && client->dockMenu)
+            return client->dockMenu;
+    }
+    return nullptr;
+}
+
 void DockModel::activateWindow(uint64_t window)
 {
     DockItem *item = findByWindow(window);
