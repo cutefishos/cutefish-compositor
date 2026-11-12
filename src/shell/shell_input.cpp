@@ -103,6 +103,8 @@ input::CursorShape seatCursor(ui::CursorShape shape)
         return input::CursorShape::ZoomIn;
     case ui::CursorShape::ZoomOut:
         return input::CursorShape::ZoomOut;
+    case ui::CursorShape::Image:
+        break;
     }
     return input::CursorShape::Default;
 }
