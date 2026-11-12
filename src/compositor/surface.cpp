@@ -22,6 +22,7 @@
 #include "compositor/compositor.h"
 #include "compositor/sub_surface.h"
 #include "compositor/surface_observer.h"
+#include "core/client_work.h"
 #include "core/logging.h"
 #include "core/main_loop.h"
 #include "core/scoped_fd.h"
@@ -85,6 +86,7 @@ public:
             // Level-triggered: a signalled fence behind an older commit would
             // fire on every iteration.
             loop->unwatch(std::exchange(*id, 0));
+            core::ClientWorkScope clientWork;
             ready();
         });
     }

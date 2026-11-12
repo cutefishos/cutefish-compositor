@@ -22,6 +22,7 @@
 #include "base/file.h"
 #include "base/strings.h"
 
+#include "backend/drm/amdgpu_boost.h"
 #include "backend/drm/drm_configuration_planner.h"
 #include "backend/drm/drm_device.h"
 #include "backend/drm/drm_framebuffer.h"
@@ -124,6 +125,7 @@ DrmBackend::~DrmBackend()
 
 void DrmBackend::closeDevice()
 {
+    m_boost.reset();
     stopWatching();
 
     if (m_gbm) {
@@ -239,6 +241,8 @@ bool DrmBackend::open(const std::string &devicePath)
     }
 
     m_device = std::make_unique<DrmDevice>(m_fd, m_gbm);
+    if (!m_renderBackend && m_driverName == "amdgpu")
+        m_boost = AmdgpuBoost::create(m_fd);
 
     m_watch = core::mainLoop()->watch(m_fd, EPOLLIN, [this](uint32_t) { onDrmEvent(); });
 
@@ -529,7 +533,11 @@ bool DrmBackend::createOutputs()
                     CF_INFO(cfDrm) << "Connector:" << connector.name;
                     CF_INFO(cfDrm).printf("Mode: %dx%d@%.0f", connector.mode.hdisplay,
                                           connector.mode.vdisplay, refreshRate(connector.mode));
-                    m_outputs.push_back(std::make_unique<DrmOutput>(this, std::move(config)));
+                    auto output = std::make_unique<DrmOutput>(this, std::move(config));
+                    const DrmBackend *rendering = m_renderBackend ? m_renderBackend : this;
+                    if (AmdgpuBoost *boost = rendering->m_boost.get())
+                        output->compositorFrameDrawn = [boost] { boost->compositorFrame(); };
+                    m_outputs.push_back(std::move(output));
                 }
             }
             ok = m_outputs.size() == connected.size();
@@ -772,8 +780,16 @@ void DrmBackend::onDrmEvent()
     });
 }
 
+void DrmBackend::expectAnimation()
+{
+    if (m_boost)
+        m_boost->expectAnimation();
+}
+
 void DrmBackend::onSessionActiveChanged(bool active)
 {
+    if (m_boost)
+        m_boost->setActive(active);
     if (!active) {
         // The seat is about to go away; stop touching KMS before acknowledging.
         for (const auto &output : m_outputs)

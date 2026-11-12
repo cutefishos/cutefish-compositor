@@ -18,6 +18,7 @@
 #include <map>
 
 #include "base/event_loop.h"
+#include "core/client_work.h"
 #include "core/logging.h"
 
 namespace cutefish::wayland {
@@ -159,6 +160,7 @@ bool Server::dispatch(std::chrono::milliseconds timeout)
         return false;
 
     wl_event_loop* eventLoop = wl_display_get_event_loop(m_display.get());
+    core::ClientWorkScope clientWork;
     if (wl_event_loop_dispatch(eventLoop, static_cast<int>(timeout.count())) < 0) {
         CF_WARNING(cfWayland) << "Wayland event loop dispatch failed";
         return false;

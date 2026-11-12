@@ -311,6 +311,11 @@ public:
     void onPageFlip(uint64_t frame, uint32_t seconds, uint32_t microseconds, uint32_t sequence);
     std::shared_ptr<render::PresentationOutput> presentationOutput;
     std::function<void(const render::PresentationSubmission &)> presentationSubmitted;
+    // The compositor changed what it draws, not a client presenting: an
+    // animation step, a window it moves or resizes, a gesture it tracks.
+    void noteCompositorChange() { m_compositorChange = true; }
+    // A frame begun after such a change was drawn.
+    std::function<void()> compositorFrameDrawn;
     void reportStats() const;
     // The same counters as reportStats() logs, for a debug interface to read.
     std::string statsLine() const;
@@ -418,6 +423,7 @@ private:
     // The next frame draws whatever the scene says: after a resume, a modeset
     // or a change in how frames are committed, the screen needs a new one.
     bool m_forceFrame = true;
+    bool m_compositorChange = false;
     std::function<scene::OverlayPlan(const base::Size &, size_t)> m_scanoutPlanner;
 
     std::unique_ptr<ScanoutController> m_scanout;

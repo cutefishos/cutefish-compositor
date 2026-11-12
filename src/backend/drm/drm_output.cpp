@@ -943,6 +943,7 @@ uint64_t DrmOutput::aimedNs() const
 void DrmOutput::wakeup()
 {
     const auto frame = m_scheduler.begin();
+    const bool compositorChange = frame && std::exchange(m_compositorChange, false);
     const bool drawn = frame
             && (!m_beginFrameCallback
                 || m_beginFrameCallback(std::chrono::duration<double, std::milli>(
@@ -957,6 +958,8 @@ void DrmOutput::wakeup()
             m_forceFrame = false;
             m_scheduler.submitted(frame);
             frameDrawn(frame, aimedNs());
+            if (compositorChange && compositorFrameDrawn)
+                compositorFrameDrawn();
             const auto took = m_now() - started;
             if (took > m_scheduler.period()) {
                 CF_DEBUG(cfDrm) << "Composited frame" << frame << "for" << m_config.name << "in"

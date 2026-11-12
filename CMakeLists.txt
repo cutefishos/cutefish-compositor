@@ -808,6 +808,8 @@ set_target_properties(cutefish-render PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 # Session and DRM/KMS backend.
 add_library(cutefish-backend STATIC
+    src/backend/drm/amdgpu_boost.cpp
+    src/backend/drm/amdgpu_boost.h
     src/backend/drm/drm_commit_coordinator.cpp
     src/backend/drm/drm_commit_coordinator.h
     src/backend/drm/drm_configuration_planner.cpp
@@ -842,6 +844,8 @@ add_library(cutefish-backend STATIC
     src/backend/drm/drm_properties.h
     src/backend/drm/drm_selection.cpp
     src/backend/drm/drm_selection.h
+    src/backend/drm/gpu_boost_policy.cpp
+    src/backend/drm/gpu_boost_policy.h
     src/backend/input/libinput_backend.cpp
     src/backend/input/libinput_backend.h
     src/backend/input/touchpad_contacts.cpp

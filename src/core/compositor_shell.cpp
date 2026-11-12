@@ -32,6 +32,7 @@
 #include "computer_control/permission_consent.h"
 #include "computer_control/remembered_apps.h"
 #include "base/uuid.h"
+#include "core/client_work.h"
 #include "core/computer_control_environment.h"
 #include "core/logging.h"
 #include "core/main_loop.h"
@@ -552,6 +553,7 @@ bool CompositorShell::init()
         // After idle the overview's first frame missed its slot on every other
         // swipe; with one drawn ahead, none did. That one may land late unseen.
         m_gestureHandler->setWarmUp([this] {
+            m_backend->expectAnimation();
             for (const auto &output : m_backend->allOutputs())
                 output->warmUp();
         });
@@ -1218,8 +1220,15 @@ bool CompositorShell::initDrm()
         wayland::createPresentationGlobal(m_server->display());
     m_scene.root()->setChangeCallback([this] {
         scheduleSceneSync();
-        for (const auto &output : m_backend->allOutputs())
+        // A client's commits are its own frames, except while the user drags
+        // its window: a resize is drawn by the client.
+        const bool compositorChange = !core::ClientWorkScope::active()
+                || m_windowManager.eventHandler()->isDragging();
+        for (const auto &output : m_backend->allOutputs()) {
+            if (compositorChange)
+                output->noteCompositorChange();
             output->scheduleFrame(backend::DrmOutput::Reason::Scene);
+        }
     });
 
     m_inputBackend = backend::LibinputBackend::create(m_session.get(), &m_inputManager);

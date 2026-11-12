@@ -77,6 +77,7 @@ cutefish_add_test(drm_properties_test cutefish-backend)
 cutefish_add_test(drm_configuration_planner_test cutefish-fake-drm)
 cutefish_add_test(drm_multi_device_planner_test cutefish-backend)
 cutefish_add_test(drm_hotplug_monitor_test cutefish-backend)
+cutefish_add_test(gpu_boost_policy_test cutefish-backend)
 cutefish_add_test(libseat_session_test cutefish-backend)
 
 # Manual wl_shm client. Not registered with ctest: it needs a running

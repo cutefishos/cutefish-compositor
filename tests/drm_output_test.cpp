@@ -1128,6 +1128,43 @@ TEST_F(DrmOutputTest, AFrameWithNothingToDrawBeginsButIsNeitherDrawnNorFlipped)
     ASSERT_TRUE(waitEvents(4));
 }
 
+// What holds the GPU clock up: frames begun after the compositor changed what
+// it draws itself, and drawn. Demand alone, as a client's commit raises, does
+// not count, nor does a change that leaves nothing to draw.
+TEST_F(DrmOutputTest, OnlyDrawnFramesAfterACompositorChangeAreCounted)
+{
+    int counted = 0;
+    drm->compositorFrameDrawn = [&] {
+        ++counted;
+    };
+    bool needed = true;
+    drm->setBeginFrameCallback([&](double) {
+        return needed;
+    });
+    update();
+    ASSERT_TRUE(drm->enable());
+    flip(0);
+    drm->scheduleFrame(Output::Reason::Surface);
+    ASSERT_TRUE(waitEvents(2));
+    flip(1);
+    EXPECT_EQ(counted, 0);
+    drm->noteCompositorChange();
+    drm->scheduleFrame();
+    ASSERT_TRUE(waitEvents(3));
+    flip(2);
+    EXPECT_EQ(counted, 1);
+    // The change is answered by the frame begun after it, drawn or not.
+    needed = false;
+    drm->noteCompositorChange();
+    drm->scheduleFrame();
+    test::runFor(std::chrono::milliseconds(60));
+    EXPECT_EQ(events.size(), 3u);
+    needed = true;
+    drm->scheduleFrame(Output::Reason::Surface);
+    ASSERT_TRUE(waitEvents(4));
+    EXPECT_EQ(counted, 1);
+}
+
 // The night light tints through the CRTC: a flip carries the tint when nothing
 // on screen changed, and an output that wakes up modesets with it in place.
 TEST_F(DrmOutputTest, ATintFlipsWithNothingNewToDrawAndSurvivesAWake)

@@ -21,6 +21,7 @@ class EglRenderer;
 
 namespace cutefish::backend {
 
+class AmdgpuBoost;
 class DrmDevice;
 class DrmDeviceApi;
 class DrmOutput;
@@ -96,6 +97,10 @@ public:
         return m_retiringOutputs;
     }
 
+    // A gesture began: the frames it is about to drive should not wait for
+    // the clock to be raised.
+    void expectAnimation();
+
     // The outputs no longer match the hardware and need a reprobe.
     base::Signal<> outputsInvalidated;
     // Emits outputsInvalidated from the loop, unless this is gone by then.
@@ -127,6 +132,9 @@ private:
     std::string m_driverName;
 
     std::unique_ptr<DrmDevice> m_device;
+    // On the rendering card when it is amdgpu: holds its clock up while the
+    // compositor draws motion of its own.
+    std::unique_ptr<AmdgpuBoost> m_boost;
     gbm_device *m_gbm = nullptr;
     uint32_t m_format = 0;
 
