@@ -42,7 +42,8 @@ void DockTooltip::hide()
         m_window->hide();
 }
 
-void DockTooltip::show(const std::string &text, const base::PointF &target, const ui::PointF &offset)
+void DockTooltip::show(const std::string &text, const base::PointF &target, double farSide,
+                       const ui::PointF &offset)
 {
     m_text = text;
     if (text.empty()) {
@@ -73,7 +74,6 @@ void DockTooltip::show(const std::string &text, const base::PointF &target, cons
 
     // The bubble, in the dock window's coordinates: beside the dock, centred
     // on the icon, kept inside the work area.
-    const base::Rect dock = m_dock->panelRect();
     const base::Rect window = m_dock->window()->geometry();
     const Shell::Output *output = m_shell->output({});
     base::Rect available = output ? m_shell->workArea(*output) : base::Rect();
@@ -85,11 +85,11 @@ void DockTooltip::show(const std::string &text, const base::PointF &target, cons
     double x = 0;
     double y = 0;
     if (across) {
-        x = direction == DockSettings::Left ? dock.x() + dock.width() + gap : dock.x() - gap - width;
+        x = direction == DockSettings::Left ? farSide + gap : farSide - gap - width;
         y = within(target.y(), height, available.y(), available.height());
     } else {
         x = within(target.x(), width, available.x(), available.width());
-        y = dock.y() - gap - height;
+        y = farSide - gap - height;
     }
     bubble.width = width;
     bubble.height = height;

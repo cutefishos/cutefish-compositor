@@ -421,6 +421,13 @@ public:
         m_protectedFromControl = protectedFromControl;
     }
 
+    // How far a dock or panel reaches from its screen edge for hiding,
+    // revealing and keeping it shown; 0 is its whole bounds. A dock that
+    // draws past that, as magnified icons do, slides as far as it reaches.
+    int edgeReach() const { return m_edgeReach; }
+
+    void setEdgeReach(int reach) { m_edgeReach = reach; }
+
     // Set by policy for floating clients, or asked for by the client itself
     // through cutefish_window_hints_v1.
     bool isAlwaysOnTop() const;
@@ -513,6 +520,7 @@ private:
     bool m_modal = false;
     bool m_responsive = true;
     bool m_protectedFromControl = false;
+    int m_edgeReach = 0;
     bool m_alwaysOnTop = false;
     bool m_surfaceAlwaysOnTop = false;
     float m_opacity = 1;

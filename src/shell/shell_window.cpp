@@ -226,6 +226,12 @@ void ShellWindow::setProtectedFromControl(bool protectedFromControl)
     applyMetadata();
 }
 
+void ShellWindow::setEdgeReach(int reach)
+{
+    m_metadata.edgeReach = reach;
+    applyMetadata();
+}
+
 void ShellWindow::setDialog(bool dialog)
 {
     if (dialog == m_dialog || isPopup())

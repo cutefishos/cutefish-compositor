@@ -145,6 +145,22 @@ private:
     std::optional<ui::Color> m_tint;
 };
 
+// A minimized window's image, fitted into the view.
+class DockIcon::ThumbnailFace final : public ui::View
+{
+public:
+    explicit ThumbnailFace(DockIcon *icon)
+        : m_icon(icon)
+    {
+    }
+
+protected:
+    void paint(ui::Painter &painter) override { m_icon->paintThumbnail(painter, localRect()); }
+
+private:
+    DockIcon *m_icon;
+};
+
 // A pressed thumbnail: its fitted shape and the badge in black, as one layer
 // at 0.5 so where they overlap is no darker.
 class DockIcon::ThumbnailMask final : public ui::View
@@ -252,6 +268,8 @@ void DockIcon::updateFace()
         m_themeFace->setVisible(m_thumbnail.isNull() && !m_dragHidden);
         m_themeFace->setIconName(m_iconName);
     }
+    if (m_thumbnailFace)
+        m_thumbnailFace->setVisible(!m_thumbnail.isNull() && !m_dragHidden);
     if (m_badge) {
         m_badge->setIconName(m_iconName);
         m_badge->setVisible(!m_thumbnail.isNull() && !m_dragHidden);
@@ -323,8 +341,13 @@ void DockIcon::setThumbnail(const ui::Bitmap *thumbnail, double aspect)
             }
         }
     }
+    // Under the badge.
+    if (!m_thumbnail.isNull() && !m_thumbnailFace)
+        m_thumbnailFace = addChild<ThumbnailFace>(this);
     if (!m_thumbnail.isNull() && !m_badge)
         m_badge = addChild<ui::ThemeIcon>(m_iconName, 16);
+    if (m_thumbnailFace)
+        m_thumbnailFace->requestPaint();
     updateFace();
     requestPaint();
 }
@@ -366,41 +389,144 @@ void DockIcon::applyBadgeOpacity()
 void DockIcon::setIconRect(const ui::RectF &rect)
 {
     m_iconRect = rect;
-    const ui::Transform transform = [&] {
-        ui::Transform result;
-        // ui::Transform scales about the view's centre.
-        result.scale = m_scale;
-        result.translation = bounceOffset();
-        return result;
-    }();
+    const ui::RectF art = artworkRect();
+    // From the artwork's size to the magnified icon's; exactly 1 at rest.
+    const double magnified = magnifiedIconRect().width / art.width;
+    const ui::Transform transform = artworkTransform(art, m_scale * magnified);
     for (ui::View *face : {static_cast<ui::View *>(m_themeFace), static_cast<ui::View *>(m_svgFace),
                            static_cast<ui::View *>(m_themeMask), static_cast<ui::View *>(m_svgMask)}) {
         if (!face)
             continue;
-        face->setGeometry(rect);
+        face->setGeometry(art);
         face->setTransform(transform);
         const bool mask = face == m_themeMask || face == m_svgMask;
         face->setOpacity(m_opacity * (mask ? 0.4 : 1));
     }
     if (m_themeFace)
-        m_themeFace->setSize(rect.width);
+        m_themeFace->setSize(art.width);
     if (m_themeMask)
-        m_themeMask->setSize(rect.width);
+        m_themeMask->setSize(art.width);
+    if (m_thumbnailFace) {
+        m_thumbnailFace->setGeometry(art);
+        m_thumbnailFace->setTransform(artworkTransform(art, magnified));
+        m_thumbnailFace->setOpacity(m_opacity);
+    }
     if (m_badge) {
-        const double size = std::round(rect.width * 0.42);
+        const double size = std::round(art.width * 0.42);
+        const ui::RectF badge {art.x + art.width - size, art.y + art.height - size, size, size};
         m_badge->setSize(size);
-        m_badge->setGeometry({rect.x + rect.width - size, rect.y + rect.height - size, size, size});
+        m_badge->setGeometry(badge);
+        m_badge->setTransform(artworkTransform(badge, magnified));
         m_badge->setOpacity(m_badgeOpacity * m_opacity);
         if (m_thumbnailMask) {
-            const ui::RectF shape = thumbnailRect();
-            m_thumbnailMask->setGeometry(localRect());
-            m_thumbnailMask->update(shape, std::max(2.0, rect.width * 2 / 54), m_iconName,
-                                    {rect.x + rect.width - size, rect.y + rect.height - size, size, size},
-                                    m_badgeOpacity);
+            const ui::RectF local {0, 0, art.width, art.height};
+            m_thumbnailMask->setGeometry(art);
+            m_thumbnailMask->setTransform(artworkTransform(art, magnified));
+            m_thumbnailMask->update(thumbnailRect(local), std::max(2.0, art.width * 2 / 54), m_iconName,
+                                    {badge.x - art.x, badge.y - art.y, size, size}, m_badgeOpacity);
         }
     }
     placeCountBadge();
     requestPaint();
+}
+
+void DockIcon::setMagnification(double scale, int rasterSize)
+{
+    if (scale == m_magnification && rasterSize == m_rasterSize)
+        return;
+    m_magnification = scale;
+    m_rasterSize = rasterSize;
+    setIconRect(m_iconRect);
+}
+
+ui::RectF DockIcon::magnifiedIconRect() const
+{
+    if (m_magnification == 1)
+        return m_iconRect;
+    const ui::RectF &rect = m_iconRect;
+    const double width = rect.width * m_magnification;
+    const double height = rect.height * m_magnification;
+    const double centreX = rect.x + rect.width / 2;
+    const double centreY = rect.y + rect.height / 2;
+    switch (m_dock->dock().settings().direction()) {
+    case DockSettings::Left:
+        return {rect.x, centreY - height / 2, width, height};
+    case DockSettings::Right:
+        return {rect.x + rect.width - width, centreY - height / 2, width, height};
+    case DockSettings::Bottom:
+        break;
+    }
+    return {centreX - width / 2, rect.y + rect.height - height, width, height};
+}
+
+ui::RectF DockIcon::artworkRect() const
+{
+    if (m_rasterSize <= 0)
+        return m_iconRect;
+    const ui::RectF drawn = magnifiedIconRect();
+    const double size = m_magnification > 1 ? std::max<double>(m_rasterSize, m_iconRect.width) : m_iconRect.width;
+    // Around the magnified icon's centre, its top left on whole device
+    // pixels in the window, where the artwork's raster lands exactly.
+    const double ratio = m_dock->window()->scale();
+    const ui::PointF origin = mapToWindow({0, 0});
+    const auto snap = [&](double centre, double offset) {
+        return std::round((offset + centre - size / 2) * ratio) / ratio - offset;
+    };
+    return {snap(drawn.x + drawn.width / 2, origin.x), snap(drawn.y + drawn.height / 2, origin.y), size, size};
+}
+
+ui::Transform DockIcon::artworkTransform(const ui::RectF &rect, double scale) const
+{
+    // ui::Transform scales about the view's own centre.
+    const ui::RectF art = artworkRect();
+    ui::Transform transform;
+    transform.scale = scale;
+    transform.translation = {(scale - 1) * (rect.x + rect.width / 2 - (art.x + art.width / 2)),
+                             (scale - 1) * (rect.y + rect.height / 2 - (art.y + art.height / 2))};
+    transform.translation += bounceOffset();
+    if (m_magnification > 1) {
+        // Magnified, the artwork's centre goes exactly to the icon's, which
+        // a scale of exactly 1 would put on whole device pixels.
+        const ui::RectF drawn = magnifiedIconRect();
+        transform.translation += ui::PointF {drawn.x + drawn.width / 2 - (art.x + art.width / 2),
+                                             drawn.y + drawn.height / 2 - (art.y + art.height / 2)};
+        if (transform.scale == 1)
+            transform.scale = std::nextafter(1.0, 0.0);
+    }
+    return transform;
+}
+
+void DockIcon::prepareMagnifiedSize(int size)
+{
+    const double scale = m_dock->window()->scale();
+    if (size == m_preparedSize && scale == m_preparedScale && m_iconName == m_preparedName)
+        return;
+    m_preparedSize = size;
+    m_preparedScale = scale;
+    m_preparedName = m_iconName;
+    if (size <= 0 || m_iconName.empty())
+        return;
+    if (!m_iconIsFile) {
+        // The pressed look tints the same raster.
+        ui::preloadThemeIcons({m_iconName}, size, scale);
+        if (m_kind == Kind::Minimized)
+            ui::preloadThemeIcons({m_iconName}, int(std::round(size * 0.42)), scale);
+        return;
+    }
+    // Drawing the artwork once at that size caches its raster.
+    for (const std::optional<ui::Color> tint : {std::optional<ui::Color>(), std::optional(ui::Color {0, 0, 0, 255})}) {
+        SvgFace face;
+        face.setFile(m_iconName);
+        face.setTint(tint);
+        face.setGeometry({0, 0, double(size), double(size)});
+        face.grab(scale);
+    }
+}
+
+void DockIcon::setRestGeometry(const ui::RectF &slot, const ui::RectF &icon)
+{
+    m_restGeometry = slot;
+    m_restIconRect = icon;
 }
 
 void DockIcon::setCount(int64_t count)
@@ -419,16 +545,11 @@ void DockIcon::placeCountBadge()
     if (!m_countBadge)
         return;
     raiseChild(m_countBadge);
-    m_countBadge->setIconRect(m_iconRect);
-    // Scaled with the icon about the icon's centre; ui::Transform scales
-    // about the badge's own.
-    const ui::RectF badge = m_countBadge->geometry();
-    ui::Transform transform;
-    transform.scale = m_scale;
-    transform.translation = {(m_scale - 1) * (badge.x + badge.width / 2 - (m_iconRect.x + m_iconRect.width / 2)),
-                             (m_scale - 1) * (badge.y + badge.height / 2 - (m_iconRect.y + m_iconRect.height / 2))};
-    transform.translation += bounceOffset();
-    m_countBadge->setTransform(transform);
+    const ui::RectF art = artworkRect();
+    m_countBadge->setIconRect(art);
+    // Scaled with the icon about the icon's centre.
+    m_countBadge->setTransform(
+            artworkTransform(m_countBadge->geometry(), m_scale * magnifiedIconRect().width / art.width));
     m_countBadge->setOpacity(m_opacity);
     m_countBadge->setVisible(m_countBadge->count() > 0 && !m_dragHidden);
 }
@@ -562,18 +683,15 @@ void DockIcon::paint(ui::Painter &painter)
 {
     if (m_dragHidden)
         return;
-    if (!m_thumbnail.isNull())
-        paintThumbnail(painter);
     if (isDotShown() && m_dotRect.width > 0) {
         painter.drawSmoothRectangle(m_dotRect, m_dotRect.width / 2, ui::Theme::current().text);
     }
 }
 
-ui::RectF DockIcon::thumbnailRect() const
+ui::RectF DockIcon::thumbnailRect(const ui::RectF &slot) const
 {
     // Fitted the way the compositor fits the window landing here, to whole
     // pixels, so the two line up exactly.
-    const ui::RectF &slot = m_iconRect;
     const bool wide = m_thumbnailAspect > slot.width / std::max(1.0, slot.height);
     const double fitWidth = wide ? slot.width : slot.height * m_thumbnailAspect;
     const double fitHeight = wide ? slot.width / m_thumbnailAspect : slot.height;
@@ -584,13 +702,11 @@ ui::RectF DockIcon::thumbnailRect() const
     return {slot.x + x, slot.y + y, width, height};
 }
 
-void DockIcon::paintThumbnail(ui::Painter &painter)
+void DockIcon::paintThumbnail(ui::Painter &painter, const ui::RectF &slot)
 {
-    const ui::RectF &slot = m_iconRect;
-    const ui::RectF rect = thumbnailRect();
+    const ui::RectF rect = thumbnailRect(slot);
     const double radius = std::max(2.0, slot.width * 2 / 54);
     painter.save();
-    painter.multiplyOpacity(m_opacity);
     painter.clipRoundedRect(rect, radius);
     painter.drawImage(m_thumbnail, rect);
     painter.restore();

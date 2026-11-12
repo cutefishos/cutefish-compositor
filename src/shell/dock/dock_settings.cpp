@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cstdint>
 #include <cmath>
 
 #include "base/settings.h"
@@ -20,6 +21,8 @@ DockSettings::DockSettings(std::string path)
 {
     m_iconSizeSave.setSingleShot(true);
     m_iconSizeSave.onTimeout = [this] { write("Dock/IconSize", m_iconSize); };
+    m_magnifiedIconSizeSave.setSingleShot(true);
+    m_magnifiedIconSizeSave.onTimeout = [this] { write("Dock/MagnifiedIconSize", m_magnifiedIconSize); };
 
     m_load = runOnFileThread([path = m_path] { return load(path); },
                              [this](Values values) {
@@ -28,12 +31,14 @@ DockSettings::DockSettings(std::string path)
                                  const bool visibility = values.visibility != m_visibility;
                                  const bool tint = values.glassTint != m_glassTint;
                                  const bool area = values.minimizedArea != m_minimizedArea;
+                                 const bool magnifiedSize = values.magnifiedIconSize != m_magnifiedIconSize;
                                  m_iconSize = values.iconSize;
                                  m_direction = values.direction;
                                  m_visibility = values.visibility;
                                  m_edgeMargins = values.edgeMargins;
                                  m_glassTint = values.glassTint;
                                  m_minimizedArea = values.minimizedArea;
+                                 m_magnifiedIconSize = values.magnifiedIconSize;
                                  m_ready = true;
                                  ready();
                                  if (iconSize)
@@ -46,6 +51,8 @@ DockSettings::DockSettings(std::string path)
                                      glassTintChanged();
                                  if (area)
                                      minimizedAreaChanged();
+                                 if (magnifiedSize)
+                                     magnifiedIconSizeChanged();
                              });
 }
 
@@ -65,6 +72,8 @@ DockSettings::Values DockSettings::load(const std::string &path)
         settings.setValue("Dock/GlassTint", 0.5);
     if (!settings.contains("Dock/MinimizedArea"))
         settings.setValue("Dock/MinimizedArea", true);
+    if (!settings.contains("Dock/MagnifiedIconSize"))
+        settings.setValue("Dock/MagnifiedIconSize", 0);
     settings.sync();
 
     Values values;
@@ -74,6 +83,8 @@ DockSettings::Values DockSettings::load(const std::string &path)
     values.edgeMargins = int(settings.intValue("Dock/EdgeMargins", 10));
     values.glassTint = std::clamp(settings.doubleValue("Dock/GlassTint", 0.5), 0.0, 1.0);
     values.minimizedArea = settings.boolValue("Dock/MinimizedArea", true);
+    values.magnifiedIconSize = int(std::clamp<int64_t>(settings.intValue("Dock/MagnifiedIconSize", 0), 0,
+                                                       kLargestMagnifiedIconSize));
     return values;
 }
 
@@ -132,6 +143,16 @@ void DockSettings::setMinimizedArea(bool enabled)
     m_minimizedArea = enabled;
     writeSettings(m_path, [enabled](base::Settings &settings) { settings.setValue("Dock/MinimizedArea", enabled); });
     minimizedAreaChanged();
+}
+
+void DockSettings::setMagnifiedIconSize(int size)
+{
+    size = std::clamp(size, 0, kLargestMagnifiedIconSize);
+    if (m_magnifiedIconSize == size)
+        return;
+    m_magnifiedIconSize = size;
+    m_magnifiedIconSizeSave.start(kIconSizeSaveDelay);
+    magnifiedIconSizeChanged();
 }
 
 } // namespace cutefish::shell

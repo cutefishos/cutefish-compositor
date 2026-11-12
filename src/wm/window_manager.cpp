@@ -583,6 +583,7 @@ void WindowManager::setShellMetadata(compositor::Surface *surface,
             window->setFocusPolicy(metadata.focusPolicy);
             window->setPanelBehavior(metadata.panelBehavior);
             window->setProtectedFromControl(metadata.protectedFromControl);
+            window->setEdgeReach(metadata.edgeReach);
             if (metadata.role == WindowRole::Sheet)
                 attachSheet(window, metadata.parentWindow);
             else if (metadata.hasPosition)
@@ -639,6 +640,7 @@ Window *WindowManager::createWindow(compositor::Surface *rootSurface, const Wind
         window->setFocusPolicy(metadata->focusPolicy);
         window->setPanelBehavior(metadata->panelBehavior);
         window->setProtectedFromControl(metadata->protectedFromControl);
+        window->setEdgeReach(metadata->edgeReach);
         if (metadata->role == WindowRole::Sheet)
             attachSheet(window, metadata->parentWindow);
     }

@@ -132,7 +132,12 @@ void WindowVisualNode::render(render::Renderer &renderer) const
     } else if (m_state.drawOutline && !renderer.suppressWindowOutlines) {
         auto outline = m_state.outlined();
         outline.bounds.translate(placed);
+        const bool cut = !m_state.outlineClip.isEmpty();
+        if (cut)
+            renderer.pushRoundedClip({m_state.outlineClip.translated(placed), 0});
         paintWindowOutline(renderer, outline, m_state);
+        if (cut)
+            renderer.popRoundedClip();
     }
 }
 

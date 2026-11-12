@@ -38,6 +38,7 @@
 #include "shm_test_util.h"
 #include "wm/activation.h"
 #include "wm/shadow_controller.h"
+#include "wm/window_visual_controller.h"
 #include "wm/shell_surface.h"
 #include "wm/toplevel_event_handler.h"
 #include "wm/window.h"
@@ -220,6 +221,39 @@ TEST_F(ShadowControllerTest, DockShadowFollowsPanelGlass)
     EXPECT_EQ(shadow->node()->geometry(), panel.marginsAdded(shadow->node()->margins()));
     window->setVisible(false);
     EXPECT_EQ(shadow->elevation(), ShadowElevation::None);
+}
+
+// A magnified dock's glass running past its surface is cut there: its shadow
+// and outline end square at the surface edge, rounded only where the glass
+// ends inside.
+TEST_F(ShadowControllerTest, DockGlassPastTheSurfaceIsCutSquareThere)
+{
+    ShellSurface *shell = makeToplevel({800, 86}, false);
+    Window *window = shell->window();
+    window->setRole(WindowRole::Dock);
+    const base::Rect panel(-50, 0, 400, 86);
+    shell->rootSurface()->setBackgroundBlur(panel, 28);
+    shell->rootSurface()->commit();
+    controller->handlePossibleShadowVisibilityChange(window);
+
+    decoration::Shadow *shadow = shadowOf(window);
+    ASSERT_TRUE(shadow);
+    EXPECT_EQ(shadow->node()->geometry(), base::Rect(0, 0, 350, 86).marginsAdded(shadow->node()->margins()));
+    const decoration::Corners corners = shadow->node()->corners();
+    EXPECT_FALSE(corners.topLeft);
+    EXPECT_FALSE(corners.bottomLeft);
+    EXPECT_TRUE(corners.topRight);
+    EXPECT_TRUE(corners.bottomRight);
+
+    const scene::WindowVisualState visual = wm::WindowVisualController::evaluate(*window, decoration::WindowVisualStyle());
+    const base::PointF origin(visual.surfaceOrigin);
+    EXPECT_EQ(base::RectF(panel).translated(origin), visual.outlineShape.bounds);
+    EXPECT_EQ(base::RectF(0, 0, 800, 86).translated(origin), visual.outlineClip);
+
+    // Inside the surface, nothing is cut.
+    shell->rootSurface()->setBackgroundBlur(base::Rect(200, 0, 400, 86), 28);
+    shell->rootSurface()->commit();
+    EXPECT_TRUE(wm::WindowVisualController::evaluate(*window, decoration::WindowVisualStyle()).outlineClip.isEmpty());
 }
 
 // The largest dock icons make a panel whose corner radius, 28/86 of its

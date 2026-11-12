@@ -14,7 +14,7 @@
 namespace cutefish::shell {
 
 // The dock's [Dock] group of shell.conf: icon size, edge, visibility, glass
-// tint and the minimized area. Missing keys are written with their
+// tint, the minimized area and magnification. Missing keys are written with their
 // defaults. Read on the file thread;
 // the defaults stand until isReady().
 class DockSettings
@@ -34,6 +34,8 @@ public:
 
     // The icon size the dock's metrics scale from.
     static constexpr int kBaseIconSize = 54;
+    // The largest magnified size, as Settings offers it.
+    static constexpr int kLargestMagnifiedIconSize = 128;
 
     // `path` is shell.conf.
     explicit DockSettings(std::string path);
@@ -54,6 +56,12 @@ public:
     void setGlassTint(double tint);
     bool minimizedArea() const { return m_minimizedArea; }
     void setMinimizedArea(bool enabled);
+    // The size the icon under the pointer grows to, 0 for none, at most
+    // kLargestMagnifiedIconSize; icons as large already stay as they are.
+    // Written as setIconSize() writes.
+    int magnifiedIconSize() const { return m_magnifiedIconSize; }
+    bool magnification() const { return m_magnifiedIconSize > 0; }
+    void setMagnifiedIconSize(int size);
 
     base::Signal<> ready;
     base::Signal<> iconSizeChanged;
@@ -61,6 +69,7 @@ public:
     base::Signal<> visibilityChanged;
     base::Signal<> glassTintChanged;
     base::Signal<> minimizedAreaChanged;
+    base::Signal<> magnifiedIconSizeChanged;
 
 private:
     struct Values {
@@ -70,6 +79,7 @@ private:
         int edgeMargins = 10;
         double glassTint = 0.5;
         bool minimizedArea = true;
+        int magnifiedIconSize = 0;
     };
 
     static Values load(const std::string &path);
@@ -83,7 +93,9 @@ private:
     int m_edgeMargins = 10;
     double m_glassTint = 0.5;
     bool m_minimizedArea = true;
+    int m_magnifiedIconSize = 0;
     base::Timer m_iconSizeSave;
+    base::Timer m_magnifiedIconSizeSave;
     base::Job m_load;
 };
 

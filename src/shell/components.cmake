@@ -31,6 +31,8 @@ target_link_libraries(cutefish-compositor PRIVATE cutefish-shell-osd)
 add_library(cutefish-shell-dock-view STATIC
     src/shell/dock/dock_icon.cpp
     src/shell/dock/dock_icon.h
+    src/shell/dock/dock_magnification.cpp
+    src/shell/dock/dock_magnification.h
     src/shell/dock/dock_metrics.h
     src/shell/dock/dock_presentation.cpp
     src/shell/dock/dock_presentation.h

@@ -14,10 +14,12 @@
 #include <vector>
 
 #include "base/geometry.h"
+#include "base/region.h"
 #include "base/signal.h"
 #include "base/timer.h"
 #include "render/glass.h"
 #include "shell/dock/dock_icon.h"
+#include "shell/dock/dock_magnification.h"
 #include "shell/dock/dock_metrics.h"
 #include "shell/dock/minimized_windows.h"
 #include "ui/bitmap.h"
@@ -27,6 +29,7 @@
 namespace cutefish::ui {
 class DropOffer;
 class Menu;
+struct PointerEvent;
 class View;
 } // namespace cutefish::ui
 
@@ -51,13 +54,19 @@ public:
 
     Dock &dock() { return *m_dock; }
     ShellWindow *window() const { return m_window.get(); }
-    // The panel in the window's coordinates, and on the screen.
-    base::Rect panelRect() const { return m_panelRect; }
+    // The panel in the window's coordinates as laid out without
+    // magnification, and on the screen; input, the strut and what the
+    // window manager is told follow it.
+    base::Rect panelRect() const { return m_restPanelRect; }
     base::Rect primaryGeometry() const;
+    // The panel as drawn, magnified, behind its glass.
+    base::Rect drawnPanelRect() const { return m_drawnPanelRect; }
     // The window's geometry for a dock of `thickness` (DockWindow::windowRect).
     base::Rect windowRect(int thickness) const;
     // Between the panel and the screen edge, inside the window.
     int edgeGap() const;
+    // The window across the dock for a dock of `thickness`.
+    int windowAcross(int thickness) const;
     // The glass the compositor draws behind the panel.
     render::GlassParams glass() const;
     double cornerRadius() const;
@@ -80,6 +89,7 @@ public:
     base::RectF trailingDivider() const { return m_trailingDivider; }
     DockTooltip *tooltip() const { return m_tooltip.get(); }
     ui::Menu *openMenu() const { return m_menuOpen ? m_menu.get() : nullptr; }
+    const DockMagnifier &magnifier() const { return m_magnifier; }
 
     // What a drag of a dock icon carries: the application's id, for other
     // drop targets too; a minimized window's id, for the dock alone.
@@ -103,6 +113,7 @@ public:
     void hideTooltip();
 
 private:
+    class MagnificationFrames;
     class Panel;
 
     // A drag this dock started from one of its icons.
@@ -150,14 +161,38 @@ private:
     void resize(bool animate);
     void layoutItems();
     void updateLayoutStart();
-    void updatePanelRect(const base::Rect &rect);
+    void updatePanelRects(const base::Rect &rest, const base::Rect &drawn);
+    // The rest panel to the screen edge; grown away from it by the
+    // magnified icons' extra size while the pointer is tracked.
+    base::Region inputBand(bool tracking) const;
+    void updateInputRegion();
     void updateStrut();
     void updateGlass();
     void updateMinimizeTargets();
     void handOffLanded();
     double pixelRatio() const;
-    // The window across the dock: the configured dock's thickness and its bounce room.
+    // The window across the dock: the configured dock's thickness and its
+    // bounce room, and with magnification the room a magnified icon bounces in.
     int windowThickness() const;
+    int restWindowThickness() const;
+    int windowIconSize() const;
+    // The size the icon under the pointer grows to, and how much farther
+    // than at rest it reaches from the screen edge.
+    int magnifiedIconSize() const;
+    int magnifiedReach() const;
+    // The mapping for the slots between these two positions along the dock;
+    // the focus stays among them.
+    DockMagnification magnification(double slotsStart, double slotsEnd) const;
+    void pointerMoved(const ui::PointerEvent &event);
+    void pointerLeft();
+    // From where the pointer really is, in the band as tracked or not.
+    void resumeMagnification(bool tracking);
+    void magnificationMoved();
+    bool stepMagnification(double nowMs);
+    void prepareMagnification();
+    // Across the dock, where a popup of `icon` stands clear of the panel and
+    // the icon as drawn.
+    double farSide(DockIcon *icon) const;
     base::Rect minimizedSlot(int index, int count) const;
     base::Rect applicationSlot(double position) const;
     double place(double position, double rest) const;
@@ -201,7 +236,11 @@ private:
     DrawnDockMetrics m_fromMetrics;
     DrawnDockMetrics m_drawn;
     base::Rect m_windowRect;
-    base::Rect m_panelRect;
+    base::Rect m_restPanelRect;
+    base::Rect m_drawnPanelRect;
+    base::Region m_inputRegion;
+    DockMagnifier m_magnifier;
+    std::unique_ptr<MagnificationFrames> m_magnificationFrames;
     // The dark mode the glass was tinted for.
     bool m_glassDark = false;
     base::RectF m_divider;

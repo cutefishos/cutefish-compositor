@@ -573,6 +573,32 @@ TEST_F(DockLayoutTest, HiddenDockFollowsItsOwnBoundsOffScreen)
     EXPECT_TRUE(dock->isPresentationHidden());
 }
 
+TEST_F(DockLayoutTest, ADockDrawingPastItsReachHidesAndStaysShownAsFarAsItReaches)
+{
+    layout.setBehavior(DockAutoHideBehavior::Always);
+    makeWindow(base::Rect(100, 100, 300, 200));
+    finishSlide();
+
+    // 40 taller past its far side, reaching as far from the edge as before.
+    dock->setEdgeReach(kDockBounds.height());
+    dock->setBounds(base::Rect(200, 680, 600, 115));
+    finishSlide();
+    EXPECT_EQ(base::Point(0, kOutput.bottom() - kDockBounds.y()), dock->presentationOffset());
+
+    moveTo(base::PointF(500, 799));
+    waitForReveal();
+    ASSERT_TRUE(isShown());
+    finishSlide();
+    EXPECT_EQ(base::Point(), dock->presentationOffset());
+    // Within its reach it stays; in the room past it, it goes.
+    moveTo(base::PointF(500, 730));
+    waitForReveal();
+    EXPECT_TRUE(isShown());
+    moveTo(base::PointF(500, 700));
+    waitForReveal();
+    EXPECT_FALSE(isShown());
+}
+
 TEST_F(DockLayoutTest, SideDockLeavesThroughItsOwnEdge)
 {
     dock->setBounds(base::Rect(5, 100, 75, 600));

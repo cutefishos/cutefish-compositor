@@ -62,6 +62,10 @@ struct DockMetrics {
     // room that takes past the dock's far side.
     int bounceHeight() const { return int(std::floor(iconSize * 0.35 + 0.5)); }
     int bounceRoom() const { return std::max(0, bounceHeight() - outerPadding); }
+    // A full dock leaves this free between each screen end and the panel,
+    // room an end icon grows into.
+    static constexpr double kEndRoomSlots = 0.8;
+    int endRoom() const { return int(std::ceil(pitch() * kEndRoomSlots)); }
     // Along the dock: the icons plus the padding at both ends.
     int length(int itemCount) const
     {

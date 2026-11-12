@@ -72,6 +72,21 @@ public:
     // about the icon's centre, and its opacity.
     void setIconRect(const ui::RectF &rect);
     ui::RectF iconRect() const { return m_iconRect; }
+    // Drawn `scale` times the icon rect's size with its side that faces the
+    // screen edge in place. A nonzero `rasterSize` is the size the artwork is
+    // drawn at while the dock is magnified, scaled to what is shown; 0 draws
+    // it exactly as at rest.
+    void setMagnification(double scale, int rasterSize);
+    double magnification() const { return m_magnification; }
+    // The icon rect as magnified, in this view.
+    ui::RectF magnifiedIconRect() const;
+    // Draws the artwork at `size` ahead of the first magnified frame.
+    void prepareMagnifiedSize(int size);
+    // The slot and the icon in the parent's coordinates as laid out without
+    // magnification.
+    void setRestGeometry(const ui::RectF &slot, const ui::RectF &icon);
+    ui::RectF restGeometry() const { return m_restGeometry; }
+    ui::RectF restIconRect() const { return m_restIconRect; }
     void setPresentation(double scale, double opacity);
     void setPresentationOpacity(double opacity);
     // Bounces once away from the screen edge as its application starts; one
@@ -114,10 +129,16 @@ protected:
 private:
     class Bounce;
     class SvgFace;
+    class ThumbnailFace;
     class ThumbnailMask;
 
-    void paintThumbnail(ui::Painter &painter);
-    ui::RectF thumbnailRect() const;
+    void paintThumbnail(ui::Painter &painter, const ui::RectF &slot);
+    ui::RectF thumbnailRect(const ui::RectF &slot) const;
+    // Where the artwork is drawn before it is scaled to the magnified icon.
+    ui::RectF artworkRect() const;
+    // For a child at `rect`: scaled by `scale` about the artwork's centre,
+    // moved with the bounce, and while magnified onto the icon's exact centre.
+    ui::Transform artworkTransform(const ui::RectF &rect, double scale) const;
     void updateFace();
     void updateMask();
     void applyBadgeOpacity();
@@ -140,6 +161,7 @@ private:
     SvgFace *m_svgMask = nullptr;
     // A minimized window's application.
     ui::ThemeIcon *m_badge = nullptr;
+    ThumbnailFace *m_thumbnailFace = nullptr;
     // The pressed look of a thumbnail: its shape and the badge in black at 0.5.
     ThumbnailMask *m_thumbnailMask = nullptr;
     ui::Image m_thumbnail;
@@ -153,6 +175,14 @@ private:
     CountBadge *m_countBadge = nullptr;
     ui::RectF m_iconRect;
     ui::RectF m_dotRect;
+    ui::RectF m_restGeometry;
+    ui::RectF m_restIconRect;
+    double m_magnification = 1;
+    int m_rasterSize = 0;
+    // What prepareMagnifiedSize() drew last.
+    std::string m_preparedName;
+    int m_preparedSize = 0;
+    double m_preparedScale = 0;
     double m_scale = 1;
     double m_opacity = 1;
     std::unique_ptr<Bounce> m_bounce;

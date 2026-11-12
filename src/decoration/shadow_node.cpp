@@ -163,10 +163,17 @@ void Shadow::updateNode()
         // The dock surface includes transparent space outside its rounded panel,
         // which its glass covers exactly.
         const base::Rect glass = m_window->rootSurface()->backgroundBlurRect();
-        if (!glass.isEmpty())
+        Corners corners;
+        if (!glass.isEmpty()) {
+            // Where the glass runs past the surface it is cut there, square.
+            const bool left = glass.left() >= content.left();
+            const bool right = glass.right() <= content.right();
+            const bool top = glass.top() >= content.top();
+            const bool bottom = glass.bottom() <= content.bottom();
+            corners = Corners {left && top, right && top, left && bottom, right && bottom};
             content = content.intersected(glass);
-        m_node->update(content, m_elevation, Corners::all(),
-                       m_window->rootSurface()->backgroundBlurRadius());
+        }
+        m_node->update(content, m_elevation, corners, m_window->rootSurface()->backgroundBlurRadius());
         return;
     }
     const auto visual = wm::WindowVisualController::evaluate(*m_window, m_theme->visualStyle());

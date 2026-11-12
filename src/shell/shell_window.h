@@ -102,6 +102,8 @@ public:
     // Keeps computer control out of the window and its popups; see
     // wm::Window::isProtectedFromControl.
     void setProtectedFromControl(bool protectedFromControl);
+    // See wm::Window::edgeReach; set before the geometry it goes with.
+    void setEdgeReach(int reach);
     // A dialog of the shell's own, for a toplevel of the Normal role: off the
     // task list and the menu bar, and held at the size setSize() gives it, so
     // the user moves it but cannot resize, maximize or snap it.

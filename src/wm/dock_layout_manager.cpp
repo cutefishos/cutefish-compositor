@@ -60,6 +60,30 @@ ScreenEdge edgeFor(const base::Rect &bounds, const base::Rect &output)
                                                                             : ScreenEdge::Right;
 }
 
+// The part of the dock's bounds within its edge reach.
+base::Rect reachedBounds(const Window *dock, ScreenEdge edge)
+{
+    base::Rect bounds = dock->bounds();
+    const int reach = dock->edgeReach();
+    if (reach <= 0)
+        return bounds;
+    switch (edge) {
+    case ScreenEdge::Top:
+        bounds.setBottom(std::min(bounds.bottom(), bounds.top() + reach));
+        break;
+    case ScreenEdge::Bottom:
+        bounds.setTop(std::max(bounds.top(), bounds.bottom() - reach));
+        break;
+    case ScreenEdge::Left:
+        bounds.setRight(std::min(bounds.right(), bounds.left() + reach));
+        break;
+    case ScreenEdge::Right:
+        bounds.setLeft(std::max(bounds.left(), bounds.right() - reach));
+        break;
+    }
+    return bounds;
+}
+
 // Where the dock is drawn relative to bounds() once it has left the output.
 base::Point hiddenOffset(const base::Rect &bounds, const base::Rect &output, ScreenEdge edge)
 {
@@ -319,7 +343,7 @@ DockAutoHideState DockLayoutManager::computeAutoHideState(const Window *dock, co
     }
 
     if (m_pointer) {
-        base::Rect region = shownRegion(dock->bounds(), output, entry.edge);
+        base::Rect region = shownRegion(reachedBounds(dock, entry.edge), output, entry.edge);
         if (isTopBar(dock, entry, output))
             region.setBottom(region.bottom() + fullscreenWindowFor(output)->rootSurface()->fullscreenBarsHeight());
         if (revealing && region.contains(m_pointer->toPoint()))
@@ -362,7 +386,7 @@ void DockLayoutManager::enter(Window *dock, Dock &entry)
     entry.visibility = computeVisibility(dock, output);
     entry.autoHide = computeAutoHideState(dock, entry, output, false);
     m_manager->setDockHidden(dock, entry.autoHide == DockAutoHideState::Hidden);
-    entry.offset = hiddenOffset(dock->bounds(), output, entry.edge);
+    entry.offset = hiddenOffset(reachedBounds(dock, entry.edge), output, entry.edge);
     entry.parked = true;
     present(dock, entry);
     if (entry.autoHide == DockAutoHideState::Shown)
@@ -394,7 +418,7 @@ void DockLayoutManager::updateDock(Window *dock, Dock &entry)
 
     const bool wasPointerOver = entry.pointerOver;
     entry.pointerOver = m_pointer
-            && (shownRegion(dock->bounds(), output, entry.edge).contains(m_pointer->toPoint())
+            && (shownRegion(reachedBounds(dock, entry.edge), output, entry.edge).contains(m_pointer->toPoint())
                 || revealStrip(output, entry.edge).contains(m_pointer->toPoint()));
 
     if (entry.visibility == DockVisibilityState::AutoHide
@@ -418,7 +442,7 @@ void DockLayoutManager::updateDock(Window *dock, Dock &entry)
             entry.autoHideTimer.stop();
         // The dock may have moved or grown while parked off screen.
         if (autoHide == DockAutoHideState::Hidden)
-            slideTo(dock, entry, hiddenOffset(dock->bounds(), output, entry.edge));
+            slideTo(dock, entry, hiddenOffset(reachedBounds(dock, entry.edge), output, entry.edge));
         return;
     }
     if (entry.visibility == DockVisibilityState::Visible) {
@@ -440,7 +464,7 @@ void DockLayoutManager::applyAutoHideState(Window *dock, Dock &entry, DockAutoHi
     m_manager->setDockHidden(dock, state == DockAutoHideState::Hidden);
     const base::Rect output = m_manager->outputBoundsFor(dock);
     slideTo(dock, entry,
-            state == DockAutoHideState::Hidden ? hiddenOffset(dock->bounds(), output, entry.edge)
+            state == DockAutoHideState::Hidden ? hiddenOffset(reachedBounds(dock, entry.edge), output, entry.edge)
                                                : base::Point());
     updateReveal(dock, entry);
     present(dock, entry);

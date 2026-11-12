@@ -77,6 +77,8 @@ struct ShellWindowMetadata {
     uint64_t parentWindow = 0;
     // See Window::isProtectedFromControl.
     bool protectedFromControl = false;
+    // See Window::edgeReach.
+    int edgeReach = 0;
 };
 
 // Everything a window is announced with. The application id and the process id

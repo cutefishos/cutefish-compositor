@@ -13,6 +13,7 @@
 #include <gtest/gtest.h>
 
 #include "compositor/compositor.h"
+#include "compositor/output_scale.h"
 #include "compositor/surface.h"
 #include "dbus_test_client.h"
 #include "fake_renderer.h"
@@ -205,6 +206,23 @@ protected:
     }
 
     void release(int ms) { input.onPointerButton(at(ms), BTN_LEFT, false); }
+
+    // Frames until the dock's magnification rests.
+    void settleMagnification(shell::DockWindow *dock)
+    {
+        ASSERT_TRUE(test::runUntil([&] {
+            frame();
+            return !dock->magnifier().isMoving();
+        }));
+        frame();
+    }
+
+    // Where the dock as tracked takes the pointer, in its window.
+    static bool takesInput(shell::DockWindow *dock, const base::Point &point)
+    {
+        const auto &region = dock->window()->surface()->inputRegion();
+        return region && region->contains(point);
+    }
 
     // A window of the shell's own the external drags start from.
     std::unique_ptr<shell::ShellWindow> sourceWindow(const std::string &mime, const std::string &data,
@@ -674,6 +692,467 @@ TEST_F(ShellComponentsTest, ADismissedMenuGivesTheTooltipBack)
         move(t + 11, terminal.x(), terminal.y());
         EXPECT_TRUE(dock->tooltip()->isShown()) << round;
         EXPECT_EQ("Terminal", dock->tooltip()->text()) << round;
+    }
+}
+
+TEST_F(ShellComponentsTest, TheDockMagnifiesUnderThePointerAndKeepsItsRestGeometry)
+{
+    auto *dock = openDock("[Dock]\nPinned=files, terminal\nMagnifiedIconSize=96\n");
+    shell::TaskWindow terminal;
+    terminal.appId = "terminal";
+    terminal.title = "Terminal";
+    terminal.pid = 4242;
+    const uint64_t id = windows->add(terminal);
+    ASSERT_TRUE(test::runUntil([&] {
+        frame();
+        return dock->applicationIcon("terminal")->isRunning() && !dock->applicationPresentation()->isRunning();
+    }));
+    frame();
+
+    // Room for the largest magnified icon, 128, and its bounce past the dot
+    // area, and along the whole edge; hidden and shown as far as the dock
+    // reaches without it.
+    wm::Window *window = dock->window()->wmWindow();
+    const int across = 16 + 128 + 19 + 5;
+    EXPECT_EQ(base::Rect(0, 960 - across, 1440, across), window->bounds());
+    EXPECT_EQ(86 + 3 + 5, window->edgeReach());
+    EXPECT_EQ(base::Rect(0, kStatusBar, 1440, 960 - kStatusBar - 92), manager.workAreaFor(nullptr));
+
+    const base::Rect rest = dock->panelRect();
+    const base::Rect primary = dock->primaryGeometry();
+    const base::Rect target = dock->minimizeTarget(id);
+    ASSERT_FALSE(target.isEmpty());
+    EXPECT_EQ(rest, dock->drawnPanelRect());
+    const base::Region idle = *dock->window()->surface()->inputRegion();
+    const auto icons = dock->icons();
+    std::vector<ui::RectF> slots;
+    std::vector<ui::RectF> rects;
+    for (shell::DockIcon *icon : icons) {
+        slots.push_back(icon->geometry());
+        rects.push_back(icon->iconRect());
+        EXPECT_EQ(1, icon->magnification());
+    }
+    shell::DockIcon *files = dock->applicationIcon("files");
+    const base::PointF centre = centreOf(dock, files);
+    const base::Rect bounds = window->bounds();
+    const int above = rest.y() - 20;
+    // Above the dock at rest, the pointer is not the dock's.
+    EXPECT_FALSE(takesInput(dock, {int(centre.x()) - bounds.x(), above}));
+    EXPECT_TRUE(takesInput(dock, {int(centre.x()) - bounds.x(), rest.y() + 2}));
+
+    move(1, centre.x(), centre.y());
+    settleMagnification(dock);
+    ASSERT_TRUE(dock->magnifier().isTracking());
+    EXPECT_EQ(1, dock->magnifier().amount());
+
+    // The icon under the pointer at the magnified size, its edge-facing side
+    // and its centre where they were; the neighbours less, falling off.
+    const ui::RectF magnified = files->magnifiedIconRect();
+    EXPECT_NEAR(96, magnified.width, 1e-6);
+    EXPECT_NEAR(centre.x(), bounds.x() + files->geometry().x + magnified.x + magnified.width / 2, 1e-6);
+    EXPECT_NEAR(slots[1].y + rects[1].bottom(), files->geometry().y + magnified.bottom(), 1e-6);
+    shell::DockIcon *launcher = icons[0];
+    shell::DockIcon *terminalIcon = dock->applicationIcon("terminal");
+    EXPECT_GT(launcher->magnification(), 1);
+    EXPECT_LT(launcher->magnification(), files->magnification());
+    EXPECT_GT(terminalIcon->magnification(), 1);
+    EXPECT_LT(terminalIcon->magnification(), files->magnification());
+    EXPECT_LT(dock->trashIcon()->magnification(), terminalIcon->magnification());
+    // Only the icons grow: the gap between them stays as at rest.
+    const auto drawnIcon = [](shell::DockIcon *icon) {
+        const ui::RectF rect = icon->magnifiedIconRect();
+        return ui::RectF {icon->geometry().x + rect.x, icon->geometry().y + rect.y, rect.width, rect.height};
+    };
+    const double restGap = (slots[2].x + rects[2].x) - (slots[1].x + rects[1].right());
+    EXPECT_EQ(16, restGap);
+    for (size_t i = 1; i < 3; ++i)
+        EXPECT_NEAR(restGap, drawnIcon(icons[i]).x - drawnIcon(icons[i - 1]).right(), 1e-9) << i;
+    // Each pin's slot as drawn is its hit area, across the band tracked now.
+    for (size_t i = 1; i < 3; ++i)
+        EXPECT_NEAR(icons[i - 1]->geometry().x + icons[i - 1]->geometry().width, icons[i]->geometry().x, 1e-9);
+    EXPECT_EQ(slots[1].y, files->geometry().y);
+
+    // The panel grows along its length only, its glass with it.
+    const base::Rect drawn = dock->drawnPanelRect();
+    EXPECT_LT(drawn.x(), rest.x());
+    EXPECT_GT(drawn.right(), rest.right());
+    EXPECT_EQ(rest.y(), drawn.y());
+    EXPECT_EQ(rest.height(), drawn.height());
+    EXPECT_EQ(drawn, dock->window()->surface()->backgroundBlurRect());
+    // Each end as far from its end slot as at rest, to the glass's whole pixels.
+    EXPECT_NEAR(slots[0].x - rest.x(), launcher->geometry().x - drawn.x(), 0.5);
+    EXPECT_NEAR(rest.right() - slots.back().right(), drawn.right() - icons.back()->geometry().right(), 0.5);
+
+    // What the session is told stays at rest.
+    EXPECT_EQ(rest, dock->panelRect());
+    EXPECT_EQ(primary, dock->primaryGeometry());
+    EXPECT_EQ(target, dock->minimizeTarget(id));
+    EXPECT_EQ(base::Rect(0, kStatusBar, 1440, 960 - kStatusBar - 92), manager.workAreaFor(nullptr));
+
+    // Tracked, the band reaches as far as the magnified icons do.
+    EXPECT_TRUE(takesInput(dock, {int(centre.x()) - bounds.x(), above}));
+    EXPECT_EQ(rest.y() - (96 - 54), dock->window()->surface()->inputRegion()->boundingRect().y());
+
+    // The tooltip clears the magnified icon.
+    ASSERT_TRUE(dock->tooltip()->isShown());
+    shell::ShellWindow *tip = shell->host()->windowFor(static_cast<ui::EmbeddedWindow *>(dock->tooltip()->window()));
+    ASSERT_NE(nullptr, tip);
+    EXPECT_LE(tip->geometry().bottom(), bounds.y() + files->geometry().y + magnified.y);
+    // Clear of the full magnified size: it stays at that height as sizes change.
+    const int tipBottom = tip->geometry().bottom();
+    move(2, centre.x() + 20, centre.y());
+    settleMagnification(dock);
+    EXPECT_LT(files->magnifiedIconRect().width, 96);
+    EXPECT_EQ(tipBottom, tip->geometry().bottom());
+    // Magnified, the artwork is never at a scale of exactly 1, which would
+    // land it on whole device pixels.
+    move(3, centre.x(), centre.y());
+    settleMagnification(dock);
+    for (const auto &child : files->children()) {
+        if (child->isVisible())
+            EXPECT_NE(1, child->transform().scale);
+    }
+
+    // Up into that band it stays; past it, it fades out to the rest layout.
+    move(2, centre.x(), bounds.y() + above);
+    frame();
+    EXPECT_TRUE(dock->magnifier().isTracking());
+    move(3, centre.x(), bounds.y() + rest.y() - 60);
+    EXPECT_FALSE(dock->magnifier().isTracking());
+    settleMagnification(dock);
+    EXPECT_EQ(0, dock->magnifier().amount());
+    EXPECT_EQ(idle, *dock->window()->surface()->inputRegion());
+    EXPECT_EQ(rest, dock->drawnPanelRect());
+    EXPECT_EQ(rest, dock->window()->surface()->backgroundBlurRect());
+    for (size_t i = 0; i < icons.size(); ++i) {
+        EXPECT_EQ(slots[i], icons[i]->geometry()) << i;
+        EXPECT_EQ(rects[i], icons[i]->iconRect()) << i;
+        EXPECT_EQ(1, icons[i]->magnification()) << i;
+    }
+
+    // Over the padding at an end, that end stays and its slot grows from it.
+    move(4, bounds.x() + rest.x() + 2, centre.y());
+    settleMagnification(dock);
+    ASSERT_TRUE(dock->magnifier().isTracking());
+    EXPECT_EQ(rest.x(), dock->drawnPanelRect().x());
+    EXPECT_GT(dock->drawnPanelRect().right(), rest.right());
+    EXPECT_NEAR(slots[0].x, launcher->geometry().x, 1e-9);
+    EXPECT_GT(launcher->magnification(), files->magnification());
+    move(5, centre.x(), bounds.y() + rest.y() - 60);
+    settleMagnification(dock);
+    EXPECT_EQ(rest, dock->drawnPanelRect());
+
+    // Coming back from above, only the dock at rest takes it up.
+    move(6, centre.x(), bounds.y() + above);
+    frame();
+    EXPECT_FALSE(dock->magnifier().isTracking());
+    move(7, centre.x(), centre.y());
+    EXPECT_TRUE(dock->magnifier().isTracking());
+}
+
+TEST_F(ShellComponentsTest, MagnifiedIconsKeepTheRestGapAndFarIconsStayAsTheyAre)
+{
+    for (const char *name : {"a", "b", "c", "d", "e"})
+        applications->addSimple(name, name, "folder");
+    applications->scan();
+    auto *dock = openDock("[Dock]\nPinned=files, terminal, a, b, c, d, e\nMagnifiedIconSize=96\n");
+    ASSERT_TRUE(test::runUntil([&] {
+        frame();
+        return !dock->applicationPresentation()->isRunning();
+    }));
+    const auto icons = dock->icons();
+    ASSERT_EQ(9u, icons.size());
+    const auto drawnIcon = [](shell::DockIcon *icon) {
+        const ui::RectF rect = icon->magnifiedIconRect();
+        return ui::RectF {icon->geometry().x + rect.x, icon->geometry().y + rect.y, rect.width, rect.height};
+    };
+    std::vector<ui::RectF> rest;
+    for (shell::DockIcon *icon : icons)
+        rest.push_back(drawnIcon(icon));
+    const double restGap = rest[1].x - rest[0].right();
+
+    const base::PointF centre = centreOf(dock, icons[2]);
+    move(1, centre.x(), centre.y());
+    settleMagnification(dock);
+    ASSERT_EQ(1, dock->magnifier().amount());
+    EXPECT_NEAR(96, icons[2]->magnifiedIconRect().width, 1e-6);
+    // Along the pins, magnified or not, the same gap between icons.
+    for (size_t i = 1; i < 8; ++i)
+        EXPECT_NEAR(restGap, drawnIcon(icons[i]).x - drawnIcon(icons[i - 1]).right(), 1e-9) << i;
+    // Four slots and more away, the icons keep their size.
+    for (size_t i = 6; i < icons.size(); ++i) {
+        EXPECT_EQ(1, icons[i]->magnification()) << i;
+        EXPECT_EQ(rest[i].width, drawnIcon(icons[i]).width) << i;
+    }
+}
+
+// A full dock's rest size is the same whatever the magnification, with room
+// at each end for its end icons to grow into.
+TEST_F(ShellComponentsTest, AFullDockKeepsRoomAtItsEndsAndRunsOffMagnifiedMidRow)
+{
+    std::string pins = "files, terminal";
+    for (int i = 0; i < 20; ++i) {
+        const std::string id = "app" + std::to_string(i);
+        applications->addSimple(id, id, "folder");
+        pins += ", " + id;
+    }
+    applications->scan();
+    auto *dock = openDock("[Dock]\nPinned=" + pins + "\nMagnifiedIconSize=0\n");
+    const auto settle = [&] {
+        ASSERT_TRUE(test::runUntil([&] {
+            frame();
+            return !dock->applicationPresentation()->isRunning();
+        }));
+    };
+    settle();
+    const auto icons = dock->icons();
+    ASSERT_EQ(24u, icons.size());
+    const double size = icons[1]->iconRect().width;
+    EXPECT_LT(size, 54);
+    const base::Rect primary = dock->primaryGeometry();
+    const double pitch = icons[2]->restGeometry().x - icons[1]->restGeometry().x;
+    EXPECT_GE(primary.x() - kOutput.x(), shell::DockMetrics::kEndRoomSlots * pitch);
+    EXPECT_GE(kOutput.right() - primary.right(), shell::DockMetrics::kEndRoomSlots * pitch);
+    for (const int magnified : {64, 96, 128, int(2 * size)}) {
+        dock->dock().settings().setMagnifiedIconSize(magnified);
+        settle();
+        EXPECT_EQ(size, icons[1]->iconRect().width) << magnified;
+        EXPECT_EQ(primary, dock->primaryGeometry()) << magnified;
+    }
+
+    const base::Rect bounds = dock->window()->geometry();
+    const double length = bounds.width();
+    const double y = centreOf(dock, icons[1]).y();
+    const auto drawnStart = [&](shell::DockIcon *icon) {
+        return icon->geometry().x + icon->magnifiedIconRect().x;
+    };
+    const auto drawnEnd = [&](shell::DockIcon *icon) {
+        return drawnStart(icon) + icon->magnifiedIconRect().width;
+    };
+
+    // At twice the fitted size, anywhere over the first or the last item,
+    // its icon is on screen.
+    int t = 1;
+    for (shell::DockIcon *icon : {icons.front(), icons.back()}) {
+        const ui::RectF slot = icon->restGeometry();
+        for (const double along : {slot.x + 0.5, slot.x + slot.width / 2, slot.x + slot.width - 0.5}) {
+            move(t++, bounds.x() + along, y);
+            settleMagnification(dock);
+            ASSERT_TRUE(dock->magnifier().isTracking());
+            EXPECT_GT(icon->magnification(), 1) << along;
+            EXPECT_GE(drawnStart(icon), 0) << along;
+            EXPECT_LE(drawnEnd(icon), length) << along;
+        }
+    }
+
+    // Mid-dock, at the largest size, both ends run off, the panel with them.
+    dock->dock().settings().setMagnifiedIconSize(128);
+    settle();
+    const double middle = icons[12]->restGeometry().x + icons[12]->restGeometry().width / 2;
+    move(t++, bounds.x() + middle, y);
+    settleMagnification(dock);
+    ASSERT_EQ(1, dock->magnifier().amount());
+    EXPECT_NEAR(128, icons[12]->magnifiedIconRect().width, 1e-6);
+    EXPECT_LT(drawnStart(icons.front()), 0);
+    EXPECT_GT(drawnEnd(icons.back()), length);
+    EXPECT_LE(dock->drawnPanelRect().x(), 0);
+    EXPECT_GE(dock->drawnPanelRect().right(), length);
+}
+
+// A full dock's icons are fitted to the screen, so a larger size setting
+// changes nothing drawn, at a fractional scale too, and nothing jumps where
+// the setting passes the magnified size.
+TEST_F(ShellComponentsTest, AFullDockStaysPutWhileTheSizeSettingChangesNothingFitted)
+{
+    // A shell of its own, which learns the scale as it starts.
+    compositor.setOutputScale(*compositor::OutputScale::fromNumerator(210));
+    shell.reset();
+    shell::ShellEnvironment environment {&compositor, &manager, &seat};
+    environment.servicesSettings = directory.filePath("services.conf");
+    shell = std::make_unique<shell::Shell>(environment);
+    auto apps = std::make_unique<test::FakeApplications>();
+    apps->addSimple("files", "Files", "folder");
+    apps->addSimple("terminal", "Terminal", "utilities-terminal");
+    std::string pins = "files, terminal";
+    for (int i = 0; i < 20; ++i) {
+        const std::string id = "app" + std::to_string(i);
+        apps->addSimple(id, id, "folder");
+        pins += ", " + id;
+    }
+    apps->scan();
+    shell->setApplications(std::move(apps));
+    shell->setTaskWindows(std::make_unique<test::FakeTaskWindows>());
+    auto *dock = openDock("[Dock]\nPinned=" + pins + "\nIconSize=60\nMagnifiedIconSize=104\n");
+    const auto settle = [&] {
+        ASSERT_TRUE(test::runUntil([&] {
+            frame();
+            return !dock->applicationPresentation()->isRunning();
+        }));
+    };
+    settle();
+    ASSERT_EQ(1.75, dock->window()->scale());
+    const base::Rect window = dock->window()->geometry();
+    const base::Rect panel = dock->panelRect();
+    const base::Rect drawn = dock->drawnPanelRect();
+    const base::Region region = *dock->window()->surface()->inputRegion();
+    const auto icons = dock->icons();
+    std::vector<ui::RectF> slots;
+    std::vector<ui::RectF> rects;
+    for (shell::DockIcon *icon : icons) {
+        slots.push_back(icon->geometry());
+        rects.push_back(icon->iconRect());
+    }
+    ASSERT_LT(rects[1].width, 60);
+    const auto unchanged = [&](const std::string &step) {
+        EXPECT_EQ(window, dock->window()->geometry()) << step;
+        EXPECT_EQ(panel, dock->panelRect()) << step;
+        EXPECT_EQ(drawn, dock->drawnPanelRect()) << step;
+        EXPECT_EQ(region, *dock->window()->surface()->inputRegion()) << step;
+        for (size_t i = 0; i < icons.size(); ++i) {
+            EXPECT_EQ(slots[i], icons[i]->geometry()) << step << " " << i;
+            EXPECT_EQ(rects[i], icons[i]->iconRect()) << step << " " << i;
+        }
+    };
+    for (const int size : {70, 98, 99, 101, 102, 103, 104, 105, 108, 120}) {
+        dock->dock().settings().setIconSize(size);
+        settle();
+        unchanged("size " + std::to_string(size));
+    }
+    // So does the magnified size, which leaves the fitted icons as they are.
+    for (const int size : {103, 102, 105, 104, 64, 101, 128, 104}) {
+        dock->dock().settings().setMagnifiedIconSize(size);
+        settle();
+        unchanged("magnified " + std::to_string(size));
+    }
+    dock->dock().settings().setMagnifiedIconSize(500);
+    EXPECT_EQ(shell::DockSettings::kLargestMagnifiedIconSize, dock->dock().settings().magnifiedIconSize());
+
+    // Off and on again the window changes, but its start and far side keep
+    // their device pixel fractions, and the icons stay where they are.
+    const auto fraction = [](double logical) {
+        const double device = logical * 1.75;
+        return device - std::floor(device);
+    };
+    const auto onScreen = [&](shell::DockIcon *icon) {
+        const base::Rect at = dock->window()->geometry();
+        const ui::RectF rect = icon->iconRect();
+        return ui::RectF {at.x() + icon->geometry().x + rect.x, at.y() + icon->geometry().y + rect.y, rect.width,
+                          rect.height};
+    };
+    std::vector<ui::RectF> placed;
+    for (shell::DockIcon *icon : icons)
+        placed.push_back(onScreen(icon));
+    const base::Rect primary = dock->primaryGeometry();
+    for (const int size : {0, 104, 0, 96}) {
+        dock->dock().settings().setMagnifiedIconSize(size);
+        settle();
+        const base::Rect at = dock->window()->geometry();
+        EXPECT_EQ(fraction(window.x()), fraction(at.x())) << size;
+        EXPECT_EQ(fraction(window.y()), fraction(at.y())) << size;
+        EXPECT_EQ(primary, dock->primaryGeometry()) << size;
+        for (size_t i = 0; i < icons.size(); ++i)
+            EXPECT_EQ(placed[i], onScreen(icons[i])) << size << " " << i;
+    }
+}
+
+TEST_F(ShellComponentsTest, AShortDockKeepsItsSizeWithMagnification)
+{
+    auto *dock = openDock("[Dock]\nPinned=files, terminal\nMagnifiedIconSize=0\n");
+    const base::Rect primary = dock->primaryGeometry();
+    dock->dock().settings().setMagnifiedIconSize(96);
+    ASSERT_TRUE(test::runUntil([&] {
+        frame();
+        return !dock->applicationPresentation()->isRunning();
+    }));
+    EXPECT_EQ(54, dock->icons()[1]->iconRect().width);
+    EXPECT_EQ(primary, dock->primaryGeometry());
+}
+
+TEST_F(ShellComponentsTest, AnOpenMenuHoldsTheMagnification)
+{
+    auto *dock = openDock("[Dock]\nPinned=files, terminal\nMagnifiedIconSize=96\n");
+    ASSERT_TRUE(test::runUntil([&] {
+        frame();
+        return !dock->applicationPresentation()->isRunning();
+    }));
+    shell::DockIcon *files = dock->applicationIcon("files");
+    shell::DockIcon *terminal = dock->applicationIcon("terminal");
+    const base::PointF filesCentre = centreOf(dock, files);
+    const base::PointF terminalCentre = centreOf(dock, terminal);
+    const base::Rect bounds = dock->window()->geometry();
+    const int above = dock->panelRect().y() - 20;
+
+    for (int round = 0; round < 2; ++round) {
+        const int t = 100 * round;
+        move(t + 1, filesCentre.x(), filesCentre.y());
+        settleMagnification(dock);
+        const ui::RectF slot = files->geometry();
+        const ui::RectF magnified = files->magnifiedIconRect();
+        const base::Rect drawn = dock->drawnPanelRect();
+        click(t + 2, filesCentre.x(), filesCentre.y(), BTN_RIGHT);
+        ui::Menu *menu = dock->openMenu();
+        ASSERT_NE(nullptr, menu) << round;
+        EXPECT_TRUE(dock->magnifier().isHeld());
+        // The menu clears the icon as drawn.
+        shell::ShellWindow *popup = shell->host()->windowFor(static_cast<ui::EmbeddedWindow *>(menu->window()));
+        ASSERT_NE(nullptr, popup);
+        frame();
+        EXPECT_LE(popup->geometry().bottom(), bounds.y() + slot.y + magnified.y);
+
+        // Away from the dock, everything stays as it was while the menu is open.
+        move(t + 3, round == 0 ? 700 : terminalCentre.x(), round == 0 ? 300 : terminalCentre.y());
+        for (int i = 0; i < 20; ++i) {
+            frame();
+            test::runFor(std::chrono::milliseconds(16));
+        }
+        EXPECT_EQ(1, dock->magnifier().amount());
+        EXPECT_EQ(slot, files->geometry());
+        EXPECT_EQ(magnified, files->magnifiedIconRect());
+        EXPECT_EQ(drawn, dock->drawnPanelRect());
+        EXPECT_TRUE(takesInput(dock, {int(filesCentre.x()) - bounds.x(), above}));
+
+        menu->close();
+        EXPECT_FALSE(dock->magnifier().isHeld());
+        settleMagnification(dock);
+        if (round == 0) {
+            // Closed with the pointer gone: it fades out.
+            EXPECT_FALSE(dock->magnifier().isTracking());
+            EXPECT_EQ(0, dock->magnifier().amount());
+            EXPECT_EQ(1, files->magnification());
+            EXPECT_FALSE(takesInput(dock, {int(filesCentre.x()) - bounds.x(), above}));
+        } else {
+            // Closed over the terminal: on from there.
+            EXPECT_TRUE(dock->magnifier().isTracking());
+            EXPECT_EQ(1, dock->magnifier().amount());
+            EXPECT_NEAR(96, terminal->magnifiedIconRect().width, 1e-6);
+            EXPECT_NEAR(terminalCentre.x() - bounds.x(), dock->magnifier().focus(), 1e-9);
+        }
+    }
+}
+
+TEST_F(ShellComponentsTest, WithoutMagnificationHoveringChangesNothing)
+{
+    auto *dock = openDock("[Dock]\nPinned=files, terminal\n");
+    ASSERT_TRUE(test::runUntil([&] {
+        frame();
+        return !dock->applicationPresentation()->isRunning();
+    }));
+    EXPECT_EQ(0, dock->window()->wmWindow()->edgeReach());
+    const base::Region region = *dock->window()->surface()->inputRegion();
+    const auto icons = dock->icons();
+    std::vector<ui::RectF> slots;
+    for (shell::DockIcon *icon : icons)
+        slots.push_back(icon->geometry());
+    const base::PointF files = centreOf(dock, dock->applicationIcon("files"));
+    move(1, files.x(), files.y());
+    frame();
+    EXPECT_FALSE(dock->magnifier().isTracking());
+    EXPECT_FALSE(dock->magnifier().isMoving());
+    EXPECT_EQ(region, *dock->window()->surface()->inputRegion());
+    EXPECT_EQ(dock->panelRect(), dock->drawnPanelRect());
+    for (size_t i = 0; i < icons.size(); ++i) {
+        EXPECT_EQ(slots[i], icons[i]->geometry()) << i;
+        EXPECT_EQ(1, icons[i]->magnification()) << i;
     }
 }
 

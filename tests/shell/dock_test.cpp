@@ -380,6 +380,35 @@ TEST_F(DockTest, ServesOrgCutefishDock)
     EXPECT_EQ(saved.doubleValue("Dock/GlassTint"), 1.0);
 }
 
+TEST_F(DockTest, MagnificationIsOnWithASizeAndItIsSaved)
+{
+    start("[Dock]\nPinned=files\n");
+    ASSERT_TRUE(dock->registerService());
+    EXPECT_EQ(0, dock->settings().magnifiedIconSize());
+    EXPECT_FALSE(dock->settings().magnification());
+    shell::waitForFileThread();
+    EXPECT_EQ(0, base::Settings(directory.filePath("shell.conf")).intValue("Dock/MagnifiedIconSize", -1));
+
+    int changes = 0;
+    const base::Subscription subscription = dock->settings().magnifiedIconSizeChanged.connect([&] { ++changes; });
+    test::DBusTestClient settings;
+    settings.call("org.cutefish.Dock", "/Dock", "org.cutefish.Dock", "setMagnifiedIconSize", int32_t(110));
+    EXPECT_EQ(110, dock->settings().magnifiedIconSize());
+    EXPECT_TRUE(dock->settings().magnification());
+    EXPECT_EQ(1, changes);
+    // On whatever the icon size: icons as large are only not magnified.
+    dock->settings().setIconSize(110);
+    EXPECT_TRUE(dock->settings().magnification());
+    dock->settings().setIconSize(54);
+
+    // The size is written once it stops changing, as the icon size is.
+    test::runFor(std::chrono::milliseconds(400));
+    shell::waitForFileThread();
+    EXPECT_EQ(110, base::Settings(directory.filePath("shell.conf")).intValue("Dock/MagnifiedIconSize"));
+    const std::string xml = settings.introspect("org.cutefish.Dock", "/Dock");
+    EXPECT_EQ(std::string::npos, xml.find("\"setMagnification\""));
+}
+
 TEST_F(DockTest, KeepsMinimizedWindowsBesideTheTrash)
 {
     start();

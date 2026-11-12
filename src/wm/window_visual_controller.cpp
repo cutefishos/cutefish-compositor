@@ -66,13 +66,15 @@ WindowVisualController::evaluate(const Window &window, const decoration::WindowV
             state.outlineShape = {ui::toBase(state.outlinePath.boundingRect()), 0};
             return state;
         }
-        const base::Rect body = surface
-                ? surface->backgroundBlurRect().intersected(base::Rect(surface->contentSize()))
-                : base::Rect();
-        if (!body.isEmpty() && surface->backgroundBlurRadius() > 0) {
+        const base::Rect content = surface ? base::Rect(surface->contentSize()) : base::Rect();
+        const base::Rect body = surface ? surface->backgroundBlurRect() : base::Rect();
+        if (!body.intersected(content).isEmpty() && surface->backgroundBlurRadius() > 0) {
             const double radius = std::min({double(surface->backgroundBlurRadius()),
                                            body.width() / 2.0, body.height() / 2.0});
             state.outlineShape = {base::RectF(body.translated(origin)), radius};
+            // Glass reaching past the surface is cut by it, as the glass is.
+            if (!content.contains(body))
+                state.outlineClip = base::RectF(content.translated(origin));
             state.drawOutline = true;
             state.outlineWidthPx = style.outlineWidthPx;
             setShellOutlineColors(state, window, style);

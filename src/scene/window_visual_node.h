@@ -26,6 +26,9 @@ struct WindowVisualState {
     render::RoundedShape outlineShape;
     // A body of any outline; outlineShape then only bounds it.
     ui::Path outlinePath;
+    // Where the outline is cut off, in the same coordinates as outlineShape:
+    // a body reaching past the window ends there rather than closing.
+    base::RectF outlineClip;
     // Where the client surface drawing the body sits; the surface is snapped to
     // physical pixels, so the clip and outline have to move with it.
     base::Point surfaceOrigin;
