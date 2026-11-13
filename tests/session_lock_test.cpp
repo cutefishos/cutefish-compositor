@@ -344,6 +344,41 @@ TEST_F(SessionLockTest, ThePickedAccountsWallpaperFadesInOverTheOneShown)
     EXPECT_FALSE(greeterScene.isWallpaperReady());
 }
 
+// Unlocked, the lock screen's pictures leave the GPU and keep their decode;
+// the next lock uploads them again and draws what the first one did.
+TEST_F(SessionLockTest, TheLockWallpaperLeavesTheGpuWhenUnlockedAndComesBackTheSame)
+{
+    base::file::TemporaryDirectory directory("/tmp", "session-lock-test");
+    const std::string settings = directory.path() + "/services.conf";
+    ASSERT_TRUE(base::file::writeAtomically(settings, "[Appearance]\nBackgroundType=1\nBackgroundColor=#336699\n"));
+    secure.setSettingsFile(settings, false);
+    ASSERT_TRUE(test::runUntil([&] { return secure.isWallpaperReady(); }, std::chrono::seconds(30)));
+    // What a frame of the lock screen draws from its picture.
+    const auto drawLock = [&]() -> std::vector<uint8_t> {
+        renderer.calls.clear();
+        secureNode->render(renderer);
+        for (const auto &call : renderer.calls) {
+            if (call.texture && call.texture->label && std::string(call.texture->label) == "lock wallpaper")
+                return static_cast<const testsupport::FakeTexture *>(call.texture)->pixels();
+        }
+        return {};
+    };
+
+    lockFully();
+    const std::vector<uint8_t> first = drawLock();
+    ASSERT_FALSE(first.empty());
+    const int lockedTextures = testsupport::FakeTexture::alive;
+    ASSERT_TRUE(controller.requestUnlock());
+    controller.notifyFramePresented();
+    ASSERT_EQ(SessionState::Active, controller.state());
+    EXPECT_EQ(lockedTextures - 1, testsupport::FakeTexture::alive);
+    EXPECT_FALSE(secure.wallpaperImage(kPrimaryName).isNull());
+
+    lockFully();
+    EXPECT_EQ(first, drawLock());
+    EXPECT_EQ(lockedTextures, testsupport::FakeTexture::alive);
+}
+
 TEST_F(SessionLockTest, LoginUnlocksIntoAnActiveSessionTheSameWayALockDoes)
 {
     session::SecureContainer greeterScene(greeterNode);

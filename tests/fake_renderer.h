@@ -25,7 +25,13 @@ public:
         , m_format(format)
     {
         upload(pixels, stride);
+        ++alive;
     }
+
+    ~FakeTexture() override { --alive; }
+
+    // How many there are, for a test that something let go of its texture.
+    static inline int alive = 0;
 
     base::Size size() const override { return m_size; }
 

@@ -320,8 +320,13 @@ void SecureContainer::setBlocked(bool blocked)
         return;
     m_blocked = blocked;
     m_root->setVisible(blocked);
-    if (blocked)
+    if (blocked) {
         refreshWallpaper();
+    } else {
+        // Nothing draws the shield until the next lock, which uploads its
+        // pictures again in its first frame; their decodes stay.
+        m_shield->releaseRenderResources();
+    }
 }
 
 void SecureContainer::setCovered(bool covered, bool animate)
