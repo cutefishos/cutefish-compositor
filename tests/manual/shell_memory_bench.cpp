@@ -9,7 +9,7 @@
 //                               [--glibc-defaults] [--mmap-threshold BYTES]
 //                               [--arena-max N] [--no-thp] [--cpu-panels]
 //                               [--hold S] [--cycles N] [--idle S,S...]
-//                               [--exit-after STEP] [--slab-probe]
+//                               [--exit-after STEP] [--slab-probe] [--textures]
 //                               COMPONENT...
 //
 // Steps: the renderer with a wallpaper, the Shell, then each COMPONENT
@@ -66,6 +66,7 @@
 #include "input/seat.h"
 #include "loop_test_util.h"
 #include "render/egl_renderer.h"
+#include "render/gl_texture.h"
 #include "scene/node.h"
 #include "scene/scene.h"
 #include "shell/dock/dock.h"
@@ -817,6 +818,7 @@ int main(int argc, char **argv)
     int cycles = 1;
     std::string exitAfter;
     bool slabProbe = false;
+    bool textureReport = false;
     std::vector<int> idleMarks;
     std::string wallpaperPath = "/usr/share/backgrounds/cutefishos/default.jpg";
     std::vector<std::string> wanted;
@@ -848,6 +850,8 @@ int main(int argc, char **argv)
                 wallpaperFiles().push_back(file);
         } else if (arg == "--slab-probe")
             slabProbe = true;
+        else if (arg == "--textures")
+            textureReport = true;
         else if (arg == "--exit-after" && i + 1 < argc)
             exitAfter = argv[++i];
         else if (arg == "--cycles" && i + 1 < argc)
@@ -982,6 +986,16 @@ int main(int argc, char **argv)
         step("skia purged");
         malloc_trim(0);
         step("malloc_trim");
+        // The compositor's own GL textures by owner, as the debug service
+        // reports them.
+        if (textureReport) {
+            const render::GlTextureUsage usage = render::GlTexture::usage();
+            std::printf("textures: %zu owned %.1f MiB, %zu imported\n", usage.owned.textures,
+                        usage.owned.bytes / 1048576.0, usage.imported.textures);
+            for (const auto &[label, count] : usage.byLabel)
+                std::printf("  %-20s %4zu %7.1f MiB\n", label ? label : "(unlabelled)", count.textures,
+                            count.bytes / 1048576.0);
+        }
         // For a look from outside, e.g. at the GPU driver's buffer list.
         if (holdSeconds > 0) {
             std::printf("holding pid %d for %d s\n", int(getpid()), holdSeconds);
