@@ -63,6 +63,21 @@ public:
     }
 
     static bool hasBackdrop(const EglRenderer &renderer) { return bool(renderer.m_backdrop); }
+
+    static BackdropFilter::Holding backdropHolding(const EglRenderer &renderer)
+    {
+        return renderer.m_backdrop ? renderer.m_backdrop->holding() : BackdropFilter::Holding();
+    }
+
+    static void setBackdropReleaseDelay(EglRenderer &renderer, std::chrono::milliseconds delay)
+    {
+        renderer.m_backdropReleaseDelay = delay;
+    }
+
+    static bool backdropReleaseArmed(const EglRenderer &renderer)
+    {
+        return renderer.m_backdropRelease && renderer.m_backdropRelease->isActive();
+    }
 };
 
 } // namespace cutefish::render

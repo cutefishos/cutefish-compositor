@@ -48,6 +48,7 @@ void BackdropFilter::resetTextures()
     m_scratch.clear();
     m_masks.clear();
     m_kept.clear();
+    m_mayHoldUnshown = false;
 }
 
 void BackdropFilter::frameEnded()
@@ -58,7 +59,48 @@ void BackdropFilter::frameEnded()
     };
     m_scratch.remove_if(stale);
     m_masks.remove_if(stale);
-    m_kept.remove_if(stale);
+    if (m_kept.remove_if(stale))
+        m_mayHoldUnshown = true;
+}
+
+void BackdropFilter::releaseUnshown()
+{
+    const auto unshown = [this](const auto &entry) {
+        return isUnshown(entry.users);
+    };
+    m_scratch.remove_if(unshown);
+    m_masks.remove_if(unshown);
+    m_mayHoldUnshown = false;
+}
+
+bool BackdropFilter::hasKept(const User &user) const
+{
+    return std::any_of(m_kept.begin(), m_kept.end(), [&](const Kept &entry) {
+        return entry.scope == user.scope && entry.owner == user.owner;
+    });
+}
+
+void BackdropFilter::addUser(Users &users, const User &user) const
+{
+    if (users.anonymous)
+        return;
+    if (!user.scope || !user.owner) {
+        users.anonymous = true;
+        users.users.clear();
+        return;
+    }
+    std::erase_if(users.users, [&](const User &other) {
+        return other != user && !hasKept(other);
+    });
+    if (std::find(users.users.begin(), users.users.end(), user) == users.users.end())
+        users.users.push_back(user);
+}
+
+bool BackdropFilter::isUnshown(const Users &users) const
+{
+    return !users.anonymous && std::none_of(users.users.begin(), users.users.end(), [this](const User &user) {
+        return hasKept(user);
+    });
 }
 
 bool BackdropFilter::keeps(uint64_t scope, uint64_t owner) const
@@ -87,9 +129,10 @@ void BackdropFilter::beginPass(uint64_t scope, const std::vector<KeptBackdrop> &
         });
     };
     // A result whose redo the last pass never drew is out of date.
-    m_kept.remove_if([&](const Kept &entry) {
-        return entry.scope == scope && (find(entry.owner) == fresh.end() || !entry.changed.isEmpty());
-    });
+    if (m_kept.remove_if([&](const Kept &entry) {
+            return entry.scope == scope && (find(entry.owner) == fresh.end() || !entry.changed.isEmpty());
+        }))
+        m_mayHoldUnshown = true;
     for (Kept &entry : m_kept) {
         if (entry.scope != scope)
             continue;
@@ -99,8 +142,8 @@ void BackdropFilter::beginPass(uint64_t scope, const std::vector<KeptBackdrop> &
     }
 }
 
-BackdropFilter::Scratch &BackdropFilter::scratch(const base::Size &coverage, const base::Size &size,
-                                                 bool exact)
+BackdropFilter::Scratch &BackdropFilter::scratch(const User &user, const base::Size &coverage,
+                                                 const base::Size &size, bool exact)
 {
     auto found = std::find_if(m_scratch.begin(), m_scratch.end(), [&](const Scratch &entry) {
         return entry.coverage == coverage && entry.size == size;
@@ -126,10 +169,11 @@ BackdropFilter::Scratch &BackdropFilter::scratch(const base::Size &coverage, con
         m_scratch.splice(m_scratch.begin(), m_scratch, found);
     }
     m_scratch.front().used = m_frame;
+    addUser(m_scratch.front().users, user);
     return m_scratch.front();
 }
 
-Texture *BackdropFilter::mask(Renderer &renderer, const ui::Path &shape,
+Texture *BackdropFilter::mask(Renderer &renderer, const User &user, const ui::Path &shape,
                               const ShapeRaster &raster)
 {
     auto found = std::find_if(m_masks.begin(), m_masks.end(), [&](const Mask &entry) {
@@ -148,6 +192,7 @@ Texture *BackdropFilter::mask(Renderer &renderer, const ui::Path &shape,
         m_masks.splice(m_masks.begin(), m_masks, found);
     }
     m_masks.front().used = m_frame;
+    addUser(m_masks.front().users, user);
     return m_masks.front().texture.get();
 }
 
@@ -394,6 +439,7 @@ void BackdropFilter::draw(Renderer &renderer, const base::RectF &exactLens, int 
     if (scissor.intersected(target.framebufferRect(bounds)).isEmpty())
         return;
 
+    const User user {scope, owner};
     Kept *kept = nullptr;
     if (scope && owner) {
         const auto found = std::find_if(m_kept.begin(), m_kept.end(), [&](const Kept &entry) {
@@ -439,11 +485,11 @@ void BackdropFilter::draw(Renderer &renderer, const base::RectF &exactLens, int 
     Scratch *textures = nullptr;
     // A redo writes into the kept result, so it filters through textures of its size.
     if (redoing && !glass.enabled)
-        textures = &scratch(base::Size(), kept->allocated, true);
+        textures = &scratch(user, base::Size(), kept->allocated, true);
     else if (!reused || redoing)
         textures = glass.enabled
-                ? &scratch(coverage.size(), reduced)
-                : &scratch(base::Size(), base::Size(stepUp(reduced.width()), stepUp(reduced.height())));
+                ? &scratch(user, coverage.size(), reduced)
+                : &scratch(user, base::Size(), base::Size(stepUp(reduced.width()), stepUp(reduced.height())));
     const base::Size allocated = reused ? kept->allocated : textures->size;
     const base::Rect allocatedBounds(base::Point(), allocated);
     // The used texels, rows bottom-up, and their share of the texture.
@@ -577,7 +623,7 @@ void BackdropFilter::draw(Renderer &renderer, const base::RectF &exactLens, int 
     if (shaped) {
         const base::PointF origin = ui::toBase(shape.boundingRect()).topLeft();
         Texture *shapeMask =
-                mask(renderer, shape.translated(-origin.x(), -origin.y()),
+                mask(renderer, user, shape.translated(-origin.x(), -origin.y()),
                      {scale, origin * scale - base::PointF(bounds.topLeft()), bounds.size()});
         glActiveTexture(GL_TEXTURE1);
         glBindTexture(GL_TEXTURE_2D, shapeMask ? static_cast<GlTexture *>(shapeMask)->name() : 0);

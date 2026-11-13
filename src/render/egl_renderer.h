@@ -9,6 +9,7 @@
 #include <EGL/eglext.h>
 
 #include <array>
+#include <chrono>
 #include <initializer_list>
 #include <memory>
 #include <optional>
@@ -27,6 +28,7 @@
 #include "render/gpu_timer.h"
 #include "render/renderer.h"
 #include "base/region.h"
+#include "base/timer.h"
 #include "base/transform.h"
 
 struct gbm_device;
@@ -146,6 +148,11 @@ public:
 
 private:
     friend class EglRendererTestAccess;
+
+    // How long frames must have stopped before the blur textures of surfaces
+    // no longer shown go.
+    static constexpr std::chrono::seconds kBackdropReleaseDelay {5};
+
     explicit EglRenderer(std::shared_ptr<EglContext> context, gbm_device *device = nullptr);
     bool initPrograms(const char *fragmentOverride = nullptr,
                       const char *externalOverride = nullptr,
@@ -153,6 +160,8 @@ private:
     bool makeCurrent(EglRenderTarget *target);
     bool makeContextCurrent();
     void applyRepaint(const base::Rect &repaint);
+    void scheduleBackdropRelease();
+    void releaseUnshownBackdrops();
 
     // What the clip shader was last given through one program. Every draw
     // wants the clip stack, and most draws in a row want the same one, so the
@@ -249,6 +258,12 @@ private:
     unsigned int m_frameFramebuffer = 0;
     EglRenderTarget *m_current = nullptr;
     EglRenderTarget *m_lastTarget = nullptr;
+    // Made the first time something may be released, on the loop of the
+    // thread that draws.
+    std::unique_ptr<base::Timer> m_backdropRelease;
+    std::chrono::milliseconds m_backdropReleaseDelay = kBackdropReleaseDelay;
+    uint64_t m_framesEnded = 0;
+    uint64_t m_framesAtRelease = 0;
 };
 
 } // namespace cutefish::render

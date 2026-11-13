@@ -486,13 +486,48 @@ bool EglRenderer::endFrame()
     if (!m_current)
         return false;
     const bool ok = m_current->swap(m_swapState);
-    if (m_backdrop)
+    ++m_framesEnded;
+    if (m_backdrop) {
         m_backdrop->frameEnded();
+        if (m_backdrop->mayHoldUnshown())
+            scheduleBackdropRelease();
+    }
     glDisable(GL_SCISSOR_TEST);
     m_repaint.reset();
     paintClip.reset();
     m_current = nullptr;
     return ok;
+}
+
+void EglRenderer::scheduleBackdropRelease()
+{
+    if (!m_backdropRelease) {
+        m_backdropRelease = std::make_unique<base::Timer>();
+        m_backdropRelease->setSingleShot(true);
+        m_backdropRelease->onTimeout = [this] {
+            releaseUnshownBackdrops();
+        };
+    }
+    if (m_backdropRelease->isActive())
+        return;
+    m_framesAtRelease = m_framesEnded;
+    m_backdropRelease->start(m_backdropReleaseDelay);
+}
+
+void EglRenderer::releaseUnshownBackdrops()
+{
+    if (!m_backdrop || !m_backdrop->mayHoldUnshown())
+        return;
+    // Frames drawn meanwhile: the delay counts again from now, so nothing
+    // goes while they continue, and no frame reads the clock for it.
+    if (m_current || m_framesEnded != m_framesAtRelease) {
+        m_framesAtRelease = m_framesEnded;
+        m_backdropRelease->start(m_backdropReleaseDelay);
+        return;
+    }
+    ScopedEglCurrent current(*m_context);
+    if (current.valid())
+        m_backdrop->releaseUnshown();
 }
 
 void EglRenderer::invalidateFrame()

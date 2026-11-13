@@ -6,6 +6,7 @@
 
 #include <list>
 #include <optional>
+#include <vector>
 
 #include "render/gl_program.h"
 #include "render/gl_render_pass.h"
@@ -27,6 +28,18 @@ public:
     void resetTextures();
     // Drops what no draw has used for a while; called with the context current.
     void frameEnded();
+    // Set when a kept backdrop went: a set or mask may now be held for no
+    // blur that is still shown.
+    bool mayHoldUnshown() const { return m_mayHoldUnshown; }
+    // Frees those; with the context current, outside a frame. Whatever a
+    // blur that keeps nothing used ages by frames only.
+    void releaseUnshown();
+    struct Holding {
+        size_t scratch = 0;
+        size_t masks = 0;
+        size_t kept = 0;
+    };
+    Holding holding() const { return {m_scratch.size(), m_masks.size(), m_kept.size()}; }
     // Whether the blur of surface `owner` kept its result in the target `scope` names.
     bool keeps(uint64_t scope, uint64_t owner) const;
     // In a pass, what of that blur's backdrop its next draw redoes from its
@@ -46,6 +59,22 @@ public:
               uint64_t scope = 0, uint64_t owner = 0);
 
 private:
+    // A blur that keeps its backdrop, by the pass and the surface it is for.
+    struct User {
+        uint64_t scope = 0;
+        uint64_t owner = 0;
+
+        bool operator==(const User &) const = default;
+    };
+
+    // Who a set or mask is held for: users whose kept backdrops are gone are
+    // dropped as others come, so the list is never longer than the kept list.
+    struct Users {
+        std::vector<User> users;
+        // Used by a blur that keeps nothing, which no kept backdrop vouches for.
+        bool anonymous = false;
+    };
+
     // Kept per size, so the dock, the panel and the windows drawn in one
     // frame do not reallocate each other's textures; plain blurs share them.
     struct Scratch {
@@ -58,6 +87,7 @@ private:
         std::unique_ptr<Texture> source;
         std::unique_ptr<Texture> temp;
         std::unique_ptr<Texture> result;
+        Users users;
     };
     // `shape` is relative to its own bounds, so a moving popup keeps its mask.
     struct Mask {
@@ -65,6 +95,7 @@ private:
         ShapeRaster raster;
         uint64_t used = 0;
         std::unique_ptr<Texture> texture;
+        Users users;
     };
 
     // A blurred backdrop, drawn again while what lies behind it stays the same.
@@ -84,7 +115,8 @@ private:
     };
 
     // A plain blur's set may be larger than `size`, unless `exact`.
-    Scratch &scratch(const base::Size &coverage, const base::Size &size, bool exact = false);
+    Scratch &scratch(const User &user, const base::Size &coverage, const base::Size &size,
+                     bool exact = false);
     // Copies `coverage` of the target into `textures.source`, reduced to `reduced`.
     // A non-empty `texels`, rows top-down, is all of it that is written; the
     // rest keeps what it holds.
@@ -97,7 +129,10 @@ private:
     // when it cannot, and nothing is drawn.
     bool blitReduced(const std::vector<BackdropSource> &sources, const base::Rect &coverage,
                      const base::Size &reduced, unsigned int destination);
-    Texture *mask(Renderer &renderer, const ui::Path &shape, const ShapeRaster &raster);
+    Texture *mask(Renderer &renderer, const User &user, const ui::Path &shape, const ShapeRaster &raster);
+    bool hasKept(const User &user) const;
+    void addUser(Users &users, const User &user) const;
+    bool isUnshown(const Users &users) const;
     void applyGlassMaterial(const GlProgram &program, const GlassParams &glass,
                             const base::Size &coverage, double scale);
 
@@ -112,6 +147,7 @@ private:
     std::list<Scratch> m_scratch;
     std::list<Mask> m_masks;
     std::list<Kept> m_kept;
+    bool m_mayHoldUnshown = false;
 };
 
 } // namespace cutefish::render
