@@ -3,7 +3,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: cutefish-compositor\n"
 "Report-Msgid-Bugs-To: https://github.com/cutefishos\n"
-"POT-Creation-Date: 2026-10-20 00:51+0800\n"
+"POT-Creation-Date: 2026-11-13 15:22+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: \n"
 "Language-Team: \n"
@@ -76,10 +76,6 @@ msgstr ""
 
 #: src/shell/clipboard/clipboard_picker_view.cpp
 msgid "No Results"
-msgstr ""
-
-#: src/shell/controlcenter/control_center_view.cpp
-msgid "Control Center"
 msgstr ""
 
 #: src/shell/controlcenter/control_center_view.cpp
@@ -250,15 +246,15 @@ msgid "Trash"
 msgstr ""
 
 #: src/shell/dock/dock_window.cpp src/shell/launcher/launcher_view.cpp
-msgid "Open"
-msgstr ""
-
-#: src/shell/dock/dock_window.cpp src/shell/launcher/launcher_view.cpp
 msgid "Remove from Dock"
 msgstr ""
 
 #: src/shell/dock/dock_window.cpp
 msgid "Keep in Dock"
+msgstr ""
+
+#: src/shell/dock/dock_window.cpp src/shell/launcher/launcher_view.cpp
+msgid "Open"
 msgstr ""
 
 #: src/shell/dock/dock_window.cpp src/shell/menubar/menu_bar_model.cpp
@@ -282,19 +278,19 @@ msgid "Search"
 msgstr ""
 
 #: src/shell/launcher/launcher_view.cpp
+msgid "New Folder"
+msgstr ""
+
+#: src/shell/launcher/launcher_view.cpp
 msgid "Not found"
 msgstr ""
 
 #: src/shell/launcher/launcher_view.cpp
-msgid "Send to Dock"
+msgid "Rename"
 msgstr ""
 
 #: src/shell/launcher/launcher_view.cpp
-msgid "Send to Desktop"
-msgstr ""
-
-#: src/shell/launcher/launcher_view.cpp
-msgid "New Folder"
+msgid "Ungroup"
 msgstr ""
 
 #: src/shell/launcher/launcher_view.cpp
@@ -306,11 +302,11 @@ msgid "Remove from Folder"
 msgstr ""
 
 #: src/shell/launcher/launcher_view.cpp
-msgid "Rename"
+msgid "Send to Desktop"
 msgstr ""
 
 #: src/shell/launcher/launcher_view.cpp
-msgid "Ungroup"
+msgid "Send to Dock"
 msgstr ""
 
 #: src/shell/menubar/menu_bar_model.cpp
