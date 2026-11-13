@@ -193,7 +193,7 @@ private:
     std::vector<Row> m_rows;
 };
 
-// DeviceUsers' sentence for what an application uses, after its name.
+// DeviceUsers' sentence naming an application and what it uses.
 std::string deviceUsageText(const DeviceUser &user);
 
 } // namespace cutefish::shell

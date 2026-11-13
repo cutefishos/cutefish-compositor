@@ -582,7 +582,7 @@ TEST_F(ControlCenterTest, TheDeviceUsersTileShowsWhoUsesTheCamera)
     const int after = center->popupWindow(Panel::ControlCenter)->drawnBounds().height();
     EXPECT_NEAR(before + 20 + 32 + 10, after, 1);
     EXPECT_NEAR(cards.y + 62, view->wirelessCard()->geometry().y, 0.01);
-    EXPECT_EQ("is using the camera and microphone", shell::deviceUsageText(services->users.front()));
+    EXPECT_EQ("Camera is using the camera and microphone", shell::deviceUsageText(services->users.front()));
 }
 
 // The real bar opening the panels with clicks on its items, as live.

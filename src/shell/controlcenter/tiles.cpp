@@ -17,6 +17,7 @@
 #include "ui/painter.h"
 #include "ui/theme.h"
 
+using cutefish::i18n::format;
 using cutefish::i18n::tr;
 
 namespace cutefish::shell {
@@ -406,21 +407,24 @@ void MediaTile::paint(ui::Painter &painter)
 
 std::string deviceUsageText(const DeviceUser &user)
 {
-    // Whole phrases rather than joined parts, so each translates as one.
-    if (user.camera && user.microphone && user.systemAudio)
-        // TRANSLATORS: follows an application's name shown before it, as do the other "is using" phrases.
-        return tr("is using the camera and microphone and recording system audio");
-    if (user.camera && user.microphone)
-        return tr("is using the camera and microphone");
-    if (user.camera && user.systemAudio)
-        return tr("is using the camera and recording system audio");
-    if (user.microphone && user.systemAudio)
-        return tr("is using the microphone and recording system audio");
-    if (user.camera)
-        return tr("is using the camera");
-    if (user.microphone)
-        return tr("is using the microphone");
-    return tr("is recording system audio");
+    // Whole sentences rather than joined parts, so each translates as one.
+    const std::string pattern = [&user] {
+        if (user.camera && user.microphone && user.systemAudio)
+            // TRANSLATORS: {name} is an application's name, as in the other "is using" sentences.
+            return tr("{name} is using the camera and microphone and recording system audio");
+        if (user.camera && user.microphone)
+            return tr("{name} is using the camera and microphone");
+        if (user.camera && user.systemAudio)
+            return tr("{name} is using the camera and recording system audio");
+        if (user.microphone && user.systemAudio)
+            return tr("{name} is using the microphone and recording system audio");
+        if (user.camera)
+            return tr("{name} is using the camera");
+        if (user.microphone)
+            return tr("{name} is using the microphone");
+        return tr("{name} is recording system audio");
+    }();
+    return format(pattern, {{"name", user.name}});
 }
 
 DeviceUsersTile::DeviceUsersTile() = default;
@@ -439,7 +443,7 @@ void DeviceUsersTile::setUsers(const std::vector<DeviceUser> &users)
         Row row;
         row.icon = addChild<ui::ThemeIcon>(user.icon.empty() ? "application-x-executable" : user.icon,
                                            kIconSize);
-        row.sentence = addChild<ui::Label>(user.name + " " + deviceUsageText(user));
+        row.sentence = addChild<ui::Label>(deviceUsageText(user));
         row.sentence->setWrap(true);
         row.sentence->setMaximumLineCount(2);
         row.dot = user.camera ? ui::accent::green : user.microphone ? ui::accent::orange : ui::accent::purple;
@@ -451,7 +455,7 @@ void DeviceUsersTile::setUsers(const std::vector<DeviceUser> &users)
 void DeviceUsersTile::retranslate()
 {
     for (size_t i = 0; i < m_rows.size(); ++i)
-        m_rows[i].sentence->setText(m_users[i].name + " " + deviceUsageText(m_users[i]));
+        m_rows[i].sentence->setText(deviceUsageText(m_users[i]));
     requestLayout();
 }
 
