@@ -3,7 +3,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: cutefish-compositor\n"
 "Report-Msgid-Bugs-To: https://github.com/cutefishos\n"
-"POT-Creation-Date: 2026-11-13 15:22+0800\n"
+"POT-Creation-Date: 2026-11-13 16:33+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: \n"
 "Language-Team: \n"
@@ -208,33 +208,40 @@ msgstr ""
 msgid "Not Playing"
 msgstr ""
 
-#. TRANSLATORS: follows an application's name shown before it, as do the other "is using" phrases.
+#. TRANSLATORS: {name} is an application's name, as in the other "is using" sentences.
 #: src/shell/controlcenter/tiles.cpp
-msgid "is using the camera and microphone and recording system audio"
+#, python-brace-format
+msgid "{name} is using the camera and microphone and recording system audio"
 msgstr ""
 
 #: src/shell/controlcenter/tiles.cpp
-msgid "is using the camera and microphone"
+#, python-brace-format
+msgid "{name} is using the camera and microphone"
 msgstr ""
 
 #: src/shell/controlcenter/tiles.cpp
-msgid "is using the camera and recording system audio"
+#, python-brace-format
+msgid "{name} is using the camera and recording system audio"
 msgstr ""
 
 #: src/shell/controlcenter/tiles.cpp
-msgid "is using the microphone and recording system audio"
+#, python-brace-format
+msgid "{name} is using the microphone and recording system audio"
 msgstr ""
 
 #: src/shell/controlcenter/tiles.cpp
-msgid "is using the camera"
+#, python-brace-format
+msgid "{name} is using the camera"
 msgstr ""
 
 #: src/shell/controlcenter/tiles.cpp
-msgid "is using the microphone"
+#, python-brace-format
+msgid "{name} is using the microphone"
 msgstr ""
 
 #: src/shell/controlcenter/tiles.cpp
-msgid "is recording system audio"
+#, python-brace-format
+msgid "{name} is recording system audio"
 msgstr ""
 
 #: src/shell/dock/dock_model.cpp
