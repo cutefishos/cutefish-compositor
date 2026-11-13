@@ -119,6 +119,18 @@ base::Rect fitInside(const base::Rect &rect, const base::Rect &area)
     return {x, y, width, height};
 }
 
+// Whether the window's surfaces take the pointer at `location`, as the
+// client's pointer focus is found: through their input region.
+bool takesInputAt(const Window &window, const base::PointF &location)
+{
+    compositor::Surface *surface = window.rootSurface();
+    if (!surface)
+        return true;
+    base::PointF surfaceLocation;
+    return input::findTargetSurface(surface, input::locationInSurface(surface, location),
+                                    &surfaceLocation);
+}
+
 } // namespace
 
 void WindowManager::setVisualStyle(const decoration::WindowVisualStyle &style)
@@ -1654,7 +1666,9 @@ Window *WindowManager::resizeHandleAt(const base::PointF &location, bool touch, 
         const base::Point drawn = location.toPoint() - window->presentationOffset();
         if (WindowFrame *frame = window->frame(); frame && frame->inputBounds().contains(drawn))
             return nullptr;
-        if (window->bounds().contains(drawn)
+        // A window above covers the handles only where it takes the pointer:
+        // the dock's whole width, say, is not its plate.
+        if (window->bounds().contains(drawn) && takesInputAt(*window, location)
             && (!window->visualNode() || window->visualNode()->acceptsInput(location)))
             return nullptr;
     }

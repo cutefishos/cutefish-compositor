@@ -989,6 +989,24 @@ TEST_F(ServerResizeTest, AWindowAboveCoversTheHandles)
     EXPECT_EQ(ResizeEdge::Right, edgeAt(base::PointF(lower->bounds().right() + 2, 150)));
 }
 
+// Outside its input region, as over the dock's clear strip beside its plate,
+// a window above leaves the handles below reachable.
+TEST_F(ServerResizeTest, AWindowAboveCoversTheHandlesOnlyWhereItTakesInput)
+{
+    Window *lower = makeWindow();
+    ShellSurface *upper = makeToplevel(base::Size(600, 100), /*serverSide=*/false);
+    upper->window()->setBounds(base::Rect(0, lower->bounds().bottom() - 20, 600, 100));
+    upper->rootSurface()->setInputRegion(base::Region(base::Rect(250, 0, 100, 100)));
+    upper->rootSurface()->commit();
+    manager.raise(upper->window());
+
+    const base::Rect bounds = lower->bounds();
+    EXPECT_EQ(ResizeEdge::BottomLeft, edgeAt(base::PointF(bounds.left(), bounds.bottom() - 1)));
+    EXPECT_EQ(ResizeEdge::BottomRight, edgeAt(base::PointF(bounds.right() - 1, bounds.bottom() - 1)));
+    EXPECT_EQ(ResizeEdge::Bottom, edgeAt(base::PointF(200, bounds.bottom() + 2)));
+    EXPECT_EQ(ResizeEdge::None, edgeAt(base::PointF(300, bounds.bottom() + 2)));
+}
+
 TEST_F(ServerResizeTest, AMaximizedWindowHasNoHandles)
 {
     Window *window = makeWindow();
