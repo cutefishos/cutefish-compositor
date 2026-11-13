@@ -55,14 +55,13 @@ bool canLock(const CommandContext &context)
 bool canWindowSnap(const CommandContext &context)
 {
     wm::Window *window = targetWindow(context);
-    return window && window->isResizable() && window->isMovable();
+    return window && window->isResizable();
 }
 
 bool canMoveActiveWindowBetweenDisplays(const CommandContext &context)
 {
     display::DisplayManager *displays = context.windowManager->displayManager();
-    const wm::Window *window = targetWindow(context);
-    return window && window->isMovable() && displays && displays->applied()
+    return targetWindow(context) && displays && displays->applied()
             && displays->applied()->logicalDisplays.size() > 1;
 }
 
@@ -182,7 +181,7 @@ void moveActiveWindowBetweenDisplays(const CommandContext &context)
 {
     wm::Window *window = targetWindow(context);
     display::DisplayManager *displays = context.windowManager->displayManager();
-    if (!window || !window->isMovable() || !displays || !displays->applied())
+    if (!window || !displays || !displays->applied())
         return;
     const std::vector<display::LogicalDisplay> &logical = displays->applied()->logicalDisplays;
     if (logical.size() < 2)

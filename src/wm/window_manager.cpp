@@ -712,17 +712,8 @@ Window *WindowManager::createWindow(compositor::Surface *rootSurface, const Wind
     return window;
 }
 
-base::Rect WindowManager::fixedBounds(const Window *window, const base::Size &size) const
-{
-    const base::Rect workArea = workAreaFor(window);
-    return base::Rect(workArea.x() + (workArea.width() - size.width()) / 2,
-                      workArea.y() + (workArea.height() - size.height()) / 2, size.width(), size.height());
-}
-
 base::Rect WindowManager::boundsForNewWindow(const Window *window, base::Rect bounds) const
 {
-    if (!window->isMovable())
-        return fixedBounds(window, bounds.size());
     const compositor::Surface *surface = window->rootSurface();
     if (surface && surface->placementAnchor()) {
         const compositor::PlacementAnchor &anchor = *surface->placementAnchor();

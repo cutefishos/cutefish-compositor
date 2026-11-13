@@ -266,7 +266,7 @@ bool DesksController::moveWindowFromActiveDeskTo(Window *window, Desk *target)
 void DesksController::sendToDeskAtIndex(Window *window, int index)
 {
     Desk *target = deskAt(index);
-    if (!window || !window->isMovable() || !target)
+    if (!window || !target)
         return;
     // A window on every desk the user sends somewhere is on that desk alone.
     if (isVisibleOnAllDesks(window))
@@ -285,7 +285,7 @@ void DesksController::sendToDeskAtIndex(Window *window, int index)
 
 bool DesksController::moveWindowFromSourceDeskTo(Window *window, Desk *source, Desk *target)
 {
-    if (!window || !window->isMovable() || !source || !target || source == target)
+    if (!window || !source || !target || source == target)
         return false;
     Window *root = transientRoot(window);
     // An always-on-top window is on no desk to move from.

@@ -434,10 +434,6 @@ public:
 
     void setAlwaysOnTop(bool alwaysOnTop);
 
-    // False for a window the client asked to keep where the compositor puts
-    // it: centred in its work area, and refused every move.
-    bool isMovable() const;
-
     // --- Observers ---
 
     // compositor::SurfaceObserver: the client destroyed the surface, so the
@@ -527,7 +523,6 @@ private:
     int m_edgeReach = 0;
     bool m_alwaysOnTop = false;
     bool m_surfaceAlwaysOnTop = false;
-    bool m_surfaceMovable = true;
     float m_opacity = 1;
     float m_surfaceOpacity = 1;
 

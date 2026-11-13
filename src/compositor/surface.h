@@ -120,9 +120,6 @@ public:
     void setSkipTaskbar(bool skip);
     bool alwaysOnTop() const { return m_alwaysOnTop; }
     void setAlwaysOnTop(bool alwaysOnTop);
-    // Off, the window stays centred in its work area and cannot be moved.
-    bool movable() const { return m_movable; }
-    void setMovable(bool movable);
     // Read when the client resizes its window; no observer needs to know.
     ResizeAnchor resizeAnchor() const { return m_resizeAnchor; }
     void setResizeAnchor(ResizeAnchor anchor) { m_resizeAnchor = anchor; }
@@ -588,7 +585,6 @@ private:
     std::shared_ptr<MenuModel> m_dockMenu;
     bool m_skipTaskbar = false;
     bool m_alwaysOnTop = false;
-    bool m_movable = true;
     bool m_castsShadow = true;
     float m_opacity = 1;
     bool m_hasFullscreenBars = false;

@@ -453,9 +453,6 @@ public:
     // the last window with its restore id was left, or cascaded; see
     // window_positioner.h.
     base::Rect boundsForNewWindow(const Window *window, base::Rect bounds) const;
-    // Where a window that is not movable stays at this size: centred in the
-    // work area of its output.
-    base::Rect fixedBounds(const Window *window, const base::Size &size) const;
     // Moves a normal window's client area to `position`, in global
     // coordinates, keeping it reachable; see
     // cutefish_window_placement_v1.set_position. Maximized, fullscreen,

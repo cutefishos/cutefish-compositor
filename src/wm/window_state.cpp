@@ -73,7 +73,7 @@ void WindowState::saveCurrentBoundsForRestore()
 
 bool WindowState::canSnap() const
 {
-    return m_window->isResizable() && m_window->isMovable()
+    return m_window->isResizable()
             && canSnapSize(m_window->minimumOuterSize(),
                            m_window->manager()->workAreaFor(m_window));
 }
@@ -122,9 +122,7 @@ void WindowState::onEvent(const WMEvent &event)
         break;
     case WMEventType::SetBounds: {
         const auto &setBounds = static_cast<const SetBoundsWMEvent &>(event);
-        if (isNormal() && !m_window->isMovable()) {
-            setBoundsDirect(m_window->manager()->fixedBounds(m_window, setBounds.requestedBounds().size()));
-        } else if (isNormal()) {
+        if (isNormal()) {
             base::Rect bounds = setBounds.requestedBounds();
             adjustBoundsToEnsureMinimumVisibility(
                     m_window->manager()->visibleAreaFor(m_window, bounds), &bounds,
@@ -295,8 +293,6 @@ void WindowState::updateBoundsFromState(WindowStateType previous)
         }
         adjustBoundsToEnsureMinimumVisibility(manager->visibleAreaFor(m_window, bounds), &bounds,
                                               normalWorkArea);
-        if (!m_window->isMovable())
-            bounds = manager->fixedBounds(m_window, bounds.size());
         setBoundsDirect(bounds);
         break;
     }

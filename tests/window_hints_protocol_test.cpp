@@ -151,36 +151,6 @@ TEST_F(WindowHintsProtocolTest, AlwaysOnTopIsImmediateAndPersistsUntilTheSurface
     wl_surface_destroy(surface);
 }
 
-TEST_F(WindowHintsProtocolTest, MovableIsImmediateAndPersistsUntilTheSurfaceDies)
-{
-    auto *surface = wl_compositor_create_surface(clientCompositor);
-    ASSERT_GE(roundtrip(), 0);
-    auto *model = compositor.surfaces().front();
-    EXPECT_TRUE(model->movable());
-    cutefish_window_hints_v1_set_movable(hints, surface, 0);
-    ASSERT_GE(roundtrip(), 0);
-    EXPECT_FALSE(model->movable());
-    cutefish_window_hints_v1_set_movable(hints, surface, 1);
-    ASSERT_GE(roundtrip(), 0);
-    EXPECT_TRUE(model->movable());
-    cutefish_window_hints_v1_set_movable(hints, surface, 0);
-    cutefish_window_hints_v1_destroy(hints);
-    hints = nullptr;
-    ASSERT_GE(roundtrip(), 0);
-    EXPECT_FALSE(model->movable());
-    wl_surface_destroy(surface);
-}
-
-TEST_F(WindowHintsProtocolTest, InvalidMovableIsAProtocolError)
-{
-    auto *surface = wl_compositor_create_surface(clientCompositor);
-    cutefish_window_hints_v1_set_movable(hints, surface, 2);
-    EXPECT_LT(roundtrip(), 0);
-    EXPECT_EQ(wl_display_get_protocol_error(client, nullptr, nullptr),
-              CUTEFISH_WINDOW_HINTS_V1_ERROR_INVALID_VALUE);
-    wl_surface_destroy(surface);
-}
-
 TEST_F(WindowHintsProtocolTest, InvalidAlwaysOnTopIsAProtocolError)
 {
     auto *surface = wl_compositor_create_surface(clientCompositor);

@@ -71,8 +71,6 @@ ResizeEdge ToplevelEventHandler::draggedEdge() const
 bool ToplevelEventHandler::beginMove(Window *window, const base::PointF &pointerPosition,
                                      std::optional<int32_t> touchId)
 {
-    if (window && !window->isMovable())
-        return false;
     return beginDrag(window, ResizeEdge::None, pointerPosition, touchId);
 }
 

@@ -1291,14 +1291,6 @@ void Surface::setAlwaysOnTop(bool alwaysOnTop)
     notifyWindowHintsChanged();
 }
 
-void Surface::setMovable(bool movable)
-{
-    if (m_movable == movable)
-        return;
-    m_movable = movable;
-    notifyWindowHintsChanged();
-}
-
 void Surface::setBodyShape(const ui::Path &shape)
 {
     if (shape == m_bodyShape)

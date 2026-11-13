@@ -2529,54 +2529,6 @@ TEST_F(WmTest, ADialogOfAnAlwaysOnTopWindowStaysAboveIt)
     EXPECT_LT(index(parent), index(dialog));
 }
 
-TEST_F(WmTest, AWindowThatIsNotMovableStaysCentredInItsWorkArea)
-{
-    compositor::Surface *surface = makeSurface(base::Size(400, 200));
-    surface->setMovable(false);
-    Window *window = manager.createWindow(
-            surface, {.requestedSize = base::Size(400, 200), .applicationId = "app", .positionManaged = true});
-    EXPECT_FALSE(window->isMovable());
-    EXPECT_EQ(base::Rect(300, 300, 400, 200), window->bounds());
-
-    window->requestBounds(base::Rect(0, 0, 400, 200));
-    EXPECT_EQ(base::Rect(300, 300, 400, 200), window->bounds());
-
-    manager.setOutputBounds(base::Rect(0, 0, 1200, 900));
-    EXPECT_EQ(base::Rect(400, 350, 400, 200), window->bounds());
-}
-
-TEST_F(WmTest, AWindowThatIsNotMovableRefusesEveryMove)
-{
-    compositor::Surface *surface = makeSurface(base::Size(400, 200));
-    surface->setMovable(false);
-    Window *window = manager.createWindow(
-            surface, {.requestedSize = base::Size(400, 200), .applicationId = "app", .positionManaged = true});
-
-    EXPECT_FALSE(manager.eventHandler()->beginMove(window, base::PointF(350, 320)));
-    EXPECT_FALSE(window->state()->canSnap());
-    manager.eventHandler()->onPointerMotion(base::PointF(20, 400));
-    manager.eventHandler()->onPointerButtonReleased();
-    EXPECT_EQ(base::Rect(300, 300, 400, 200), window->bounds());
-}
-
-TEST_F(WmTest, AWindowMadeNotMovableIsCentredAtOnceAndMovableAgainWhereItIs)
-{
-    compositor::Surface *surface = makeSurface(base::Size(400, 200));
-    Window *window = manager.createWindow(
-            surface, {.requestedSize = base::Size(400, 200), .applicationId = "app", .positionManaged = true});
-    window->requestBounds(base::Rect(10, 20, 400, 200));
-    ASSERT_EQ(base::Rect(10, 20, 400, 200), window->bounds());
-
-    surface->setMovable(false);
-    EXPECT_EQ(base::Rect(300, 300, 400, 200), window->bounds());
-
-    surface->setMovable(true);
-    EXPECT_TRUE(window->isMovable());
-    EXPECT_EQ(base::Rect(300, 300, 400, 200), window->bounds());
-    EXPECT_TRUE(manager.eventHandler()->beginMove(window, base::PointF(350, 320)));
-    manager.eventHandler()->onPointerButtonReleased();
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 // Transient placement
 
