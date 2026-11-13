@@ -299,6 +299,14 @@ void WallpaperCache::finish(const Key &key, const ui::Bitmap &image)
     }
 }
 
+std::pair<int, size_t> WallpaperCache::memory() const
+{
+    size_t bytes = 0;
+    for (const auto &[key, image] : m_images)
+        bytes += image.stride() * size_t(image.height());
+    return {int(m_images.size()), bytes};
+}
+
 void WallpaperCache::setShown(const std::vector<std::pair<std::string, base::Size>> &pictures)
 {
     m_shown.clear();

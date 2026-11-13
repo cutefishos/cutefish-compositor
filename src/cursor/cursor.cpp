@@ -123,9 +123,10 @@ protected:
             render::Renderer::TextureSet result;
             for (const auto &frame : m_frames) {
                 const auto image = frame.image.converted(ui::Bitmap::Format::Rgba8888Premultiplied);
-                result.push_back(renderer.createTexture(image.size(),
-                                                        image.constBits(), int(image.stride()),
-                                                        render::PixelFormat::Rgba8888));
+                result.push_back(render::labelled(renderer.createTexture(image.size(),
+                                                                         image.constBits(), int(image.stride()),
+                                                                         render::PixelFormat::Rgba8888),
+                                                  "cursor"));
             }
             return result;
         });

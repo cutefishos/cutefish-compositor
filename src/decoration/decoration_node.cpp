@@ -125,8 +125,9 @@ void DecorationNode::paintCaption(render::Renderer& renderer, const base::Rect& 
             std::memcpy(padded.data() + size_t(row) * pixels.width() * 4,
                         image.bits() + size_t(row) * image.stride(), size_t(image.stride()));
         }
-        auto texture = renderer.createTexture(pixels, padded.data(), pixels.width() * 4,
-                                              render::PixelFormat::Rgba8888);
+        auto texture = render::labelled(renderer.createTexture(pixels, padded.data(), pixels.width() * 4,
+                                                               render::PixelFormat::Rgba8888),
+                                        "decoration");
         if (!texture)
             return;
         if (caption == m_captions.end()) {

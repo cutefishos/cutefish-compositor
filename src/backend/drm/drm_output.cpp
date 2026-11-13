@@ -700,6 +700,8 @@ bool DrmOutput::fillModesetBuffer(render::EglRenderTarget *target, const base::S
         m_renderer->renderToTexture(m_carriedFrame, viewport, [&] {
             m_renderer->drawTexture(texture.get(), viewport, 1.0f);
         });
+        if (m_carriedFrame)
+            m_carriedFrame->label = "carried frame";
     }
     if (texture)
         m_renderer->drawTexture(texture.get(), viewport, 1.0f);

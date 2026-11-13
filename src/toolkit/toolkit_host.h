@@ -10,6 +10,7 @@
 
 #include "base/region.h"
 #include "ui/bitmap.h"
+#include "ui/embedded_gpu.h"
 
 namespace cutefish::render {
 class Renderer;
@@ -35,6 +36,9 @@ void setGpuRenderingAllowed(bool allowed);
 // Frees what Skia keeps on the GPU for later frames (scratch textures,
 // cached masks and paths) that no window holds now.
 void purgeGpuResources();
+// What Skia keeps on the GPU for the panels; nothing before the panels draw
+// on the GPU. Reads counters, so it needs no context current.
+ui::EmbeddedGpu::CacheUsage gpuCacheUsage();
 
 // Destroys a window that may have rendered on the GPU, with the context its
 // GL objects live on current.

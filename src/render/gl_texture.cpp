@@ -5,8 +5,10 @@
 #include "render/gl_texture.h"
 
 #include <GLES3/gl3.h>
+#include <algorithm>
 #include <cstdio>
 #include <cstring>
+#include <iterator>
 
 #include "core/logging.h"
 #include "render/egl_context.h"
@@ -17,6 +19,8 @@ namespace cutefish::render {
 namespace {
 // Repack scratch space kept between uploads without shrinking.
 constexpr size_t kScratchKeep = 1 << 20;
+
+GlTexture *s_firstTexture = nullptr;
 } // namespace
 
 GlTexture::GlTexture(uint32_t name, const base::Size &size, PixelFormat format, uint32_t target,
@@ -26,11 +30,18 @@ GlTexture::GlTexture(uint32_t name, const base::Size &size, PixelFormat format, 
     , m_size(size)
     , m_format(format)
     , m_target(target)
+    , m_next(s_firstTexture)
 {
+    if (m_next)
+        m_next->m_previous = this;
+    s_firstTexture = this;
 }
 
 GlTexture::~GlTexture()
 {
+    (m_previous ? m_previous->m_next : s_firstTexture) = m_next;
+    if (m_next)
+        m_next->m_previous = m_previous;
     if (!m_name)
         return;
     if (m_context) {
@@ -41,6 +52,45 @@ GlTexture::~GlTexture()
     } else {
         glDeleteTextures(1, &m_name);
     }
+}
+
+uint64_t GlTexture::bytes() const
+{
+    const uint64_t texels = uint64_t(std::max(0, m_size.width())) * uint64_t(std::max(0, m_size.height()));
+    return (mipmapped ? texels * 4 / 3 : texels) * 4;
+}
+
+GlTextureUsage GlTexture::usage()
+{
+    static constexpr uint64_t kClassLimits[] = {64 << 10, 256 << 10, 1 << 20, 4 << 20};
+    GlTextureUsage usage;
+    for (const GlTexture *texture = s_firstTexture; texture; texture = texture->m_next) {
+        const uint64_t bytes = texture->bytes();
+        if (texture->m_target != GL_TEXTURE_2D) {
+            ++usage.imported.textures;
+            usage.imported.bytes += bytes;
+            continue;
+        }
+        ++usage.owned.textures;
+        usage.owned.bytes += bytes;
+        const size_t sizeClass = size_t(std::count_if(std::begin(kClassLimits), std::end(kClassLimits),
+                                                      [&](uint64_t limit) { return bytes >= limit; }));
+        GlTextureUsage::Count &bySize = usage.bySize[sizeClass];
+        ++bySize.textures;
+        bySize.bytes += bytes;
+        // One literal may have an address per translation unit.
+        auto label = std::find_if(usage.byLabel.begin(), usage.byLabel.end(), [&](const auto &entry) {
+            return entry.first == texture->label
+                    || (entry.first && texture->label && !std::strcmp(entry.first, texture->label));
+        });
+        if (label == usage.byLabel.end())
+            label = usage.byLabel.insert(usage.byLabel.end(), {texture->label, {}});
+        ++label->second.textures;
+        label->second.bytes += bytes;
+        if (bytes >= kClassLimits[3])
+            usage.large.push_back({texture->m_size, texture->m_format, texture->mipmapped, texture->label, bytes});
+    }
+    return usage;
 }
 
 bool GlTextureUploader::unpacksRows()

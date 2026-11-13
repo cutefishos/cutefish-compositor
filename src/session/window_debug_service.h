@@ -52,6 +52,11 @@ public:
     {
         m_outputStats = std::move(stats);
     }
+    // Supplies what the compositor holds in memory, a line per measure.
+    void setMemoryStats(std::function<std::vector<std::string>()> stats)
+    {
+        m_memoryStats = std::move(stats);
+    }
 
     // Every window bottom to top, as a JSON array. Rects are [x, y, width,
     // height] in logical output coordinates.
@@ -68,6 +73,9 @@ public:
     // The outputs' scheduling counters, one line each, read live. Empty in a
     // headless compositor.
     std::vector<std::string> OutputStats() const;
+    // The heap, the GL textures by size and owner, Skia's cache and the
+    // wallpaper decodes, read live.
+    std::vector<std::string> MemoryStats() const;
     // Pointer and keyboard input for driving the compositor from a script,
     // in logical global coordinates and evdev codes. False while
     // acceptsInput() is.
@@ -80,6 +88,7 @@ private:
     input::InputManager *m_input = nullptr;
     std::string m_inputGate;
     std::function<std::vector<std::string>()> m_outputStats;
+    std::function<std::vector<std::string>()> m_memoryStats;
     base::dbus::Connection *m_bus;
     std::unique_ptr<base::dbus::Object> m_object;
     bool m_registered = false;

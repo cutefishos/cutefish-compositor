@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cstdlib>
+#include <cstring>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -18,6 +19,7 @@
 #include "loop_test_util.h"
 #include "pixel_test_util.h"
 #include "render/gl_program.h"
+#include "render/gl_texture.h"
 #include "base/region.h"
 #include "base/strings.h"
 #include "ui/geometry_conversions.h"
@@ -60,6 +62,61 @@ protected:
     std::unique_ptr<EglRenderer> renderer;
     std::unique_ptr<EglRenderTarget> target;
 };
+
+// Textures named 0 delete nothing, so the list is checked without a GPU.
+TEST(GlTextureUsageTest, CountsTheLiveTexturesBySizeOwnerAndKind)
+{
+    const auto count = [](const GlTextureUsage &usage, const char *label) {
+        for (const auto &[entry, counted] : usage.byLabel) {
+            if (entry && !std::strcmp(entry, label))
+                return counted;
+        }
+        return GlTextureUsage::Count();
+    };
+    const GlTextureUsage before = GlTexture::usage();
+    auto icon = std::make_unique<GlTexture>(0, base::Size(64, 64));
+    icon->label = "icon";
+    // The same label from another copy of the literal counts with it.
+    static const char kIcon[] = "icon";
+    auto second = std::make_unique<GlTexture>(0, base::Size(32, 32));
+    second->label = kIcon;
+    auto picture = std::make_unique<GlTexture>(0, base::Size(2048, 1024));
+    picture->label = "picture";
+    picture->mipmapped = true;
+    auto client = std::make_unique<GlTexture>(0, base::Size(100, 100), PixelFormat::Rgba8888,
+                                              0x8D65 /* GL_TEXTURE_EXTERNAL_OES */);
+    auto unlabelled = std::make_unique<GlTexture>(0, base::Size(300, 300));
+
+    GlTextureUsage usage = GlTexture::usage();
+    const uint64_t pictureBytes = uint64_t(2048) * 1024 * 4 / 3 * 4;
+    EXPECT_EQ(before.owned.textures + 4, usage.owned.textures);
+    EXPECT_EQ(before.owned.bytes + 64 * 64 * 4 + 32 * 32 * 4 + pictureBytes + 300 * 300 * 4, usage.owned.bytes);
+    EXPECT_EQ(before.imported.textures + 1, usage.imported.textures);
+    EXPECT_EQ(before.imported.bytes + 100 * 100 * 4, usage.imported.bytes);
+    EXPECT_EQ(before.bySize[0].textures + 2, usage.bySize[0].textures);
+    EXPECT_EQ(before.bySize[2].textures + 1, usage.bySize[2].textures);
+    EXPECT_EQ(before.bySize[4].textures + 1, usage.bySize[4].textures);
+    EXPECT_EQ(count(before, "icon").textures + 2, count(usage, "icon").textures);
+    EXPECT_EQ(count(before, "picture").bytes + pictureBytes, count(usage, "picture").bytes);
+    ASSERT_FALSE(usage.large.empty());
+    EXPECT_TRUE(std::any_of(usage.large.begin(), usage.large.end(), [](const GlTextureUsage::Large &large) {
+        return large.size == base::Size(2048, 1024) && large.mipmapped && !std::strcmp(large.label, "picture");
+    }));
+
+    // Gone from the middle of the list, the rest still counts.
+    second.reset();
+    usage = GlTexture::usage();
+    EXPECT_EQ(before.owned.textures + 3, usage.owned.textures);
+    EXPECT_EQ(count(before, "icon").textures + 1, count(usage, "icon").textures);
+    icon.reset();
+    picture.reset();
+    client.reset();
+    unlabelled.reset();
+    usage = GlTexture::usage();
+    EXPECT_EQ(before.owned.textures, usage.owned.textures);
+    EXPECT_EQ(before.owned.bytes, usage.owned.bytes);
+    EXPECT_EQ(before.imported.textures, usage.imported.textures);
+}
 
 TEST(ProgramInitialization, CompileLinkFailureAndMoveOwnership)
 {

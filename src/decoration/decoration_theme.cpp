@@ -133,10 +133,12 @@ render::Texture* Theme::texture(render::Renderer& renderer, const std::string& k
     if (image.isNull())
         return nullptr;
 
-    std::unique_ptr<render::Texture> texture = renderer.createTexture(
-        image.size(), image.bits(), int(image.stride()),
-        image.format() == ui::Bitmap::Format::Rgba8888Premultiplied ? render::PixelFormat::Rgba8888
-                                                                    : render::PixelFormat::Bgra8888);
+    std::unique_ptr<render::Texture> texture = render::labelled(
+        renderer.createTexture(image.size(), image.bits(), int(image.stride()),
+                               image.format() == ui::Bitmap::Format::Rgba8888Premultiplied
+                                       ? render::PixelFormat::Rgba8888
+                                       : render::PixelFormat::Bgra8888),
+        "decoration");
     render::Texture* result = texture.get();
     m_textures.emplace(key, std::move(texture));
     return result;

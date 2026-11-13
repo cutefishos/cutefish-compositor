@@ -829,6 +829,7 @@ bool WindowAnimation::renderSiblingsBelow(render::Renderer &renderer, size_t beg
         below.scale = scale;
         below.viewport = viewport;
         below.rootRevision = sceneRoot(*this).revision();
+        below.texture->label = "launcher underlay";
     }
     renderer.drawTexture(below.texture.get(), viewport);
     return true;
@@ -1137,6 +1138,7 @@ void WindowAnimation::render(render::Renderer &renderer) const
                     m_finished();
                 return;
             }
+            m_texture->label = "window snapshot";
             // A blur drawn from what the last frame left behind the window is
             // not on screen now, but would be wrong later. The scene repaints
             // all a blur reads when the whole texture is drawn again next frame.

@@ -59,6 +59,8 @@ public:
 
     // A finished decode in memory, or null.
     ui::Bitmap cached(const std::string &path, const base::Size &deviceSize) const;
+    // The decodes in memory and their bytes.
+    std::pair<int, size_t> memory() const;
     // What the screens show and are about to show, by path and device size:
     // those decodes stay in memory however long ago they were asked for.
     void setShown(const std::vector<std::pair<std::string, base::Size>> &pictures);

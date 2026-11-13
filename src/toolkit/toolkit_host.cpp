@@ -121,6 +121,12 @@ void purgeGpuResources()
         host.gpu->purgeResources();
 }
 
+ui::EmbeddedGpu::CacheUsage gpuCacheUsage()
+{
+    const GpuHost &host = gpuHost();
+    return host.gpu ? host.gpu->cacheUsage() : ui::EmbeddedGpu::CacheUsage();
+}
+
 void destroyWindow(std::unique_ptr<ui::EmbeddedWindow> &window)
 {
     if (!window)
@@ -226,8 +232,9 @@ std::shared_ptr<render::Texture> PanelTexture::gpuTexture(render::Renderer &rend
         closeBatch();
         // Only to learn whether the renderer is GL, and on which context.
         const std::vector<uint8_t> clear(size_t(size.width()) * size.height() * 4, 0);
-        m_gpuTexture = renderer.createTexture(size, clear.data(), size.width() * 4,
-                                              render::PixelFormat::Rgba8888);
+        m_gpuTexture = render::labelled(renderer.createTexture(size, clear.data(), size.width() * 4,
+                                                               render::PixelFormat::Rgba8888),
+                                        "panel");
         texture = dynamic_cast<render::GlTexture *>(m_gpuTexture.get());
         if (!texture || texture->target() != 0x0DE1 /* GL_TEXTURE_2D */) {
             m_gpuTexture.reset();
@@ -280,9 +287,10 @@ std::shared_ptr<render::Texture> PanelTexture::cpuTexture(render::Renderer &rend
     if (!m_cpuTexture) {
         // The renderer uploads the texture's own size and cannot see the
         // image's, so a panel redrawn at another size needs a new one.
-        m_cpuTexture = renderer.createTexture(m_image.size(), m_image.constBits(),
-                                              int(m_image.stride()),
-                                              render::PixelFormat::Rgba8888);
+        m_cpuTexture = render::labelled(renderer.createTexture(m_image.size(), m_image.constBits(),
+                                                               int(m_image.stride()),
+                                                               render::PixelFormat::Rgba8888),
+                                        "panel");
         m_lastDamage = m_image.rect();
     }
     m_pendingUpload.clear();

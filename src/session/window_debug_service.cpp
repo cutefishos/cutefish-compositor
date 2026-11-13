@@ -161,6 +161,7 @@ bool WindowDebugService::registerService()
     object->addMethod("RestoreWindow", [this](uint64_t id) { return RestoreWindow(id); },
                       base::dbus::ArgumentNames{{"id"}, {"result"}});
     object->addMethod("OutputStats", [this] { return OutputStats(); });
+    object->addMethod("MemoryStats", [this] { return MemoryStats(); });
     object->addMethod("PointerMotion", [this](double x, double y) { return PointerMotion(x, y); },
                       base::dbus::ArgumentNames{{"x", "y"}, {"result"}});
     object->addMethod("PointerButton", [this](uint32_t button, bool pressed) {
@@ -249,6 +250,11 @@ bool WindowDebugService::RestoreWindow(uint64_t id)
 std::vector<std::string> WindowDebugService::OutputStats() const
 {
     return m_outputStats ? m_outputStats() : std::vector<std::string>();
+}
+
+std::vector<std::string> WindowDebugService::MemoryStats() const
+{
+    return m_memoryStats ? m_memoryStats() : std::vector<std::string>();
 }
 
 bool WindowDebugService::acceptsInput() const

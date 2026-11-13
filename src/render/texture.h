@@ -45,7 +45,18 @@ public:
     // Set by whoever filled it when every texel is opaque, as viz clears a
     // quad's needs_blending: it is drawn without reading what lies below.
     bool contentOpaque = false;
+    // What it is for, a string literal its owner sets, for the debug
+    // service's memory report.
+    const char *label = nullptr;
 };
+
+// `texture` with its owner's label set.
+inline std::unique_ptr<Texture> labelled(std::unique_ptr<Texture> texture, const char *label)
+{
+    if (texture)
+        texture->label = label;
+    return texture;
+}
 
 } // namespace cutefish::render
 

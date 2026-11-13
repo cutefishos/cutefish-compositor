@@ -63,8 +63,9 @@ void paintShapeOutline(render::Renderer &renderer, const WindowVisualState &stat
                 render::rasterizeShapeOutline(state.outlinePath, raster, state.outlineWidthPx,
                                               state.outlineColor, state.highlightColor);
         render::Renderer::TextureSet set;
-        set.push_back(renderer.createTexture(image.size(), image.constBits(), int(image.stride()),
-                                             render::PixelFormat::Rgba8888));
+        set.push_back(render::labelled(renderer.createTexture(image.size(), image.constBits(), int(image.stride()),
+                                                              render::PixelFormat::Rgba8888),
+                                       "window outline"));
         return set;
     });
     // Looked up even when culled, so the cache keeps it as long as before.

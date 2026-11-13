@@ -7,10 +7,36 @@
 #include "render/egl_context.h"
 #include "render/texture.h"
 #include <optional>
+#include <utility>
 #include <vector>
 #include "base/region.h"
 
 namespace cutefish::render {
+
+// The GL textures alive, from a list every GlTexture is on; they are made
+// and destroyed on the thread of the one context, the main thread.
+struct GlTextureUsage {
+    struct Count {
+        size_t textures = 0;
+        uint64_t bytes = 0;
+    };
+    struct Large {
+        base::Size size;
+        PixelFormat format = PixelFormat::Rgba8888;
+        bool mipmapped = false;
+        const char *label = nullptr;
+        uint64_t bytes = 0;
+    };
+    // Kept by the compositor, and EGLImage imports of clients' buffers.
+    Count owned;
+    Count imported;
+    // The compositor's own by size: under 64 KiB, 256 KiB, 1 MiB, 4 MiB, larger.
+    Count bySize[5];
+    // By label, null for the textures nobody labelled.
+    std::vector<std::pair<const char *, Count>> byLabel;
+    // The compositor's own of 4 MiB or more.
+    std::vector<Large> large;
+};
 
 // Production textures retain their context and select it for retirement.
 class GlTexture : public Texture
@@ -41,6 +67,11 @@ public:
     // The context the texture belongs to; null for one deleted on whatever is current.
     const std::shared_ptr<EglContext> &context() const { return m_context; }
 
+    // RGBA texels, a third more with mipmaps; what the driver rounds it to is
+    // not counted.
+    uint64_t bytes() const;
+    static GlTextureUsage usage();
+
 protected:
     std::shared_ptr<EglContext> m_context;
 
@@ -49,6 +80,8 @@ private:
     base::Size m_size;
     PixelFormat m_format = PixelFormat::Rgba8888;
     uint32_t m_target = 0x0DE1;
+    GlTexture *m_previous = nullptr;
+    GlTexture *m_next = nullptr;
 };
 
 class GlTextureUploader

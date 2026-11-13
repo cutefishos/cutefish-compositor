@@ -171,8 +171,9 @@ render::Texture *OverviewChromeCache::find(const std::string &key, base::SizeF *
 render::Texture *OverviewChromeCache::insert(render::Renderer &renderer, const std::string &key,
                                              const ui::Bitmap &image, const base::SizeF &size)
 {
-    auto texture = renderer.createTexture(image.size(), image.constBits(), int(image.stride()),
-                                          render::PixelFormat::Rgba8888);
+    auto texture = render::labelled(renderer.createTexture(image.size(), image.constBits(), int(image.stride()),
+                                                           render::PixelFormat::Rgba8888),
+                                    "overview");
     if (!texture)
         return nullptr;
     m_entries.push_front({key, std::move(texture), size});
@@ -914,6 +915,8 @@ void OverviewDeskBarNode::updatePreview(render::Renderer &renderer, const Bar &b
     });
     if (!drawn)
         preview.texture.reset();
+    else
+        preview.texture->label = "overview preview";
     preview.bounds = bounds;
     preview.scale = renderer.rasterScale();
     preview.drawnAt = now;

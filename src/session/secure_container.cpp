@@ -211,9 +211,10 @@ protected:
         if (m_image.isNull())
             return;
         if (!m_texture)
-            m_texture = renderer.createTexture(m_image.size(),
-                                               m_image.constBits(), int(m_image.stride()),
-                                               m_format);
+            m_texture = render::labelled(renderer.createTexture(m_image.size(),
+                                                                m_image.constBits(), int(m_image.stride()),
+                                                                m_format),
+                                         "lock wallpaper");
         if (m_texture)
             renderer.drawTexture(m_texture.get(), bounds,
                                  m_container->sample(renderer).backdrop * float(fade(renderer)));

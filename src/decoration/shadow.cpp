@@ -290,7 +290,7 @@ render::Texture *shadowTexture(render::Renderer &renderer, const ShadowGeometry 
 {
     const auto &textures = renderer.cachedTextureSet(geometry.key(), [&] {
         render::Renderer::TextureSet set;
-        set.push_back(geometry.render(renderer));
+        set.push_back(render::labelled(geometry.render(renderer), "shadow"));
         return set;
     });
     return textures.front().get();

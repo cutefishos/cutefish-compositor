@@ -181,8 +181,9 @@ Texture *BackdropFilter::mask(Renderer &renderer, const User &user, const ui::Pa
     });
     if (found == m_masks.end()) {
         const ui::Bitmap image = rasterizeShape(shape, raster);
-        auto texture = renderer.createTexture(image.size(), image.constBits(), int(image.stride()),
-                                              PixelFormat::Rgba8888);
+        auto texture = labelled(renderer.createTexture(image.size(), image.constBits(), int(image.stride()),
+                                                       PixelFormat::Rgba8888),
+                                "glass mask");
         if (!texture)
             return nullptr;
         if (m_masks.size() == kCachedSizes)
@@ -638,6 +639,14 @@ void BackdropFilter::draw(Renderer &renderer, const base::RectF &exactLens, int 
         glActiveTexture(GL_TEXTURE1);
         glBindTexture(GL_TEXTURE_2D, 0);
         glActiveTexture(GL_TEXTURE0);
+    }
+    result->label = "glass";
+    if (textures) {
+        for (Texture *texture : {textures->capture.get(), textures->opaqueCapture.get(), textures->source.get(),
+                                 textures->temp.get(), textures->result.get()}) {
+            if (texture)
+                texture->label = "glass";
+        }
     }
     glScissor(oldScissor[0], oldScissor[1], oldScissor[2], oldScissor[3]);
     if (!wasScissored)
