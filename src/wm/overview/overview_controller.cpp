@@ -815,7 +815,8 @@ void OverviewController::move(const base::PointF &location)
 {
     m_pointer = location;
     if (m_press && m_dragged < 0 && m_press->hit.type == Hit::Type::Item
-        && m_state == State::Shown && distance(location, m_press->location) >= kDragThreshold) {
+        && m_items[m_press->hit.index].window->isMovable() && m_state == State::Shown
+        && distance(location, m_press->location) >= kDragThreshold) {
         m_dragged = m_press->hit.index;
         // Pressed while the window was still on its way, the grab point may
         // lie off it now.

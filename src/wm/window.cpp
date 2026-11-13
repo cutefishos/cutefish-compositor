@@ -111,6 +111,7 @@ Window::Window(WindowManager *manager, compositor::Surface *rootSurface, const s
         m_rootSurface->addSurfaceObserver(this);
         // Hints are usually set before the first commit, so before this window exists.
         m_surfaceAlwaysOnTop = m_rootSurface->alwaysOnTop();
+        m_surfaceMovable = m_rootSurface->movable();
         m_surfaceOpacity = m_rootSurface->opacity();
         if (isPopup())
             m_rootSurface->setHidden(false);
@@ -209,6 +210,11 @@ void Window::onSurfaceWindowHintsChanged(compositor::Surface *surface)
         m_surfaceOpacity = surface->opacity();
         if (auto *animation = dynamic_cast<scene::WindowAnimation *>(m_node))
             animation->setOpacity(m_opacity * m_surfaceOpacity);
+    }
+    if (surface->movable() != m_surfaceMovable) {
+        m_surfaceMovable = surface->movable();
+        if (!m_surfaceMovable && m_manager)
+            m_state->onEvent(WMEvent(WMEventType::WorkAreaChanged));
     }
     // Every hint lands here; restacking for the others would raise the window
     // within its layer.
@@ -492,6 +498,11 @@ void Window::setModal(bool modal)
         observer->onWindowModalChanged(this);
     });
     m_manager->onWindowModalChanged(this);
+}
+
+bool Window::isMovable() const
+{
+    return m_surfaceMovable;
 }
 
 bool Window::isAlwaysOnTop() const

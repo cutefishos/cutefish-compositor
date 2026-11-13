@@ -217,6 +217,16 @@ void setFullscreenBars(wl_client *, wl_resource *resource, wl_resource *surface,
     getUserDataAs<compositor::Surface>(surface)->setFullscreenBars(height, push != 0);
 }
 
+void setMovable(wl_client *, wl_resource *resource, wl_resource *surface, uint32_t movable)
+{
+    if (movable > 1) {
+        wl_resource_post_error(resource, CUTEFISH_WINDOW_HINTS_V1_ERROR_INVALID_VALUE,
+                               "movable must be zero or one");
+        return;
+    }
+    getUserDataAs<compositor::Surface>(surface)->setMovable(movable != 0);
+}
+
 void hideApplication(wl_client *, wl_resource *resource, wl_resource *surface)
 {
     auto *manager = static_cast<Manager *>(wl_resource_get_user_data(resource));
@@ -230,7 +240,7 @@ const struct cutefish_window_hints_v1_interface implementation = {
         destroy, setSkipTaskbar, setAlwaysOnTop, setResizeAnchor,
         setServerResize, setRestoreId, setRestoreSize, setPlacementAnchor,
         unsetPlacementAnchor, setBodyShape, unsetBodyShape, setShadow,
-        setOpacity, hideApplication, setFullscreenBars};
+        setOpacity, hideApplication, setFullscreenBars, setMovable};
 
 void unbind(wl_resource *resource)
 {
