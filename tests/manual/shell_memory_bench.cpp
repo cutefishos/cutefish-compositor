@@ -9,6 +9,7 @@
 //                               [--glibc-defaults] [--mmap-threshold BYTES]
 //                               [--arena-max N] [--no-thp] [--cpu-panels]
 //                               [--hold S] [--cycles N] [--idle S,S...]
+//                               [--exit-after STEP] [--slab-probe]
 //                               COMPONENT...
 //
 // Steps: the renderer with a wallpaper, the Shell, then each COMPONENT
@@ -49,6 +50,7 @@
 #include <vector>
 
 #include <EGL/egl.h>
+#include <GLES3/gl3.h>
 
 #include "base/dbus.h"
 #include "compositor/compositor.h"
@@ -78,6 +80,8 @@
 #include "shell/wallpaper/wallpaper.h"
 #include "toolkit/toolkit_host.h"
 #include "ui/bitmap.h"
+#include "ui/embedded_window.h"
+#include "ui/view.h"
 #include "wm/shadow_controller.h"
 #include "wm/window_manager.h"
 #include "wm/wm_shadow_controller_delegate.h"
@@ -270,6 +274,11 @@ void printSample(const std::string &step, const Sample &s, const Sample *before)
     std::fflush(stdout);
 }
 
+double msSince(std::chrono::steady_clock::time_point start)
+{
+    return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
+}
+
 class Renderer
 {
 public:
@@ -389,6 +398,61 @@ public:
         }
     }
 
+    // One frame now, how long it took to draw and for the GPU to finish it.
+    double timedFrame()
+    {
+        test::runFor(std::chrono::milliseconds(17));
+        const auto started = std::chrono::steady_clock::now();
+        frame();
+        glFinish();
+        return msSince(started);
+    }
+
+    // What creating a panel's texture of `size` costs, as PanelTexture makes
+    // one: a cleared buffer uploaded, until the GPU is done.
+    double timeTextureCreation(const base::Size &size)
+    {
+        render::EglRenderer *renderer = m_gl.renderer();
+        if (!renderer->beginFrame(m_gl.target()))
+            return -1;
+        const auto started = std::chrono::steady_clock::now();
+        const std::vector<uint8_t> clear(size_t(size.width()) * size.height() * 4, 0);
+        auto texture =
+                renderer->createTexture(size, clear.data(), size.width() * 4, render::PixelFormat::Rgba8888);
+        glFinish();
+        const double ms = msSince(started);
+        texture.reset();
+        renderer->cancelFrame();
+        return ms;
+    }
+
+    // Textures of `size` made with the context current, as panels and icons
+    // are; empty ones when the GPU is unavailable.
+    std::vector<std::unique_ptr<render::Texture>> makeTextures(int count, const base::Size &size)
+    {
+        std::vector<std::unique_ptr<render::Texture>> textures;
+        render::EglRenderer *renderer = m_gl.renderer();
+        if (!renderer->beginFrame(m_gl.target()))
+            return textures;
+        const std::vector<uint8_t> pixels(size_t(size.width()) * size.height() * 4, 0x80);
+        for (int i = 0; i < count; ++i)
+            textures.push_back(
+                    renderer->createTexture(size, pixels.data(), size.width() * 4, render::PixelFormat::Rgba8888));
+        glFinish();
+        renderer->cancelFrame();
+        return textures;
+    }
+
+    void dropTextures(std::vector<std::unique_ptr<render::Texture>> &textures)
+    {
+        render::EglRenderer *renderer = m_gl.renderer();
+        if (!renderer->beginFrame(m_gl.target()))
+            return;
+        textures.clear();
+        glFinish();
+        renderer->cancelFrame();
+    }
+
     // The loop turning for `ms`, with a frame on a refresh only when the
     // scene or a surface asked for one, as the compositor's output does.
     // Returns the frames drawn.
@@ -456,11 +520,6 @@ private:
     base::Subscription m_repaint;
     std::unique_ptr<shell::Shell> m_shell;
 };
-
-double msSince(std::chrono::steady_clock::time_point start)
-{
-    return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
-}
 
 
 // This run's own directory, removed at exit.
@@ -549,6 +608,41 @@ std::map<std::string, Component> components()
                 osd->brightnessDown();
                 desktop.run(2000);
             }};
+    // The OSD shown once, then left to time out and fade with only the
+    // frames it asks for, as after a volume key. Needs osd.
+    all["osd-quiet"] = {
+            [](Desktop &, base::dbus::Connection *) {},
+            [](Desktop &desktop) {
+                osd->volumeUp();
+                desktop.run(300);
+                osd->volumeDown();
+                desktop.idle(5000);
+            }};
+    // The OSD shown again 1 s after it faded, while its glass textures are
+    // held, and after 12 s of idle, past their release where there is one;
+    // first frames in ms. Needs osd.
+    all["osd-reopen"] = {
+            [](Desktop &, base::dbus::Connection *) {},
+            [](Desktop &desktop) {
+                for (const int idleMs : {1000, 12000}) {
+                    for (int run = 0; run < 10; ++run) {
+                        osd->volumeUp();
+                        const double first = desktop.timedFrame();
+                        desktop.run(300);
+                        osd->volumeDown();
+                        desktop.idle(3000);
+                        desktop.idle(idleMs);
+                        osd->volumeUp();
+                        const double again = desktop.timedFrame();
+                        desktop.run(300);
+                        osd->volumeDown();
+                        desktop.idle(3000 + 12000);
+                        std::printf("osd reopen after %d ms idle run %d: first frame %.2f ms (opening %.2f)\n",
+                                    idleMs, run, again, first);
+                    }
+                }
+                std::fflush(stdout);
+            }};
     static shell::DockWindow *dock = nullptr;
     all["dock"] = {
             [](Desktop &desktop, base::dbus::Connection *bus) {
@@ -575,6 +669,19 @@ std::map<std::string, Component> components()
                 desktop.key(KEY_ESC);
                 desktop.move(desktop.output().width() * 0.45, desktop.output().height() * 0.45);
                 desktop.run(1200);
+            }};
+    // The dock's menu opened and closed, with only its closing frames after,
+    // as the compositor goes idle after a popup closes. Needs dock.
+    all["dock-menu"] = {
+            [](Desktop &, base::dbus::Connection *) {},
+            [](Desktop &desktop) {
+                const base::Rect bounds = dock->window()->geometry();
+                const double y = bounds.y() + bounds.height() / 2.0;
+                const size_t icons = std::max<size_t>(dock->icons().size(), 1);
+                desktop.click(bounds.x() + bounds.width() * 1.5 / icons, y, BTN_RIGHT);
+                desktop.run(600);
+                desktop.key(KEY_ESC);
+                desktop.run(250);
             }};
     static shell::Wallpaper *wallpaper = nullptr;
     all["wallpaper"] = {
@@ -612,6 +719,37 @@ std::map<std::string, Component> components()
                 launcher->launcher().hide();
                 desktop.run(1000);
             }};
+    // The launcher opened again, as it is and with its whole content
+    // repainted first as a released texture would make it, then the texture
+    // creation that release adds; first frames in ms. Needs launcher.
+    all["launcher-reopen"] = {
+            [](Desktop &, base::dbus::Connection *) {},
+            [](Desktop &desktop) {
+                const auto open = [&](bool repaint) {
+                    if (repaint)
+                        launcher->window()->window()->contentView()->requestPaint();
+                    launcher->launcher().show();
+                    const double first = desktop.timedFrame();
+                    const double second = desktop.timedFrame();
+                    desktop.run(1500);
+                    launcher->launcher().hide();
+                    desktop.run(1000);
+                    return std::pair(first, second);
+                };
+                for (const bool repaint : {false, true}) {
+                    for (int run = 0; run < 10; ++run) {
+                        const auto [first, second] = open(repaint);
+                        std::printf("reopen %s run %d: first frame %.2f ms, second %.2f ms\n",
+                                    repaint ? "repainted" : "kept", run, first, second);
+                    }
+                }
+                const base::Size size(launcher->window()->size().width() * 3 / 2,
+                                      launcher->window()->size().height() * 3 / 2);
+                for (int run = 0; run < 10; ++run)
+                    std::printf("texture %dx%d creation run %d: %.2f ms\n", size.width(), size.height(), run,
+                                desktop.timeTextureCreation(size));
+                std::fflush(stdout);
+            }};
     static shell::NotificationUi *notifications = nullptr;
     // Whether the bench owns the notification names, so that what it sends
     // reaches it and not a session that already has a notification server.
@@ -648,6 +786,8 @@ int main(int argc, char **argv)
     bool dark = false;
     int holdSeconds = 0;
     int cycles = 1;
+    std::string exitAfter;
+    bool slabProbe = false;
     std::vector<int> idleMarks;
     std::string wallpaperPath = "/usr/share/backgrounds/cutefishos/default.jpg";
     std::vector<std::string> wanted;
@@ -677,7 +817,11 @@ int main(int argc, char **argv)
             std::istringstream list(argv[++i]);
             for (std::string file; std::getline(list, file, ',');)
                 wallpaperFiles().push_back(file);
-        } else if (arg == "--cycles" && i + 1 < argc)
+        } else if (arg == "--slab-probe")
+            slabProbe = true;
+        else if (arg == "--exit-after" && i + 1 < argc)
+            exitAfter = argv[++i];
+        else if (arg == "--cycles" && i + 1 < argc)
             cycles = std::max(1, std::stoi(argv[++i]));
         else if (arg == "--idle" && i + 1 < argc) {
             std::istringstream list(argv[++i]);
@@ -723,6 +867,12 @@ int main(int argc, char **argv)
         if (glReport)
             glReport(name.c_str());
         peak = {};
+        // Leaves with everything of the step still allocated, for a heap
+        // profiler to list as what the step holds.
+        if (!exitAfter.empty() && name.rfind(exitAfter, 0) == 0) {
+            std::fflush(stdout);
+            std::exit(0);
+        }
     };
 
     Renderer gl;
@@ -737,6 +887,29 @@ int main(int argc, char **argv)
         Desktop desktop(gl, scale, dark, wallpaper);
         desktop.run(500);
         step("renderer+wallpaper");
+        // What the driver does with small textures: made, freed, left idle,
+        // then one more made, which is when it can take freed space back.
+        // Each step waits 8 s for a look at the driver's buffer list.
+        if (slabProbe) {
+            const auto probe = [&](const std::string &name) {
+                step(name);
+                std::printf("probe pid %d\n", int(getpid()));
+                std::fflush(stdout);
+                desktop.idle(8000);
+            };
+            probe("slab: renderer");
+            auto small = desktop.makeTextures(300, {64, 64});
+            auto medium = desktop.makeTextures(300, {200, 200});
+            probe("slab: 600 textures");
+            desktop.dropTextures(small);
+            desktop.dropTextures(medium);
+            probe("slab: freed");
+            desktop.idle(3000);
+            probe("slab: freed, idle");
+            auto one = desktop.makeTextures(1, {64, 64});
+            probe("slab: one more");
+            desktop.dropTextures(one);
+        }
         auto started = std::chrono::steady_clock::now();
         desktop.createShell(bus);
         std::printf("created shell in %.1f ms\n", msSince(started));
