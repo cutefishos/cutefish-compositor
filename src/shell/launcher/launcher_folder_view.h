@@ -12,8 +12,10 @@
 #include <vector>
 
 #include "base/signal.h"
+#include "base/timer.h"
 #include "shell/launcher/launcher_metrics.h"
 #include "shell/launcher/launcher_tween.h"
+#include "ui/scroller.h"
 #include "ui/view.h"
 
 namespace cutefish::ui {
@@ -25,16 +27,19 @@ namespace cutefish::shell {
 class ApplicationBadges;
 class LauncherCell;
 class LauncherModel;
+class LauncherPageIndicator;
 class LauncherView;
 class LauncherWallpaper;
 
 // An open folder, over the whole launcher in a layer of its own, above the
 // pages' layers: the launcher's backdrop again, hiding the grid, the folder's
 // name, which can be edited, and below it a panel with its applications in
-// rows of the grid's cells. The panel grows out of the folder's icon as the
-// backdrop and the name fade in, and shrinks back into it as the folder
-// closes. A press outside the panel or Escape closes it.
-class LauncherFolderView final : public ui::View
+// rows of the grid's cells. More applications than the panel's rows hold
+// go on pages that slide sideways, with dots below the panel, as the
+// grid's do. The panel grows out of the folder's icon as the backdrop
+// and the name fade in, and shrinks back into it as the folder closes. A
+// press outside the panel or Escape closes it.
+class LauncherFolderView final : public ui::View, private ui::Scroller::Target
 {
 public:
     // The most columns a folder's panel has.
@@ -77,6 +82,15 @@ public:
     // The index of the slot under a point in the view's coordinates; -1
     // outside the folder's applications.
     int indexAt(ui::PointF position) const;
+    // -1 or 1 over the empty side of the panel a drag pages towards, 0
+    // elsewhere or with no page that way.
+    int edgeAt(ui::PointF position) const;
+
+    int pageTotal() const;
+    int currentPage() const { return m_currentPage; }
+    void goToPage(int page);
+    // The dots' centres, in the view's coordinates.
+    std::vector<ui::PointF> indicatorDots() const;
 
 protected:
     bool acceptsPointer() const override { return true; }
@@ -91,19 +105,44 @@ private:
     friend class NameField;
     friend class Panel;
 
+    // ui::Scroller::Target
+    ui::Scroller::Axis horizontalAxis() const override;
+    ui::Scroller::Axis verticalAxis() const override;
+    ui::PointF position() const override;
+    void applyPosition(ui::PointF position) override;
+    void movingChanged(bool moving) override;
+
     int columns() const;
-    // The grid of cells, in the view's coordinates.
+    int pageSize() const;
+    double padding() const;
+    // From the name's baseline to the panel.
+    double nameGap() const;
+    // From the panel to the dots' tops.
+    double indicatorGap() const;
+    // The dots and the gap above them; none for one page.
+    double indicatorHeight() const;
+    int nameFontSize() const;
+    double nameHeight() const;
+    // The current page's grid of cells at rest, in the view's coordinates.
     ui::RectF gridRect() const;
     // 0 closed, 1 open: the backdrop's opacity and the panel's growth.
     void setProgress(double progress);
     int visibleRows() const;
-    double nameHeight() const;
-    // The name and the gap below it.
+    // From the name field's top to the panel.
     double titleHeight() const;
-    // Where the cell of an application rests, in the grid of cells.
+    // Where the cell of an application rests, in the panel.
     ui::PointF slotPosition(int index) const;
     void placeCells();
-    void setScroll(double y);
+    void setContentX(double x);
+    int nearestPage() const;
+    void setCurrentPage(int page, bool slide);
+    void resetPages();
+    void handleWheel(const ui::ScrollEvent &event);
+
+    // Panel: the background's press and the flick it may become.
+    void panelPressed(ui::PointF position);
+    void panelMoved(ui::PointF position);
+    void panelReleased(ui::PointF position);
     void commitName();
     void retire(std::unique_ptr<ui::View> view);
 
@@ -121,12 +160,26 @@ private:
     double m_progress = 1;
     Panel *m_panel = nullptr;
     NameField *m_name = nullptr;
-    // The cells, clipped to the panel's rows.
+    // The cells, clipped to the panel.
     ui::View *m_grid = nullptr;
+    LauncherPageIndicator *m_indicator = nullptr;
     std::map<std::string, LauncherCell *> m_cells;
     std::vector<std::string> m_order;
-    double m_scrollY = 0;
     LauncherTween m_fade;
+
+    int m_currentPage = 0;
+    // How far the pages have slid, a panel's width per page.
+    double m_contentX = 0;
+    bool m_swiping = false;
+    LauncherTween m_slide;
+    double m_wheelAccumulated = 0;
+    base::Timer m_wheelReset;
+    bool m_panelPressed = false;
+    bool m_flicking = false;
+    ui::PointF m_pressPosition;
+    double m_pressContentX = 0;
+    std::vector<std::pair<std::chrono::steady_clock::time_point, double>> m_flickSamples;
+    std::unique_ptr<ui::Scroller> m_scroller;
     std::vector<std::unique_ptr<ui::View>> m_retired;
     base::Subscription m_wallpaperChanged;
     std::shared_ptr<bool> m_alive = std::make_shared<bool>(true);

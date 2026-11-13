@@ -705,6 +705,64 @@ TEST_F(LauncherWindowTest, DraggedOutOfItsFolderAnApplicationLeavesIt)
     EXPECT_GT(model().findById("app01"), 0);
 }
 
+TEST_F(LauncherWindowTest, AFolderPastItsRowsPagesSidewaysWithDots)
+{
+    directory.write("shell.conf", "[Launcher]\norder=folder:1\nFolder1/name=Tools\nFolder1/apps=app00, app01, app02, app03, app04, app05, app06, app07, app08, app09, app10, app11, app12, app13\n");
+    open(18);
+    launcher().show();
+    frame();
+    view()->openFolder("folder:1");
+    shell::LauncherFolderView *folder = view()->folderView();
+    frames(shell::LauncherFolderView::kOpenDuration + std::chrono::milliseconds(100));
+    // 4 columns and 3 rows a page at 1440x960.
+    ASSERT_EQ(2, folder->pageTotal());
+    EXPECT_EQ(0, folder->currentPage());
+    const ui::RectF panel = folder->panelRect();
+    const ui::RectF first = folder->cellRect(0);
+    // The next page rests a panel's width along.
+    EXPECT_EQ(first.x + panel.width, folder->cellRect(12).x);
+    EXPECT_EQ(first.y, folder->cellRect(12).y);
+    // The dots sit below the panel, centred on it.
+    const std::vector<ui::PointF> dots = folder->indicatorDots();
+    ASSERT_EQ(2u, dots.size());
+    const double dotSize = view()->metrics().indicatorDotSize;
+    EXPECT_DOUBLE_EQ(3 * view()->metrics().cellSpacing, dots[0].y - dotSize / 2 - panel.bottom());
+    // The name's baseline sits further above it.
+    const ui::TextField *name = folder->nameField();
+    EXPECT_DOUBLE_EQ(4 * view()->metrics().cellSpacing, panel.y - (name->geometry().y + name->baseline()));
+    EXPECT_EQ(dots[0].y, dots[1].y);
+    EXPECT_NEAR(panel.x + panel.width / 2, (dots[0].x + dots[1].x) / 2, 0.5);
+    // A drag pages only towards a page there is.
+    EXPECT_EQ(0, folder->edgeAt({panel.x + 2, panel.y + panel.height / 2}));
+    EXPECT_EQ(1, folder->edgeAt({panel.right() - 2, panel.y + panel.height / 2}));
+
+    // A drag on the panel's background, here a label, turns the page.
+    const ui::RectF cell = folder->cellRect(5);
+    const double y = cell.bottom() - 4;
+    move(cell.right() - 2, y);
+    input.onPointerButton(at(clock), BTN_LEFT, true);
+    for (int i = 1; i <= 8; ++i)
+        move(cell.right() - 2 - i * 30, y);
+    release();
+    EXPECT_EQ(1, folder->currentPage());
+    frames(std::chrono::milliseconds(400));
+    EXPECT_TRUE(folder->isOpen());
+    EXPECT_EQ(first.x, folder->cellRect(12).x);
+    EXPECT_EQ(-1, folder->edgeAt({panel.x + 2, panel.y + panel.height / 2}));
+
+    // A notch of the wheel turns it back, a dot forward again; the grid's
+    // pages behind stay.
+    move(panel.x + panel.width / 2, y);
+    input.onPointerAxis(at(clock), {0, -15}, true);
+    clock += 10;
+    EXPECT_EQ(0, folder->currentPage());
+    frames(std::chrono::milliseconds(400));
+    click(dots[1].x, dots[1].y);
+    EXPECT_EQ(1, folder->currentPage());
+    EXPECT_TRUE(folder->isOpen());
+    EXPECT_EQ(0, view()->currentPage());
+}
+
 TEST_F(LauncherWindowTest, AReorderInTheGridSlidesTheDisplacedCells)
 {
     open();

@@ -130,6 +130,8 @@ add_library(cutefish-shell-launcher-view STATIC
     src/shell/launcher/launcher_folder_view.h
     src/shell/launcher/launcher_metrics.cpp
     src/shell/launcher/launcher_metrics.h
+    src/shell/launcher/launcher_page_indicator.cpp
+    src/shell/launcher/launcher_page_indicator.h
     src/shell/launcher/launcher_search_field.cpp
     src/shell/launcher/launcher_search_field.h
     src/shell/launcher/launcher_tween.h

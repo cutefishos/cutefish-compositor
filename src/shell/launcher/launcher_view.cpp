@@ -14,6 +14,7 @@
 #include "shell/launcher/launcher.h"
 #include "shell/launcher/launcher_cell.h"
 #include "shell/launcher/launcher_folder_view.h"
+#include "shell/launcher/launcher_page_indicator.h"
 #include "shell/launcher/launcher_search_field.h"
 #include "shell/launcher/launcher_wallpaper.h"
 #include "ui/application.h"
@@ -123,100 +124,6 @@ private:
     LauncherView *m_view;
 };
 
-// The page indicator: a row of round dots, the current page's lit.
-class LauncherView::Indicator final : public ui::View
-{
-public:
-    // The Basic style's padding around the dots.
-    static constexpr double kPadding = 6;
-
-    explicit Indicator(LauncherView *view)
-        : m_view(view)
-    {
-        setName("launcher-indicator");
-        setOpacity(0);
-    }
-
-    bool acceptsPointer() const override { return m_count > 1; }
-
-    void setDots(int count, int current, bool animate)
-    {
-        const double opacity = count > 1 ? 1 : 0;
-        if (count != m_count) {
-            m_count = count;
-            m_alphas.assign(size_t(std::max(0, count)), 0.5);
-            if (current >= 0 && current < count)
-                m_alphas[size_t(current)] = 1;
-            m_current = current;
-            requestPaint();
-        }
-        if (opacity != m_opacityTween.target() || (!m_opacityTween.isRunning() && this->opacity() != opacity))
-            m_opacityTween.start(animate ? window() : nullptr, this->opacity(), opacity,
-                                 std::chrono::milliseconds(200), easing::outCubic,
-                                 [this](double value) { setOpacity(value); });
-        if (current == m_current)
-            return;
-        m_current = current;
-        const std::vector<double> from = m_alphas;
-        m_colorTween.start(animate ? window() : nullptr, 0, 1, std::chrono::milliseconds(160), easing::linear,
-                           [this, from](double t) {
-                               for (size_t i = 0; i < m_alphas.size() && i < from.size(); ++i) {
-                                   const double target = int(i) == m_current ? 1 : 0.5;
-                                   m_alphas[i] = from[i] + (target - from[i]) * t;
-                               }
-                               requestPaint();
-                           });
-    }
-
-    double dotSize() const { return m_view->m_metrics.indicatorDotSize; }
-    double spacing() const { return jsRound(dotSize() * 1.4); }
-
-    // The indicator's own size, padding included, as the row centres it.
-    ui::SizeF implicitSize() const
-    {
-        const int n = std::max(0, m_count);
-        return {n * dotSize() + std::max(0, n - 1) * spacing() + 2 * kPadding, dotSize() + 2 * kPadding};
-    }
-
-    ui::RectF dotRect(int index) const
-    {
-        return {kPadding + index * (dotSize() + spacing()), kPadding, dotSize(), dotSize()};
-    }
-
-protected:
-    void paint(ui::Painter &painter) override
-    {
-        for (int i = 0; i < m_count; ++i) {
-            const ui::RectF dot = dotRect(i);
-            painter.drawSmoothRectangle(dot, dot.width / 2, kWhite.withAlpha(m_alphas[size_t(i)]));
-        }
-    }
-
-    void pointerPress(const ui::PointerEvent &event) override { pick(event.position); }
-    void pointerMove(const ui::PointerEvent &event) override { pick(event.position); }
-
-private:
-    // The dot under the pointer, its spacing shared with its neighbours.
-    void pick(ui::PointF position)
-    {
-        for (int i = 0; i < m_count; ++i) {
-            const ui::RectF dot = dotRect(i);
-            const double half = spacing() / 2;
-            if (position.x >= dot.x - half && position.x < dot.right() + half) {
-                m_view->goToPage(i);
-                return;
-            }
-        }
-    }
-
-    LauncherView *m_view;
-    int m_count = 0;
-    int m_current = -1;
-    std::vector<double> m_alphas;
-    LauncherTween m_opacityTween;
-    LauncherTween m_colorTween;
-};
-
 LauncherView::LauncherView(Launcher &launcher, LauncherWallpaper &wallpaper, ApplicationBadges &badges)
     : m_launcher(launcher)
     , m_wallpaper(wallpaper)
@@ -234,7 +141,8 @@ LauncherView::LauncherView(Launcher &launcher, LauncherWallpaper &wallpaper, App
     m_notFound = addChild<ui::Label>(tr("Not found"));
     m_notFound->setColor(kWhite);
     m_notFound->setVisible(false);
-    m_indicator = addChild<Indicator>(this);
+    m_indicator = addChild<LauncherPageIndicator>();
+    m_indicator->onPick = [this](int page) { goToPage(page); };
     // Above everything else.
     m_folder = addChild<LauncherFolderView>(this, m_launcher.applications(), m_badges, m_wallpaper);
 
@@ -271,7 +179,9 @@ LauncherView::LauncherView(Launcher &launcher, LauncherWallpaper &wallpaper, App
     m_reorderAnimation.setInterval(std::chrono::milliseconds(400));
     m_edgeTimer.setInterval(std::chrono::milliseconds(600));
     m_edgeTimer.onTimeout = [this] {
-        if (m_edge < 0)
+        if (m_folder->isOpen())
+            m_folder->goToPage(m_folder->currentPage() + m_edge);
+        else if (m_edge < 0)
             scrollPreviousPage();
         else if (m_edge > 0)
             scrollNextPage();
@@ -452,6 +362,7 @@ void LauncherView::layout()
     m_folder->setGeometry(localRect());
     m_folder->setMetrics(m_metrics);
 
+    m_indicator->setDotSize(m_metrics.indicatorDotSize);
     const ui::SizeF indicator = m_indicator->implicitSize();
     const base::Rect dots = m_metrics.indicatorRow;
     m_indicator->setGeometry({centred(dots.x(), dots.width(), indicator.width),
@@ -601,6 +512,7 @@ void LauncherView::syncPages()
     }
     if (pageTotal() == 0)
         m_currentPage = -1;
+    m_indicator->setDotSize(m_metrics.indicatorDotSize);
     m_indicator->setDots(pageTotal(), m_currentPage, m_shown);
     const ui::SizeF size = m_indicator->implicitSize();
     const base::Rect dots = m_metrics.indicatorRow;
@@ -1325,6 +1237,19 @@ bool LauncherView::updateFolderDragTarget(ui::PointF position)
     LauncherModel &model = m_launcher.applications();
     const std::string folder = m_folder->folder();
     if (m_folder->panelRect().contains(position)) {
+        // The panel's sides page the folder while the drag rests there.
+        const int edge = m_folder->edgeAt(position);
+        if (edge != m_edge) {
+            m_edge = edge;
+            if (edge)
+                m_edgeTimer.start();
+            else
+                m_edgeTimer.stop();
+        }
+        if (edge) {
+            setHovered({});
+            return true;
+        }
         // Within the panel the drag reorders the folder's applications.
         std::string hovered;
         const int index = m_folder->indexAt(position);

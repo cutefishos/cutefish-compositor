@@ -13,6 +13,7 @@
 #include "shell/common/application_badges.h"
 #include "shell/launcher/launcher_cell.h"
 #include "shell/launcher/launcher_model.h"
+#include "shell/launcher/launcher_page_indicator.h"
 #include "shell/launcher/launcher_view.h"
 #include "shell/launcher/launcher_wallpaper.h"
 #include "ui/keys.h"
@@ -25,6 +26,11 @@ namespace cutefish::shell {
 static const ui::Color kWhite {255, 255, 255, 255};
 // The folder's name against an application's label.
 static constexpr double kNameScale = 2.0;
+// As the grid's pages: the slide, the drag threshold, and the speed past
+// which a released flick turns the page.
+static constexpr std::chrono::milliseconds kSlideDuration {300};
+static constexpr double kFlickThreshold = 10;
+static constexpr double kFlickVelocity = 400;
 
 static int jsRound(double value)
 {
@@ -78,6 +84,7 @@ private:
 };
 
 // The panel the applications sit on; it grows and shrinks about its centre.
+// A drag on its background pages.
 class LauncherFolderView::Panel final : public ui::View
 {
 public:
@@ -87,7 +94,24 @@ public:
         setName("launcher-folder-panel");
     }
 
+    bool acceptsPointer() const override { return true; }
+
 protected:
+    void pointerPress(const ui::PointerEvent &event) override
+    {
+        // A press on the panel ends the editing.
+        if (m_owner->m_name->hasFocus())
+            m_owner->m_view->setFocus();
+        if (event.button == ui::MouseButton::Left)
+            m_owner->panelPressed(event.position);
+    }
+    void pointerMove(const ui::PointerEvent &event) override { m_owner->panelMoved(event.position); }
+    void pointerRelease(const ui::PointerEvent &event) override
+    {
+        if (event.button == ui::MouseButton::Left)
+            m_owner->panelReleased(event.position);
+    }
+
     void paint(ui::Painter &painter) override
     {
         painter.drawSmoothRectangle(localRect(), jsRound(m_owner->m_metrics.iconSize * 0.3), kWhite.withAlpha(0.16));
@@ -103,6 +127,7 @@ LauncherFolderView::LauncherFolderView(LauncherView *view, LauncherModel &model,
     , m_model(model)
     , m_badges(badges)
     , m_wallpaper(wallpaper)
+    , m_wheelReset(core::mainLoop())
 {
     setName("launcher-folder");
     // The pages slide in layers of their own, which go above whatever is
@@ -115,11 +140,17 @@ LauncherFolderView::LauncherFolderView(LauncherView *view, LauncherModel &model,
     m_name = addChild<NameField>(this);
     m_grid = m_panel->addChild<ui::View>();
     m_grid->setClipsChildren(true);
+    m_indicator = addChild<LauncherPageIndicator>();
+    m_indicator->onPick = [this](int page) { goToPage(page); };
+    m_wheelReset.setSingleShot(true);
+    m_wheelReset.setInterval(std::chrono::milliseconds(250));
+    m_wheelReset.onTimeout = [this] { m_wheelAccumulated = 0; };
 }
 
 LauncherFolderView::~LauncherFolderView()
 {
     *m_alive = false;
+    m_scroller.reset();
 }
 
 void LauncherFolderView::setMetrics(const LauncherMetrics &metrics)
@@ -127,7 +158,8 @@ void LauncherFolderView::setMetrics(const LauncherMetrics &metrics)
     if (metrics == m_metrics)
         return;
     m_metrics = metrics;
-    m_name->setFontSize(jsRound(metrics.labelPixelSize * kNameScale));
+    m_name->setFontSize(nameFontSize());
+    m_indicator->setDotSize(metrics.indicatorDotSize);
     for (const auto &[id, cell] : m_cells)
         cell->setMetrics(metrics);
     requestLayout();
@@ -140,7 +172,7 @@ void LauncherFolderView::open(const std::string &folder, bool animate, ui::RectF
     m_folder = folder;
     m_detached = false;
     m_from = from;
-    m_scrollY = 0;
+    resetPages();
     setVisible(true);
     sync();
     setProgress(0);
@@ -203,6 +235,7 @@ void LauncherFolderView::close()
         retire(cell->parent()->takeChild(cell));
     m_cells.clear();
     m_fade.stop();
+    resetPages();
     m_closing = false;
     setEnabled(true);
     m_from = {};
@@ -265,6 +298,12 @@ void LauncherFolderView::sync()
         retire(it->second->parent()->takeChild(it->second));
         it = m_cells.erase(it);
     }
+    if (m_currentPage >= pageTotal()) {
+        m_slide.stop();
+        m_currentPage = pageTotal() - 1;
+        setContentX(m_currentPage * panelRect().width);
+    }
+    m_indicator->setDots(pageTotal(), m_currentPage, m_view->animatesReorder());
     requestLayout();
     requestPaint();
 }
@@ -314,93 +353,326 @@ int LauncherFolderView::visibleRows() const
     return std::clamp(rows, 1, std::max(1, m_metrics.rows - 1));
 }
 
+int LauncherFolderView::pageSize() const
+{
+    return columns() * visibleRows();
+}
+
+int LauncherFolderView::pageTotal() const
+{
+    return std::max(1, (int(m_order.size()) + pageSize() - 1) / pageSize());
+}
+
+double LauncherFolderView::padding() const
+{
+    return m_metrics.cellSpacing;
+}
+
+double LauncherFolderView::nameGap() const
+{
+    return 4 * m_metrics.cellSpacing;
+}
+
+double LauncherFolderView::indicatorGap() const
+{
+    return 3 * m_metrics.cellSpacing;
+}
+
+double LauncherFolderView::indicatorHeight() const
+{
+    return pageTotal() > 1 ? indicatorGap() + m_metrics.indicatorDotSize + LauncherPageIndicator::kPadding : 0;
+}
+
+int LauncherFolderView::nameFontSize() const
+{
+    return jsRound(m_metrics.labelPixelSize * kNameScale);
+}
+
 double LauncherFolderView::nameHeight() const
 {
-    return jsRound(m_metrics.labelPixelSize * kNameScale * 1.6);
+    return jsRound(nameFontSize() * 1.6);
 }
 
 double LauncherFolderView::titleHeight() const
 {
-    return nameHeight() + 3 * m_metrics.cellSpacing;
+    return m_name->baseline() + nameGap();
 }
 
 ui::RectF LauncherFolderView::panelRect() const
 {
-    const double padding = m_metrics.cellSpacing;
-    const double width = columns() * m_metrics.cellWidth + 2 * padding;
-    const double height = visibleRows() * m_metrics.cellHeight + 2 * padding;
+    const double width = columns() * m_metrics.cellWidth + 2 * padding();
+    const double height = visibleRows() * m_metrics.cellHeight + 2 * padding();
     const base::Rect grid = m_metrics.gridArea;
-    // The name above the panel is centred with it.
+    // The name above the panel and the dots below it are centred with it.
+    const double group = titleHeight() + height + indicatorHeight();
     return {double(grid.x() + jsRound((grid.width() - width) / 2)),
-            double(grid.y() + jsRound((grid.height() - titleHeight() - height) / 2)) + titleHeight(), width,
-            height};
+            double(grid.y() + jsRound((grid.height() - group) / 2)) + titleHeight(), width, height};
 }
 
 ui::RectF LauncherFolderView::gridRect() const
 {
     const ui::RectF panel = m_panel->geometry();
-    const ui::RectF grid = m_grid->geometry();
-    return {panel.x + grid.x, panel.y + grid.y, grid.width, grid.height};
+    return {panel.x + padding(), panel.y + padding(), double(columns() * m_metrics.cellWidth),
+            double(visibleRows() * m_metrics.cellHeight)};
 }
 
 ui::RectF LauncherFolderView::cellRect(int index) const
 {
     if (index < 0)
         return {};
-    const ui::RectF grid = gridRect();
-    return {grid.x + (index % columns()) * m_metrics.cellWidth,
-            grid.y + (index / columns()) * m_metrics.cellHeight - m_scrollY, double(m_metrics.cellWidth),
-            double(m_metrics.cellHeight)};
+    const ui::RectF panel = m_panel->geometry();
+    const ui::PointF slot = slotPosition(index);
+    return {panel.x + slot.x, panel.y + slot.y, double(m_metrics.cellWidth), double(m_metrics.cellHeight)};
 }
 
 int LauncherFolderView::indexAt(ui::PointF position) const
 {
     const ui::RectF grid = gridRect();
-    if (!grid.contains(position))
+    // The page shown, where it is in its slide.
+    const double x = position.x + m_contentX - m_currentPage * m_panel->geometry().width;
+    if (x < grid.x || x >= grid.right() || position.y < grid.y || position.y >= grid.bottom())
         return -1;
-    const int column = int((position.x - grid.x) / m_metrics.cellWidth);
-    const int row = int((position.y - grid.y + m_scrollY) / m_metrics.cellHeight);
-    const int index = row * columns() + column;
+    const int column = int((x - grid.x) / m_metrics.cellWidth);
+    const int row = int((position.y - grid.y) / m_metrics.cellHeight);
+    const int index = m_currentPage * pageSize() + row * columns() + column;
     return column < columns() && index < int(m_order.size()) ? index : -1;
+}
+
+int LauncherFolderView::edgeAt(ui::PointF position) const
+{
+    const ui::RectF panel = panelRect();
+    if (!panel.contains(position))
+        return 0;
+    // The room beside the outer columns' icons.
+    const double side = padding() + (m_metrics.cellWidth - m_metrics.iconSize) / 2.0;
+    if (position.x < panel.x + side)
+        return m_currentPage > 0 ? -1 : 0;
+    if (position.x >= panel.right() - side)
+        return m_currentPage < pageTotal() - 1 ? 1 : 0;
+    return 0;
+}
+
+std::vector<ui::PointF> LauncherFolderView::indicatorDots() const
+{
+    std::vector<ui::PointF> dots;
+    const ui::RectF bounds = m_indicator->geometry();
+    for (int i = 0; i < pageTotal(); ++i) {
+        const ui::RectF dot = m_indicator->dotRect(i);
+        dots.push_back({bounds.x + dot.x + dot.width / 2, bounds.y + dot.y + dot.height / 2});
+    }
+    return dots;
 }
 
 void LauncherFolderView::layout()
 {
+    // The panel's place follows the name's baseline, which its height sets.
+    m_name->setGeometry({0, 0, double(m_metrics.searchFieldWidth), nameHeight()});
     const ui::RectF panel = panelRect();
-    const double padding = m_metrics.cellSpacing;
     const double nameWidth = std::min(panel.width, double(m_metrics.searchFieldWidth));
     m_panel->setGeometry(panel);
     m_name->setGeometry({panel.x + jsRound((panel.width - nameWidth) / 2), panel.y - titleHeight(), nameWidth,
                          nameHeight()});
-    m_grid->setGeometry({padding, padding, double(columns() * m_metrics.cellWidth),
-                         double(visibleRows() * m_metrics.cellHeight)});
-    setScroll(m_scrollY);
+    m_grid->setGeometry({0, 0, panel.width, panel.height});
+    m_indicator->setDots(pageTotal(), m_currentPage, false);
+    const ui::SizeF dots = m_indicator->implicitSize();
+    m_indicator->setGeometry({panel.x + jsRound((panel.width - dots.width) / 2),
+                              panel.bottom() + indicatorGap() - LauncherPageIndicator::kPadding, dots.width, dots.height});
+    if (!m_slide.isRunning() && !m_swiping && !m_flicking)
+        m_contentX = m_currentPage * panel.width;
+    placeCells();
     // The panel's size may have changed under a running growth.
     setProgress(m_progress);
 }
 
 ui::PointF LauncherFolderView::slotPosition(int index) const
 {
-    return {double((index % columns()) * m_metrics.cellWidth),
-            double((index / columns()) * m_metrics.cellHeight) - m_scrollY};
+    const int page = index / pageSize();
+    const int slot = index % pageSize();
+    return {padding() + page * panelRect().width - m_contentX + (slot % columns()) * m_metrics.cellWidth,
+            padding() + (slot / columns()) * m_metrics.cellHeight};
 }
 
 void LauncherFolderView::placeCells()
 {
+    const double width = panelRect().width;
     for (size_t i = 0; i < m_order.size(); ++i) {
+        LauncherCell *cell = this->cell(m_order[i]);
+        if (!cell)
+            continue;
+        const ui::PointF slot = slotPosition(int(i));
+        // Pages off the panel take no pointer.
+        cell->setVisible(slot.x > -m_metrics.cellWidth && slot.x < width);
         // A cell already sliding to its slot keeps sliding: a layout must
         // not cut a reorder's animation short.
-        if (LauncherCell *cell = this->cell(m_order[i]))
-            cell->moveTo(slotPosition(int(i)), cell->isMoving());
+        cell->moveTo(slot, cell->isMoving());
     }
 }
 
-void LauncherFolderView::setScroll(double y)
+void LauncherFolderView::setContentX(double x)
 {
-    const int rows = (int(m_order.size()) + columns() - 1) / columns();
-    const double maximum = std::max(0, rows - visibleRows()) * double(m_metrics.cellHeight);
-    m_scrollY = std::clamp(y, 0.0, maximum);
+    if (x == m_contentX)
+        return;
+    m_contentX = x;
     placeCells();
+}
+
+int LauncherFolderView::nearestPage() const
+{
+    const double width = panelRect().width;
+    if (width <= 0)
+        return 0;
+    return std::clamp(int(std::lround(m_contentX / width)), 0, pageTotal() - 1);
+}
+
+void LauncherFolderView::setCurrentPage(int page, bool slide)
+{
+    m_currentPage = std::clamp(page, 0, pageTotal() - 1);
+    m_indicator->setDots(pageTotal(), m_currentPage, slide);
+    const double x = m_currentPage * panelRect().width;
+    if (slide) {
+        m_slide.start(window(), m_contentX, x, kSlideDuration, easing::inOutQuad,
+                      [this](double value) { setContentX(value); });
+    } else {
+        m_slide.stop();
+        setContentX(x);
+    }
+}
+
+void LauncherFolderView::goToPage(int page)
+{
+    if (!isOpen() || page < 0 || page >= pageTotal() || page == m_currentPage)
+        return;
+    if (m_scroller)
+        m_scroller->cancel(false);
+    m_swiping = false;
+    setCurrentPage(page, true);
+}
+
+void LauncherFolderView::resetPages()
+{
+    if (m_scroller)
+        m_scroller->cancel(false);
+    m_slide.stop();
+    m_swiping = false;
+    m_panelPressed = false;
+    m_flicking = false;
+    m_wheelAccumulated = 0;
+    m_currentPage = 0;
+    m_contentX = 0;
+}
+
+ui::Scroller::Axis LauncherFolderView::horizontalAxis() const
+{
+    const double width = panelRect().width;
+    return {0, (pageTotal() - 1) * width, width, pageTotal() > 1};
+}
+
+ui::Scroller::Axis LauncherFolderView::verticalAxis() const
+{
+    return {};
+}
+
+ui::PointF LauncherFolderView::position() const
+{
+    return {m_contentX, 0};
+}
+
+void LauncherFolderView::applyPosition(ui::PointF position)
+{
+    setContentX(position.x);
+}
+
+void LauncherFolderView::movingChanged(bool moving)
+{
+    if (moving) {
+        m_slide.stop();
+        m_swiping = true;
+    } else if (m_swiping) {
+        m_swiping = false;
+        setCurrentPage(nearestPage(), false);
+    }
+}
+
+void LauncherFolderView::panelPressed(ui::PointF position)
+{
+    m_panelPressed = true;
+    m_flicking = false;
+    m_pressPosition = position;
+    m_pressContentX = m_contentX;
+    m_flickSamples.clear();
+}
+
+void LauncherFolderView::panelMoved(ui::PointF position)
+{
+    if (!m_panelPressed || pageTotal() < 2)
+        return;
+    const double dx = position.x - m_pressPosition.x;
+    if (!m_flicking) {
+        if (std::abs(dx) < kFlickThreshold)
+            return;
+        m_flicking = true;
+        if (m_scroller)
+            m_scroller->cancel(false);
+        m_slide.stop();
+        m_pressContentX = m_contentX + dx;
+    }
+    // Past either end the pages follow at half the rate.
+    double x = m_pressContentX - dx;
+    const double maximum = (pageTotal() - 1) * panelRect().width;
+    if (x < 0)
+        x /= 2;
+    else if (x > maximum)
+        x = maximum + (x - maximum) / 2;
+    setContentX(x);
+    const auto now = std::chrono::steady_clock::now();
+    m_flickSamples.push_back({now, position.x});
+    while (m_flickSamples.size() > 2 && now - m_flickSamples.front().first > std::chrono::milliseconds(100))
+        m_flickSamples.erase(m_flickSamples.begin());
+}
+
+void LauncherFolderView::panelReleased(ui::PointF position)
+{
+    if (!m_panelPressed)
+        return;
+    m_panelPressed = false;
+    if (!m_flicking)
+        return;
+    m_flicking = false;
+    double velocity = 0;
+    if (m_flickSamples.size() >= 2) {
+        const auto &[t0, x0] = m_flickSamples.front();
+        const double seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
+        if (seconds > 0)
+            velocity = (position.x - x0) / seconds;
+    }
+    // At most one page from where the press started.
+    int page = nearestPage();
+    const int from = std::clamp(int(std::lround(m_pressContentX / std::max(1.0, panelRect().width))), 0,
+                                pageTotal() - 1);
+    if (std::abs(velocity) > kFlickVelocity)
+        page = velocity < 0 ? from + 1 : from - 1;
+    setCurrentPage(std::clamp(page, from - 1, from + 1), true);
+}
+
+void LauncherFolderView::handleWheel(const ui::ScrollEvent &event)
+{
+    // Wheels count down as angleDelta counts up.
+    const double delta = event.value120Y != 0 ? -event.value120Y : -event.value120X;
+    if (delta == 0)
+        return;
+    m_wheelReset.start();
+    // Nothing pages until the slide has finished.
+    if (m_slide.isRunning() || m_swiping || m_flicking) {
+        m_wheelAccumulated = 0;
+        return;
+    }
+    if ((m_wheelAccumulated > 0) != (delta > 0))
+        m_wheelAccumulated = 0;
+    m_wheelAccumulated += delta;
+    if (std::abs(m_wheelAccumulated) < 120)
+        return;
+    m_wheelAccumulated = 0;
+    goToPage(m_currentPage + (delta > 0 ? -1 : 1));
 }
 
 void LauncherFolderView::paint(ui::Painter &painter)
@@ -414,20 +686,24 @@ void LauncherFolderView::paint(ui::Painter &painter)
 
 void LauncherFolderView::pointerPress(const ui::PointerEvent &event)
 {
-    if (!panelRect().contains(event.position)) {
+    if (!panelRect().contains(event.position))
         dismiss();
-        return;
-    }
-    // A press on the panel ends the editing.
-    if (m_name->hasFocus())
-        m_view->setFocus();
 }
 
 bool LauncherFolderView::scroll(const ui::ScrollEvent &event)
 {
-    // Rows past the panel's scroll; the pages behind never turn.
-    const double delta = event.value120Y != 0 ? event.value120Y / 120.0 * m_metrics.cellHeight : event.deltaY;
-    setScroll(m_scrollY + delta);
+    // The folder's pages turn; the grid's behind never do.
+    if (event.precise || event.stop) {
+        if (!m_scroller && window()) {
+            m_scroller = std::make_unique<ui::Scroller>(window(), static_cast<ui::Scroller::Target *>(this));
+            m_scroller->setPaged(true);
+        }
+        if (m_scroller && isOpen())
+            m_scroller->handleScroll(event);
+        return true;
+    }
+    if (isOpen())
+        handleWheel(event);
     return true;
 }
 

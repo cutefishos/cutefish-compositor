@@ -30,6 +30,7 @@ class ApplicationBadges;
 class Launcher;
 class LauncherCell;
 class LauncherFolderView;
+class LauncherPageIndicator;
 class LauncherSearchField;
 class LauncherWallpaper;
 
@@ -130,9 +131,7 @@ protected:
 private:
     class Pages;
     class Page;
-    class Indicator;
     friend class Pages;
-    friend class Indicator;
 
     // ui::Scroller::Target
     ui::Scroller::Axis horizontalAxis() const override;
@@ -191,7 +190,7 @@ private:
     std::vector<Page *> m_pages;
     std::map<std::string, LauncherCell *> m_cells;
     LauncherSearchField *m_search = nullptr;
-    Indicator *m_indicator = nullptr;
+    LauncherPageIndicator *m_indicator = nullptr;
     ui::Label *m_notFound = nullptr;
     LauncherFolderView *m_folder = nullptr;
 
