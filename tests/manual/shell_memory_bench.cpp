@@ -429,6 +429,23 @@ public:
         return ms;
     }
 
+    // What uploading `image` as a texture costs, as the lock screen's picture
+    // is uploaded in its first frame, until the GPU is done.
+    double timeUpload(const ui::Bitmap &image)
+    {
+        render::EglRenderer *renderer = m_gl.renderer();
+        if (!renderer->beginFrame(m_gl.target()))
+            return -1;
+        const auto started = std::chrono::steady_clock::now();
+        auto texture = renderer->createTexture(image.size(), image.constBits(), int(image.stride()),
+                                               render::PixelFormat::Bgra8888);
+        glFinish();
+        const double ms = msSince(started);
+        texture.reset();
+        renderer->cancelFrame();
+        return ms;
+    }
+
     // Textures of `size` made with the context current, as panels and icons
     // are; empty ones when the GPU is unavailable.
     std::vector<std::unique_ptr<render::Texture>> makeTextures(int count, const base::Size &size)
@@ -644,6 +661,17 @@ std::map<std::string, Component> components()
                                     idleMs, run, again, first);
                     }
                 }
+                std::fflush(stdout);
+            }};
+    // A full-output picture uploaded as the lock screen's is, ten times; ms.
+    all["upload"] = {
+            [](Desktop &, base::dbus::Connection *) {},
+            [](Desktop &desktop) {
+                ui::Bitmap picture(kNative, ui::Bitmap::Format::Argb32Premultiplied);
+                picture.fill(0xff336699u);
+                for (int run = 0; run < 10; ++run)
+                    std::printf("upload %dx%d run %d: %.2f ms\n", kNative.width(), kNative.height(), run,
+                                desktop.timeUpload(picture));
                 std::fflush(stdout);
             }};
     static shell::DockWindow *dock = nullptr;
