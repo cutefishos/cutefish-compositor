@@ -2510,6 +2510,25 @@ TEST_F(WmTest, ANewWindowCascadesFromAMaximizedOnesRestoreBounds)
     EXPECT_EQ(kOutput, first->bounds());
 }
 
+TEST_F(WmTest, ADialogOfAnAlwaysOnTopWindowStaysAboveIt)
+{
+    compositor::Surface *surface = makeSurface(base::Size(400, 300));
+    surface->setAlwaysOnTop(true);
+    Window *parent = manager.createWindow(surface, {.requestedSize = {400, 300}});
+    Window *other = makeWindow(base::Rect(0, 0, 400, 300));
+    Window *dialog = manager.createWindow(makeSurface(base::Size(200, 100)),
+                                          {.requestedSize = {200, 100}, .transientParent = parent});
+    auto index = [&](Window *window) {
+        const auto order = manager.windows();
+        return std::find(order.begin(), order.end(), window) - order.begin();
+    };
+
+    other->activate();
+    EXPECT_EQ(layerFor(dialog), StackingLayer::AlwaysOnTop);
+    EXPECT_LT(index(other), index(parent));
+    EXPECT_LT(index(parent), index(dialog));
+}
+
 TEST_F(WmTest, AWindowThatIsNotMovableStaysCentredInItsWorkArea)
 {
     compositor::Surface *surface = makeSurface(base::Size(400, 200));
