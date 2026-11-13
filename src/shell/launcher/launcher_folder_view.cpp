@@ -23,6 +23,8 @@
 namespace cutefish::shell {
 
 static const ui::Color kWhite {255, 255, 255, 255};
+// The folder's name against an application's label.
+static constexpr double kNameScale = 2.0;
 
 static int jsRound(double value)
 {
@@ -75,8 +77,7 @@ private:
     LauncherFolderView *m_owner;
 };
 
-// The panel the name and the applications sit on; it grows and shrinks
-// about its centre.
+// The panel the applications sit on; it grows and shrinks about its centre.
 class LauncherFolderView::Panel final : public ui::View
 {
 public:
@@ -111,7 +112,7 @@ LauncherFolderView::LauncherFolderView(LauncherView *view, LauncherModel &model,
     setVisible(false);
     m_wallpaperChanged = m_wallpaper.changed.connect([this] { requestPaint(); });
     m_panel = addChild<Panel>(this);
-    m_name = m_panel->addChild<NameField>(this);
+    m_name = addChild<NameField>(this);
     m_grid = m_panel->addChild<ui::View>();
     m_grid->setClipsChildren(true);
 }
@@ -126,7 +127,7 @@ void LauncherFolderView::setMetrics(const LauncherMetrics &metrics)
     if (metrics == m_metrics)
         return;
     m_metrics = metrics;
-    m_name->setFontSize(jsRound(metrics.labelPixelSize * 1.4));
+    m_name->setFontSize(jsRound(metrics.labelPixelSize * kNameScale));
     for (const auto &[id, cell] : m_cells)
         cell->setMetrics(metrics);
     requestLayout();
@@ -313,19 +314,26 @@ int LauncherFolderView::visibleRows() const
     return std::clamp(rows, 1, std::max(1, m_metrics.rows - 1));
 }
 
+double LauncherFolderView::nameHeight() const
+{
+    return jsRound(m_metrics.labelPixelSize * kNameScale * 1.6);
+}
+
 double LauncherFolderView::titleHeight() const
 {
-    return m_metrics.searchFieldHeight + m_metrics.cellSpacing;
+    return nameHeight() + 3 * m_metrics.cellSpacing;
 }
 
 ui::RectF LauncherFolderView::panelRect() const
 {
-    const double padding = 2 * m_metrics.cellSpacing;
+    const double padding = m_metrics.cellSpacing;
     const double width = columns() * m_metrics.cellWidth + 2 * padding;
-    const double height = titleHeight() + visibleRows() * m_metrics.cellHeight + 2 * padding;
+    const double height = visibleRows() * m_metrics.cellHeight + 2 * padding;
     const base::Rect grid = m_metrics.gridArea;
+    // The name above the panel is centred with it.
     return {double(grid.x() + jsRound((grid.width() - width) / 2)),
-            double(grid.y() + jsRound((grid.height() - height) / 2)), width, height};
+            double(grid.y() + jsRound((grid.height() - titleHeight() - height) / 2)) + titleHeight(), width,
+            height};
 }
 
 ui::RectF LauncherFolderView::gridRect() const
@@ -359,12 +367,12 @@ int LauncherFolderView::indexAt(ui::PointF position) const
 void LauncherFolderView::layout()
 {
     const ui::RectF panel = panelRect();
-    const double padding = 2 * m_metrics.cellSpacing;
-    const double nameWidth = std::min(panel.width - 2 * padding, double(m_metrics.searchFieldWidth));
+    const double padding = m_metrics.cellSpacing;
+    const double nameWidth = std::min(panel.width, double(m_metrics.searchFieldWidth));
     m_panel->setGeometry(panel);
-    m_name->setGeometry({double(jsRound((panel.width - nameWidth) / 2)), padding, nameWidth,
-                         double(m_metrics.searchFieldHeight)});
-    m_grid->setGeometry({padding, padding + titleHeight(), double(columns() * m_metrics.cellWidth),
+    m_name->setGeometry({panel.x + jsRound((panel.width - nameWidth) / 2), panel.y - titleHeight(), nameWidth,
+                         nameHeight()});
+    m_grid->setGeometry({padding, padding, double(columns() * m_metrics.cellWidth),
                          double(visibleRows() * m_metrics.cellHeight)});
     setScroll(m_scrollY);
     // The panel's size may have changed under a running growth.

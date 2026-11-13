@@ -29,11 +29,11 @@ class LauncherView;
 class LauncherWallpaper;
 
 // An open folder, over the whole launcher in a layer of its own, above the
-// pages' layers: the launcher's backdrop again, hiding the grid, and a panel
-// with the folder's name, which can be edited, above its applications in
+// pages' layers: the launcher's backdrop again, hiding the grid, the folder's
+// name, which can be edited, and below it a panel with its applications in
 // rows of the grid's cells. The panel grows out of the folder's icon as the
-// backdrop fades in, and shrinks back into it as the folder closes. A press
-// outside the panel or Escape closes it.
+// backdrop and the name fade in, and shrinks back into it as the folder
+// closes. A press outside the panel or Escape closes it.
 class LauncherFolderView final : public ui::View
 {
 public:
@@ -97,6 +97,8 @@ private:
     // 0 closed, 1 open: the backdrop's opacity and the panel's growth.
     void setProgress(double progress);
     int visibleRows() const;
+    double nameHeight() const;
+    // The name and the gap below it.
     double titleHeight() const;
     // Where the cell of an application rests, in the grid of cells.
     ui::PointF slotPosition(int index) const;
