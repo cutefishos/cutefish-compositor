@@ -76,6 +76,8 @@ bool isClientDestroyed(wl_client* client);
 
 // Server::clientScale for the client's display: 1 for every client but Xwayland.
 double clientScale(wl_client* client);
+// Server::cursorScale for the client's display.
+double cursorScale(wl_client* client);
 
 // A request's x, y, width and height as a rectangle. Exo saturates them
 // (SkIRect::MakeXYWH, gfx::Rect); here every edge stays within 2^24 of zero,

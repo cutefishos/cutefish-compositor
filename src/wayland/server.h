@@ -98,6 +98,20 @@ public:
         const auto it = m_clientScales.find(client);
         return it == m_clientScales.end() ? 1 : it->second;
     }
+    // The client's cursor image pixels per logical unit, where they differ
+    // from its surface units; 0 drops it.
+    void setCursorScale(wl_client* client, double scale)
+    {
+        if (scale <= 0)
+            m_cursorScales.erase(client);
+        else
+            m_cursorScales[client] = scale;
+    }
+    double cursorScale(wl_client* client) const
+    {
+        const auto it = m_cursorScales.find(client);
+        return it == m_cursorScales.end() ? clientScale(client) : it->second;
+    }
 
     SerialTracker* serialTracker() { return m_serialTracker.get(); }
     int trackedClientCount() const { return m_clientTracker->trackedClientCount(); }
@@ -117,6 +131,7 @@ private:
 
     std::set<wl_client*> m_hiddenSurfaceClients;
     std::map<wl_client*, double> m_clientScales;
+    std::map<wl_client*, double> m_cursorScales;
     std::unique_ptr<LoopHook> m_loopHook;
     std::string m_socketName;
 };

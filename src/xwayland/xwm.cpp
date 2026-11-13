@@ -222,6 +222,14 @@ int64_t clientPidFromReply(const void *reply)
 
 } // namespace
 
+int x11CursorSize(int size, double scale, std::string &theme)
+{
+    int pixels = base::roundToInt(size * scale);
+    const std::string requested = theme;
+    cursor::load(input::CursorShape::Default, pixels, requested, &pixels, &theme);
+    return pixels;
+}
+
 struct Xwm::X11Window : compositor::SurfaceObserver, wm::WindowObserver {
     Xwm *xwm;
     uint32_t id;
@@ -539,44 +547,49 @@ base::Region Xwm::regionFromX(const base::Region &region) const
 void Xwm::publishResources()
 {
     const int dpi = base::roundToInt(96 * m_scale);
-    // X11 cursors are in X11 pixels, unscaled. Between two sizes the theme has
-    // X11 clients would take either; named exactly, they take the one the
-    // compositor draws.
-    int cursorSize = base::roundToInt(m_cursorSize * m_scale);
-    cursor::load(input::CursorShape::Default, cursorSize, m_cursorTheme, &cursorSize);
-    reply(xcb_get_property(m_connection, 0, m_root, XCB_ATOM_RESOURCE_MANAGER, XCB_ATOM_STRING, 0,
-                           65536)
-                  .sequence,
-          [this, dpi, cursorSize](void *p) {
-              auto *r = static_cast<xcb_get_property_reply_t *>(p);
-              std::vector<std::string> lines;
-              if (r && r->type == XCB_ATOM_STRING && r->format == 8) {
-                  const std::string_view resources(
-                          static_cast<const char *>(xcb_get_property_value(r)),
-                          size_t(xcb_get_property_value_length(r)));
-                  for (const std::string_view line : base::strings::splitViews(resources, '\n')) {
-                      if (!line.empty() && !line.starts_with("Xft.dpi:")
-                          && !line.starts_with("Xcursor.theme:")
-                          && !line.starts_with("Xcursor.size:"))
-                          lines.emplace_back(line);
+    std::string cursorTheme = m_cursorTheme;
+    const int cursorSize = x11CursorSize(m_cursorSize, m_scale, cursorTheme);
+    auto write = [this, dpi, cursorSize, cursorTheme](std::vector<std::string> lines) {
+        lines.push_back("Xft.dpi:\t" + std::to_string(dpi));
+        lines.push_back("Xcursor.theme:\t" + cursorTheme);
+        lines.push_back("Xcursor.size:\t" + std::to_string(cursorSize));
+        const std::string value = base::strings::join(lines, "\n") + '\n';
+        xcb_change_property(m_connection, XCB_PROP_MODE_REPLACE, m_root, XCB_ATOM_RESOURCE_MANAGER,
+                            XCB_ATOM_STRING, 8, value.size(), value.data());
+        xcb_flush(m_connection);
+    };
+    if (m_ready) {
+        reply(xcb_get_property(m_connection, 0, m_root, XCB_ATOM_RESOURCE_MANAGER, XCB_ATOM_STRING,
+                               0, 65536)
+                      .sequence,
+              [write](void *p) {
+                  auto *r = static_cast<xcb_get_property_reply_t *>(p);
+                  std::vector<std::string> lines;
+                  if (r && r->type == XCB_ATOM_STRING && r->format == 8) {
+                      const std::string_view resources(
+                              static_cast<const char *>(xcb_get_property_value(r)),
+                              size_t(xcb_get_property_value_length(r)));
+                      for (const std::string_view line :
+                           base::strings::splitViews(resources, '\n')) {
+                          if (!line.empty() && !line.starts_with("Xft.dpi:")
+                              && !line.starts_with("Xcursor.theme:")
+                              && !line.starts_with("Xcursor.size:"))
+                              lines.emplace_back(line);
+                      }
                   }
-              }
-              lines.push_back("Xft.dpi:\t" + std::to_string(dpi));
-              lines.push_back("Xcursor.theme:\t" + m_cursorTheme);
-              lines.push_back("Xcursor.size:\t" + std::to_string(cursorSize));
-              const std::string value = base::strings::join(lines, "\n") + '\n';
-              xcb_change_property(m_connection, XCB_PROP_MODE_REPLACE, m_root,
-                                  XCB_ATOM_RESOURCE_MANAGER, XCB_ATOM_STRING, 8, value.size(),
-                                  value.data());
-              xcb_flush(m_connection);
-          });
+                  write(std::move(lines));
+              });
+    } else {
+        // Before WM_S0 has an owner no other client is connected to merge with.
+        write({});
+    }
     if (!m_xsettings)
         return;
     const int windowScale = std::max(1, int(std::floor(m_scale)));
     const std::pair<const char *, std::variant<int32_t, std::string>> settings[] = {
             {"Gdk/UnscaledDPI", dpi * 1024 / windowScale},
             {"Gdk/WindowScalingFactor", windowScale},
-            {"Gtk/CursorThemeName", m_cursorTheme},
+            {"Gtk/CursorThemeName", cursorTheme},
             {"Gtk/CursorThemeSize", cursorSize},
             {"Xft/DPI", dpi * 1024}};
     std::string data;
@@ -892,7 +905,11 @@ void Xwm::setup()
         const char name[] = "Cutefish";
         xcb_change_property(m_connection, XCB_PROP_MODE_REPLACE, m_support, atom("_NET_WM_NAME"),
                             atom("UTF8_STRING"), 8, sizeof(name) - 1, name);
-        for (const char *selection : {"WM_S0", "_NET_WM_CM_S0"}) {
+        // Xwayland accepts other clients only once WM_S0 has an owner, so the
+        // client that started it reads the scale and cursor size from its first
+        // request. Nothing in the session runs an XSETTINGS manager; one started
+        // later takes the selection over.
+        auto claim = [this](const char *selection) {
             xcb_set_selection_owner(m_connection, m_support, atom(selection), XCB_CURRENT_TIME);
             xcb_client_message_event_t e {};
             e.response_type = XCB_CLIENT_MESSAGE;
@@ -903,7 +920,12 @@ void Xwm::setup()
             e.data.data32[2] = m_support;
             xcb_send_event(m_connection, 0, m_root, XCB_EVENT_MASK_STRUCTURE_NOTIFY,
                            reinterpret_cast<const char *>(&e));
-        }
+        };
+        claim("_XSETTINGS_S0");
+        m_xsettings = true;
+        publishResources();
+        claim("WM_S0");
+        claim("_NET_WM_CM_S0");
         std::vector<uint32_t> supported;
         for (auto *n : {"_NET_SUPPORTING_WM_CHECK",
                         "_NET_WM_NAME",
@@ -986,28 +1008,7 @@ void Xwm::setup()
                   }
                   roots();
                   if (m_ready) {
-                      // GTK only learns a scale through XSETTINGS. Nothing in
-                      // the session runs a manager, but one started later wins.
-                      reply(xcb_get_selection_owner(m_connection, atom("_XSETTINGS_S0")).sequence,
-                            [this](void *p) {
-                                auto *r = static_cast<xcb_get_selection_owner_reply_t *>(p);
-                                if (!r || r->owner)
-                                    return;
-                                xcb_set_selection_owner(m_connection, m_support,
-                                                        atom("_XSETTINGS_S0"), XCB_CURRENT_TIME);
-                                xcb_client_message_event_t e {};
-                                e.response_type = XCB_CLIENT_MESSAGE;
-                                e.format = 32;
-                                e.window = m_root;
-                                e.type = atom("MANAGER");
-                                e.data.data32[1] = atom("_XSETTINGS_S0");
-                                e.data.data32[2] = m_support;
-                                xcb_send_event(m_connection, 0, m_root,
-                                               XCB_EVENT_MASK_STRUCTURE_NOTIFY,
-                                               reinterpret_cast<const char *>(&e));
-                                m_xsettings = true;
-                                publishResources();
-                            });
+                      // A scale or cursor change while starting was not published.
                       publishResources();
                   }
                   if (initialized)

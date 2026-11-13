@@ -33,6 +33,7 @@
 #include "compositor/surface.h"
 #include "core/main_loop.h"
 #include "core/process_environment.h"
+#include "input/pointer.h"
 #include "wayland/server.h"
 #include "wayland/server_util.h"
 #include "wm/window_manager.h"
@@ -284,12 +285,15 @@ bool XwaylandServer::launch()
     // Before Xwayland binds anything: its outputs are sized in its own units.
     if (auto* server = wayland::Server::serverForDisplay(m_display))
         server->setClientScale(m_client, m_scale);
+    applyCursorScale();
     m_destroy.owner = this;
     m_destroy.listener.notify = [](wl_listener* listener, void*) {
         auto* self = reinterpret_cast<Listener*>(listener)->owner;
         wl_list_remove(&self->m_destroy.listener.link);
-        if (auto* server = wayland::Server::serverForDisplay(self->m_display))
+        if (auto* server = wayland::Server::serverForDisplay(self->m_display)) {
             server->setClientScale(self->m_client, 1);
+            server->setCursorScale(self->m_client, 0);
+        }
         self->m_client = nullptr;
         if (self->m_shell)
             self->m_shell->revokeClient();
@@ -598,8 +602,21 @@ void XwaylandServer::setCursorTheme(const std::string& theme, int size)
 {
     m_cursorTheme = theme;
     m_cursorSize = size;
+    applyCursorScale();
     if (m_xwm)
         m_xwm->setCursorTheme(theme, size);
+}
+
+void XwaylandServer::applyCursorScale()
+{
+    if (!m_client || m_cursorSize <= 0)
+        return;
+    auto* server = wayland::Server::serverForDisplay(m_display);
+    if (!server)
+        return;
+    std::string theme = m_cursorTheme;
+    server->setCursorScale(m_client,
+                           double(x11CursorSize(m_cursorSize, m_scale, theme)) / m_cursorSize);
 }
 
 void XwaylandServer::applyScale()
@@ -607,6 +624,7 @@ void XwaylandServer::applyScale()
     if (m_client) {
         if (auto* server = wayland::Server::serverForDisplay(m_display))
             server->setClientScale(m_client, m_scale);
+        applyCursorScale();
         // Existing surfaces take it at their next commit, which the X11
         // windows being resized below brings.
         wl_client_for_each_resource(
@@ -619,6 +637,19 @@ void XwaylandServer::applyScale()
                 return WL_ITERATOR_CONTINUE;
             },
             &m_scale);
+        // The cursor surface, a wl_surface too, keeps the cursor scale.
+        double cursorScale = wayland::cursorScale(m_client);
+        wl_client_for_each_resource(
+            m_client,
+            [](wl_resource* resource, void* data) {
+                if (std::strcmp(wl_resource_get_class(resource), "wl_pointer") == 0) {
+                    auto* pointer = wayland::getUserDataAs<input::Pointer>(resource);
+                    if (pointer && pointer->cursorSurface())
+                        pointer->cursorSurface()->setClientScale(*static_cast<double*>(data));
+                }
+                return WL_ITERATOR_CONTINUE;
+            },
+            &cursorScale);
     }
     if (m_xwm)
         m_xwm->setScale(m_scale);

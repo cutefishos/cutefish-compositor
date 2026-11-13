@@ -188,7 +188,8 @@ static std::optional<std::string> readCursorFile(const std::string &path)
     return base::file::read(path);
 }
 
-std::vector<Frame> load(input::CursorShape shape, int size, const std::string &theme, int *nominal)
+std::vector<Frame> load(input::CursorShape shape, int size, const std::string &theme, int *nominal,
+                        std::string *provider)
 {
     if (shape == input::CursorShape::Hidden)
         return {};
@@ -244,8 +245,11 @@ std::vector<Frame> load(input::CursorShape shape, int size, const std::string &t
                     if (!bytes)
                         continue;
                     auto frames = readXCursor(*bytes, size, nominal);
-                    if (!frames.empty())
-                        return frames;
+                    if (frames.empty())
+                        continue;
+                    if (provider)
+                        *provider = themeName;
+                    return frames;
                 }
             }
         }

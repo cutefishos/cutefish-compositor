@@ -136,9 +136,11 @@ TEST_F(CursorSearchTest, ResolvesInheritanceAndLegacyShapeAliases)
     ASSERT_TRUE(input_test::writeFile(directory.filePath("Child/index.theme"),
                                       "[Icon Theme]\nInherits=Parent\n"));
     ASSERT_TRUE(input_test::writeFile(directory.filePath("Parent/cursors/hand2"), cursorFile()));
-    const auto frames = cursor::load(input::CursorShape::Pointer, 24, "Child");
+    std::string provider;
+    const auto frames = cursor::load(input::CursorShape::Pointer, 24, "Child", nullptr, &provider);
     ASSERT_EQ(frames.size(), 1u);
     EXPECT_EQ(frames[0].image.pixel(0, 0), 0xff123456u);
+    EXPECT_EQ(provider, "Parent");
 }
 
 TEST_F(CursorSearchTest, CyclicInheritanceAndInvalidNamesFallBack)

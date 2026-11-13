@@ -42,8 +42,11 @@ void pointer_set_cursor(wl_client *client, wl_resource *resource, uint32_t seria
     auto *delegate = static_cast<WaylandPointerDelegate *>(pointer->delegate());
     if (!delegate->acceptsCursorSerial(serial))
         return;
-    pointer->setCursor(surfaceFromResource(surfaceResource),
-                       clientToLogical(base::Point(hotspotX, hotspotY), clientScale(client)));
+    auto *surface = surfaceFromResource(surfaceResource);
+    const double scale = cursorScale(client);
+    if (surface && (!surface->hasRole() || surface == pointer->cursorSurface()))
+        surface->setClientScale(scale);
+    pointer->setCursor(surface, clientToLogical(base::Point(hotspotX, hotspotY), scale));
 }
 
 void pointer_release(wl_client *, wl_resource *resource)

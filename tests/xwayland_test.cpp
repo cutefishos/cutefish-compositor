@@ -71,6 +71,7 @@
 #include "wm/window_modality_controller.h"
 #include "xwayland/surface_association.h"
 #include "xwayland/xwayland_server.h"
+#include "xwayland/xwm.h"
 #include "xwayland/xwayland_shell.h"
 
 using namespace cutefish;
@@ -1178,6 +1179,8 @@ TEST_F(XwaylandTest, OnDemandServerStartsForTheFirstClient)
     options.software = true;
     options.lazy = true;
     options.readinessFile = runtime.path() + "/ready.json";
+    xwayland->setScale(2);
+    xwayland->setCursorTheme("Adwaita", 24);
     int started = 0;
     xwayland->started = [&] {
         ++started;
@@ -1207,6 +1210,31 @@ TEST_F(XwaylandTest, OnDemandServerStartsForTheFirstClient)
         EXPECT_TRUE(xwayland->isReady());
         EXPECT_EQ(started, round + 1);
         auto *screen = xcb_setup_roots_iterator(xcb_get_setup(c)).data;
+        // The client that started the server sees the scale and cursor size
+        // in its first requests, as libXcursor reads them only once.
+        auto *resources = xcb_get_property_reply(
+                c,
+                xcb_get_property(c, 0, screen->root, XCB_ATOM_RESOURCE_MANAGER, XCB_ATOM_STRING, 0,
+                                 4096),
+                nullptr);
+        ASSERT_TRUE(resources);
+        const std::string value(static_cast<const char *>(xcb_get_property_value(resources)),
+                                xcb_get_property_value_length(resources));
+        free(resources);
+        EXPECT_NE(value.find("Xft.dpi:\t192\n"), std::string::npos) << value;
+        EXPECT_NE(value.find("Xcursor.size:\t48\n"), std::string::npos) << value;
+        auto *owner = xcb_get_selection_owner_reply(
+                c, xcb_get_selection_owner(c, intern(c, "_XSETTINGS_S0")), nullptr);
+        ASSERT_TRUE(owner);
+        const xcb_window_t settingsWindow = owner->owner;
+        free(owner);
+        const auto settingsAtom = intern(c, "_XSETTINGS_SETTINGS");
+        auto *settings = xcb_get_property_reply(
+                c, xcb_get_property(c, 0, settingsWindow, settingsAtom, settingsAtom, 0, 1024),
+                nullptr);
+        ASSERT_TRUE(settings);
+        EXPECT_GT(xcb_get_property_value_length(settings), 0);
+        free(settings);
         const auto id = xcb_generate_id(c);
         const uint32_t values[] = {screen->white_pixel};
         xcb_create_window(c, XCB_COPY_FROM_PARENT, id, screen->root, 0, 0, 200, 100, 0,
@@ -1371,6 +1399,66 @@ TEST_F(XwaylandTest, NetWmSyncRequestHoldsResizesForTheClientCounter)
         poll();
         return !animation->isWaitingForBoundsContent();
     }));
+}
+
+// An X11 cursor image comes at the theme size Xcursor.size names and shows at
+// the compositor's own cursor size: at 1.75, Adwaita's 48 pixels make 24
+// logical ones, not 27.
+TEST_F(XwaylandTest, X11CursorImagesShowAtTheCompositorCursorSize)
+{
+    std::string theme = "Adwaita";
+    const double cursorScale = cutefish::xwayland::x11CursorSize(24, 1.75, theme) / 24.0;
+    if (cursorScale == 1.75)
+        GTEST_SKIP() << "no Adwaita cursor size that differs from the scale";
+    xwayland->setScale(1.75);
+    xwayland->setCursorTheme("Adwaita", 24);
+    // The scene owns the cursor surface's node from here on, and outlives
+    // the server.
+    auto *cursors = scene.root()->addChild(std::make_unique<scene::Node>("cursors"));
+    seat->setCursorContainer(cursors);
+    ASSERT_TRUE(start()) << xwayland->error();
+    setenv("XAUTHORITY", xwayland->authority().c_str(), 1);
+    auto *c = xcbReply([&] {
+        return xcb_connect(xwayland->display().c_str(), nullptr);
+    });
+    ASSERT_EQ(xcb_connection_has_error(c), 0);
+    base::ScopeGuard cleanup([&] {
+        xcb_disconnect(c);
+    });
+    auto *screen = xcb_setup_roots_iterator(xcb_get_setup(c)).data;
+    const auto font = xcb_generate_id(c);
+    xcb_open_font(c, font, 6, "cursor");
+    const auto cursor = xcb_generate_id(c);
+    xcb_create_glyph_cursor(c, cursor, font, font, 68, 69, 0, 0, 0, 0xffff, 0xffff, 0xffff);
+    xcb_close_font(c, font);
+    const auto id = xcb_generate_id(c);
+    const uint32_t values[] = {screen->white_pixel, cursor};
+    xcb_create_window(c, XCB_COPY_FROM_PARENT, id, screen->root, 0, 0, 600, 400, 0,
+                      XCB_WINDOW_CLASS_INPUT_OUTPUT, screen->root_visual,
+                      XCB_CW_BACK_PIXEL | XCB_CW_CURSOR, values);
+    xcb_map_window(c, id);
+    xcb_flush(c);
+    ASSERT_TRUE(until([&] {
+        return manager->windows().size() == 1 && manager->windows()[0]->rootSurface()->isMapped();
+    }));
+    auto *window = manager->windows()[0];
+    window->activate();
+    input::InputManager input(seat.get());
+    input.setBounds(base::Size(800, 600));
+    compositor::Surface *image = nullptr;
+    ASSERT_TRUE(until([&] {
+        input.onPointerMotionAbsolute({}, base::PointF(window->contentBounds().center()));
+        image = nullptr;
+        for (compositor::Surface *surface : compositor->surfaces()) {
+            if (surface->node()->parent() == cursors)
+                image = surface;
+        }
+        return image && !image->bufferSize().isEmpty();
+    }));
+    const base::Size buffer = image->bufferSize();
+    EXPECT_EQ(image->contentSize(),
+              base::Size(base::roundToInt(buffer.width() / cursorScale),
+                         base::roundToInt(buffer.height() / cursorScale)));
 }
 
 // Xwayland confines the pointer for a grab with confine_to, emulates

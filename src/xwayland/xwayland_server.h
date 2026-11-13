@@ -112,6 +112,9 @@ private:
     void teardown(bool keepSession);
     bool mayRestart();
     void applyScale();
+    // X11 cursor images come at the theme size Xcursor.size names, which
+    // shows at the compositor's own cursor size only at this scale.
+    void applyCursorScale();
     wl_display* m_display;
     wayland::PrivilegedClients* m_privileged;
     wm::WindowManager* m_manager;

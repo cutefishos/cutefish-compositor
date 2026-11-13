@@ -44,6 +44,13 @@ class DndBridge;
 
 class FdWatch;
 
+// The cursor size X11 clients are told, in X11 pixels: the theme size nearest
+// `size` logical pixels at `scale`. Between two theme sizes X11 clients would
+// take either; named exactly, they all take that one. `theme` becomes the
+// theme that has the files, not an alias such as "default", which is often
+// only an index.theme linked into /etc that a sandboxed client cannot follow.
+int x11CursorSize(int size, double scale, std::string &theme);
+
 class Xwm
 {
 public:

@@ -73,6 +73,12 @@ double clientScale(wl_client* client)
     return server ? server->clientScale(client) : 1;
 }
 
+double cursorScale(wl_client* client)
+{
+    Server* server = client ? Server::serverForDisplay(wl_client_get_display(client)) : nullptr;
+    return server ? server->cursorScale(client) : 1;
+}
+
 base::Rect clientRect(int32_t x, int32_t y, int32_t width, int32_t height)
 {
     static constexpr int64_t kLimit = 1 << 24;
