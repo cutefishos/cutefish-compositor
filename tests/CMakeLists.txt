@@ -322,6 +322,7 @@ add_executable(cutefish-shell-memory-bench manual/shell_memory_bench.cpp)
 target_include_directories(cutefish-shell-memory-bench PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(cutefish-shell-memory-bench PRIVATE cutefish-shell-osd cutefish-shell-dock-view
     cutefish-shell-wallpaper cutefish-shell-launcher-view cutefish-shell-notification-view cutefish-shell-notification
+    cutefish-shell-screenshot
     cutefish-decoration cutefish-render cutefish-test-loop)
 cutefish_add_test(panel_gpu_pixel_test cutefish-auth cutefish-render)
 target_include_directories(panel_gpu_pixel_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})

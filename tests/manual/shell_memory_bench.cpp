@@ -76,6 +76,8 @@
 #include "shell/notification/notifications.h"
 #include "shell/osd/osd.h"
 #include "shell/shell.h"
+#include "shell/screenshot/screen_capture.h"
+#include "shell/screenshot/screen_grabber.h"
 #include "shell/shell_window.h"
 #include "shell/wallpaper/wallpaper.h"
 #include "toolkit/toolkit_host.h"
@@ -750,6 +752,33 @@ std::map<std::string, Component> components()
                                 desktop.timeTextureCreation(size));
                 std::fflush(stdout);
             }};
+    // The capture toolbar opened on a fresh ScreenCapture, whose overlay is
+    // made and drawn for the first time, then again with the overlay kept;
+    // first frames in ms, six instances.
+    static std::vector<shell::ScreenCapture *> captures;
+    all["capture"] = {
+            [](Desktop &desktop, base::dbus::Connection *) {
+                for (int i = 0; i < 6; ++i) {
+                    shell::ScreenCaptureServices services;
+                    services.settingsPath = shellConf();
+                    captures.push_back(desktop.shell()->addComponent(
+                            std::make_unique<shell::ScreenCapture>(desktop.shell(), std::move(services))));
+                }
+            },
+            [](Desktop &desktop) {
+                for (size_t i = 0; i < captures.size(); ++i) {
+                    double first[2];
+                    for (double &ms : first) {
+                        captures[i]->startCaptureMode();
+                        ms = desktop.timedFrame();
+                        desktop.run(600);
+                        captures[i]->cancel();
+                        desktop.run(600);
+                    }
+                    std::printf("capture %zu: first frame %.2f ms new, %.2f ms kept\n", i, first[0], first[1]);
+                }
+                std::fflush(stdout);
+            }};
     static shell::NotificationUi *notifications = nullptr;
     // Whether the bench owns the notification names, so that what it sends
     // reaches it and not a session that already has a notification server.
@@ -899,16 +928,27 @@ int main(int argc, char **argv)
             };
             probe("slab: renderer");
             auto small = desktop.makeTextures(300, {64, 64});
+            probe("slab: 300 at 64x64");
             auto medium = desktop.makeTextures(300, {200, 200});
-            probe("slab: 600 textures");
+            probe("slab: 300 at 200x200");
             desktop.dropTextures(small);
             desktop.dropTextures(medium);
             probe("slab: freed");
             desktop.idle(3000);
             probe("slab: freed, idle");
-            auto one = desktop.makeTextures(1, {64, 64});
-            probe("slab: one more");
-            desktop.dropTextures(one);
+            // Allocations of each slab size, then one too large for a slab,
+            // which is what lets the driver take freed slabs and buffers back.
+            for (int round = 0; round < 2; ++round) {
+                for (const base::Size &size : {base::Size(64, 64), base::Size(200, 200)}) {
+                    auto one = desktop.makeTextures(1, size);
+                    desktop.dropTextures(one);
+                }
+                desktop.idle(1000);
+                auto large = desktop.makeTextures(1, {1024, 1024});
+                desktop.dropTextures(large);
+                desktop.idle(1000);
+            }
+            probe("slab: after reclaim");
         }
         auto started = std::chrono::steady_clock::now();
         desktop.createShell(bus);
