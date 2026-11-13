@@ -1,0 +1,742 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: cutefish-compositor\n"
+"Report-Msgid-Bugs-To: https://github.com/cutefishos\n"
+"POT-Creation-Date: 2026-11-13 16:33+0800\n"
+"PO-Revision-Date: 2026-11-13 15:22+0800\n"
+"Last-Translator: \n"
+"Language-Team: \n"
+"Language: de\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#: src/auth/auth_view.cpp
+msgid "User name"
+msgstr "Benutzername"
+
+#: src/auth/auth_view.cpp
+msgid "Enter Password"
+msgstr "Passwort eingeben"
+
+#: src/auth/greetd_backend.cpp
+msgid "Sign-in failed"
+msgstr "Anmeldung fehlgeschlagen"
+
+#: src/auth/pam_backend.cpp
+msgid "Authentication timed out"
+msgstr "Zeitüberschreitung bei der Authentifizierung"
+
+#: src/auth/pam_backend.cpp
+msgid "Authentication failed"
+msgstr "Authentifizierung fehlgeschlagen"
+
+#: src/auth/pam_backend.cpp
+msgid "Authentication service unavailable"
+msgstr "Authentifizierungsdienst nicht verfügbar"
+
+#. TRANSLATORS: an image in the clipboard history and the time it was copied, such as "Image, 10:42:07".
+#: src/shell/clipboard/clipboard_history.cpp
+#, python-brace-format
+msgid "Image, {time}"
+msgstr "Bild, {time}"
+
+#: src/shell/clipboard/clipboard_history.cpp
+#, python-brace-format
+msgid "{n} File"
+msgid_plural "{n} Files"
+msgstr[0] "{n} Datei"
+msgstr[1] "{n} Dateien"
+
+#: src/shell/clipboard/clipboard_picker_view.cpp
+msgid "Clear the clipboard history?"
+msgstr "Verlauf der Zwischenablage löschen?"
+
+#: src/shell/clipboard/clipboard_picker_view.cpp
+#: src/shell/controlcenter/power_dialog.cpp
+#: src/shell/secrets/bluetooth_pairing_dialog.cpp
+#: src/shell/secrets/secret_dialog.cpp
+msgid "Cancel"
+msgstr "Abbrechen"
+
+#: src/shell/clipboard/clipboard_picker_view.cpp
+#: src/shell/notification/notification_controls.cpp
+msgid "Clear"
+msgstr "Löschen"
+
+#: src/shell/clipboard/clipboard_picker_view.cpp
+msgid "Search Clipboard"
+msgstr "Zwischenablage durchsuchen"
+
+#: src/shell/clipboard/clipboard_picker_view.cpp
+msgid "Clipboard Is Empty"
+msgstr "Zwischenablage ist leer"
+
+#: src/shell/clipboard/clipboard_picker_view.cpp
+msgid "No Results"
+msgstr "Keine Ergebnisse"
+
+#: src/shell/controlcenter/control_center_view.cpp
+#: src/shell/controlcenter/status_panel.cpp
+msgid "Wi-Fi"
+msgstr "WLAN"
+
+#: src/shell/controlcenter/control_center_view.cpp
+msgid "Bluetooth"
+msgstr "Bluetooth"
+
+#: src/shell/controlcenter/control_center_view.cpp
+msgid "Dark Mode"
+msgstr "Dunkelmodus"
+
+#: src/shell/controlcenter/control_center_view.cpp
+msgid "Do Not Disturb"
+msgstr "Nicht stören"
+
+#: src/shell/controlcenter/control_center_view.cpp
+msgid "Camera"
+msgstr "Kamera"
+
+#: src/shell/controlcenter/control_center_view.cpp
+#: src/shell/screenshot/capture_toolbar.cpp
+msgid "Microphone"
+msgstr "Mikrofon"
+
+#. TRANSLATORS: the title of the screen brightness slider.
+#: src/shell/controlcenter/control_center_view.cpp
+msgid "Display"
+msgstr "Bildschirm"
+
+#: src/shell/controlcenter/control_center_view.cpp
+#: src/shell/controlcenter/status_panel.cpp
+msgid "Sound"
+msgstr "Ton"
+
+#: src/shell/controlcenter/control_center_view.cpp
+msgid "Off"
+msgstr "Aus"
+
+#: src/shell/controlcenter/control_center_view.cpp
+msgid "On"
+msgstr "Ein"
+
+#: src/shell/controlcenter/power_dialog.cpp
+msgid "Every application is asked to quit first, so you can save your work."
+msgstr "Alle Anwendungen werden zuerst zum Beenden aufgefordert, damit Sie Ihre Arbeit speichern können."
+
+#: src/shell/controlcenter/power_dialog.cpp
+msgid "Restart now?"
+msgstr "Jetzt neu starten?"
+
+#: src/shell/controlcenter/power_dialog.cpp
+msgid "Shut down now?"
+msgstr "Jetzt ausschalten?"
+
+#: src/shell/controlcenter/power_dialog.cpp
+msgid "Log out now?"
+msgstr "Jetzt abmelden?"
+
+#: src/shell/controlcenter/power_dialog.cpp
+#: src/shell/menubar/menu_bar_model.cpp
+msgid "Restart"
+msgstr "Neu starten"
+
+#: src/shell/controlcenter/power_dialog.cpp
+msgid "Shut Down"
+msgstr "Ausschalten"
+
+#: src/shell/controlcenter/power_dialog.cpp
+msgid "Log Out"
+msgstr "Abmelden"
+
+#: src/shell/controlcenter/status_panel.cpp
+msgid "Wi-Fi Settings"
+msgstr "WLAN-Einstellungen"
+
+#: src/shell/controlcenter/status_panel.cpp
+msgid "Hotspot"
+msgstr "Hotspot"
+
+#: src/shell/controlcenter/status_panel.cpp
+msgid "Sound Settings"
+msgstr "Toneinstellungen"
+
+#: src/shell/controlcenter/status_panel.cpp
+msgid "No output device"
+msgstr "Kein Ausgabegerät"
+
+#. TRANSLATORS: the heading above the list of sound output devices.
+#: src/shell/controlcenter/status_panel.cpp
+msgid "Output"
+msgstr "Ausgabe"
+
+#: src/shell/controlcenter/status_panel.cpp
+msgid "Power save"
+msgstr "Energiesparen"
+
+#: src/shell/controlcenter/status_panel.cpp
+msgid "Balanced"
+msgstr "Ausgewogen"
+
+#: src/shell/controlcenter/status_panel.cpp
+msgid "Performance"
+msgstr "Leistung"
+
+#: src/shell/controlcenter/status_panel.cpp
+msgid "Battery"
+msgstr "Batterie"
+
+#: src/shell/controlcenter/status_panel.cpp
+msgid "Battery Settings"
+msgstr "Batterieeinstellungen"
+
+#: src/shell/controlcenter/status_panel.cpp
+msgid "Power Mode"
+msgstr "Energiemodus"
+
+#: src/shell/controlcenter/status_panel.cpp
+msgid "Power Source: Battery"
+msgstr "Stromquelle: Batterie"
+
+#: src/shell/controlcenter/status_panel.cpp
+msgid "Power Source: Power Adapter"
+msgstr "Stromquelle: Netzteil"
+
+#: src/shell/controlcenter/tiles.cpp
+msgid "Not Playing"
+msgstr "Keine Wiedergabe"
+
+#. TRANSLATORS: {name} is an application's name, as in the other "is using" sentences.
+#: src/shell/controlcenter/tiles.cpp
+#, python-brace-format
+msgid "{name} is using the camera and microphone and recording system audio"
+msgstr "{name} verwendet Kamera und Mikrofon und nimmt Systemaudio auf"
+
+#: src/shell/controlcenter/tiles.cpp
+#, python-brace-format
+msgid "{name} is using the camera and microphone"
+msgstr "{name} verwendet Kamera und Mikrofon"
+
+#: src/shell/controlcenter/tiles.cpp
+#, python-brace-format
+msgid "{name} is using the camera and recording system audio"
+msgstr "{name} verwendet die Kamera und nimmt Systemaudio auf"
+
+#: src/shell/controlcenter/tiles.cpp
+#, python-brace-format
+msgid "{name} is using the microphone and recording system audio"
+msgstr "{name} verwendet das Mikrofon und nimmt Systemaudio auf"
+
+#: src/shell/controlcenter/tiles.cpp
+#, python-brace-format
+msgid "{name} is using the camera"
+msgstr "{name} verwendet die Kamera"
+
+#: src/shell/controlcenter/tiles.cpp
+#, python-brace-format
+msgid "{name} is using the microphone"
+msgstr "{name} verwendet das Mikrofon"
+
+#: src/shell/controlcenter/tiles.cpp
+#, python-brace-format
+msgid "{name} is recording system audio"
+msgstr "{name} nimmt Systemaudio auf"
+
+#: src/shell/dock/dock_model.cpp
+msgid "Launcher"
+msgstr "Launcher"
+
+#: src/shell/dock/dock_window.cpp
+msgid "Trash"
+msgstr "Papierkorb"
+
+#: src/shell/dock/dock_window.cpp src/shell/launcher/launcher_view.cpp
+msgid "Remove from Dock"
+msgstr "Aus dem Dock entfernen"
+
+#: src/shell/dock/dock_window.cpp
+msgid "Keep in Dock"
+msgstr "Im Dock behalten"
+
+#: src/shell/dock/dock_window.cpp src/shell/launcher/launcher_view.cpp
+msgid "Open"
+msgstr "Öffnen"
+
+#: src/shell/dock/dock_window.cpp src/shell/menubar/menu_bar_model.cpp
+msgid "Quit"
+msgstr "Beenden"
+
+#: src/shell/dock/dock_window.cpp
+msgid "Restore"
+msgstr "Wiederherstellen"
+
+#: src/shell/dock/dock_window.cpp src/shell/screenshot/capture_toolbar.cpp
+msgid "Close"
+msgstr "Schließen"
+
+#: src/shell/dock/dock_window.cpp
+msgid "Empty Trash"
+msgstr "Papierkorb leeren"
+
+#: src/shell/launcher/launcher_search_field.cpp
+msgid "Search"
+msgstr "Suchen"
+
+#: src/shell/launcher/launcher_view.cpp
+msgid "New Folder"
+msgstr "Neuer Ordner"
+
+#: src/shell/launcher/launcher_view.cpp
+msgid "Not found"
+msgstr "Nicht gefunden"
+
+#: src/shell/launcher/launcher_view.cpp
+msgid "Rename"
+msgstr "Umbenennen"
+
+#: src/shell/launcher/launcher_view.cpp
+msgid "Ungroup"
+msgstr "Gruppierung aufheben"
+
+#: src/shell/launcher/launcher_view.cpp
+msgid "Move to Folder"
+msgstr "In Ordner verschieben"
+
+#: src/shell/launcher/launcher_view.cpp
+msgid "Remove from Folder"
+msgstr "Aus Ordner entfernen"
+
+#: src/shell/launcher/launcher_view.cpp
+msgid "Send to Desktop"
+msgstr "Auf den Schreibtisch legen"
+
+#: src/shell/launcher/launcher_view.cpp
+msgid "Send to Dock"
+msgstr "Ins Dock legen"
+
+#: src/shell/menubar/menu_bar_model.cpp
+msgid "About"
+msgstr "Über"
+
+#: src/shell/menubar/menu_bar_model.cpp
+msgid "Settings"
+msgstr "Einstellungen"
+
+#: src/shell/menubar/menu_bar_model.cpp
+msgid "Suspend"
+msgstr "Ruhezustand"
+
+#: src/shell/menubar/menu_bar_model.cpp
+msgid "Shutdown"
+msgstr "Ausschalten"
+
+#: src/shell/menubar/menu_bar_model.cpp
+msgid "Lock screen"
+msgstr "Bildschirm sperren"
+
+#: src/shell/menubar/menu_bar_model.cpp
+msgid "Log out"
+msgstr "Abmelden"
+
+#: src/shell/menubar/menu_bar_model.cpp
+#, python-brace-format
+msgid "Hide {name}"
+msgstr "{name} ausblenden"
+
+#: src/shell/menubar/menu_bar_model.cpp
+msgid "Hide Others"
+msgstr "Andere ausblenden"
+
+#: src/shell/notification/notification_centre.cpp
+#, python-brace-format
+msgid "{n} more notification"
+msgid_plural "{n} more notifications"
+msgstr[0] "{n} weitere Mitteilung"
+msgstr[1] "{n} weitere Mitteilungen"
+
+#: src/shell/notification/notification_centre.cpp
+msgid "Show Less"
+msgstr "Weniger anzeigen"
+
+#: src/shell/notification/notification_centre.cpp
+msgid "Notification Center"
+msgstr "Mitteilungszentrale"
+
+#: src/shell/notification/notification_centre.cpp
+msgid "No Notifications"
+msgstr "Keine Mitteilungen"
+
+#: src/shell/notification/notification_models.cpp
+msgid "Now"
+msgstr "Jetzt"
+
+#: src/shell/notification/notification_models.cpp
+#, python-brace-format
+msgid "{n} minute ago"
+msgid_plural "{n} minutes ago"
+msgstr[0] "vor {n} Minute"
+msgstr[1] "vor {n} Minuten"
+
+#: src/shell/notification/notification_models.cpp
+#, python-brace-format
+msgid "{n} hour ago"
+msgid_plural "{n} hours ago"
+msgstr[0] "vor {n} Stunde"
+msgstr[1] "vor {n} Stunden"
+
+#: src/shell/notification/notification_models.cpp
+#, python-brace-format
+msgid "{n} day ago"
+msgid_plural "{n} days ago"
+msgstr[0] "vor {n} Tag"
+msgstr[1] "vor {n} Tagen"
+
+#: src/shell/notresponding/not_responding_sheets.cpp
+#, python-brace-format
+msgid "“{name}” is not responding"
+msgstr "„{name}“ reagiert nicht"
+
+#: src/shell/notresponding/not_responding_sheets.cpp
+msgid "You can wait for it to respond, or force quit it. Anything it has not saved will be lost."
+msgstr "Sie können warten, bis die Anwendung wieder reagiert, oder sie sofort beenden. Alles, was nicht gespeichert wurde, geht verloren."
+
+#: src/shell/notresponding/not_responding_sheets.cpp
+msgid "Force Quit"
+msgstr "Sofort beenden"
+
+#: src/shell/notresponding/not_responding_sheets.cpp
+msgid "Wait"
+msgstr "Warten"
+
+#: src/shell/screenshot/capture_notifier.cpp
+msgid "Screen Recording"
+msgstr "Bildschirmaufnahme"
+
+#: src/shell/screenshot/capture_notifier.cpp data/cutefish-screenshot.desktop
+msgid "Screenshot"
+msgstr "Bildschirmfoto"
+
+#: src/shell/screenshot/capture_notifier.cpp
+msgid "Copied to the clipboard"
+msgstr "In die Zwischenablage kopiert"
+
+#: src/shell/screenshot/capture_notifier.cpp
+msgid "Taken from the command line"
+msgstr "Über die Befehlszeile aufgenommen"
+
+#: src/shell/screenshot/capture_notifier.cpp
+msgid "Show in Folder"
+msgstr "Im Ordner anzeigen"
+
+#: src/shell/screenshot/capture_toolbar.cpp
+msgid "Capture Entire Screen"
+msgstr "Gesamten Bildschirm aufnehmen"
+
+#: src/shell/screenshot/capture_toolbar.cpp
+msgid "Capture Selected Window"
+msgstr "Ausgewähltes Fenster aufnehmen"
+
+#: src/shell/screenshot/capture_toolbar.cpp
+msgid "Capture Selected Portion"
+msgstr "Ausgewählten Bereich aufnehmen"
+
+#: src/shell/screenshot/capture_toolbar.cpp
+msgid "Record Entire Screen"
+msgstr "Gesamten Bildschirm aufzeichnen"
+
+#: src/shell/screenshot/capture_toolbar.cpp
+msgid "Record Selected Window"
+msgstr "Ausgewähltes Fenster aufzeichnen"
+
+#: src/shell/screenshot/capture_toolbar.cpp
+msgid "Record Selected Portion"
+msgstr "Ausgewählten Bereich aufzeichnen"
+
+#: src/shell/screenshot/capture_toolbar.cpp
+msgid "Options"
+msgstr "Optionen"
+
+#: src/shell/screenshot/capture_toolbar.cpp
+msgid "Capture"
+msgstr "Aufnehmen"
+
+#: src/shell/screenshot/capture_toolbar.cpp
+msgid "Record"
+msgstr "Aufzeichnen"
+
+#: src/shell/screenshot/capture_toolbar.cpp
+msgid "Save to"
+msgstr "Speichern in"
+
+#: src/shell/screenshot/capture_toolbar.cpp
+msgid "Videos"
+msgstr "Videos"
+
+#: src/shell/screenshot/capture_toolbar.cpp
+msgid "Screenshots"
+msgstr "Bildschirmfotos"
+
+#: src/shell/screenshot/capture_toolbar.cpp
+#: src/shell/statusbar/application_menu.cpp
+msgid "Desktop"
+msgstr "Schreibtisch"
+
+#: src/shell/screenshot/capture_toolbar.cpp
+msgid "Documents"
+msgstr "Dokumente"
+
+#: src/shell/screenshot/capture_toolbar.cpp
+msgid "Clipboard"
+msgstr "Zwischenablage"
+
+#: src/shell/screenshot/capture_toolbar.cpp
+msgid "Other Location…"
+msgstr "Anderer Ort …"
+
+#: src/shell/screenshot/capture_toolbar.cpp
+msgid "Timer"
+msgstr "Timer"
+
+#: src/shell/screenshot/capture_toolbar.cpp
+msgctxt "timer"
+msgid "None"
+msgstr "Keiner"
+
+#: src/shell/screenshot/capture_toolbar.cpp
+#, python-brace-format
+msgid "{n} Second"
+msgid_plural "{n} Seconds"
+msgstr[0] "{n} Sekunde"
+msgstr[1] "{n} Sekunden"
+
+#: src/shell/screenshot/capture_toolbar.cpp
+msgctxt "microphone"
+msgid "None"
+msgstr "Keines"
+
+#: src/shell/screenshot/capture_toolbar.cpp
+msgid "Show Mouse Pointer"
+msgstr "Mauszeiger anzeigen"
+
+#: src/shell/screenshot/capture_toolbar.cpp
+msgid "Remember Last Selection"
+msgstr "Letzte Auswahl merken"
+
+#: src/shell/screenshot/screen_capture.cpp
+msgid "Screen Recording Failed"
+msgstr "Bildschirmaufnahme fehlgeschlagen"
+
+#: src/shell/screenshot/screen_capture.cpp
+msgid "Choose a Folder"
+msgstr "Ordner wählen"
+
+#: src/shell/screenshot/screen_capture.cpp
+msgid "Screenshot Failed"
+msgstr "Bildschirmfoto fehlgeschlagen"
+
+#: src/shell/screenshot/screen_capture.cpp
+msgid "The screen could not be captured."
+msgstr "Der Bildschirm konnte nicht aufgenommen werden."
+
+#: src/shell/screenshot/screen_capture.cpp
+msgid "The screenshot could not be copied."
+msgstr "Das Bildschirmfoto konnte nicht kopiert werden."
+
+#: src/shell/screenshot/screen_capture.cpp
+msgid "The screenshot could not be saved."
+msgstr "Das Bildschirmfoto konnte nicht gespeichert werden."
+
+#: src/shell/screenshot/screen_capture.cpp
+#, python-brace-format
+msgid "{folder} cannot be written to."
+msgstr "In {folder} kann nicht geschrieben werden."
+
+#: src/shell/screenshot/screen_recording.cpp
+msgid "The screen recorder could not be started."
+msgstr "Die Bildschirmaufnahme konnte nicht gestartet werden."
+
+#: src/shell/screenshot/screen_recording.cpp
+msgid "The screen recorder crashed."
+msgstr "Die Bildschirmaufnahme ist abgestürzt."
+
+#: src/shell/screenshot/screen_recording.cpp
+msgid "The screen recorder failed."
+msgstr "Die Bildschirmaufnahme ist fehlgeschlagen."
+
+#: src/shell/secrets/bluetooth_pairing_dialog.cpp
+#, python-brace-format
+msgid "Confirm that “{name}” shows this code."
+msgstr "Bestätigen Sie, dass „{name}“ diesen Code anzeigt."
+
+#: src/shell/secrets/bluetooth_pairing_dialog.cpp
+#, python-brace-format
+msgid "Enter the PIN for “{name}”."
+msgstr "Geben Sie die PIN für „{name}“ ein."
+
+#: src/shell/secrets/bluetooth_pairing_dialog.cpp
+#, python-brace-format
+msgid "Enter the passkey shown on “{name}”."
+msgstr "Geben Sie den auf „{name}“ angezeigten Code ein."
+
+#: src/shell/secrets/bluetooth_pairing_dialog.cpp
+#, python-brace-format
+msgid "Type this code on “{name}”, then press Enter on it."
+msgstr "Geben Sie diesen Code auf „{name}“ ein und drücken Sie dort die Eingabetaste."
+
+#: src/shell/secrets/bluetooth_pairing_dialog.cpp
+#, python-brace-format
+msgid "Allow “{name}” to use this Bluetooth service?"
+msgstr "Darf „{name}“ diesen Bluetooth-Dienst verwenden?"
+
+#: src/shell/secrets/bluetooth_pairing_dialog.cpp
+#, python-brace-format
+msgid "Allow “{name}” to pair with this computer?"
+msgstr "Darf „{name}“ mit diesem Computer gekoppelt werden?"
+
+#: src/shell/secrets/bluetooth_pairing_dialog.cpp
+msgid "Bluetooth Pairing Request"
+msgstr "Bluetooth-Kopplungsanfrage"
+
+#: src/shell/secrets/bluetooth_pairing_dialog.cpp
+#, python-brace-format
+msgid "{n} digit entered"
+msgid_plural "{n} digits entered"
+msgstr[0] "{n} Ziffer eingegeben"
+msgstr[1] "{n} Ziffern eingegeben"
+
+#: src/shell/secrets/bluetooth_pairing_dialog.cpp
+msgid "Passkey"
+msgstr "Code"
+
+#: src/shell/secrets/bluetooth_pairing_dialog.cpp
+#: src/shell/secrets/vpn_secret_fields.cpp
+msgid "PIN"
+msgstr "PIN"
+
+#: src/shell/secrets/bluetooth_pairing_dialog.cpp
+msgid "Decline"
+msgstr "Ablehnen"
+
+#: src/shell/secrets/bluetooth_pairing_dialog.cpp
+msgid "Confirm"
+msgstr "Bestätigen"
+
+#: src/shell/secrets/bluetooth_pairing_dialog.cpp
+msgid "Pair"
+msgstr "Koppeln"
+
+#: src/shell/secrets/bluetooth_pairing_dialog.cpp
+msgid "Allow"
+msgstr "Erlauben"
+
+#: src/shell/secrets/network_dialogs.cpp
+msgid "Private Key Password Required"
+msgstr "Passwort für privaten Schlüssel erforderlich"
+
+#: src/shell/secrets/network_dialogs.cpp
+msgid "Wi-Fi Password Required"
+msgstr "WLAN-Passwort erforderlich"
+
+#: src/shell/secrets/network_dialogs.cpp
+msgid "Network Authentication Required"
+msgstr "Netzwerkauthentifizierung erforderlich"
+
+#: src/shell/secrets/network_dialogs.cpp
+#, python-brace-format
+msgid "The password for “{name}” was not accepted. Try again."
+msgstr "Das Passwort für „{name}“ wurde nicht akzeptiert. Versuchen Sie es erneut."
+
+#: src/shell/secrets/network_dialogs.cpp
+#, python-brace-format
+msgid "Enter the WEP key for “{name}”."
+msgstr "Geben Sie den WEP-Schlüssel für „{name}“ ein."
+
+#. TRANSLATORS: {identity} is the user name the network signs in with.
+#: src/shell/secrets/network_dialogs.cpp
+#, python-brace-format
+msgid "Enter the password of {identity} for “{name}”."
+msgstr "Geben Sie das Passwort von {identity} für „{name}“ ein."
+
+#: src/shell/secrets/network_dialogs.cpp
+#, python-brace-format
+msgid "Enter the password for “{name}”."
+msgstr "Geben Sie das Passwort für „{name}“ ein."
+
+#: src/shell/secrets/network_dialogs.cpp
+msgid "Show password"
+msgstr "Passwort anzeigen"
+
+#: src/shell/secrets/network_dialogs.cpp
+msgid "WEP key"
+msgstr "WEP-Schlüssel"
+
+#: src/shell/secrets/network_dialogs.cpp
+#: src/shell/secrets/vpn_secret_fields.cpp
+msgid "Password"
+msgstr "Passwort"
+
+#: src/shell/secrets/network_dialogs.cpp
+msgid "Connect"
+msgstr "Verbinden"
+
+#: src/shell/secrets/network_dialogs.cpp
+#, python-brace-format
+msgid "Signing in to “{name}” failed. Try again."
+msgstr "Die Anmeldung bei „{name}“ ist fehlgeschlagen. Versuchen Sie es erneut."
+
+#: src/shell/secrets/network_dialogs.cpp
+msgid "VPN Password Required"
+msgstr "VPN-Passwort erforderlich"
+
+#: src/shell/secrets/vpn_secret_fields.cpp
+msgid "Private key password"
+msgstr "Passwort des privaten Schlüssels"
+
+#: src/shell/secrets/vpn_secret_fields.cpp
+msgid "Proxy password"
+msgstr "Proxy-Passwort"
+
+#: src/shell/secrets/vpn_secret_fields.cpp
+msgid "Certificate password"
+msgstr "Zertifikatspasswort"
+
+#: src/shell/secrets/vpn_secret_fields.cpp
+msgid "Pre-shared key"
+msgstr "Pre-Shared Key"
+
+#: src/shell/secrets/vpn_secret_fields.cpp
+msgid "Machine certificate password"
+msgstr "Passwort des Gerätezertifikats"
+
+#: src/shell/secrets/vpn_secret_fields.cpp
+msgid "Group password"
+msgstr "Gruppenpasswort"
+
+#: src/shell/secrets/vpn_secret_fields.cpp
+msgid "One-time password"
+msgstr "Einmalpasswort"
+
+#. TRANSLATORS: {reason} is a sentence of its own, such as "The VPN service stopped."
+#: src/shell/statusbar/vpn_notifier.cpp
+#, python-brace-format
+msgid "“{name}” could not connect. {reason}"
+msgstr "„{name}“ konnte keine Verbindung herstellen. {reason}"
+
+#: src/shell/statusbar/vpn_notifier.cpp
+msgid "VPN connection failed"
+msgstr "VPN-Verbindung fehlgeschlagen"
+
+#. TRANSLATORS: the name of a desk that has none of its own, such as "Desk 2".
+#: src/wm/overview/overview_controller.cpp
+#, python-brace-format
+msgid "Desk {number}"
+msgstr "Arbeitsfläche {number}"
+
+#: data/cutefish-screenshot.desktop
+msgid "Capture or record the screen, a window or a selected portion"
+msgstr "Bildschirm, ein Fenster oder einen ausgewählten Bereich aufnehmen oder aufzeichnen"
+
+#: data/cutefish-screenshot.desktop
+msgid "screenshot;screen recording;capture;record;"
+msgstr "Bildschirmfoto;Screenshot;Bildschirmaufnahme;aufnehmen;aufzeichnen;"
