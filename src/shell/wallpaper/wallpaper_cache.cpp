@@ -258,6 +258,7 @@ std::shared_ptr<void> WallpaperCache::load(const std::string &path, const base::
         if (it->first == key) {
             m_images.splice(m_images.begin(), m_images, it);
             const ui::Bitmap image = it->second;
+            scheduleExpiry(true);
             done(image);
             return nullptr;
         }
@@ -290,11 +291,48 @@ void WallpaperCache::finish(const Key &key, const ui::Bitmap &image)
         m_images.emplace_front(key, image);
         while (int(m_images.size()) > kMaxCachedImages)
             m_images.pop_back();
+        scheduleExpiry(true);
     }
     for (const std::weak_ptr<Request> &weak : requests) {
         if (const std::shared_ptr<Request> request = weak.lock())
             request->done(image);
     }
+}
+
+void WallpaperCache::setShown(const std::vector<std::pair<std::string, base::Size>> &pictures)
+{
+    m_shown.clear();
+    for (const auto &[path, size] : pictures)
+        m_shown.push_back({path, size.width(), size.height()});
+    scheduleExpiry(false);
+}
+
+bool WallpaperCache::isShown(const Key &key) const
+{
+    return std::find(m_shown.begin(), m_shown.end(), key) != m_shown.end();
+}
+
+void WallpaperCache::scheduleExpiry(bool restart)
+{
+    const bool unshown = std::any_of(m_images.begin(), m_images.end(), [this](const auto &entry) {
+        return !isShown(entry.first);
+    });
+    if (!unshown) {
+        if (m_expiry)
+            m_expiry->stop();
+        return;
+    }
+    if (!m_expiry) {
+        m_expiry = std::make_unique<base::Timer>();
+        m_expiry->setSingleShot(true);
+        m_expiry->onTimeout = [this] {
+            m_images.remove_if([this](const auto &entry) {
+                return !isShown(entry.first);
+            });
+        };
+    }
+    if (restart || !m_expiry->isActive())
+        m_expiry->start(m_expiryDelay);
 }
 
 } // namespace cutefish::shell

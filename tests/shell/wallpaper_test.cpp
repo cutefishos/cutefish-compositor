@@ -175,6 +175,114 @@ TEST(WallpaperCacheTest, SharesOneDecodeAndKeepsItForTheNextSession)
     EXPECT_EQ(0xff202020u, loadNow(edited, path, {32, 24}).pixel(31, 23));
 }
 
+namespace cutefish::shell {
+
+class WallpaperCacheTestAccess
+{
+public:
+    static void setExpiryDelay(WallpaperCache &cache, std::chrono::milliseconds delay)
+    {
+        cache.m_expiryDelay = delay;
+    }
+};
+
+} // namespace cutefish::shell
+
+namespace {
+
+// A cache whose decodes no screen shows go after `delay`, with `path`
+// decoded, in memory and written to its disk cache; on show until then, so
+// the delay counts from the end of this.
+struct ExpiringCache {
+    ExpiringCache(test::TemporaryDirectory &directory, std::chrono::milliseconds delay)
+        : cacheDirectory(directory.filePath("cache"))
+        , cache(cacheDirectory)
+        , path(writePicture(directory, "grey.png", 64, 48, 0xff808080u))
+    {
+        shell::WallpaperCacheTestAccess::setExpiryDelay(cache, delay);
+        cache.setShown({{path, size}});
+        first = loadNow(cache, path, size);
+        EXPECT_TRUE(test::runUntil([&] { return filesIn(cacheDirectory).size() == 1; }));
+        cache.setShown({});
+    }
+
+    std::string cacheDirectory;
+    shell::WallpaperCache cache;
+    std::string path;
+    const base::Size size {32, 24};
+    ui::Bitmap first;
+};
+
+} // namespace
+
+TEST(WallpaperCacheTest, APictureNoScreenShowsLeavesMemoryAfterTheDelay)
+{
+    test::TemporaryDirectory directory;
+    ExpiringCache expiring(directory, std::chrono::milliseconds(50));
+    ASSERT_FALSE(expiring.cache.cached(expiring.path, expiring.size).isNull());
+    EXPECT_TRUE(test::runUntil([&] { return expiring.cache.cached(expiring.path, expiring.size).isNull(); }));
+}
+
+TEST(WallpaperCacheTest, APictureOnShowStays)
+{
+    test::TemporaryDirectory directory;
+    ExpiringCache expiring(directory, std::chrono::milliseconds(50));
+    expiring.cache.setShown({{expiring.path, expiring.size}});
+    const std::string other = writePicture(directory, "dark.png", 64, 48, 0xff202020u);
+    ASSERT_FALSE(loadNow(expiring.cache, other, expiring.size).isNull());
+    // The other one goes, the one on show stays.
+    EXPECT_TRUE(test::runUntil([&] { return expiring.cache.cached(other, expiring.size).isNull(); }));
+    test::runFor(std::chrono::milliseconds(150));
+    EXPECT_EQ(expiring.cache.cached(expiring.path, expiring.size).constBits(), expiring.first.constBits());
+    // Off show, it goes too.
+    expiring.cache.setShown({});
+    EXPECT_TRUE(test::runUntil([&] { return expiring.cache.cached(expiring.path, expiring.size).isNull(); }));
+}
+
+TEST(WallpaperCacheTest, APictureThatLeftMemoryComesBackFromTheDiskCache)
+{
+    test::TemporaryDirectory directory;
+    ExpiringCache expiring(directory, std::chrono::milliseconds(50));
+    const ui::Bitmap first = expiring.first.copy(expiring.first.rect());
+    ASSERT_TRUE(test::runUntil([&] { return expiring.cache.cached(expiring.path, expiring.size).isNull(); }));
+    // Marked on disk, so what comes back shows where it was read from.
+    const std::string cacheFile = filesIn(expiring.cacheDirectory).front();
+    const int fd = open(cacheFile.c_str(), O_WRONLY);
+    ASSERT_GE(fd, 0);
+    const uint32_t marker = 0xff123456u;
+    ASSERT_EQ(ssize_t(sizeof(marker)), pwrite(fd, &marker, sizeof(marker), lseek(fd, 0, SEEK_END) - 4));
+    close(fd);
+    bool atOnce = false;
+    ui::Bitmap again;
+    const std::shared_ptr<void> request =
+            expiring.cache.load(expiring.path, expiring.size, [&](const ui::Bitmap &image) { again = image; });
+    atOnce = !again.isNull();
+    ASSERT_TRUE(test::runUntil([&] { return !again.isNull(); }));
+    EXPECT_FALSE(atOnce);
+    EXPECT_EQ(marker, again.pixel(31, 23));
+    for (int y = 0; y < expiring.size.height(); ++y) {
+        for (int x = 0; x < expiring.size.width(); ++x) {
+            if (x != 31 || y != 23)
+                ASSERT_EQ(first.pixel(x, y), again.pixel(x, y)) << x << "," << y;
+        }
+    }
+}
+
+TEST(WallpaperCacheTest, ARequestDuringTheDelayStartsItAgain)
+{
+    test::TemporaryDirectory directory;
+    ExpiringCache expiring(directory, std::chrono::milliseconds(1000));
+    test::runFor(std::chrono::milliseconds(600));
+    ui::Bitmap again;
+    const std::shared_ptr<void> request =
+            expiring.cache.load(expiring.path, expiring.size, [&](const ui::Bitmap &image) { again = image; });
+    EXPECT_EQ(again.constBits(), expiring.first.constBits());
+    // Past the first delay, within the second.
+    test::runFor(std::chrono::milliseconds(600));
+    EXPECT_FALSE(expiring.cache.cached(expiring.path, expiring.size).isNull());
+    EXPECT_TRUE(test::runUntil([&] { return expiring.cache.cached(expiring.path, expiring.size).isNull(); }));
+}
+
 TEST(WallpaperCacheTest, KeepsTheLastFourFiles)
 {
     test::TemporaryDirectory directory;

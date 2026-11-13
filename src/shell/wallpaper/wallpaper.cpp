@@ -266,6 +266,7 @@ void Wallpaper::updateOutputs()
 
     if (wm::WindowManager *manager = m_shell->windowManager())
         manager->overview()->setWallpaperNodes(nodes());
+    updateShownPictures();
 }
 
 void Wallpaper::reload(Screen &screen)
@@ -290,6 +291,7 @@ void Wallpaper::reload(Screen &screen)
         if (screen.output.primary)
             publish(true, BarBackdrop::styleForSample(BarBackdrop::sampleColor(background.color)));
         updateGradient();
+        updateShownPictures();
         return;
     }
     if (screen.device.isEmpty())
@@ -298,6 +300,7 @@ void Wallpaper::reload(Screen &screen)
     screen.pendingPath = background.path;
     screen.pendingSize = screen.device;
     if (screen.pendingPath != screen.shownPath || screen.pendingSize != screen.shownSize) {
+        updateShownPictures();
         // A decode in memory comes back at once.
         screen.request = m_cache.load(screen.pendingPath, screen.pendingSize,
                                       [this, &screen](const ui::Bitmap &image) { decoded(screen, image); });
@@ -371,6 +374,19 @@ void Wallpaper::tryCommit(Screen &screen)
     if (screen.output.primary)
         present(screen);
     updateGradient();
+    updateShownPictures();
+}
+
+void Wallpaper::updateShownPictures()
+{
+    std::vector<std::pair<std::string, base::Size>> pictures;
+    for (const std::unique_ptr<Screen> &screen : m_screens) {
+        if (screen->showingImage)
+            pictures.emplace_back(screen->shownPath, screen->shownSize);
+        if (!screen->pendingPath.empty())
+            pictures.emplace_back(screen->pendingPath, screen->pendingSize);
+    }
+    m_cache.setShown(pictures);
 }
 
 void Wallpaper::present(const Screen &screen)

@@ -103,6 +103,8 @@ private:
     void reload(Screen &screen);
     void tryCommit(Screen &screen);
     void decoded(Screen &screen, const ui::Bitmap &image);
+    // Tells the cache which pictures the screens show or are about to.
+    void updateShownPictures();
     void present(const Screen &screen);
     void publish(bool judged, const BarBackdrop::Style &style);
     void updateGradient();
