@@ -111,6 +111,10 @@ ScreenCapture::ScreenCapture(Shell *shell, ScreenCaptureServices services)
                                                     m_services.recorderConnection))
     , m_saving(std::make_shared<SavingNames>())
 {
+    m_overlayExpiry.setSingleShot(true);
+    m_overlayExpiry.onTimeout = [this] {
+        m_overlays.clear();
+    };
     m_countdownTimer.setInterval(std::chrono::milliseconds(1000));
     m_countdownTimer.onTimeout = [this] {
         if (--m_countdown > 0) {
@@ -626,6 +630,7 @@ void ScreenCapture::chooseFolder()
 
 void ScreenCapture::begin(Style style)
 {
+    m_overlayExpiry.stop();
     m_style = style;
     m_toolbar = style == Style::Toolbar;
     m_active = true;
@@ -651,6 +656,8 @@ void ScreenCapture::end()
     m_picked = {};
     for (const auto &overlay : m_overlays)
         overlay->dismiss();
+    if (!m_overlays.empty())
+        m_overlayExpiry.start(m_overlayExpiryDelay);
     notifyChanged();
 }
 

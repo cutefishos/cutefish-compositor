@@ -9,6 +9,7 @@
 #include <chrono>
 #include <cmath>
 #include <filesystem>
+#include <tuple>
 
 #include <fcntl.h>
 #include <linux/input-event-codes.h>
@@ -147,7 +148,7 @@ protected:
         services.grabber = std::move(fake);
         services.selection = seat.selection();
         services.settingsPath = directory.filePath("shell.conf");
-        services.recorder = "/bin/false";
+        services.recorder = recorder;
         capture = shell->addComponent(std::make_unique<shell::ScreenCapture>(shell.get(), std::move(services)));
         capture->notifier().playSound = [this](const std::string &) { ++shutters; };
         ASSERT_TRUE(test::runUntil([this] { return capture->settings().isReady(); }));
@@ -223,9 +224,25 @@ protected:
     }
 
     int shutters = 0;
+    std::string recorder = "/bin/false";
 };
 
 } // namespace
+
+namespace cutefish::shell {
+
+class ScreenCaptureTestAccess
+{
+public:
+    static void setOverlayExpiry(ScreenCapture &capture, std::chrono::milliseconds delay)
+    {
+        capture.m_overlayExpiryDelay = delay;
+    }
+
+    static bool expiryPending(const ScreenCapture &capture) { return capture.m_overlayExpiry.isActive(); }
+};
+
+} // namespace cutefish::shell
 
 TEST_F(ScreenshotTest, CaptureModeCoversTheOutputWithTheToolbarAndASelection)
 {
@@ -534,6 +551,81 @@ TEST_F(ScreenshotTest, TheToolbarIsDraggedAndRemembered)
     capture->cancel();
     capture->startCaptureMode();
     EXPECT_NEAR(saved.y(), toolbarRect().y(), 1e-9);
+}
+
+TEST_F(ScreenshotTest, TheOverlaysGoAWhileAfterTheLastCapture)
+{
+    shell::ScreenCaptureTestAccess::setOverlayExpiry(*capture, std::chrono::milliseconds(50));
+    EXPECT_FALSE(shell::ScreenCaptureTestAccess::expiryPending(*capture));
+    capture->startCaptureMode();
+    frame();
+    ASSERT_NE(nullptr, overlay());
+    capture->cancel();
+    EXPECT_TRUE(shell::ScreenCaptureTestAccess::expiryPending(*capture));
+    EXPECT_TRUE(test::runUntil([&] { return capture->overlays().empty(); }));
+    EXPECT_FALSE(shell::ScreenCaptureTestAccess::expiryPending(*capture));
+}
+
+TEST_F(ScreenshotTest, ACaptureWithinTheDelayKeepsTheOverlays)
+{
+    shell::ScreenCaptureTestAccess::setOverlayExpiry(*capture, std::chrono::milliseconds(200));
+    capture->startCaptureMode();
+    frame();
+    shell::CaptureOverlay *first = overlay();
+    capture->cancel();
+    test::processPendingEvents();
+    capture->startCaptureMode();
+    EXPECT_EQ(first, overlay());
+    EXPECT_FALSE(shell::ScreenCaptureTestAccess::expiryPending(*capture));
+    // Past the delay while it is up.
+    test::runFor(std::chrono::milliseconds(300));
+    EXPECT_EQ(first, overlay());
+    capture->cancel();
+    EXPECT_TRUE(test::runUntil([&] { return capture->overlays().empty(); }));
+}
+
+TEST_F(ScreenshotTest, ACaptureAfterTheOverlaysWentLooksAsTheFirst)
+{
+    shell::ScreenCaptureTestAccess::setOverlayExpiry(*capture, std::chrono::milliseconds(50));
+    const auto shown = [&] {
+        return std::tuple(toolbarRect(), capture->selection(), capture->type(), capture->source(),
+                          capture->isToolbarStyle(), overlay()->coordinates());
+    };
+    capture->startCaptureMode();
+    frame();
+    capture->setMode(shell::ScreenCapture::Image, shell::ScreenCapture::Region);
+    capture->setSelection(base::Rect(100, 50, 200, 100));
+    capture->cancel();
+    // Opened again at once, on the overlays it had.
+    capture->startCaptureMode();
+    frame();
+    const auto kept = shown();
+    capture->cancel();
+    ASSERT_TRUE(test::runUntil([&] { return capture->overlays().empty(); }));
+    capture->startCaptureMode();
+    frame();
+    ASSERT_NE(nullptr, overlay());
+    EXPECT_EQ(kept, shown());
+}
+
+TEST_F(ScreenshotTest, ARecordingGoesOnWithoutTheOverlays)
+{
+    // Records until told to stop, as the real one does.
+    ASSERT_TRUE(directory.write("recorder", "#!/bin/sh\necho started\nread line\n"));
+    ASSERT_EQ(0, chmod(directory.filePath("recorder").c_str(), 0755));
+    recorder = directory.filePath("recorder");
+    makeShell(nullptr);
+    shell::ScreenCaptureTestAccess::setOverlayExpiry(*capture, std::chrono::milliseconds(50));
+    capture->settings().setCustomFolder(true, directory.filePath("Videos"));
+    capture->startCaptureMode();
+    frame();
+    capture->setMode(shell::ScreenCapture::Video, shell::ScreenCapture::Screen);
+    capture->perform(false);
+    ASSERT_TRUE(test::runUntil([&] { return capture->isRecording(); }));
+    EXPECT_TRUE(test::runUntil([&] { return capture->overlays().empty(); }));
+    EXPECT_TRUE(capture->isRecording());
+    capture->stopRecording();
+    EXPECT_TRUE(test::runUntil([&] { return !capture->isRecording(); }));
 }
 
 TEST_F(ScreenshotTest, ServesOrgCutefishScreenshot)

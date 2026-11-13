@@ -112,6 +112,9 @@ public:
     static constexpr std::chrono::milliseconds kPointerSettle {150};
     // The compositor's rounded window corners.
     static constexpr double kWindowRadius = 14;
+    // How long the overlays stay after a capture ends, so captures in a row
+    // reuse them; then they go, as before the first capture.
+    static constexpr std::chrono::seconds kOverlayExpiry {60};
 
     ScreenCapture(Shell *shell, ScreenCaptureServices services);
     ~ScreenCapture() override;
@@ -181,6 +184,8 @@ public:
     struct SavingNames;
 
 private:
+    friend class ScreenCaptureTestAccess;
+
     enum class Style {
         Toolbar,
         Selection,
@@ -259,6 +264,8 @@ private:
     int m_countdown = 0;
     base::Rect m_countdownArea;
     base::Timer m_countdownTimer;
+    base::Timer m_overlayExpiry;
+    std::chrono::milliseconds m_overlayExpiryDelay = kOverlayExpiry;
     std::function<void()> m_pending;
     std::shared_ptr<bool> m_alive = std::make_shared<bool>(true);
 };
