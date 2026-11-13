@@ -8,11 +8,16 @@
 //   cutefish-shell-memory-bench [--scale S] [--dark] [--wallpaper IMAGE]
 //                               [--glibc-defaults] [--mmap-threshold BYTES]
 //                               [--arena-max N] [--no-thp] [--cpu-panels]
-//                               [--hold S] COMPONENT...
+//                               [--hold S] [--cycles N] [--idle S,S...]
+//                               COMPONENT...
 //
 // Steps: the renderer with a wallpaper, the Shell, then each COMPONENT
-// (osd, dock) added and drawn for a second, then each one used once, then
-// Skia's GPU cache purged and the heap trimmed. Each step prints this
+// (osd, dock, wallpaper, launcher, notifications) added and drawn for a
+// second, then each one used `--cycles` times, with the peak while it was
+// used, then idle as the compositor idles (a frame only when something asked
+// for one) up to each `--idle` mark, then Skia's GPU cache purged and the
+// heap trimmed. With wallpaper, the desktop's own picture comes from that
+// component instead of the bench. Each step prints this
 // process's PSS split by kind of mapping, malloc's bytes in use and free,
 // the GPU memory of its DRM client, its threads and the main thread's CPU
 // time, with the change since the step before. malloc is set up as the
@@ -20,6 +25,7 @@
 // bus (dbus-run-session): the components then reach the session's PipeWire
 // and services as they do in the compositor.
 
+#include <dlfcn.h>
 #include <malloc.h>
 #include <unistd.h>
 #include <sys/prctl.h>
@@ -39,6 +45,7 @@
 #include <set>
 #include <sstream>
 #include <string>
+#include <tuple>
 #include <vector>
 
 #include <EGL/egl.h>
@@ -61,9 +68,14 @@
 #include "scene/scene.h"
 #include "shell/dock/dock.h"
 #include "shell/dock/dock_window.h"
+#include "shell/launcher/launcher.h"
+#include "shell/launcher/launcher_window.h"
+#include "shell/notification/notification_ui.h"
+#include "shell/notification/notifications.h"
 #include "shell/osd/osd.h"
 #include "shell/shell.h"
 #include "shell/shell_window.h"
+#include "shell/wallpaper/wallpaper.h"
 #include "toolkit/toolkit_host.h"
 #include "ui/bitmap.h"
 #include "wm/shadow_controller.h"
@@ -115,6 +127,56 @@ std::string kindOf(const std::string &path)
     return "other";
 }
 
+// KiB of VRAM and GTT of this process's DRM clients, each counted once.
+std::pair<int64_t, int64_t> gpuMemory()
+{
+    std::pair<int64_t, int64_t> total;
+    std::set<std::string> clients;
+    std::string line;
+    for (const auto &entry : std::filesystem::directory_iterator("/proc/self/fdinfo")) {
+        std::ifstream fdinfo(entry.path());
+        std::string id;
+        int64_t vram = 0, gtt = 0;
+        while (std::getline(fdinfo, line)) {
+            int64_t value = 0;
+            if (line.rfind("drm-client-id:", 0) == 0)
+                id = line;
+            else if (std::sscanf(line.c_str(), "drm-memory-vram: %" SCNd64, &value) == 1)
+                vram = value;
+            else if (std::sscanf(line.c_str(), "drm-memory-gtt: %" SCNd64, &value) == 1)
+                gtt = value;
+        }
+        if (id.empty() || !clients.insert(id).second)
+            continue;
+        total.first += vram;
+        total.second += gtt;
+    }
+    return total;
+}
+
+// The highest PSS and GPU memory seen while a step ran, in KiB.
+struct Peak {
+    int64_t pss = 0;
+    int64_t vram = 0;
+    int64_t gtt = 0;
+
+    void update()
+    {
+        std::ifstream rollup("/proc/self/smaps_rollup");
+        std::string line;
+        while (std::getline(rollup, line)) {
+            int64_t value = 0;
+            if (std::sscanf(line.c_str(), "Pss: %" SCNd64, &value) == 1)
+                pss = std::max(pss, value);
+        }
+        const auto [v, g] = gpuMemory();
+        vram = std::max(vram, v);
+        gtt = std::max(gtt, g);
+    }
+};
+
+Peak peak;
+
 Sample sample()
 {
     Sample s;
@@ -150,25 +212,7 @@ Sample sample()
     s.mallocUsed = int64_t(info.uordblks + info.hblkhd) / 1024;
     s.mallocFree = int64_t(info.fordblks) / 1024;
 
-    std::set<std::string> clients;
-    for (const auto &entry : std::filesystem::directory_iterator("/proc/self/fdinfo")) {
-        std::ifstream fdinfo(entry.path());
-        std::string id;
-        int64_t vram = 0, gtt = 0;
-        while (std::getline(fdinfo, line)) {
-            int64_t value = 0;
-            if (line.rfind("drm-client-id:", 0) == 0)
-                id = line;
-            else if (std::sscanf(line.c_str(), "drm-memory-vram: %" SCNd64, &value) == 1)
-                vram = value;
-            else if (std::sscanf(line.c_str(), "drm-memory-gtt: %" SCNd64, &value) == 1)
-                gtt = value;
-        }
-        if (id.empty() || !clients.insert(id).second)
-            continue;
-        s.vram += vram;
-        s.gtt += gtt;
-    }
+    std::tie(s.vram, s.gtt) = gpuMemory();
     for (const auto &task : std::filesystem::directory_iterator("/proc/self/task")) {
         std::ifstream comm(task.path() / "comm");
         std::string name;
@@ -271,6 +315,8 @@ public:
         m_manager.setFrameProvider(&m_frames);
         m_manager.setVisualStyle(m_theme.visualStyle());
         m_manager.setExclusiveZone(&m_statusBar, wm::ScreenEdge::Top, 32);
+        m_scene.root()->setChangeCallback([this] { m_dirty = true; });
+        m_repaint = m_compositor.repaintNeeded.connect([this](bool) { m_dirty = true; });
 
         if (!wallpaper.isNull()) {
             render::EglRenderer *renderer = gl.renderer();
@@ -336,7 +382,30 @@ public:
         for (int elapsed = 0; elapsed <= ms; elapsed += 17) {
             test::runFor(std::chrono::milliseconds(17));
             frame();
+            if (++m_sinceSample == 6) {
+                m_sinceSample = 0;
+                peak.update();
+            }
         }
+    }
+
+    // The loop turning for `ms`, with a frame on a refresh only when the
+    // scene or a surface asked for one, as the compositor's output does.
+    // Returns the frames drawn.
+    int idle(int ms)
+    {
+        int frames = 0;
+        for (int elapsed = 0; elapsed <= ms; elapsed += 17) {
+            test::runFor(std::chrono::milliseconds(17));
+            if (!m_dirty) {
+                m_time += 1000.0 / 60;
+                continue;
+            }
+            m_dirty = false;
+            frame();
+            ++frames;
+        }
+        return frames;
     }
 
 private:
@@ -366,6 +435,8 @@ private:
     const base::Rect m_output;
     double m_time = 100000;
     uint64_t m_frame = 0;
+    int m_sinceSample = 0;
+    bool m_dirty = true;
     int m_statusBar = 0;
     scene::Scene m_scene;
     scene::TextureNode *m_background =
@@ -382,6 +453,7 @@ private:
     wm::WmShadowControllerDelegate m_shadowDelegate;
     wm::ShadowController m_shadowController {&m_manager, &m_shadows, &m_shadowDelegate};
     std::unique_ptr<render::Texture> m_wallpaper;
+    base::Subscription m_repaint;
     std::unique_ptr<shell::Shell> m_shell;
 };
 
@@ -390,12 +462,28 @@ double msSince(std::chrono::steady_clock::time_point start)
     return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
 }
 
+
+// This run's own directory, removed at exit.
+std::filesystem::path scratchDirectory()
+{
+    return std::filesystem::temp_directory_path() / ("cutefish-shell-memory-bench-" + std::to_string(getpid()));
+}
+
+// A file or directory of this run's own, so nothing here writes the user's.
+std::string scratchPath(const std::string &name)
+{
+    static const std::filesystem::path directory = [] {
+        std::filesystem::create_directories(scratchDirectory());
+        return scratchDirectory();
+    }();
+    return (directory / name).string();
+}
+
 // The user's shell.conf, copied so that nothing here writes to it.
 std::string shellConf()
 {
     static const std::string copy = [] {
-        const std::string path =
-                (std::filesystem::temp_directory_path() / "cutefish-shell-memory-bench.conf").string();
+        const std::string path = scratchPath("shell.conf");
         std::error_code error;
         std::filesystem::copy_file(preferencesFile("shell"), path,
                                    std::filesystem::copy_options::overwrite_existing, error);
@@ -404,11 +492,44 @@ std::string shellConf()
     return copy;
 }
 
+// The pictures the wallpaper step goes through; the first is the one shown
+// before it is used.
+std::vector<std::string> &wallpaperFiles()
+{
+    static std::vector<std::string> files;
+    return files;
+}
+
 // A component: added to the shell, then used as a person would once.
 struct Component {
     std::function<void(Desktop &, base::dbus::Connection *)> add;
     std::function<void(Desktop &)> exercise;
 };
+
+shell::Dock *dockComponentService = nullptr;
+
+// Owns a dock service no dock window shows, for the shell to destroy with
+// the other components.
+struct DockServiceHolder : shell::Component {
+    std::unique_ptr<shell::Dock> dock;
+};
+
+// The dock's service for the launcher: the dock component's when it was
+// added, made here otherwise.
+shell::Dock *dockService(Desktop &desktop, base::dbus::Connection *bus)
+{
+    if (dockComponentService)
+        return dockComponentService;
+    static shell::Dock *own = nullptr;
+    if (!own) {
+        auto holder = std::make_unique<DockServiceHolder>();
+        holder->dock = std::make_unique<shell::Dock>(bus, desktop.shell()->tasks(), desktop.shell()->launcher(),
+                                                     shellConf());
+        own = holder->dock.get();
+        desktop.shell()->addComponent(std::move(holder));
+    }
+    return own;
+}
 
 std::map<std::string, Component> components()
 {
@@ -434,10 +555,10 @@ std::map<std::string, Component> components()
                 auto service = std::make_unique<shell::Dock>(bus, desktop.shell()->tasks(),
                                                              desktop.shell()->launcher(),
                                                              shellConf());
-                shell::Dock *dockService = service.get();
+                dockComponentService = service.get();
                 dock = desktop.shell()->addComponent(
                         std::make_unique<shell::DockWindow>(desktop.shell(), std::move(service)));
-                test::runUntil([&] { return dockService->applications().isLoaded(); },
+                test::runUntil([] { return dockComponentService->applications().isLoaded(); },
                                std::chrono::seconds(10));
             },
             [](Desktop &desktop) {
@@ -455,6 +576,67 @@ std::map<std::string, Component> components()
                 desktop.move(desktop.output().width() * 0.45, desktop.output().height() * 0.45);
                 desktop.run(1200);
             }};
+    static shell::Wallpaper *wallpaper = nullptr;
+    all["wallpaper"] = {
+            [](Desktop &desktop, base::dbus::Connection *) {
+                wallpaper = desktop.shell()->addComponent(std::make_unique<shell::Wallpaper>(
+                        desktop.shell(), scratchPath("wallpapers"), scratchPath("services.conf")));
+                wallpaper->setBackground({0, wallpaperFiles().front(), {}});
+                test::runUntil([] { return wallpaper->isReady(); }, std::chrono::seconds(10));
+            },
+            [](Desktop &desktop) {
+                // Each picture once, then back to the first, as a person
+                // trying a few in Settings would.
+                std::vector<std::string> files = wallpaperFiles();
+                files.push_back(files.front());
+                for (size_t i = 1; i < files.size(); ++i) {
+                    wallpaper->setBackground({0, files[i], {}});
+                    const auto shown = std::chrono::steady_clock::now() + std::chrono::seconds(10);
+                    while (!wallpaper->isReady() && std::chrono::steady_clock::now() < shown)
+                        desktop.run(100);
+                    desktop.run(500);
+                }
+            }};
+    static shell::LauncherWindow *launcher = nullptr;
+    all["launcher"] = {
+            [](Desktop &desktop, base::dbus::Connection *bus) {
+                auto service = std::make_unique<shell::Launcher>(bus, desktop.shell()->tasks(),
+                                                                 desktop.shell()->launcher(),
+                                                                 dockService(desktop, bus), shellConf());
+                launcher = desktop.shell()->addComponent(std::make_unique<shell::LauncherWindow>(
+                        desktop.shell(), std::move(service), dockService(desktop, bus), wallpaper));
+            },
+            [](Desktop &desktop) {
+                launcher->launcher().show();
+                desktop.run(1500);
+                launcher->launcher().hide();
+                desktop.run(1000);
+            }};
+    static shell::NotificationUi *notifications = nullptr;
+    // Whether the bench owns the notification names, so that what it sends
+    // reaches it and not a session that already has a notification server.
+    static bool notificationsServed = false;
+    all["notifications"] = {
+            [](Desktop &desktop, base::dbus::Connection *bus) {
+                shell::Notifications::Files files {shellConf(), scratchPath("notification-history.json"),
+                                                   scratchPath("notification-images")};
+                notifications = desktop.shell()->addComponent(std::make_unique<shell::NotificationUi>(
+                        desktop.shell(), std::make_unique<shell::Notifications>(
+                                                 bus, desktop.shell()->applications(), &desktop.shell()->tasks(),
+                                                 files)));
+                notificationsServed = bus && notifications->registerServices();
+                if (!notificationsServed)
+                    std::fprintf(stderr, "notifications: the bus names are taken; nothing is sent\n");
+            },
+            [](Desktop &desktop) {
+                // A burst from one program, each with an icon, as a chat or
+                // a build would send; the banners then time out.
+                if (notificationsServed)
+                    std::system("for i in $(seq 1 20); do notify-send -a Bench -i dialog-information "
+                                "\"Message $i\" \"Line one of the body $i\"; done &");
+                desktop.run(4000);
+                desktop.run(8000);
+            }};
     return all;
 }
 
@@ -465,6 +647,8 @@ int main(int argc, char **argv)
     double scale = 1.5;
     bool dark = false;
     int holdSeconds = 0;
+    int cycles = 1;
+    std::vector<int> idleMarks;
     std::string wallpaperPath = "/usr/share/backgrounds/cutefishos/default.jpg";
     std::vector<std::string> wanted;
     if (std::none_of(argv + 1, argv + argc, [](const char *arg) { return std::string(arg) == "--glibc-defaults"; }))
@@ -489,7 +673,17 @@ int main(int argc, char **argv)
             mallopt(M_ARENA_MAX, std::stoi(argv[++i]));
         else if (arg == "--wallpaper" && i + 1 < argc)
             wallpaperPath = argv[++i];
-        else
+        else if (arg == "--wallpapers" && i + 1 < argc) {
+            std::istringstream list(argv[++i]);
+            for (std::string file; std::getline(list, file, ',');)
+                wallpaperFiles().push_back(file);
+        } else if (arg == "--cycles" && i + 1 < argc)
+            cycles = std::max(1, std::stoi(argv[++i]));
+        else if (arg == "--idle" && i + 1 < argc) {
+            std::istringstream list(argv[++i]);
+            for (std::string mark; std::getline(list, mark, ',');)
+                idleMarks.push_back(std::stoi(mark));
+        } else
             wanted.push_back(arg);
     }
     auto all = components();
@@ -503,15 +697,32 @@ int main(int argc, char **argv)
         }
     }
 
+    const bool ownWallpaper = std::find(wanted.begin(), wanted.end(), "wallpaper") == wanted.end();
+    if (wallpaperFiles().empty())
+        wallpaperFiles() = {wallpaperPath, "/usr/share/backgrounds/cutefishos/wallpaper-1.jpg",
+                            "/usr/share/backgrounds/cutefishos/wallpaper-2.jpg"};
+
+    // The GL allocation tracker, when it is preloaded for a look at who
+    // holds which texture.
+    using Report = void (*)(const char *);
+    const auto glReport = reinterpret_cast<Report>(dlsym(RTLD_DEFAULT, "gltrack_report"));
+
     core::MainLoop loop;
     base::dbus::Connection *bus = base::dbus::Connection::session(core::mainLoop());
     Sample last = sample();
     printHeader();
     printSample("process", last, nullptr);
-    const auto step = [&](const std::string &name) {
+    // With `showPeak`, also the highest PSS and GPU memory since the last step.
+    const auto step = [&](const std::string &name, bool showPeak = false) {
         const Sample now = sample();
         printSample(name, now, &last);
         last = now;
+        if (showPeak)
+            std::printf("%-22s PSS %.1f MB, vram %.1f MiB, gtt %.1f MiB\n", "  peak", peak.pss * 1024 / 1e6,
+                        peak.vram / 1024.0, peak.gtt / 1024.0);
+        if (glReport)
+            glReport(name.c_str());
+        peak = {};
     };
 
     Renderer gl;
@@ -519,7 +730,9 @@ int main(int argc, char **argv)
         std::fprintf(stderr, "no EGL renderer\n");
         return 1;
     }
-    const ui::Bitmap wallpaper = ui::Bitmap::decodeFile(wallpaperPath, kNative, ui::Bitmap::Scaling::Cover);
+    const ui::Bitmap wallpaper = ownWallpaper
+            ? ui::Bitmap::decodeFile(wallpaperPath, kNative, ui::Bitmap::Scaling::Cover)
+            : ui::Bitmap();
     {
         Desktop desktop(gl, scale, dark, wallpaper);
         desktop.run(500);
@@ -537,8 +750,16 @@ int main(int argc, char **argv)
             step("+" + name);
         }
         for (const std::string &name : wanted) {
-            all[name].exercise(desktop);
-            step(name + " used");
+            peak.update();
+            for (int cycle = 0; cycle < cycles; ++cycle)
+                all[name].exercise(desktop);
+            step(name + " used" + (cycles > 1 ? " x" + std::to_string(cycles) : ""), true);
+        }
+        int idled = 0;
+        for (const int mark : idleMarks) {
+            const int frames = desktop.idle((mark - idled) * 1000);
+            idled = mark;
+            step("idle " + std::to_string(mark) + " s, " + std::to_string(frames) + " fr");
         }
         desktop.run(3000);
         step("idle 3 s");
@@ -552,9 +773,17 @@ int main(int argc, char **argv)
         if (holdSeconds > 0) {
             std::printf("holding pid %d for %d s\n", int(getpid()), holdSeconds);
             std::fflush(stdout);
-            desktop.run(holdSeconds * 1000);
-            step("held " + std::to_string(holdSeconds) + " s");
+            // As the compositor idles, a step a minute, to see what the
+            // kernel does meanwhile (khugepaged collapsing trimmed heap).
+            for (int held = 0; held < holdSeconds;) {
+                const int chunk = std::min(60, holdSeconds - held);
+                desktop.idle(chunk * 1000);
+                held += chunk;
+                step("held " + std::to_string(held) + " s");
+            }
         }
     }
+    std::error_code error;
+    std::filesystem::remove_all(scratchDirectory(), error);
     return 0;
 }
