@@ -1248,6 +1248,10 @@ void ShellSurface::updateWindowBoundsFromClient()
         if (!workArea.isEmpty())
             adjustBoundsSmallerThan(workArea.size(), &bounds);
     }
+    if (placing) {
+        if (auto *animation = dynamic_cast<scene::WindowAnimation *>(m_window->node()))
+            animation->setBoundsTarget(bounds);
+    }
     if (m_window->frameInsets().inset(bounds.size()) != size) {
         // The client is told the size it keeps instead; a new size configures
         // it from onWindowBoundsChanged.

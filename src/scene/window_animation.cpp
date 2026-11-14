@@ -524,6 +524,15 @@ void WindowAnimation::setDragTarget(const base::Rect &bounds)
     changed();
 }
 
+void WindowAnimation::setBoundsTarget(const base::Rect &bounds)
+{
+    if (m_type != Type::Bounds || !m_running || bounds.isEmpty()
+        || base::fuzzyCompare(m_to, base::RectF(bounds)))
+        return;
+    m_to = bounds;
+    changed();
+}
+
 void WindowAnimation::setBoundsContentReady(bool ready)
 {
     if (!isCrossFade(m_type) || m_boundsContentReady == ready)

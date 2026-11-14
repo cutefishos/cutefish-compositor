@@ -393,6 +393,36 @@ TEST_F(ShellSurfaceTest, AWindowMappedMaximizedWithoutARestoreSizeChoosesItsOwnO
     EXPECT_EQ(base::Size(300, 200), recorder->last().size);
 }
 
+// The cross-fade starts toward bounds the window manager has before the client
+// picks a size; landing there would show the window at one size, then jump it to
+// the one placed.
+TEST_F(ShellSurfaceTest, TheRestoreCrossFadeLandsWhereTheChosenSizeIsPlaced)
+{
+    Recorder *recorder = nullptr;
+    ShellSurface *shell = makeShell(&recorder);
+    shell->setToplevel();
+    shell->maximize();
+    shell->rootSurface()->commit();
+    ASSERT_TRUE(shell->acknowledgeConfigure(recorder->serials.back()));
+    attach(shell->rootSurface(), kOutput.size());
+    shell->rootSurface()->commit();
+    auto *animation = static_cast<scene::WindowAnimation *>(shell->window()->node());
+    animation->finish();
+
+    shell->unmaximize();
+    ASSERT_TRUE(animation->isRunning());
+    ASSERT_EQ(scene::WindowAnimation::Type::Bounds, animation->type());
+    ASSERT_TRUE(shell->acknowledgeConfigure(recorder->serials.back()));
+    auto chosenBuffer =
+            pool->createBuffer({300, 200}, 0, 300 * 4, render::PixelFormat::Bgrx8888, nullptr);
+    shell->rootSurface()->attach(chosenBuffer, {});
+    shell->rootSurface()->commit();
+
+    ASSERT_EQ(base::Rect(350, 300, 300, 200), shell->window()->bounds());
+    EXPECT_FALSE(animation->isWaitingForBoundsContent());
+    EXPECT_EQ(base::RectF(350, 300, 300, 200), animation->targetBounds());
+}
+
 TEST_F(ShellSurfaceTest, ASizeChosenOnRestorePastTheWorkAreaIsPlacedInsideIt)
 {
     Recorder *recorder = nullptr;

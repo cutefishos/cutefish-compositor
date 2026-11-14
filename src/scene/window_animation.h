@@ -96,6 +96,12 @@ public:
     // DragBounds animation is running.
     void setDragTarget(const base::Rect &bounds);
 
+    // Where a running Bounds animation lands. A window restored with no size of
+    // its own is placed only once its client picks one, after the cross-fade
+    // was started toward bounds the client never draws. A no-op unless a Bounds
+    // animation is running.
+    void setBoundsTarget(const base::Rect &bounds);
+
     bool isWaitingForBoundsContent() const { return !m_boundsContentReady; }
 
     // Sends a preview on the first minimize frame, then the exact landing image
@@ -123,6 +129,9 @@ public:
     bool isRunning() const { return m_running; }
 
     Type type() const { return m_type; }
+
+    // Where a running animation lands.
+    const base::RectF &targetBounds() const { return m_to; }
 
     // The client's whole-window opacity, over every draw of the window and
     // its animations. Its surfaces still get frames at zero.
