@@ -612,6 +612,8 @@ set_target_properties(cutefish-wayland-input PROPERTIES POSITION_INDEPENDENT_COD
 add_library(cutefish-session STATIC
     src/session/applications_service.cpp
     src/session/applications_service.h
+    src/session/free_console.cpp
+    src/session/free_console.h
     src/session/power_button.cpp
     src/session/power_button.h
     src/session/screen_saver_service.cpp

@@ -127,6 +127,7 @@ cutefish_add_test(private_shell_protocol_test cutefish-wayland-private-shell
 cutefish_add_test(work_area_test cutefish-wm)
 cutefish_add_test(dock_layout_test cutefish-wm)
 cutefish_add_test(session_lock_test cutefish-session cutefish-wm cutefish-scene cutefish-decoration)
+cutefish_add_test(free_console_test cutefish-session)
 cutefish_add_test(accelerator_test DBUS cutefish-accelerators cutefish-session cutefish-wm
     cutefish-scene)
 cutefish_add_test(xdg_decoration_protocol_test cutefish-wayland-shell cutefish-wayland-input

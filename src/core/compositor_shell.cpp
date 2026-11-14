@@ -53,6 +53,7 @@
 #include "scene/desk_switch_node.h"
 #include "scene/overview_node.h"
 #include "scene/slide_out_node.h"
+#include "session/free_console.h"
 #include "session/session_state.h"
 #include "shell/clipboard/clipboard_history.h"
 #include "shell/clipboard/clipboard_picker.h"
@@ -1234,6 +1235,17 @@ bool CompositorShell::initDrm()
     m_inputBackend = backend::LibinputBackend::create(m_session.get(), &m_inputManager);
     if (!m_inputBackend)
         CF_WARNING(cfInput) << "Continuing without input devices";
+
+    // Ctrl+Alt+F1 to F12, and the lock screen's and greeter's Console: the
+    // first terminal no session is on, where logind starts a login prompt.
+    m_inputManager.switchVirtualTerminal = [this](int vt) { m_session->switchSession(vt); };
+    m_authUi.setConsoleAction([this] {
+        base::dbus::Connection *bus = base::dbus::Connection::system(core::mainLoop());
+        if (const int vt = bus ? session::freeConsole(session::takenConsoles(bus)) : 0)
+            m_session->switchSession(vt);
+        else
+            CF_WARNING(base::LogCategory::defaultCategory()) << "No free text console to switch to";
+    });
 
     m_backendSubscriptions.push_back(m_session->activeChanged.connect([this](bool active) {
         CF_INFO(base::LogCategory::defaultCategory()) << "Compositor seat active" << active;

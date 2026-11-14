@@ -2020,3 +2020,23 @@ TEST_F(AcceleratorTest, MediaKeysDispatchAndCanBeReassignedWithoutRepeating)
     EXPECT_EQ(AcceleratorAction::MediaPlayPause, *reloaded.findAcceleratorAction(custom));
     EXPECT_FALSE(reloaded.findAcceleratorAction(original));
 }
+
+TEST_F(AcceleratorTest, CtrlAltFunctionKeysSwitchToAVirtualTerminal)
+{
+    std::vector<int> terminals;
+    input.switchVirtualTerminal = [&](int vt) { terminals.push_back(vt); };
+
+    chord({KEY_LEFTCTRL, KEY_LEFTALT}, KEY_F2);
+    chord({KEY_LEFTCTRL, KEY_LEFTALT}, KEY_F11);
+    // Without both modifiers an F key is the session's.
+    chord({KEY_LEFTCTRL}, KEY_F3);
+    tap(KEY_F4);
+    EXPECT_EQ(terminals, (std::vector<int> {2, 11}));
+
+    // The lock screen does not keep it: a text console asks for its own login.
+    ASSERT_TRUE(session.requestLock());
+    session.notifyFramePresented();
+    ASSERT_EQ(session::SessionState::Locked, session.state());
+    chord({KEY_LEFTCTRL, KEY_LEFTALT}, KEY_F3);
+    EXPECT_EQ(terminals, (std::vector<int> {2, 11, 3}));
+}

@@ -184,6 +184,13 @@ AuthUi::AuthUi(session::SessionController *session, const input::XkbTracker *xkb
     }
 }
 
+void AuthUi::setConsoleAction(std::function<void()> action)
+{
+    m_consoleAction = std::move(action);
+    if (m_screen)
+        m_screen->setConsoleAction(m_consoleAction);
+}
+
 AuthUi::~AuthUi()
 {
     m_session->setAuthInput(nullptr);
@@ -312,6 +319,7 @@ void AuthUi::refresh()
         auto screen = std::make_unique<AuthScreen>(m_window.get(), m_controller.get());
         m_screen = screen.get();
         m_screen->setPowerActions(m_power);
+        m_screen->setConsoleAction(m_consoleAction);
         m_window->setContentView(std::move(screen));
         m_screen->focusPassword();
         m_panel = std::make_unique<toolkit::PanelTexture>(m_window.get());

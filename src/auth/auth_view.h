@@ -6,6 +6,7 @@
 #define CUTEFISH_AUTH_AUTH_VIEW_H
 
 #include <ctime>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <vector>
@@ -61,9 +62,11 @@ public:
     // Seconds since the epoch the clock shows instead of the time, for tests.
     void setClockForTesting(std::time_t now);
 
-    // Restart and Shut Down at the bottom right, those `actions` can take;
-    // none while unset.
+    // Restart and Shut Down under the login column, those `actions` can
+    // take; none while unset.
     void setPowerActions(PowerActions *actions);
+    // Console before them, to a text console, while set.
+    void setConsoleAction(std::function<void()> action);
 
 protected:
     void layout() override;
@@ -102,6 +105,8 @@ private:
     double m_pickerFrom = 0;
     PowerActions *m_power = nullptr;
     base::Subscription m_powerChanged;
+    std::function<void()> m_consoleAction;
+    PowerButton *m_console = nullptr;
     PowerButton *m_restart = nullptr;
     PowerButton *m_shutDown = nullptr;
     // The action a first click picked; a second click on it takes it.

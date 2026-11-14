@@ -1292,3 +1292,29 @@ TEST(AuthUiTest, NoPowerButtonsWithoutPowerActions)
     EXPECT_FALSE(findView(screen, "restart")->isVisible());
     EXPECT_FALSE(findView(screen, "shut-down")->isVisible());
 }
+
+TEST_F(PowerButtonsTest, ConsoleGoesStraightToATextConsole)
+{
+    ui::View *console = findView(screen, "console");
+    ASSERT_TRUE(console);
+    EXPECT_FALSE(console->isVisible());
+
+    int switches = 0;
+    ui->setConsoleAction([&] { ++switches; });
+    ui->window()->updateLayout();
+    ASSERT_TRUE(console->isVisible());
+    // First in the row, before Restart and Shut Down.
+    EXPECT_LT(panelRect(console).right(), panelRect(findView(screen, "restart")).left());
+    EXPECT_EQ(labelText(console), "Console");
+    // Nothing to ask: it ends nothing.
+    click("console-button");
+    EXPECT_EQ(switches, 1);
+    EXPECT_TRUE(power.requests.empty());
+
+    // It takes back a question Restart asked.
+    click("restart-button");
+    EXPECT_EQ(labelText(findView(screen, "restart")), "Restart?");
+    click("console-button");
+    EXPECT_EQ(switches, 2);
+    EXPECT_EQ(labelText(findView(screen, "restart")), "Restart");
+}

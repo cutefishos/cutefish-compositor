@@ -60,6 +60,9 @@ public:
     // power actions; a test gives its own of both.
     AuthUi(session::SessionController *session, const input::XkbTracker *xkb,
            AuthBackend *backend = nullptr, PowerActions *power = nullptr);
+
+    // Offers a button to a text console, which `action` switches to.
+    void setConsoleAction(std::function<void()> action);
     ~AuthUi() override;
     void onSessionStateChanged(session::SessionState state) override;
     void onSessionOutputsChanged() override;
@@ -136,6 +139,7 @@ private:
     AuthBackend *m_injectedBackend;
     std::unique_ptr<PowerActions> m_ownPower;
     PowerActions *m_power = nullptr;
+    std::function<void()> m_consoleAction;
     base::Timer m_refresh;
     base::Timer m_repeatTimer;
     // logind's Lock for this session.

@@ -1163,6 +1163,9 @@ void registerPowerGlyphs()
     };
     ui::Icon::registerGlyph("auth-shut-down",
                             glyph("<path d=\"M8 2v5.5\"/><path d=\"M4.8 4a5 5 0 1 0 6.4 0\"/>"));
+    ui::Icon::registerGlyph("auth-console",
+                            glyph("<rect x=\"2\" y=\"3\" width=\"12\" height=\"10\" rx=\"2\"/>"
+                                  "<path d=\"M5 6.5 7 8l-2 1.5\"/><path d=\"M8.5 10h2.5\"/>"));
     ui::Icon::registerGlyph("auth-restart",
                             glyph("<path d=\"M12.8 9.4A5 5 0 1 1 11.6 4.5\"/>"
                                   "<path d=\"M11.8 1.8v2.9H8.9\"/>"));
@@ -1313,6 +1316,12 @@ AuthScreen::AuthScreen(ui::Window *window, AuthController *controller)
     m_sessions->setLayoutHints(centred(false));
 
     registerPowerGlyphs();
+    m_console = addChild<PowerButton>("console", "auth-console");
+    m_console->onClicked = [this] {
+        disarm();
+        if (m_consoleAction)
+            m_consoleAction();
+    };
     m_restart = addChild<PowerButton>("restart", "auth-restart");
     m_restart->onClicked = [this] { powerClicked(PowerActions::Action::Restart); };
     m_shutDown = addChild<PowerButton>("shut-down", "auth-shut-down");
@@ -1424,9 +1433,16 @@ void AuthScreen::retranslate()
 {
     m_userName->retranslate();
     m_password->setPlaceholder(tr("Enter Password"));
+    m_console->setTexts(tr("Console"), tr("Console"));
     m_restart->setTexts(tr("Restart"), tr("Restart?"));
     m_shutDown->setTexts(tr("Shut Down"), tr("Shut Down?"));
     tick();
+}
+
+void AuthScreen::setConsoleAction(std::function<void()> action)
+{
+    m_consoleAction = std::move(action);
+    updatePowerButtons();
 }
 
 void AuthScreen::setPowerActions(PowerActions *actions)
@@ -1439,8 +1455,10 @@ void AuthScreen::setPowerActions(PowerActions *actions)
 
 void AuthScreen::updatePowerButtons()
 {
+    m_console->setTexts(tr("Console"), tr("Console"));
     m_restart->setTexts(tr("Restart"), tr("Restart?"));
     m_shutDown->setTexts(tr("Shut Down"), tr("Shut Down?"));
+    m_console->setVisible(bool(m_consoleAction));
     m_restart->setVisible(m_power && m_power->can(PowerActions::Action::Restart));
     m_shutDown->setVisible(m_power && m_power->can(PowerActions::Action::ShutDown));
     if (m_armed && !(m_armed == PowerActions::Action::Restart ? m_restart : m_shutDown)->isVisible())
@@ -1622,7 +1640,7 @@ void AuthScreen::layout()
     std::vector<PowerButton *> power;
     double rowWidth = 0;
     double rowHeight = 0;
-    for (PowerButton *button : {m_restart, m_shutDown}) {
+    for (PowerButton *button : {m_console, m_restart, m_shutDown}) {
         if (!button->isVisible())
             continue;
         const ui::SizeF size = button->sizeHint();
