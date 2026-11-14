@@ -650,6 +650,7 @@ void NotificationCentre::build(const Placement &placement)
     m_clear->onWidthChanged = [this] { m_content->requestLayout(); };
     m_scroll = content->addChild<ui::ScrollView>();
     m_scroll->setElastic(false);
+    m_scroll->setBottomCornerRadius(kRadius);
     m_list = m_scroll->setContent<List>(this, window);
     m_empty = content->addChild<ui::Label>(tr("No Notifications"));
     m_empty->setElide(ui::Label::Elide::None);
