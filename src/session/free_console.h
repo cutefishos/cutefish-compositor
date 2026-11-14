@@ -18,9 +18,10 @@ namespace cutefish::session {
 constexpr int kAutoConsoles = 6;
 
 // The lowest of those no session is on, or 0 when all are taken. The first
-// is the display manager's (cutefish-dm conflicts with getty@tty1, as gdm
-// and others take it): after the greeter has gone it has no session, but no
-// login prompt starts there either.
+// two are the display manager's: the greeter's (cutefish-dm conflicts with
+// getty@tty1) and the one it starts the session on (cutefish-dm's
+// Session/Vt, 2; gdm's first session too). A console signed in there would
+// keep the next graphical login from starting.
 int freeConsole(const std::set<int> &taken);
 // The terminals logind's sessions are on.
 std::set<int> takenConsoles(base::dbus::Connection *bus);

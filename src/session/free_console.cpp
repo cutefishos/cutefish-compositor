@@ -15,7 +15,7 @@ namespace cutefish::session {
 
 int freeConsole(const std::set<int> &taken)
 {
-    for (int vt = 2; vt <= kAutoConsoles; ++vt) {
+    for (int vt = 3; vt <= kAutoConsoles; ++vt) {
         if (!taken.contains(vt))
             return vt;
     }

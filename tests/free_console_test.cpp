@@ -10,13 +10,13 @@ using cutefish::session::freeConsole;
 
 TEST(FreeConsoleTest, TheLowestTerminalNoSessionIsOn)
 {
-    // The first is the display manager's, with a session on it or not.
-    EXPECT_EQ(freeConsole({}), 2);
-    EXPECT_EQ(freeConsole({1}), 2);
-    // A session on the second, as after signing in from the greeter.
-    EXPECT_EQ(freeConsole({2}), 3);
-    EXPECT_EQ(freeConsole({1, 2, 4}), 3);
+    // The first two are the display manager's, with a session on them or
+    // not: from the greeter the second is still free, but the session needs it.
+    EXPECT_EQ(freeConsole({}), 3);
+    EXPECT_EQ(freeConsole({1}), 3);
+    EXPECT_EQ(freeConsole({1, 2}), 3);
+    EXPECT_EQ(freeConsole({1, 2, 3}), 4);
     // A session past the ones logind prompts on does not matter.
-    EXPECT_EQ(freeConsole({7}), 2);
-    EXPECT_EQ(freeConsole({2, 3, 4, 5, 6}), 0);
+    EXPECT_EQ(freeConsole({7}), 3);
+    EXPECT_EQ(freeConsole({3, 4, 5, 6}), 0);
 }
