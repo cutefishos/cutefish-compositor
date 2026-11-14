@@ -550,7 +550,7 @@ TEST_F(ControlCenterTest, ThePowerDialogConfirmsWithReturnAndCancelsWithEscape)
     ASSERT_NE(nullptr, window);
     EXPECT_EQ(wm::WindowRole::Normal, window->role());
     EXPECT_TRUE(window->isAlwaysOnTop());
-    EXPECT_EQ(336, window->bounds().width());
+    EXPECT_EQ(260, window->bounds().width());
     // Asking again changes what it asks.
     dialog.open(shell::PowerDialog::Action::Reboot);
     EXPECT_EQ(shell::PowerDialog::Action::Reboot, dialog.action());

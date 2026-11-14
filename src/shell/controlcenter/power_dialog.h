@@ -14,11 +14,10 @@ namespace cutefish::shell {
 class Shell;
 class ShellWindow;
 
-// FishUI's ConfirmDialog asking before logging
-// out, restarting or shutting down, a toplevel kept above applications and
-// centred by the window manager. Return confirms even while Cancel has the
-// focus; Escape and Cancel cancel. Asking again while it is up
-// changes what it asks.
+// An alert asking before logging out, restarting or shutting down, a
+// toplevel kept above applications and centred by the window manager. Return
+// confirms even while Cancel has the focus; Escape and Cancel cancel. Asking
+// again while it is up changes what it asks.
 class PowerDialog
 {
 public:
