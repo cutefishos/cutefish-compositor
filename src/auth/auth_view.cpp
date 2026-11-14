@@ -20,9 +20,11 @@
 #include "ui/application.h"
 #include "ui/image_view.h"
 #include "ui/label.h"
+#include "ui/icon.h"
 #include "ui/painter.h"
 #include "ui/path.h"
 #include "ui/cell_layout.h"
+#include "ui/round_image_button.h"
 #include "ui/styled_label.h"
 #include "ui/text_field.h"
 #include "ui/window.h"
@@ -1144,6 +1146,96 @@ private:
     bool m_keyboardFocused = false;
 };
 
+// The glyphs of the power buttons, the toolkit's 16-unit outlines, so they
+// do not depend on the user's icon theme.
+void registerPowerGlyphs()
+{
+    static bool registered = false;
+    if (registered)
+        return;
+    registered = true;
+    const auto glyph = [](const char *paths) {
+        return std::string(
+                       "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" "
+                       "viewBox=\"0 0 16 16\" fill=\"none\"><g stroke=\"currentColor\" "
+                       "stroke-width=\"1.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">")
+               + paths + "</g></svg>";
+    };
+    ui::Icon::registerGlyph("auth-shut-down",
+                            glyph("<path d=\"M8 2v5.5\"/><path d=\"M4.8 4a5 5 0 1 0 6.4 0\"/>"));
+    ui::Icon::registerGlyph("auth-restart",
+                            glyph("<path d=\"M12.8 9.4A5 5 0 1 1 11.6 4.5\"/>"
+                                  "<path d=\"M11.8 1.8v2.9H8.9\"/>"));
+}
+
+// A round button on the wallpaper with its name under it. Armed, the name
+// asks whether to go ahead.
+constexpr double kPowerSpacing = 28;
+
+class PowerButton final : public ui::View
+{
+public:
+    static constexpr double kSize = 40;
+
+    PowerButton(const std::string &name, const std::string &glyph)
+    {
+        setName(name);
+        m_button = addChild<ui::RoundImageButton>(glyph, kSize);
+        m_button->setName(name + "-button");
+        m_button->setIconSize(18);
+        m_button->setIconColor(kWhite);
+        m_button->setBackgroundColor(white(0.16));
+        m_button->setHoveredColor(white(0.26));
+        m_button->setPressedColor(white(0.36));
+        m_button->onClicked = [this] {
+            if (onClicked)
+                onClicked();
+        };
+        m_label = addChild<RaisedLabel>(12, 400, kWhite, kBlack.withAlpha(0.3));
+        m_label->setTextAlignment(ui::StyledLabel::TextAlignment::Center);
+    }
+
+    std::function<void()> onClicked;
+
+    void setTexts(std::string text, std::string armedText)
+    {
+        m_text = std::move(text);
+        m_armedText = std::move(armedText);
+        m_label->setText(m_armed ? m_armedText : m_text);
+        requestLayout();
+    }
+
+    void setArmed(bool armed)
+    {
+        m_armed = armed;
+        m_button->setChecked(armed);
+        m_label->setText(armed ? m_armedText : m_text);
+        requestLayout();
+    }
+
+    ui::SizeF sizeHint() const override
+    {
+        const ui::SizeF label = m_label->sizeHint();
+        return {std::max(kSize, label.width), kSize + 6 + label.height};
+    }
+
+protected:
+    void layout() override
+    {
+        const double width = geometry().width;
+        m_button->setGeometry({centeredStart(width, kSize), 0, kSize, kSize});
+        const ui::SizeF label = m_label->sizeHint();
+        m_label->setGeometry({centeredStart(width, label.width), kSize + 6, label.width, label.height});
+    }
+
+private:
+    ui::RoundImageButton *m_button;
+    RaisedLabel *m_label;
+    std::string m_text;
+    std::string m_armedText;
+    bool m_armed = false;
+};
+
 // The reason an attempt failed, fading in under the field.
 class ErrorLabel final : public ui::View
 {
@@ -1219,6 +1311,15 @@ AuthScreen::AuthScreen(ui::Window *window, AuthController *controller)
     m_error->setLayoutHints(centred(true));
     m_sessions = m_pod->addChild<ChoiceMenu>("session-menu", popups);
     m_sessions->setLayoutHints(centred(false));
+
+    registerPowerGlyphs();
+    m_restart = addChild<PowerButton>("restart", "auth-restart");
+    m_restart->onClicked = [this] { powerClicked(PowerActions::Action::Restart); };
+    m_shutDown = addChild<PowerButton>("shut-down", "auth-shut-down");
+    m_shutDown->onClicked = [this] { powerClicked(PowerActions::Action::ShutDown); };
+    m_disarmTimer.setSingleShot(true);
+    m_disarmTimer.onTimeout = [this] { disarm(); };
+    updatePowerButtons();
 
     m_picker = addChild<UserGrid>(window);
     m_picker->setName("user-grid");
@@ -1323,7 +1424,59 @@ void AuthScreen::retranslate()
 {
     m_userName->retranslate();
     m_password->setPlaceholder(tr("Enter Password"));
+    m_restart->setTexts(tr("Restart"), tr("Restart?"));
+    m_shutDown->setTexts(tr("Shut Down"), tr("Shut Down?"));
     tick();
+}
+
+void AuthScreen::setPowerActions(PowerActions *actions)
+{
+    m_power = actions;
+    m_powerChanged = actions ? actions->changed.connect([this] { updatePowerButtons(); })
+                             : base::Subscription();
+    updatePowerButtons();
+}
+
+void AuthScreen::updatePowerButtons()
+{
+    m_restart->setTexts(tr("Restart"), tr("Restart?"));
+    m_shutDown->setTexts(tr("Shut Down"), tr("Shut Down?"));
+    m_restart->setVisible(m_power && m_power->can(PowerActions::Action::Restart));
+    m_shutDown->setVisible(m_power && m_power->can(PowerActions::Action::ShutDown));
+    if (m_armed && !(m_armed == PowerActions::Action::Restart ? m_restart : m_shutDown)->isVisible())
+        disarm();
+    requestLayout();
+}
+
+// The first click asks, the second within a few seconds goes ahead: a press
+// on a locked screen is easily a stray one.
+void AuthScreen::powerClicked(PowerActions::Action action)
+{
+    if (!m_power)
+        return;
+    if (m_armed != action) {
+        disarm();
+        m_armed = action;
+        (action == PowerActions::Action::Restart ? m_restart : m_shutDown)->setArmed(true);
+        m_disarmTimer.start(std::chrono::seconds(4));
+        return;
+    }
+    disarm();
+    m_power->request(action, [this, action](const std::string &error) {
+        if (error.empty())
+            return;
+        m_error->setMessage(action == PowerActions::Action::Restart ? tr("Unable to restart")
+                                                                     : tr("Unable to shut down"),
+                            true);
+    });
+}
+
+void AuthScreen::disarm()
+{
+    m_disarmTimer.stop();
+    m_armed.reset();
+    m_restart->setArmed(false);
+    m_shutDown->setArmed(false);
 }
 
 void AuthScreen::setBlocked(bool blocked)
@@ -1331,6 +1484,9 @@ void AuthScreen::setBlocked(bool blocked)
     if (blocked == m_blocked)
         return;
     m_blocked = blocked;
+    disarm();
+    if (blocked && m_power)
+        m_power->refresh();
     tick();
 }
 
@@ -1434,6 +1590,12 @@ void AuthScreen::tick()
 
 void AuthScreen::closeMenus(ui::PointF position)
 {
+    // A press anywhere but on the armed button takes the question back.
+    if (m_armed) {
+        PowerButton *armed = m_armed == PowerActions::Action::Restart ? m_restart : m_shutDown;
+        if (!armed->localRect().contains(armed->mapFromWindow(position)))
+            disarm();
+    }
     m_sessions->pressedAt(position);
     if (m_pickerOpen) {
         const ui::PointF local = m_picker->mapFromWindow(position);
@@ -1455,14 +1617,36 @@ void AuthScreen::layout()
     m_time->setGeometry({left + centeredStart(column, time.width), 56 + date.height - 4, time.width,
                          time.height});
 
+    // The power buttons in a row centred at the bottom, the login column
+    // above them.
+    std::vector<PowerButton *> power;
+    double rowWidth = 0;
+    double rowHeight = 0;
+    for (PowerButton *button : {m_restart, m_shutDown}) {
+        if (!button->isVisible())
+            continue;
+        const ui::SizeF size = button->sizeHint();
+        rowWidth += (power.empty() ? 0 : kPowerSpacing) + size.width;
+        rowHeight = std::max(rowHeight, size.height);
+        power.push_back(button);
+    }
+    double x = centeredStart(width, rowWidth);
+    for (PowerButton *button : power) {
+        const ui::SizeF size = button->sizeHint();
+        button->setGeometry({x, height - 24 - rowHeight, size.width, rowHeight});
+        x += size.width + kPowerSpacing;
+    }
+    const double bottom = power.empty() ? 64 : 24 + rowHeight + 40;
+
     const double podWidth = std::min(width - 48, 240.0);
     const double podHeight = m_pod->verticalExtent(podWidth).preferred;
-    m_pod->setGeometry({centeredStart(width, podWidth), height - 64 - podHeight, podWidth, podHeight});
+    m_pod->setGeometry({centeredStart(width, podWidth), height - bottom - podHeight, podWidth, podHeight});
 
     // The accounts' pictures in the row of the one picked now, as long as
     // they fit above the bottom margin.
     const ui::SizeF grid = m_picker->sizeFor(width - 48);
-    const double gridTop = std::min(height - 64 - podHeight - UserTile::kHalo, height - 64 - grid.height);
+    const double gridTop =
+            std::min(height - bottom - podHeight - UserTile::kHalo, height - bottom - grid.height);
     m_picker->setGeometry({centeredStart(width, grid.width), gridTop, grid.width, grid.height});
 }
 
