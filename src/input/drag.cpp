@@ -25,6 +25,16 @@ namespace cutefish::input {
 // ash's kCancelAnimationDuration.
 static constexpr double kReturnDurationMs = 250;
 
+// The let go icon's shrink and fade.
+static constexpr double kVanishDurationMs = 200;
+
+static base::Rect roundedRect(const base::RectF &rect)
+{
+    return base::Rect::fromEdges(base::roundToInt(rect.x()), base::roundToInt(rect.y()),
+                                 base::roundToInt(rect.x() + rect.width()),
+                                 base::roundToInt(rect.y() + rect.height()));
+}
+
 static void setSubtreeAlpha(scene::Node *node, float alpha)
 {
     if (auto *surface = dynamic_cast<scene::SurfaceNode *>(node))
@@ -186,8 +196,10 @@ DragController::DragController(Seat *seat)
 DragController::~DragController()
 {
     m_returnsHome = false;
+    m_vanishesOnDrop = false;
     cancel();
     releaseReturn();
+    finishVanish();
 }
 
 void DragController::start(compositor::Surface *origin, compositor::Surface *icon,
@@ -240,6 +252,7 @@ bool DragController::begin(compositor::Surface *origin, compositor::Surface *ico
                            const base::PointF &location)
 {
     releaseReturn();
+    finishVanish();
     const auto generation = ++m_generation;
     m_seat->consumeDragSerials();
     m_origin = origin;
@@ -423,6 +436,7 @@ void DragController::detach()
     m_iconOpacity = 1.0f;
     m_plainIdleCursor = false;
     m_returnsHome = false;
+    m_vanishesOnDrop = false;
     if (icon) {
         setSubtreeAlpha(icon->node(), 1.0f);
         icon->removeSurfaceObserver(this);
@@ -455,6 +469,8 @@ void DragController::drop()
         if (generation != m_generation || !active())
             return;
     }
+    if (m_vanishesOnDrop)
+        startVanish(takeIcon("drag-vanish"));
     std::shared_ptr<DragOffer> selected;
     for (auto &weak : m_offers) {
         if (auto offer = weak.lock(); offer && offer.get() == selectedOffer())
@@ -506,7 +522,7 @@ void DragController::end(bool released)
     if (!active())
         return;
     const bool returns = m_returnsHome && !m_seat->wasShutdown();
-    auto home = returns ? takeIconForReturn() : nullptr;
+    auto home = returns ? takeIcon("drag-return") : nullptr;
     auto *window = std::exchange(m_windowDelegate, nullptr);
     m_finishing = true;
     auto source = std::exchange(m_source, nullptr);
@@ -565,12 +581,12 @@ void DragController::setHome(const base::PointF &home)
         m_home = home;
 }
 
-std::unique_ptr<scene::SurfaceNode> DragController::takeIconForReturn() const
+std::unique_ptr<scene::SurfaceNode> DragController::takeIcon(std::string name) const
 {
     scene::SurfaceNode *icon = m_icon ? m_icon->node() : nullptr;
     if (!icon || !icon->texture() || !m_seat->dragIconContainer())
         return nullptr;
-    auto node = std::make_unique<scene::SurfaceNode>("drag-return");
+    auto node = std::make_unique<scene::SurfaceNode>(std::move(name));
     node->setGeometry(icon->geometry());
     node->setTextureMapping(icon->textureMapping());
     node->setAlpha(m_iconOpacity);
@@ -636,6 +652,54 @@ void DragController::releaseReturn()
     }
 }
 
+void DragController::startVanish(std::unique_ptr<scene::SurfaceNode> node)
+{
+    finishVanish();
+    if (!node)
+        return;
+    m_vanishFrom = base::RectF(node->geometry());
+    m_vanishOpacity = node->alpha();
+    m_vanishStarted = -1;
+    m_vanishNode = static_cast<scene::SurfaceNode *>(
+            m_seat->dragIconContainer()->addChild(std::move(node)));
+    if (compositor::Compositor *compositor = m_seat->compositor()) {
+        m_vanishFrames = compositor->frameStarted.connect([this](double frameTimeMs) {
+            advanceVanish(frameTimeMs);
+        });
+        compositor->scheduleRepaint();
+    }
+}
+
+void DragController::advanceVanish(double frameTimeMs)
+{
+    if (!m_vanishNode)
+        return;
+    if (m_vanishStarted < 0)
+        m_vanishStarted = frameTimeMs;
+    const double t = std::clamp((frameTimeMs - m_vanishStarted) / kVanishDurationMs, 0.0, 1.0);
+    const auto &curve = scene::motion::kAccel20Decel100;
+    const double left = 1 - scene::motion::cubicBezier(curve.x1, curve.y1, curve.x2, curve.y2, t);
+    if (t >= 1 || left <= 0) {
+        finishVanish();
+        return;
+    }
+    const base::SizeF size = m_vanishFrom.size() * left;
+    const base::PointF centre = m_vanishFrom.center();
+    m_vanishNode->setGeometry(roundedRect(base::RectF(
+            centre - base::PointF(size.width() / 2, size.height() / 2), size)));
+    m_vanishNode->setAlpha(m_vanishOpacity * float(left));
+    m_seat->compositor()->scheduleRepaint();
+}
+
+void DragController::finishVanish()
+{
+    m_vanishFrames.reset();
+    if (auto *node = std::exchange(m_vanishNode, nullptr)) {
+        if (scene::Node *parent = node->parent())
+            parent->removeChild(node);
+    }
+}
+
 void DragController::notifyWindowTarget()
 {
     if (m_windowDelegate)
@@ -685,6 +749,12 @@ void DragController::setIconOpacity(float opacity)
         return;
     m_iconOpacity = std::clamp(opacity, 0.0f, 1.0f);
     updateIcon();
+}
+
+void DragController::setVanishesOnDrop(bool vanishes)
+{
+    if (active() && !m_external)
+        m_vanishesOnDrop = vanishes;
 }
 
 void DragController::updateIcon()

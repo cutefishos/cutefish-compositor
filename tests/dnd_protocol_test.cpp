@@ -330,6 +330,56 @@ TEST(DndProtocol, DragIconTracksCommittedOffsetAndDetachesOnCancellation)
     h.seat.setCursorContainer(nullptr);
 }
 
+TEST(DndProtocol, ADragIconLetGoShrinksAndFadesOutWhereItWas)
+{
+    Harness h;
+    scene::Node icons("icons");
+    h.seat.setDragIconContainer(&icons);
+    auto &a = h.addClient();
+    map(h, a, 0);
+    h.seat.onPointerButton({}, {10, 10}, BTN_LEFT, true);
+    h.sync(a);
+    auto *icon = wl_compositor_create_surface(a.compositor);
+    auto *source = a.source({{"text/plain", "icon"}});
+    wl_data_source_set_actions(source, 1);
+    wl_data_device_start_drag(a.devices.front(), source, a.surface, icon, a.buttonSerial);
+    h.sync(a);
+    auto *surface = wayland::surfaceFromResource(wl_client_get_object(
+            a.serverClient, wl_proxy_get_id(reinterpret_cast<wl_proxy *>(icon))));
+    auto pool = testsupport::makePool(40 * 40 * 4);
+    auto buffer = pool->createBuffer({40, 40}, 0, 160, render::PixelFormat::Bgra8888, nullptr);
+    surface->attach(buffer, {-20, -20});
+    surface->commit();
+    const std::vector<uint8_t> pixels(40 * 40 * 4, 0xff);
+    auto texture = std::make_shared<testsupport::FakeTexture>(base::Size(40, 40), pixels.data(), 160,
+                                                              render::PixelFormat::Bgra8888);
+    surface->node()->setTexture(texture);
+    h.seat.onPointerMotion({}, {60, 60});
+    EXPECT_EQ(base::Rect(40, 40, 40, 40), surface->node()->geometry());
+
+    input::DragController *drag = h.seat.drag();
+    h.seat.onPointerMotion({}, {70, 60});
+
+    drag->setVanishesOnDrop(true);
+    h.seat.onPointerButton({}, {70, 60}, BTN_LEFT, false);
+    EXPECT_FALSE(drag->active());
+    ASSERT_TRUE(drag->isVanishing());
+    ASSERT_EQ(1u, icons.children().size());
+    scene::Node *vanishing = icons.children().front();
+    EXPECT_EQ(base::Rect(50, 40, 40, 40), vanishing->geometry());
+    h.compositor.frameStarted(1000);
+    h.compositor.frameStarted(1050);
+    const base::Rect shrinking = vanishing->geometry();
+    EXPECT_LT(shrinking.width(), 40);
+    EXPECT_EQ(base::Point(70, 60), shrinking.center());
+    EXPECT_LT(static_cast<scene::SurfaceNode *>(vanishing)->alpha(), 1.0f);
+    h.compositor.frameStarted(1200);
+    EXPECT_FALSE(drag->isVanishing());
+    EXPECT_TRUE(icons.children().empty());
+    wl_surface_destroy(icon);
+    h.seat.setDragIconContainer(nullptr);
+}
+
 TEST(DndProtocol, ViewportDragIconPreservesOffsetsAndSampling)
 {
     Harness h;

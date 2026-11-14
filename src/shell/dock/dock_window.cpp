@@ -1697,6 +1697,7 @@ void DockWindow::onDragMoved(const base::PointF &location)
     input::DragController *drag = m_shell->seat()->drag();
     drag->setIconOpacity(m_drag->removes ? 0.5f : 1.0f);
     drag->setReturnsHome(!m_drag->removes);
+    drag->setVanishesOnDrop(m_drag->removes);
 }
 
 void DockWindow::onDragEnded()

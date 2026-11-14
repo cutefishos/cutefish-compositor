@@ -134,6 +134,11 @@ public:
     void setIconOpacity(float opacity);
     bool hasIcon() const { return m_icon != nullptr; }
     float iconOpacity() const { return m_iconOpacity; }
+    // For the running drag only: let go, whether or not a target takes the
+    // data, its icon shrinks and fades out where it was.
+    void setVanishesOnDrop(bool vanishes);
+    // The let go icon is still shrinking.
+    bool isVanishing() const { return m_vanishNode != nullptr; }
 
     // For the running drag only: over nothing that takes the drop it shows
     // the default pointer rather than no-drop.
@@ -217,10 +222,13 @@ private:
     CursorShape idleCursor() const;
     void notifyWindowTarget();
     // The icon's content, moved to a node of its own before the icon goes.
-    std::unique_ptr<scene::SurfaceNode> takeIconForReturn() const;
+    std::unique_ptr<scene::SurfaceNode> takeIcon(std::string name) const;
     void startReturn(std::unique_ptr<scene::SurfaceNode> node);
     void advanceReturn(double frameTimeMs);
     void finishReturn();
+    void startVanish(std::unique_ptr<scene::SurfaceNode> node);
+    void advanceVanish(double frameTimeMs);
+    void finishVanish();
     Seat* m_seat;
     compositor::Surface* m_origin = nullptr;
     compositor::Surface* m_icon = nullptr;
@@ -231,6 +239,7 @@ private:
     std::weak_ptr<DragOffer> m_selected;
     uint32_t m_actions = 0;
     float m_iconOpacity = 1.0f;
+    bool m_vanishesOnDrop = false;
     bool m_plainIdleCursor = false;
     bool m_returnsHome = false;
     base::PointF m_home;
@@ -241,6 +250,11 @@ private:
     float m_returnOpacity = 1.0f;
     double m_returnStarted = -1;
     base::Subscription m_returnFrames;
+    scene::SurfaceNode* m_vanishNode = nullptr;
+    base::RectF m_vanishFrom;
+    float m_vanishOpacity = 1.0f;
+    double m_vanishStarted = -1;
+    base::Subscription m_vanishFrames;
     ButtonFlags m_button = NoButton;
     std::optional<int32_t> m_touchId;
     DragWindowDelegate* m_windowDelegate = nullptr;
