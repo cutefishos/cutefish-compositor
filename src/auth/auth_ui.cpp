@@ -7,6 +7,7 @@
 #include "auth/auth_controller.h"
 #include "auth/auth_status.h"
 #include "auth/auth_view.h"
+#include "auth/power_actions.h"
 #include "auth/greetd_backend.h"
 #include "auth/login_sessions.h"
 #include "auth/pam_backend.h"
@@ -139,10 +140,11 @@ uint32_t toolkitModifiers(const input::XkbTracker *xkb)
 } // namespace
 
 AuthUi::AuthUi(session::SessionController *session, const input::XkbTracker *xkb,
-               AuthBackend *backend)
+               AuthBackend *backend, PowerActions *power)
     : m_session(session)
     , m_xkb(xkb)
     , m_injectedBackend(backend)
+    , m_power(power)
     , m_refresh(core::mainLoop())
     , m_repeatTimer(core::mainLoop())
 {
@@ -165,6 +167,10 @@ AuthUi::AuthUi(session::SessionController *session, const input::XkbTracker *xkb
     };
     // logind authenticates the sender and identifies this compositor's session.
     if (base::dbus::Connection *bus = base::dbus::Connection::system(core::mainLoop())) {
+        if (!m_power && !m_injectedBackend) {
+            m_ownPower = std::make_unique<LogindPowerActions>(bus);
+            m_power = m_ownPower.get();
+        }
         const base::dbus::Proxy manager(bus, "org.freedesktop.login1", "/org/freedesktop/login1",
                                         "org.freedesktop.login1.Manager");
         const std::optional<base::dbus::ObjectPath> path =
@@ -176,6 +182,13 @@ AuthUi::AuthUi(session::SessionController *session, const input::XkbTracker *xkb
                     "Lock", [this](const base::dbus::Message &) { m_session->requestLock(); });
         }
     }
+}
+
+void AuthUi::setConsoleAction(std::function<void()> action)
+{
+    m_consoleAction = std::move(action);
+    if (m_screen)
+        m_screen->setConsoleAction(m_consoleAction);
 }
 
 AuthUi::~AuthUi()
@@ -305,6 +318,8 @@ void AuthUi::refresh()
         m_window = std::make_unique<ui::EmbeddedWindow>();
         auto screen = std::make_unique<AuthScreen>(m_window.get(), m_controller.get());
         m_screen = screen.get();
+        m_screen->setPowerActions(m_power);
+        m_screen->setConsoleAction(m_consoleAction);
         m_window->setContentView(std::move(screen));
         m_screen->focusPassword();
         m_panel = std::make_unique<toolkit::PanelTexture>(m_window.get());

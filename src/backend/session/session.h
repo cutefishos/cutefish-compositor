@@ -34,6 +34,14 @@ public:
     virtual int openDevice(const std::string& path, int* deviceId) = 0;
     virtual void closeDevice(int deviceId) = 0;
 
+    // Hands the seat to whatever runs on virtual terminal `vt`, a text
+    // console or another session; false where that cannot be done.
+    virtual bool switchSession(int vt)
+    {
+        (void)vt;
+        return false;
+    }
+
     // Whether the seat is now active; emitted before it is actually released,
     // so listeners can stop touching devices first.
     base::Signal<bool> activeChanged;

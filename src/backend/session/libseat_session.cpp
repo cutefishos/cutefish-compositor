@@ -137,6 +137,15 @@ int LibseatSession::openDevice(const std::string& path, int* deviceId)
     return fd;
 }
 
+bool LibseatSession::switchSession(int vt)
+{
+    if (vt <= 0 || libseat_switch_session(m_seat, vt) < 0) {
+        CF_WARNING(cfSession) << "Cannot switch to virtual terminal" << vt;
+        return false;
+    }
+    return true;
+}
+
 void LibseatSession::closeDevice(int deviceId)
 {
     if (deviceId < 0)

@@ -17,6 +17,8 @@
 #include <linux/input-event-codes.h>
 #include <utility>
 
+#include <xkbcommon/xkbcommon-keysyms.h>
+
 #include "core/logging.h"
 #include "input/event_sink.h"
 #include "input/pointer_constraints.h"
@@ -547,6 +549,17 @@ void InputManager::onKey(Timestamp timestamp, uint32_t physicalCode, bool presse
     const bool suppressed = m_seat->keySuppressed(evdevCode);
     if (!m_seat->updateKeyState(evdevCode, pressed))
         return;
+    // The switch goes to the system; neither the session nor the lock screen
+    // sees the key, its release included.
+    if (pressed && switchVirtualTerminal) {
+        const uint32_t keysym = m_seat->xkbTracker()->keysym(evdevCode);
+        if (keysym >= XKB_KEY_XF86Switch_VT_1 && keysym <= XKB_KEY_XF86Switch_VT_12) {
+            m_seat->suppressKey(evdevCode);
+            m_seat->syncKeyboardLocks();
+            switchVirtualTerminal(int(keysym - XKB_KEY_XF86Switch_VT_1) + 1);
+            return;
+        }
+    }
     if (auto *gate = m_seat->sessionGate(); gate && gate->restrictsInput()) {
         if ((!suppressed || m_secureKeys.contains(evdevCode))
             && !(m_eventSink && m_eventSink->onSecureKey(timestamp, evdevCode, pressed))

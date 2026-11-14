@@ -612,6 +612,8 @@ set_target_properties(cutefish-wayland-input PROPERTIES POSITION_INDEPENDENT_COD
 add_library(cutefish-session STATIC
     src/session/applications_service.cpp
     src/session/applications_service.h
+    src/session/free_console.cpp
+    src/session/free_console.h
     src/session/power_button.cpp
     src/session/power_button.h
     src/session/screen_saver_service.cpp
@@ -889,6 +891,7 @@ add_library(cutefish-auth STATIC
     src/auth/auth_status.cpp src/auth/auth_status.h
     src/auth/auth_ui.cpp src/auth/auth_ui.h
     src/auth/auth_view.cpp src/auth/auth_view.h
+    src/auth/power_actions.cpp src/auth/power_actions.h
     src/auth/auth_controller.cpp src/auth/auth_controller.h src/auth/auth_backend.h
     src/auth/pam_backend.cpp src/auth/pam_backend.h
     src/auth/greetd_backend.cpp src/auth/greetd_backend.h

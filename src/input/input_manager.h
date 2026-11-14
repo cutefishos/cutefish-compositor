@@ -11,6 +11,7 @@
 #ifndef CUTEFISH_INPUT_INPUT_MANAGER_H_
 #define CUTEFISH_INPUT_INPUT_MANAGER_H_
 
+#include <functional>
 #include <map>
 #include <optional>
 #include <set>
@@ -79,6 +80,9 @@ public:
     // event is not dispatched to any client. Null in tests that exercise the
     // seat alone.
     void setEventSink(EventSink *sink) { m_eventSink = sink; }
+    // Ctrl+Alt+F1 to F12, as the keymap types XF86Switch_VT_1 to 12: taken
+    // before anything else, locked or not, when set.
+    std::function<void(int vt)> switchVirtualTerminal;
 
     EventSink *eventSink() const { return m_eventSink; }
 

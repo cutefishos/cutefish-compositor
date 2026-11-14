@@ -6,10 +6,12 @@
 #define CUTEFISH_AUTH_AUTH_VIEW_H
 
 #include <ctime>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <vector>
 
+#include "auth/power_actions.h"
 #include "base/geometry.h"
 #include "base/signal.h"
 #include "base/timer.h"
@@ -27,6 +29,7 @@ class AuthController;
 class ChoiceMenu;
 class ErrorLabel;
 class PasswordField;
+class PowerButton;
 class RaisedLabel;
 class UserGrid;
 class UserNameField;
@@ -59,6 +62,12 @@ public:
     // Seconds since the epoch the clock shows instead of the time, for tests.
     void setClockForTesting(std::time_t now);
 
+    // Restart and Shut Down under the login column, those `actions` can
+    // take; none while unset.
+    void setPowerActions(PowerActions *actions);
+    // Console before them, to a text console, while set.
+    void setConsoleAction(std::function<void()> action);
+
 protected:
     void layout() override;
     void childrenLaidOut() override;
@@ -71,6 +80,9 @@ private:
     void updateSwappable();
     void setPickerOpen(bool open);
     void updatePicker();
+    void updatePowerButtons();
+    void powerClicked(PowerActions::Action action);
+    void disarm();
 
     ui::Window *m_window;
     AuthController *m_controller;
@@ -91,6 +103,15 @@ private:
     bool m_pickerOpen = false;
     double m_pickerProgress = 0;
     double m_pickerFrom = 0;
+    PowerActions *m_power = nullptr;
+    base::Subscription m_powerChanged;
+    std::function<void()> m_consoleAction;
+    PowerButton *m_console = nullptr;
+    PowerButton *m_restart = nullptr;
+    PowerButton *m_shutDown = nullptr;
+    // The action a first click picked; a second click on it takes it.
+    std::optional<PowerActions::Action> m_armed;
+    base::Timer m_disarmTimer;
 };
 
 } // namespace cutefish::auth

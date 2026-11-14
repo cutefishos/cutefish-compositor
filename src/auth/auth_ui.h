@@ -48,6 +48,7 @@ class SessionController;
 
 namespace cutefish::auth {
 class AuthBackend;
+class PowerActions;
 class AuthController;
 class AuthScreen;
 class AuthStatus;
@@ -55,8 +56,13 @@ class AuthStatus;
 class AuthUi : public input::EventSink, public session::SessionObserver
 {
 public:
+    // Without a backend, PAM or greetd as the session needs and logind's
+    // power actions; a test gives its own of both.
     AuthUi(session::SessionController *session, const input::XkbTracker *xkb,
-           AuthBackend *backend = nullptr);
+           AuthBackend *backend = nullptr, PowerActions *power = nullptr);
+
+    // Offers a button to a text console, which `action` switches to.
+    void setConsoleAction(std::function<void()> action);
     ~AuthUi() override;
     void onSessionStateChanged(session::SessionState state) override;
     void onSessionOutputsChanged() override;
@@ -131,6 +137,9 @@ private:
     session::SessionController *m_session;
     const input::XkbTracker *m_xkb;
     AuthBackend *m_injectedBackend;
+    std::unique_ptr<PowerActions> m_ownPower;
+    PowerActions *m_power = nullptr;
+    std::function<void()> m_consoleAction;
     base::Timer m_refresh;
     base::Timer m_repeatTimer;
     // logind's Lock for this session.

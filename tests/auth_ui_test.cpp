@@ -7,6 +7,7 @@
 #include "auth/auth_status.h"
 #include "auth/auth_ui.h"
 #include "auth/auth_view.h"
+#include "auth/power_actions.h"
 #include "compositor/compositor.h"
 #include "core/main_loop.h"
 #include "core/preferences.h"
@@ -38,6 +39,7 @@
 
 #include "ui/bitmap.h"
 #include "ui/embedded_window.h"
+#include "ui/label.h"
 #include "ui/text_field.h"
 #include "ui/view.h"
 using namespace cutefish;
@@ -1133,4 +1135,186 @@ TEST(AuthUiTest, StatusIconsAreLightOnADarkWallpaperAndDarkOnALightOne)
     EXPECT_TRUE(test::runUntil([&] { return ui.status()->lightContents(); }));
     secure.setSettingsFile(light, true);
     EXPECT_TRUE(test::runUntil([&] { return !ui.status()->lightContents(); }));
+}
+
+namespace {
+
+// Power actions that record what was asked of them.
+class FakePowerActions final : public auth::PowerActions
+{
+public:
+    bool can(Action action) const override
+    {
+        return action == Action::Restart ? canRestart : canShutDown;
+    }
+    void refresh() override { ++refreshes; }
+    void request(Action action, std::function<void(const std::string &)> done) override
+    {
+        requests.push_back(action);
+        done(refusal);
+    }
+    void set(bool restart, bool shutDown)
+    {
+        canRestart = restart;
+        canShutDown = shutDown;
+        changed();
+    }
+
+    bool canRestart = true;
+    bool canShutDown = true;
+    int refreshes = 0;
+    std::string refusal;
+    std::vector<Action> requests;
+};
+
+std::string labelText(ui::View *powerButton)
+{
+    for (const auto &child : powerButton->children()) {
+        if (auto *label = dynamic_cast<ui::Label *>(child.get()))
+            return label->text();
+    }
+    return {};
+}
+
+} // namespace
+
+class PowerButtonsTest : public ::testing::Test
+{
+protected:
+    PowerButtonsTest()
+        : secure(&root)
+        , controller(&secure, nullptr, session::SessionState::Login)
+    {
+        controller.setOutputs({{"one", base::Rect(0, 0, 800, 600)}});
+        ui = std::make_unique<auth::AuthUi>(&controller, nullptr, &backend, &power);
+        ui->refresh();
+        ui->window()->updateLayout();
+        screen = ui->window()->contentView();
+        panel = base::PointF(secure.authContainer()->children().front()->absolutePosition());
+    }
+
+    void click(base::PointF point)
+    {
+        ui->onPointerMotion({}, panel + point);
+        ui->onPointerButton({}, panel + point, BTN_LEFT, true);
+        ui->onPointerButton({}, panel + point, BTN_LEFT, false);
+        ui->window()->updateLayout();
+    }
+    void click(const std::string &name) { click(panelRect(findView(screen, name)).center()); }
+
+    scene::Node root;
+    session::SecureContainer secure;
+    session::SessionController controller;
+    FakeBackend backend;
+    FakePowerActions power;
+    std::unique_ptr<auth::AuthUi> ui;
+    ui::View *screen = nullptr;
+    base::PointF panel;
+};
+
+TEST_F(PowerButtonsTest, OnlyWhatCanBeDoneIsOffered)
+{
+    ui::View *restart = findView(screen, "restart");
+    ui::View *shutDown = findView(screen, "shut-down");
+    ASSERT_TRUE(restart && shutDown);
+    EXPECT_TRUE(restart->isVisible());
+    EXPECT_TRUE(shutDown->isVisible());
+    // In a row centred at the bottom, Restart first, under the login column.
+    EXPECT_LT(panelRect(restart).right(), panelRect(shutDown).left());
+    EXPECT_NEAR(panelRect(restart).left() + panelRect(shutDown).right(), 480, 1);
+    EXPECT_NEAR(panelRect(shutDown).bottom(), 600 - 24, 0.5);
+    EXPECT_LT(panelRect(findView(screen, "session-menu")).bottom(), panelRect(restart).top());
+    EXPECT_LT(panelRect(findView(screen, "error")).bottom(), panelRect(restart).top());
+
+    power.set(false, true);
+    ui->window()->updateLayout();
+    EXPECT_FALSE(restart->isVisible());
+    EXPECT_TRUE(shutDown->isVisible());
+    power.set(false, false);
+    EXPECT_FALSE(shutDown->isVisible());
+}
+
+TEST_F(PowerButtonsTest, TheSecondClickGoesAhead)
+{
+    EXPECT_EQ(labelText(findView(screen, "restart")), "Restart");
+    click("restart-button");
+    EXPECT_TRUE(power.requests.empty());
+    EXPECT_EQ(labelText(findView(screen, "restart")), "Restart?");
+    click("restart-button");
+    ASSERT_EQ(power.requests.size(), 1u);
+    EXPECT_EQ(power.requests.front(), auth::PowerActions::Action::Restart);
+    EXPECT_EQ(labelText(findView(screen, "restart")), "Restart");
+}
+
+TEST_F(PowerButtonsTest, AClickElsewhereTakesTheQuestionBack)
+{
+    click("shut-down-button");
+    EXPECT_EQ(labelText(findView(screen, "shut-down")), "Shut Down?");
+    click(base::PointF(20, 20));
+    EXPECT_EQ(labelText(findView(screen, "shut-down")), "Shut Down");
+    click("shut-down-button");
+    EXPECT_TRUE(power.requests.empty());
+
+    // The other button asks for itself instead.
+    click("restart-button");
+    EXPECT_EQ(labelText(findView(screen, "shut-down")), "Shut Down");
+    EXPECT_EQ(labelText(findView(screen, "restart")), "Restart?");
+    EXPECT_TRUE(power.requests.empty());
+}
+
+TEST_F(PowerButtonsTest, ARefusalIsShown)
+{
+    power.refusal = "Interactive authentication required.";
+    click("shut-down-button");
+    click("shut-down-button");
+    ASSERT_EQ(power.requests.size(), 1u);
+    ui::View *error = findView(screen, "error");
+    ASSERT_TRUE(error);
+    std::string shown;
+    for (const auto &child : error->children()) {
+        if (auto *label = dynamic_cast<ui::Label *>(child.get()))
+            shown = label->text();
+    }
+    EXPECT_EQ(shown, "Unable to shut down");
+}
+
+TEST(AuthUiTest, NoPowerButtonsWithoutPowerActions)
+{
+    scene::Node root;
+    session::SecureContainer secure(&root);
+    session::SessionController controller(&secure, nullptr, session::SessionState::Login);
+    controller.setOutputs({{"one", base::Rect(0, 0, 800, 600)}});
+    FakeBackend backend;
+    auth::AuthUi ui(&controller, nullptr, &backend);
+    ui.refresh();
+    ui.window()->updateLayout();
+    ui::View *screen = ui.window()->contentView();
+    EXPECT_FALSE(findView(screen, "restart")->isVisible());
+    EXPECT_FALSE(findView(screen, "shut-down")->isVisible());
+}
+
+TEST_F(PowerButtonsTest, ConsoleGoesStraightToATextConsole)
+{
+    ui::View *console = findView(screen, "console");
+    ASSERT_TRUE(console);
+    EXPECT_FALSE(console->isVisible());
+
+    int switches = 0;
+    ui->setConsoleAction([&] { ++switches; });
+    ui->window()->updateLayout();
+    ASSERT_TRUE(console->isVisible());
+    // First in the row, before Restart and Shut Down.
+    EXPECT_LT(panelRect(console).right(), panelRect(findView(screen, "restart")).left());
+    EXPECT_EQ(labelText(console), "Console");
+    // Nothing to ask: it ends nothing.
+    click("console-button");
+    EXPECT_EQ(switches, 1);
+    EXPECT_TRUE(power.requests.empty());
+
+    // It takes back a question Restart asked.
+    click("restart-button");
+    EXPECT_EQ(labelText(findView(screen, "restart")), "Restart?");
+    click("console-button");
+    EXPECT_EQ(switches, 2);
+    EXPECT_EQ(labelText(findView(screen, "restart")), "Restart");
 }
