@@ -42,6 +42,8 @@ std::string lastLoginSession(const std::string &user);
 // The copy of the user's [Appearance] settings and picture that cutefish-dm
 // keeps for the login screen; a user without one shows the default.
 std::string loginBackgroundFile(const std::string &user);
+// The copy of `user`'s display.json cutefish-dm keeps for the login screen.
+std::string loginDisplayFile(const std::string &user);
 
 // Splits a command line on white space, with double quotes around an
 // argument holding spaces and three in a row standing for one.

@@ -4,6 +4,7 @@
 
 #include "core/compositor_shell.h"
 
+#include <fcntl.h>
 #include <malloc.h>
 #include <unistd.h>
 
@@ -29,6 +30,7 @@
 #include "backend/input/libinput_backend.h"
 #include "backend/session/libseat_session.h"
 #include "base/dbus.h"
+#include "base/file.h"
 #include "base/event_loop.h"
 #include "compositor/surface.h"
 #include "computer_control/controller.h"
@@ -564,8 +566,61 @@ void CompositorShell::onThemeChanged()
     m_scene.root()->notifyChanged();
 }
 
+namespace {
+
+std::string displayPreferencesFile()
+{
+    return cutefish::preferencesDirectory() + "/display.json";
+}
+
+// The login screen sets the outputs up as the user who last signed in had
+// them, the refresh rate included, rather than at the monitors' preferred
+// modes: cutefish-dm keeps a copy of each user's display.json for it.
+void adoptLastUsersDisplays()
+{
+    const std::string user = auth::lastLoginUser();
+    if (user.empty())
+        return;
+    const std::optional<std::string> text = base::file::read(auth::loginDisplayFile(user));
+    if (text && !base::file::writeAtomically(displayPreferencesFile(), *text))
+        CF_WARNING(base::LogCategory::defaultCategory()) << "Cannot take over" << user << "'s displays";
+}
+
+} // namespace
+
+// Gives cutefish-dm the session's display.json for the login screen. Without
+// cutefish-dm nobody answers, which is fine.
+void CompositorShell::shareDisplayConfiguration()
+{
+    base::dbus::Connection *bus = base::dbus::Connection::system(core::mainLoop());
+    if (!bus)
+        return;
+    base::dbus::UnixFd file =
+            base::dbus::UnixFd::adopt(::open(displayPreferencesFile().c_str(), O_RDONLY | O_CLOEXEC));
+    if (!file.isValid())
+        return;
+    const base::dbus::Proxy manager(bus, "org.cutefish.DisplayManager", "/org/cutefish/DisplayManager",
+                                    "org.cutefish.DisplayManager");
+    m_displayShareCall = manager.callAsync(
+            "SetDisplayConfiguration",
+            [](const base::dbus::Reply &reply) {
+                if (reply.isError())
+                    CF_DEBUG(base::LogCategory::defaultCategory())
+                            << "Display configuration not shared with the login screen:" << reply.error().message;
+            },
+            file);
+}
+
 bool CompositorShell::init()
 {
+    if (m_options.login) {
+        adoptLastUsersDisplays();
+    } else {
+        m_displayShareWatch = base::FileWatch::file(
+                displayPreferencesFile(), [this] { shareDisplayConfiguration(); }, core::mainLoop());
+        shareDisplayConfiguration();
+    }
+
     m_sessionTeardown.setCursorReset([this] {
         m_cursor.refresh();
     });

@@ -10,6 +10,8 @@
 #include <vector>
 
 #include "auth/auth_ui.h"
+#include "base/dbus.h"
+#include "base/file_watcher.h"
 #include "base/signal.h"
 #include "base/timer.h"
 #include "compositor/compositor.h"
@@ -156,6 +158,7 @@ private:
     bool initWayland();
     bool initHeadless();
     void initKeyboard();
+    void shareDisplayConfiguration();
     void initComputerControl();
     void initAccelerators();
     bool initDrm();
@@ -260,6 +263,9 @@ private:
     wm::WindowManager m_windowManager;
     display::DisplayManager m_displayManager;
     base::Subscription m_secureOutputsUpdate;
+    // The session's display.json, handed to cutefish-dm whenever it changes.
+    base::FileWatch m_displayShareWatch;
+    base::dbus::PendingCall m_displayShareCall;
     // Declared after the backend, so its textures are freed while the GL
     // context is still alive.
     decoration::Theme m_decorationTheme;
