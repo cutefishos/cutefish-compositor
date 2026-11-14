@@ -47,7 +47,7 @@ public:
     std::function<base::Rect()> primaryGeometry;
     // The view moved or resized.
     void notifyPrimaryGeometryChanged();
-    // For the launcher, which leaves the dock its room.
+    // For the launchpad, which leaves the dock its room.
     base::Signal<> primaryGeometryChanged;
 
 private:

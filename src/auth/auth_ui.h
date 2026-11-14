@@ -121,7 +121,7 @@ private:
     void clear();
     void scheduleRefresh();
     void refreshStatus(const session::SecureOutput &target);
-    // Light or dark icons from the wallpaper under them, as the status bar
+    // Light or dark icons from the wallpaper under them, as the menu bar
     // judges its own.
     void judgeBackdrop();
     const session::SecureOutput &

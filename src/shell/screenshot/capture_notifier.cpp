@@ -143,7 +143,7 @@ void CaptureNotifier::notify(const std::string &summary, const std::string &body
         return;
     dbus::VariantMap hints;
     hints["urgency"] = dbus::Variant(uint8_t(1));
-    // Under the Screenshot entry in the launcher, for its name, icon and settings.
+    // Under the Screenshot entry in the launchpad, for its name, icon and settings.
     hints["desktop-entry"] = dbus::Variant(std::string("cutefish-screenshot"));
     if (!image.empty())
         hints["image-path"] = dbus::Variant(image);

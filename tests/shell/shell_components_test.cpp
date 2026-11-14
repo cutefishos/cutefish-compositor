@@ -57,7 +57,7 @@ input::Timestamp at(int ms)
 }
 
 const base::Rect kOutput(0, 0, 1440, 960);
-constexpr int kStatusBar = 32;
+constexpr int kMenuBar = 32;
 
 class FakeLevels final : public shell::OsdLevels
 {
@@ -87,7 +87,7 @@ public:
 
 constexpr uint32_t kIconColor = 0xff3366cc;
 
-// Starts a drag of `data` in `mime` on a press, as the launcher or the file
+// Starts a drag of `data` in `mime` on a press, as the launchpad or the file
 // manager would.
 class DragSourceView final : public ui::View
 {
@@ -135,14 +135,14 @@ protected:
     test::FakeApplications *applications = nullptr;
     test::FakeTaskWindows *windows = nullptr;
     std::unique_ptr<shell::Shell> shell;
-    int statusBar = 0;
+    int menuBar = 0;
 
     void SetUp() override
     {
         shell::setShellDataDirectoryForTesting(CUTEFISH_SOURCE_DIR "/data/shell");
         scene.setSize(kOutput.size());
         manager.setOutputBounds(kOutput);
-        manager.setExclusiveZone(&statusBar, wm::ScreenEdge::Top, kStatusBar);
+        manager.setExclusiveZone(&menuBar, wm::ScreenEdge::Top, kMenuBar);
         input.setBounds(kOutput.size());
         input.setEventSink(&manager);
         shell::ShellEnvironment environment {&compositor, &manager, &seat};
@@ -232,7 +232,7 @@ protected:
         auto content = std::make_unique<DragSourceView>(mime, data);
         *view = content.get();
         window->setContentView(std::move(content));
-        window->setGeometry(base::Rect(0, 0, 200, kStatusBar));
+        window->setGeometry(base::Rect(0, 0, 200, kMenuBar));
         window->show();
         frame();
         return window;
@@ -272,7 +272,7 @@ TEST_F(ShellComponentsTest, TheOsdShowsTopCentreBelowTheBarAndGoes)
     ASSERT_NE(nullptr, window);
     EXPECT_EQ(wm::WindowRole::Osd, window->role());
     EXPECT_EQ(wm::FocusPolicy::NoFocus, window->focusPolicy());
-    EXPECT_EQ(base::Rect(580, kStatusBar + 6, 280, 54), window->bounds());
+    EXPECT_EQ(base::Rect(580, kMenuBar + 6, 280, 54), window->bounds());
     // Clicks go through.
     ASSERT_TRUE(osd->window()->surface()->inputRegion());
     EXPECT_TRUE(osd->window()->surface()->inputRegion()->isEmpty());
@@ -410,9 +410,9 @@ TEST_F(ShellComponentsTest, TheDockSitsAlongTheBottomOnItsGlassAndReservesItsStr
     // the 19 a launching icon bounces.
     EXPECT_EQ(base::Rect(5, 960 - 86 - 5 - 3, 1430, 94), window->bounds());
     // From the screen edge to the far side, and 2 more.
-    EXPECT_EQ(base::Rect(0, kStatusBar, 1440, 960 - kStatusBar - 92), manager.workAreaFor(nullptr));
+    EXPECT_EQ(base::Rect(0, kMenuBar, 1440, 960 - kMenuBar - 92), manager.workAreaFor(nullptr));
 
-    // Launcher and two pins a pitch of 70 each, the divider's 24, then the
+    // Launchpad and two pins a pitch of 70 each, the divider's 24, then the
     // trash and the two end paddings.
     const int length = 3 * 70 + 24 + 54 + 2 * 16;
     const base::Rect panel = dock->panelRect();
@@ -716,7 +716,7 @@ TEST_F(ShellComponentsTest, TheDockMagnifiesUnderThePointerAndKeepsItsRestGeomet
     const int across = 16 + 128 + 19 + 5;
     EXPECT_EQ(base::Rect(0, 960 - across, 1440, across), window->bounds());
     EXPECT_EQ(86 + 3 + 5, window->edgeReach());
-    EXPECT_EQ(base::Rect(0, kStatusBar, 1440, 960 - kStatusBar - 92), manager.workAreaFor(nullptr));
+    EXPECT_EQ(base::Rect(0, kMenuBar, 1440, 960 - kMenuBar - 92), manager.workAreaFor(nullptr));
 
     const base::Rect rest = dock->panelRect();
     const base::Rect primary = dock->primaryGeometry();
@@ -751,10 +751,10 @@ TEST_F(ShellComponentsTest, TheDockMagnifiesUnderThePointerAndKeepsItsRestGeomet
     EXPECT_NEAR(96, magnified.width, 1e-6);
     EXPECT_NEAR(centre.x(), bounds.x() + files->geometry().x + magnified.x + magnified.width / 2, 1e-6);
     EXPECT_NEAR(slots[1].y + rects[1].bottom(), files->geometry().y + magnified.bottom(), 1e-6);
-    shell::DockIcon *launcher = icons[0];
+    shell::DockIcon *launchpad = icons[0];
     shell::DockIcon *terminalIcon = dock->applicationIcon("terminal");
-    EXPECT_GT(launcher->magnification(), 1);
-    EXPECT_LT(launcher->magnification(), files->magnification());
+    EXPECT_GT(launchpad->magnification(), 1);
+    EXPECT_LT(launchpad->magnification(), files->magnification());
     EXPECT_GT(terminalIcon->magnification(), 1);
     EXPECT_LT(terminalIcon->magnification(), files->magnification());
     EXPECT_LT(dock->trashIcon()->magnification(), terminalIcon->magnification());
@@ -780,14 +780,14 @@ TEST_F(ShellComponentsTest, TheDockMagnifiesUnderThePointerAndKeepsItsRestGeomet
     EXPECT_EQ(rest.height(), drawn.height());
     EXPECT_EQ(drawn, dock->window()->surface()->backgroundBlurRect());
     // Each end as far from its end slot as at rest, to the glass's whole pixels.
-    EXPECT_NEAR(slots[0].x - rest.x(), launcher->geometry().x - drawn.x(), 0.5);
+    EXPECT_NEAR(slots[0].x - rest.x(), launchpad->geometry().x - drawn.x(), 0.5);
     EXPECT_NEAR(rest.right() - slots.back().right(), drawn.right() - icons.back()->geometry().right(), 0.5);
 
     // What the session is told stays at rest.
     EXPECT_EQ(rest, dock->panelRect());
     EXPECT_EQ(primary, dock->primaryGeometry());
     EXPECT_EQ(target, dock->minimizeTarget(id));
-    EXPECT_EQ(base::Rect(0, kStatusBar, 1440, 960 - kStatusBar - 92), manager.workAreaFor(nullptr));
+    EXPECT_EQ(base::Rect(0, kMenuBar, 1440, 960 - kMenuBar - 92), manager.workAreaFor(nullptr));
 
     // Tracked, the band reaches as far as the magnified icons do.
     EXPECT_TRUE(takesInput(dock, {int(centre.x()) - bounds.x(), above}));
@@ -836,8 +836,8 @@ TEST_F(ShellComponentsTest, TheDockMagnifiesUnderThePointerAndKeepsItsRestGeomet
     ASSERT_TRUE(dock->magnifier().isTracking());
     EXPECT_EQ(rest.x(), dock->drawnPanelRect().x());
     EXPECT_GT(dock->drawnPanelRect().right(), rest.right());
-    EXPECT_NEAR(slots[0].x, launcher->geometry().x, 1e-9);
-    EXPECT_GT(launcher->magnification(), files->magnification());
+    EXPECT_NEAR(slots[0].x, launchpad->geometry().x, 1e-9);
+    EXPECT_GT(launchpad->magnification(), files->magnification());
     move(5, centre.x(), bounds.y() + rest.y() - 60);
     settleMagnification(dock);
     EXPECT_EQ(rest, dock->drawnPanelRect());
@@ -1162,8 +1162,8 @@ TEST_F(ShellComponentsTest, ADraggedIconMovesAmongThePinsAndOffTheDockUnpins)
     input::DragController *drag = seat.drag();
     const base::PointF files = centreOf(dock, dock->applicationIcon("files"));
     const base::PointF terminal = centreOf(dock, dock->applicationIcon("terminal"));
-    // The launcher stays where it is.
-    beginDrag(1, centreOf(dock, dock->applicationIcon(shell::DockModel::kLauncherId)), {files.x(), files.y() - 40});
+    // The launchpad stays where it is.
+    beginDrag(1, centreOf(dock, dock->applicationIcon(shell::DockModel::kLaunchpadId)), {files.x(), files.y() - 40});
     EXPECT_FALSE(drag->active());
     release(5);
 
@@ -1183,7 +1183,7 @@ TEST_F(ShellComponentsTest, ADraggedIconMovesAmongThePinsAndOffTheDockUnpins)
     EXPECT_TRUE(drag->targetAcceptsDrop());
     release(21);
     EXPECT_FALSE(drag->busy());
-    EXPECT_EQ(dockIds(dock), (std::vector<std::string>{shell::DockModel::kLauncherId, "terminal", "files"}));
+    EXPECT_EQ(dockIds(dock), (std::vector<std::string>{shell::DockModel::kLaunchpadId, "terminal", "files"}));
     EXPECT_FALSE(presentation->isDragging());
     EXPECT_FALSE(icon->isDragHidden());
 
@@ -1199,7 +1199,7 @@ TEST_F(ShellComponentsTest, ADraggedIconMovesAmongThePinsAndOffTheDockUnpins)
     move(40, moved.x(), moved.y() - 200);
     release(41);
     EXPECT_FALSE(drag->busy());
-    EXPECT_EQ(dockIds(dock), (std::vector<std::string>{shell::DockModel::kLauncherId, "terminal"}));
+    EXPECT_EQ(dockIds(dock), (std::vector<std::string>{shell::DockModel::kLaunchpadId, "terminal"}));
 }
 
 TEST_F(ShellComponentsTest, AnIconThatFinishedLeavingIsAnnouncedOnTheFrameThatDropsIt)
@@ -1351,7 +1351,7 @@ TEST_F(ShellComponentsTest, ADraggedIconNothingTakesGoesBackToItsSlot)
     EXPECT_FALSE(dock->isDraggingIcon());
     EXPECT_FALSE(dock->applicationIcon("files")->isDragHidden());
     EXPECT_FALSE(dock->applicationPresentation()->isDragging());
-    EXPECT_EQ(dockIds(dock), (std::vector<std::string>{shell::DockModel::kLauncherId, "files", "terminal"}));
+    EXPECT_EQ(dockIds(dock), (std::vector<std::string>{shell::DockModel::kLaunchpadId, "files", "terminal"}));
 }
 
 TEST_F(ShellComponentsTest, TheLastPinTakenOffTheDockOpensItsSlotAgainWhereItWas)
@@ -1389,7 +1389,7 @@ TEST_F(ShellComponentsTest, TheLastPinTakenOffTheDockOpensItsSlotAgainWhereItWas
     EXPECT_TRUE(presentation->placeholderPinned());
     EXPECT_TRUE(drag->targetAcceptsDrop());
     release(41);
-    EXPECT_EQ(dockIds(dock), (std::vector<std::string>{shell::DockModel::kLauncherId, "files", "terminal"}));
+    EXPECT_EQ(dockIds(dock), (std::vector<std::string>{shell::DockModel::kLaunchpadId, "files", "terminal"}));
 }
 
 TEST_F(ShellComponentsTest, EscapeLeavesThePinsAsTheyWere)
@@ -1414,18 +1414,18 @@ TEST_F(ShellComponentsTest, EscapeLeavesThePinsAsTheyWere)
         frame();
         return !dock->isDraggingIcon();
     }));
-    EXPECT_EQ(dockIds(dock), (std::vector<std::string>{shell::DockModel::kLauncherId, "files", "terminal"}));
+    EXPECT_EQ(dockIds(dock), (std::vector<std::string>{shell::DockModel::kLaunchpadId, "files", "terminal"}));
     EXPECT_FALSE(dock->applicationIcon("terminal")->isDragHidden());
     EXPECT_FALSE(presentation->isDragging());
 }
 
-TEST_F(ShellComponentsTest, TheLaunchersDragPinsWhereItIsDropped)
+TEST_F(ShellComponentsTest, TheLaunchpadsDragPinsWhereItIsDropped)
 {
     applications->addSimple("editor", "Editor", "accessories-text-editor");
     applications->scan();
     auto *dock = openDock("[Dock]\nPinned=files, terminal\n");
     DragSourceView *view = nullptr;
-    auto launcher = sourceWindow(shell::DockWindow::kDesktopMime, "editor", &view);
+    auto launchpad = sourceWindow(shell::DockWindow::kDesktopMime, "editor", &view);
     input::DragController *drag = seat.drag();
     const base::PointF terminal = centreOf(dock, dock->applicationIcon("terminal"));
 
@@ -1442,7 +1442,7 @@ TEST_F(ShellComponentsTest, TheLaunchersDragPinsWhereItIsDropped)
     EXPECT_EQ(-1, presentation->removedRow());
     release(13);
     ASSERT_TRUE(test::runUntil([&] { return dockIds(dock).size() == 4; }));
-    EXPECT_EQ(dockIds(dock), (std::vector<std::string>{shell::DockModel::kLauncherId, "files", "editor", "terminal"}));
+    EXPECT_EQ(dockIds(dock), (std::vector<std::string>{shell::DockModel::kLaunchpadId, "files", "editor", "terminal"}));
     ASSERT_TRUE(test::runUntil([&] { return !view->finished.empty(); }));
     EXPECT_EQ(ui::MoveAction, view->finished.back());
     EXPECT_FALSE(presentation->isDragging());
@@ -1704,7 +1704,7 @@ TEST_F(ShellComponentsTest, AClosedShellWindowLeavesTheSceneWithTheNextFrame)
     for (int i = 0; i < 3; ++i) {
         panels.push_back(std::make_unique<shell::ShellWindow>(shell.get(), wm::WindowRole::Panel));
         panels.back()->setContentView(std::make_unique<ui::View>());
-        panels.back()->setGeometry(base::Rect(0, 0, 200, kStatusBar));
+        panels.back()->setGeometry(base::Rect(0, 0, 200, kMenuBar));
         panels.back()->show();
     }
     test::processPendingEvents();

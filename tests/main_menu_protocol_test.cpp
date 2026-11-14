@@ -174,7 +174,7 @@ protected:
     std::mutex mutex;
     std::function<void()> pendingCheck;
 
-    // The window's main menu, as the status bar finds it.
+    // The window's main menu, as the menu bar finds it.
     std::shared_ptr<compositor::MenuModel> dockMenu() const
     {
         for (compositor::Surface *surface : compositor.surfaces()) {

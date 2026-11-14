@@ -15,8 +15,8 @@ StackingLayer layerFor(WindowRole role, PanelBehavior behavior)
         return StackingLayer::Desktop;
     case WindowRole::Normal:
         return StackingLayer::Normal;
-    case WindowRole::Launcher:
-        return StackingLayer::Launcher;
+    case WindowRole::Launchpad:
+        return StackingLayer::Launchpad;
     case WindowRole::Panel:
         return behavior == PanelBehavior::WindowsCanCover ? StackingLayer::Normal
                                                           : StackingLayer::Panel;

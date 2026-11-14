@@ -33,9 +33,9 @@
 #include "shell/shell.h"
 #include "shell/shell_data.h"
 #include "shell/shell_window.h"
-#include "shell/statusbar/status_bar.h"
-#include "shell/statusbar/status_bar_window.h"
-#include "shell/statusbar/status_icon.h"
+#include "shell/menubar/menu_bar.h"
+#include "shell/menubar/menu_bar_window.h"
+#include "shell/menubar/status_icon.h"
 #include "shell_test_util.h"
 #include "temporary_directory.h"
 #include "ui/application.h"
@@ -46,7 +46,7 @@
 #include "wm/window_manager.h"
 
 using namespace cutefish;
-using Panel = shell::StatusBarPanels::Panel;
+using Panel = shell::MenuBarPanels::Panel;
 
 namespace {
 
@@ -56,7 +56,7 @@ input::Timestamp at(int ms)
 }
 
 const base::Rect kOutput(0, 0, 1440, 960);
-constexpr int kStatusBar = 32;
+constexpr int kMenuBar = 32;
 constexpr int kDock = 92;
 
 class FakeServices final : public shell::ControlCenterServices
@@ -184,12 +184,12 @@ protected:
         shell->setApplications(std::make_unique<test::FakeApplications>());
         shell->setTaskWindows(std::make_unique<test::FakeTaskWindows>());
 
-        // The status bar's window, which the panels hang from.
+        // The menu bar's window, which the panels hang from.
         bar = std::make_unique<shell::ShellWindow>(shell.get(), wm::WindowRole::Panel);
         bar->setContentView(std::make_unique<ui::View>());
         bar->setFocusPolicy(wm::FocusPolicy::NoFocus);
-        bar->setGeometry(base::Rect(0, 0, kOutput.width(), kStatusBar));
-        bar->setExclusiveZone(wm::ScreenEdge::Top, kStatusBar);
+        bar->setGeometry(base::Rect(0, 0, kOutput.width(), kMenuBar));
+        bar->setExclusiveZone(wm::ScreenEdge::Top, kMenuBar);
         bar->show();
 
         auto fake = std::make_unique<FakeServices>();
@@ -237,7 +237,7 @@ protected:
     // The bar items the reference captures used: x from the right edge.
     base::Rect item(int fromRight, int width = 40) const
     {
-        return base::Rect(kOutput.width() - fromRight, 0, width, kStatusBar);
+        return base::Rect(kOutput.width() - fromRight, 0, width, kMenuBar);
     }
 
     // The centre of a view in global logical coordinates.
@@ -284,7 +284,7 @@ TEST_F(ControlCenterTest, TheControlCentreHangsBelowTheBarWithThePanelGlass)
     EXPECT_EQ(2, changes);
 
     // Left of the screen it starts at the item's plate.
-    center->openPanel(Panel::ControlCenter, bar.get(), base::Rect(100, 0, 40, kStatusBar));
+    center->openPanel(Panel::ControlCenter, bar.get(), base::Rect(100, 0, 40, kMenuBar));
     frame();
     EXPECT_EQ(103, center->popupWindow(Panel::ControlCenter)->drawnBounds().x());
     // A press outside closes it and goes nowhere.
@@ -411,7 +411,7 @@ TEST_F(ControlCenterTest, TheWifiPanelListsNetworksAndJoinsThem)
     EXPECT_EQ(int(panel->contentHeight()), shown);
     // Kept 6 inside the work area's right edge.
     EXPECT_EQ(base::Rect(1440 - 320 - 6, 38, 320, shown), bounds);
-    EXPECT_EQ(base::Rect(1440 - 320 - 6, 38, 320, 960 - kStatusBar - kDock - 12),
+    EXPECT_EQ(base::Rect(1440 - 320 - 6, 38, 320, 960 - kMenuBar - kDock - 12),
               center->panelGeometry(Panel::Network, bar.get(), item(293)));
     EXPECT_EQ(base::Rect(0, 0, 320, shown), window->surface()->backgroundBlurRect());
     EXPECT_FALSE(window->surface()->inputRegion());
@@ -522,7 +522,7 @@ TEST_F(ControlCenterTest, LanguageChangeKeepsTheOpenPanels)
 TEST_F(ControlCenterTest, TheBarIndicatorsFollowTheServices)
 {
     int changes = 0;
-    base::Subscription subscription = center->StatusBarIndicators::changed.connect([&] { ++changes; });
+    base::Subscription subscription = center->MenuBarIndicators::changed.connect([&] { ++changes; });
     EXPECT_TRUE(center->audio().hasSink);
     EXPECT_NEAR(0.36, center->audio().volume, 1e-9);
     EXPECT_EQ("Office 5G", center->network().wirelessName);
@@ -591,16 +591,16 @@ TEST_F(ControlCenterTest, TheBarsItemsOpenEveryPanel)
     // The fixture's stand-in bar gives way to the real one.
     bar->hide();
     directory.write("shell.conf", "");
-    auto backend = std::make_unique<shell::StatusBar>(base::dbus::Connection::session(core::mainLoop()),
-                                                      base::dbus::Connection::system(core::mainLoop()), &shell->tasks(),
-                                                      directory.filePath("shell.conf"));
-    auto *statusBar = shell->addComponent(std::make_unique<shell::StatusBarWindow>(shell.get(), std::move(backend)));
-    statusBar->addPanels(center);
-    statusBar->setIndicators(center);
+    auto backend = std::make_unique<shell::MenuBar>(base::dbus::Connection::session(core::mainLoop()),
+                                                    base::dbus::Connection::system(core::mainLoop()), &shell->tasks(),
+                                                    directory.filePath("shell.conf"));
+    auto *menuBar = shell->addComponent(std::make_unique<shell::MenuBarWindow>(shell.get(), std::move(backend)));
+    menuBar->addPanels(center);
+    menuBar->setIndicators(center);
     frame();
-    for (const auto &[panel, icon] : {std::pair {Panel::Volume, statusBar->volumeIcon()},
-                                      std::pair {Panel::Network, statusBar->networkIcon()},
-                                      std::pair {Panel::ControlCenter, statusBar->controlIcon()}}) {
+    for (const auto &[panel, icon] : {std::pair {Panel::Volume, menuBar->volumeIcon()},
+                                      std::pair {Panel::Network, menuBar->networkIcon()},
+                                      std::pair {Panel::ControlCenter, menuBar->controlIcon()}}) {
         ASSERT_TRUE(icon->isVisible());
         const ui::PointF origin = icon->mapToWindow({0, 0});
         click(origin.x + icon->geometry().width / 2, 16);
@@ -611,6 +611,6 @@ TEST_F(ControlCenterTest, TheBarsItemsOpenEveryPanel)
         EXPECT_NE(nullptr, center->popupWindow(panel)->wmWindow()) << int(panel);
         EXPECT_TRUE(icon->isChecked());
     }
-    statusBar->removePanels(center);
-    statusBar->setIndicators(nullptr);
+    menuBar->removePanels(center);
+    menuBar->setIndicators(nullptr);
 }

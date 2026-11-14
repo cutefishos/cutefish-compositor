@@ -367,7 +367,7 @@ private:
 
     // Last, so they go before any receiver they call.
     base::Subscription m_computerControlDrawn;
-    base::Subscription m_statusBarAgentControl;
+    base::Subscription m_menuBarAgentControl;
     // The shell components' connections to one another.
     std::vector<base::Subscription> m_shellSubscriptions;
     std::vector<base::Subscription> m_compositorSubscriptions;

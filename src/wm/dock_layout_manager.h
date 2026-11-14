@@ -58,13 +58,13 @@ enum class WorkspaceState {
 // Decides, for every dock and panel the shell maps, whether it is on
 // screen right now, and slides it off its screen edge when it is not. The dock
 // itself only draws: it never unmaps, and it learns nothing about the pointer.
-// A panel such as the status bar follows the same rules, minus the setting: it
+// A panel such as the menu bar follows the same rules, minus the setting: it
 // only gives way to a fullscreen window.
 //
 // Two decisions, as upstream: the visibility state comes from the setting and
 // from the windows on the dock's output; the auto-hide state, only meaningful
 // under AutoHide, from what would be interrupted by hiding - the pointer on the
-// dock or at its edge, a menu of the dock's, the launcher - and from whether
+// dock or at its edge, a menu of the dock's, the launchpad - and from whether
 // there is a window to make room for at all. Showing, and hiding because the
 // pointer left, wait kAutoHideDelayMs; anything else hides at once.
 // A panel along the top edge comes back to the pointer over a fullscreen
@@ -175,7 +175,7 @@ private:
     // Tells the fullscreen window under a top panel where the panel is going,
     // and picks the window it pushes.
     void updateReveal(Window *dock, Dock &entry);
-    bool isLauncherShowing(const base::Rect &output) const;
+    bool isLaunchpadShowing(const base::Rect &output) const;
     void applyAutoHideState(Window *dock, Dock &entry, DockAutoHideState state);
     // Aims the dock at where its current state puts it: on screen, or just
     // past its edge. Animated unless the dock is already parked there.

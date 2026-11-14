@@ -47,7 +47,7 @@ class ShellWindow;
 
 // The dock: a strip along the
 // primary output's edge, the panel centred in it on the compositor's glass,
-// with the launcher, the pinned and the running applications, a divider,
+// with the launchpad, the pinned and the running applications, a divider,
 // the minimized windows and the trash. The models and org.cutefish.Dock are
 // the Dock it is given; this is the view, its window and its input.
 class DockWindow : public Component
@@ -99,7 +99,7 @@ public:
     // drop targets too; a minimized window's id, for the dock alone.
     static constexpr const char *kApplicationMime = "application/x-cutefish-dock-app-id";
     static constexpr const char *kWindowMime = "application/x-cutefish-dock-window-id";
-    // What the launcher's drags carry: the desktop id.
+    // What the launchpad's drags carry: the desktop id.
     static constexpr const char *kDesktopMime = "application/x-cutefish-desktop-id";
 
     DockPresentation *applicationPresentation() const { return m_applications.get(); }
@@ -145,7 +145,7 @@ private:
         bool desktop = false;
         bool window = false;
         bool files = false;
-        // What the drag carries, once read; the launcher's arrives later.
+        // What the drag carries, once read; the launchpad's arrives later.
         std::optional<std::string> appId;
         std::optional<std::string> desktopId;
         ui::PointF position;

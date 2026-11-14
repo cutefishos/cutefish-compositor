@@ -6,7 +6,7 @@
 // Revision: 8abbac30b9cf2fe976422c58c000c94685648b65
 //
 // Adapted for Cutefish: the commands that have a Cutefish counterpart, with
-// the Shell::Get() singletons replaced by an explicit context. The launcher
+// the Shell::Get() singletons replaced by an explicit context. The launchpad
 // lives in the shell process and is reached through the delegate.
 
 #ifndef CUTEFISH_ACCELERATORS_ACCELERATOR_COMMANDS_H_

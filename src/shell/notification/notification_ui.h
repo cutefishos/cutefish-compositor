@@ -9,7 +9,7 @@
 
 #include "base/signal.h"
 #include "shell/shell.h"
-#include "shell/statusbar/status_bar_panels.h"
+#include "shell/menubar/menu_bar_panels.h"
 
 namespace cutefish::shell {
 
@@ -19,9 +19,9 @@ class Notifications;
 
 // The notifications component: the server, history and settings
 // (Notifications) with their views, the banners and the notification
-// centre. The status bar opens the centre from its clock, as its
+// centre. The menu bar opens the centre from its clock, as its
 // NotificationCenter panel.
-class NotificationUi : public Component, public StatusBarPanels
+class NotificationUi : public Component, public MenuBarPanels
 {
 public:
     NotificationUi(Shell *shell, std::unique_ptr<Notifications> notifications);
@@ -34,7 +34,7 @@ public:
     NotificationPopups &popups() const { return *m_popups; }
     NotificationCentre &centre() const { return *m_centre; }
 
-    // --- StatusBarPanels: the notification centre ---
+    // --- MenuBarPanels: the notification centre ---
 
     bool hasPanel(Panel panel) const override;
     void openPanel(Panel panel, ShellWindow *bar, const base::Rect &anchor) override;

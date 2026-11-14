@@ -6,7 +6,7 @@
 // Revision: 8abbac30b9cf2fe976422c58c000c94685648b65
 //
 // Adapted for Cutefish: the restriction sets that have a Cutefish state
-// behind them (blocked session, no window), the launcher
+// behind them (blocked session, no window), the launchpad
 // state machine, the repeatable actions. Tablet volume, caps lock, suspend and
 // IME state machines, the exit warning, deprecated accelerators, enterprise
 // policy and metrics are dropped.
@@ -22,7 +22,7 @@
 #include "accelerators/accelerator.h"
 #include "accelerators/accelerator_actions.h"
 #include "accelerators/accelerator_commands.h"
-#include "accelerators/accelerator_launcher_state_machine.h"
+#include "accelerators/accelerator_launchpad_state_machine.h"
 #include "accelerators/accelerator_manager.h"
 #include "accelerators/accelerator_history.h"
 #include "base/signal.h"
@@ -37,7 +37,7 @@ class AcceleratorController : public AcceleratorTarget
 {
 
 public:
-    // `anyKeysPressed` feeds the launcher state machine.
+    // `anyKeysPressed` feeds the launchpad state machine.
     AcceleratorController(AcceleratorConfiguration *configuration, const CommandContext &context,
                           std::function<bool()> anyKeysPressed);
     ~AcceleratorController() override;
@@ -79,13 +79,13 @@ public:
     void setUsePositionalLookup(bool use);
 
     // While set, nothing is processed: the Settings shortcut recorder uses this
-    // so that pressing Meta while recording does not open the launcher.
+    // so that pressing Meta while recording does not open the launchpad.
     void setPreventProcessingAccelerators(bool prevent);
     bool shouldPreventProcessingAccelerators() const { return m_preventProcessing; }
 
     AcceleratorHistory *history() { return &m_history; }
 
-    AcceleratorLauncherStateMachine *launcherStateMachine() { return &m_launcherStateMachine; }
+    AcceleratorLaunchpadStateMachine *launchpadStateMachine() { return &m_launchpadStateMachine; }
 
     // AcceleratorTarget:
     bool acceleratorPressed(const Accelerator &accelerator) override;
@@ -102,7 +102,7 @@ private:
 
     AcceleratorManager m_manager;
     AcceleratorHistory m_history;
-    AcceleratorLauncherStateMachine m_launcherStateMachine;
+    AcceleratorLaunchpadStateMachine m_launchpadStateMachine;
     AcceleratorConfiguration *m_configuration = nullptr;
     CommandContext m_context;
 

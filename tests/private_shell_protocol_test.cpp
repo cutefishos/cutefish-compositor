@@ -670,7 +670,7 @@ TEST_F(PrivateShellProtocolTest, ADesktopHearsItsWorkArea)
         EXPECT_EQ(base::Rect(0, 0, 800, 600), areas.back());
         c.map(desktop, kOutput.size());
 
-        // The compositor's own reservations: the status bar's and the dock's.
+        // The compositor's own reservations: the menu bar's and the dock's.
         int bar = 0;
         int dock = 0;
         check([&] { windowManager.setExclusiveZone(&bar, wm::ScreenEdge::Top, 32); });
@@ -696,7 +696,7 @@ TEST_F(PrivateShellProtocolTest, ADesktopHearsItsWorkArea)
 }
 
 // The session's case: named outputs from the display manager, the desktop of
-// the file manager on one of them, and the compositor's status bar and dock
+// the file manager on one of them, and the compositor's menu bar and dock
 // reserving their strips of it by name, before and after the desktop exists.
 TEST_F(PrivateShellProtocolTest, ADesktopOnANamedOutputHearsTheShellsReservations)
 {
@@ -722,7 +722,7 @@ TEST_F(PrivateShellProtocolTest, ADesktopOnANamedOutputHearsTheShellsReservation
     ASSERT_TRUE(displays.installApplied({"instance", 1, 1, {}, {logical}, {}}));
     windowManager.setDisplayManager(&displays);
 
-    // The status bar is up before the file manager starts.
+    // The menu bar is up before the file manager starts.
     int bar = 0;
     int dock = 0;
     windowManager.setExclusiveZone(&bar, wm::ScreenEdge::Top, 32, "Cutefish-a");

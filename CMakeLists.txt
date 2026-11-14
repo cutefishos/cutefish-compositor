@@ -665,8 +665,8 @@ add_library(cutefish-accelerators STATIC
     src/accelerators/accelerator_filter.h
     src/accelerators/accelerator_history.cpp
     src/accelerators/accelerator_history.h
-    src/accelerators/accelerator_launcher_state_machine.cpp
-    src/accelerators/accelerator_launcher_state_machine.h
+    src/accelerators/accelerator_launchpad_state_machine.cpp
+    src/accelerators/accelerator_launchpad_state_machine.h
     src/accelerators/accelerator_manager.cpp
     src/accelerators/accelerator_manager.h
     src/accelerators/accelerator_map.h
@@ -894,7 +894,7 @@ add_library(cutefish-auth STATIC
     src/auth/greetd_backend.cpp src/auth/greetd_backend.h
     src/auth/login_sessions.cpp src/auth/login_sessions.h)
 target_include_directories(cutefish-auth PUBLIC src)
-# The status bar's items and backdrop rules come from the shell's libraries,
+# The menu bar's items and backdrop rules come from the shell's libraries,
 # defined further down.
 find_package(CutefishClients REQUIRED COMPONENTS accounts)
 target_link_libraries(cutefish-auth PUBLIC cutefish-session cutefish-toolkit-host

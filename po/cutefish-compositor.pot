@@ -245,14 +245,14 @@ msgid "{name} is recording system audio"
 msgstr ""
 
 #: src/shell/dock/dock_model.cpp
-msgid "Launcher"
+msgid "Apps"
 msgstr ""
 
 #: src/shell/dock/dock_window.cpp
 msgid "Trash"
 msgstr ""
 
-#: src/shell/dock/dock_window.cpp src/shell/launcher/launcher_view.cpp
+#: src/shell/dock/dock_window.cpp src/shell/launchpad/launchpad_view.cpp
 msgid "Remove from Dock"
 msgstr ""
 
@@ -260,7 +260,7 @@ msgstr ""
 msgid "Keep in Dock"
 msgstr ""
 
-#: src/shell/dock/dock_window.cpp src/shell/launcher/launcher_view.cpp
+#: src/shell/dock/dock_window.cpp src/shell/launchpad/launchpad_view.cpp
 msgid "Open"
 msgstr ""
 
@@ -284,39 +284,39 @@ msgstr ""
 msgid "Remove"
 msgstr ""
 
-#: src/shell/launcher/launcher_search_field.cpp
+#: src/shell/launchpad/launchpad_search_field.cpp
 msgid "Search"
 msgstr ""
 
-#: src/shell/launcher/launcher_view.cpp
+#: src/shell/launchpad/launchpad_view.cpp
 msgid "New Folder"
 msgstr ""
 
-#: src/shell/launcher/launcher_view.cpp
+#: src/shell/launchpad/launchpad_view.cpp
 msgid "Not found"
 msgstr ""
 
-#: src/shell/launcher/launcher_view.cpp
+#: src/shell/launchpad/launchpad_view.cpp
 msgid "Rename"
 msgstr ""
 
-#: src/shell/launcher/launcher_view.cpp
+#: src/shell/launchpad/launchpad_view.cpp
 msgid "Ungroup"
 msgstr ""
 
-#: src/shell/launcher/launcher_view.cpp
+#: src/shell/launchpad/launchpad_view.cpp
 msgid "Move to Folder"
 msgstr ""
 
-#: src/shell/launcher/launcher_view.cpp
+#: src/shell/launchpad/launchpad_view.cpp
 msgid "Remove from Folder"
 msgstr ""
 
-#: src/shell/launcher/launcher_view.cpp
+#: src/shell/launchpad/launchpad_view.cpp
 msgid "Send to Desktop"
 msgstr ""
 
-#: src/shell/launcher/launcher_view.cpp
+#: src/shell/launchpad/launchpad_view.cpp
 msgid "Send to Dock"
 msgstr ""
 
@@ -483,7 +483,7 @@ msgid "Screenshots"
 msgstr ""
 
 #: src/shell/screenshot/capture_toolbar.cpp
-#: src/shell/statusbar/application_menu.cpp
+#: src/shell/menubar/application_menu.cpp
 msgid "Desktop"
 msgstr ""
 
@@ -723,12 +723,12 @@ msgid "One-time password"
 msgstr ""
 
 #. TRANSLATORS: {reason} is a sentence of its own, such as "The VPN service stopped."
-#: src/shell/statusbar/vpn_notifier.cpp
+#: src/shell/menubar/vpn_notifier.cpp
 #, python-brace-format
 msgid "“{name}” could not connect. {reason}"
 msgstr ""
 
-#: src/shell/statusbar/vpn_notifier.cpp
+#: src/shell/menubar/vpn_notifier.cpp
 msgid "VPN connection failed"
 msgstr ""
 

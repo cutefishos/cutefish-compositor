@@ -24,7 +24,7 @@ namespace cutefish::shell {
 
 // Decodes a wallpaper once for everyone who wants it. A wallpaper is a huge,
 // usually progressive JPEG: one decode per path and device size is shared by
-// the desktop, the status bar's backdrop, the launcher's blurred copy and the
+// the desktop, the menu bar's backdrop, the launchpad's blurred copy and the
 // lock screen, the last few stay in memory, and results go to a disk cache so
 // the next session reads the screen-size pixels instead of decoding the file
 // again.

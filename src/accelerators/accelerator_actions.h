@@ -5,7 +5,7 @@
 // Upstream: chromium/src/ash/public/cpp/accelerator_actions.h
 // Revision: 8abbac30b9cf2fe976422c58c000c94685648b65
 //
-// Adapted for Cutefish: the launcher, the lock screen, the window actions,
+// Adapted for Cutefish: the launchpad, the lock screen, the window actions,
 // the application menu's Quit, Hide and Hide Others, desks, screen capture and
 // the volume, microphone, brightness and keyboard backlight keys. Media keys
 // control the current player regardless of focus; browser, IME, accessibility,

@@ -15,7 +15,7 @@ namespace cutefish::scene {
 
 // One output's desktop background, at the bottom of the desktop layer: the
 // wallpaper decoded at the output's device size, or a plain colour, and on
-// the primary output the gradient that lifts the status bar's contents.
+// the primary output the gradient that lifts the menu bar's contents.
 // Opaque, so the overview darkens it in place and a desk switch slides it
 // with the desk's windows.
 class WallpaperNode final : public Node
@@ -31,7 +31,7 @@ public:
     void setColor(const render::Color &color);
     render::Color color() const { return m_color; }
 
-    // The gradient under the status bar, `height` logical pixels from the
+    // The gradient under the menu bar, `height` logical pixels from the
     // top, `color` fading out along BarBackdrop's stops; none when unset.
     struct Gradient {
         ui::Color color;

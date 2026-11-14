@@ -18,7 +18,7 @@
 #include "scene/node.h"
 #include "session/secure_container.h"
 #include "session/session_controller.h"
-#include "shell/statusbar/status_icon.h"
+#include "shell/menubar/status_icon.h"
 #include "base/settings.h"
 #include "loop_test_util.h"
 #include "temporary_directory.h"
@@ -1043,7 +1043,7 @@ TEST(AuthUiTest, StatusIconsSitInTheTopRightCornerAndTakeNoInput)
     ui.refresh();
     auth::AuthStatus *status = ui.status();
     ASSERT_TRUE(status);
-    shell::StatusBarIndicators::Network network;
+    shell::MenuBarIndicators::Network network;
     network.wirelessHwEnabled = true;
     network.wirelessEnabled = true;
     network.wirelessName = "Home";

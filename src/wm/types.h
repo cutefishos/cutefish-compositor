@@ -49,7 +49,7 @@ enum class WindowRole {
     Desktop,
     Panel,
     Dock,
-    Launcher,
+    Launchpad,
     Notification,
     // The screen capture interface; never painted into a capture.
     Capture,

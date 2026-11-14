@@ -1,0 +1,190 @@
+// Copyright 2026 Sacha Grandcolas
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+#ifndef CUTEFISH_SHELL_LAUNCHPAD_LAUNCHPAD_FOLDER_VIEW_H_
+#define CUTEFISH_SHELL_LAUNCHPAD_LAUNCHPAD_FOLDER_VIEW_H_
+
+#include <chrono>
+#include <map>
+#include <memory>
+#include <string>
+#include <vector>
+
+#include "base/signal.h"
+#include "base/timer.h"
+#include "shell/launchpad/launchpad_metrics.h"
+#include "shell/launchpad/launchpad_tween.h"
+#include "ui/scroller.h"
+#include "ui/view.h"
+
+namespace cutefish::ui {
+class TextField;
+} // namespace cutefish::ui
+
+namespace cutefish::shell {
+
+class ApplicationBadges;
+class LaunchpadCell;
+class LaunchpadModel;
+class LaunchpadPageIndicator;
+class LaunchpadView;
+class LaunchpadWallpaper;
+
+// An open folder, over the whole launchpad in a layer of its own, above the
+// pages' layers: the launchpad's backdrop again, hiding the grid, the folder's
+// name, which can be edited, and below it a panel with its applications in
+// rows of the grid's cells. More applications than the panel's rows hold
+// go on pages that slide sideways, with dots below the panel, as the
+// grid's do. The panel grows out of the folder's icon as the backdrop
+// and the name fade in, and shrinks back into it as the folder closes. A
+// press outside the panel or Escape closes it.
+class LaunchpadFolderView final : public ui::View, private ui::Scroller::Target
+{
+public:
+    // The most columns a folder's panel has.
+    static constexpr int kMaximumColumns = 4;
+    static constexpr std::chrono::milliseconds kOpenDuration {280};
+    static constexpr std::chrono::milliseconds kCloseDuration {220};
+
+    LaunchpadFolderView(LaunchpadView *view, LaunchpadModel &model, ApplicationBadges &badges,
+                        LaunchpadWallpaper &wallpaper);
+    ~LaunchpadFolderView() override;
+
+    void setMetrics(const LaunchpadMetrics &metrics);
+
+    // `from` is the folder's icon in the view's coordinates, which the panel
+    // grows out of when `animate`; empty to grow in place.
+    void open(const std::string &folder, bool animate, ui::RectF from = {});
+    // Writes the name being edited and closes at once.
+    void close();
+    // Writes the name being edited and closes after shrinking back into the
+    // icon. It no longer counts as open meanwhile.
+    void dismiss();
+    // Hides at once but keeps the cells until close(): a drag out of the
+    // panel started on one of them.
+    void detach();
+    bool isOpen() const { return !m_folder.empty() && !m_detached && !m_closing; }
+    bool isDetached() const { return m_detached; }
+    const std::string &folder() const { return m_folder; }
+
+    // Follows the model; a folder that went closes.
+    void sync();
+    // Selects the name for editing.
+    void editName();
+    ui::TextField *nameField() const;
+
+    LaunchpadCell *cell(const std::string &id) const;
+    // The panel, in the view's coordinates.
+    ui::RectF panelRect() const;
+    // Where an application's cell rests, in the view's coordinates.
+    ui::RectF cellRect(int index) const;
+    // The index of the slot under a point in the view's coordinates; -1
+    // outside the folder's applications.
+    int indexAt(ui::PointF position) const;
+    // -1 or 1 over the empty side of the panel a drag pages towards, 0
+    // elsewhere or with no page that way.
+    int edgeAt(ui::PointF position) const;
+
+    int pageTotal() const;
+    int currentPage() const { return m_currentPage; }
+    void goToPage(int page);
+    // The dots' centres, in the view's coordinates.
+    std::vector<ui::PointF> indicatorDots() const;
+
+protected:
+    bool acceptsPointer() const override { return true; }
+    void layout() override;
+    void paint(ui::Painter &painter) override;
+    void pointerPress(const ui::PointerEvent &event) override;
+    bool scroll(const ui::ScrollEvent &event) override;
+
+private:
+    class NameField;
+    class Panel;
+    friend class NameField;
+    friend class Panel;
+
+    // ui::Scroller::Target
+    ui::Scroller::Axis horizontalAxis() const override;
+    ui::Scroller::Axis verticalAxis() const override;
+    ui::PointF position() const override;
+    void applyPosition(ui::PointF position) override;
+    void movingChanged(bool moving) override;
+
+    int columns() const;
+    int pageSize() const;
+    double padding() const;
+    // From the name's baseline to the panel.
+    double nameGap() const;
+    // From the panel to the dots' tops.
+    double indicatorGap() const;
+    // The dots and the gap above them; none for one page.
+    double indicatorHeight() const;
+    int nameFontSize() const;
+    double nameHeight() const;
+    // The current page's grid of cells at rest, in the view's coordinates.
+    ui::RectF gridRect() const;
+    // 0 closed, 1 open: the backdrop's opacity and the panel's growth.
+    void setProgress(double progress);
+    int visibleRows() const;
+    // From the name field's top to the panel.
+    double titleHeight() const;
+    // Where the cell of an application rests, in the panel.
+    ui::PointF slotPosition(int index) const;
+    void placeCells();
+    void setContentX(double x);
+    int nearestPage() const;
+    void setCurrentPage(int page, bool slide);
+    void resetPages();
+    void handleWheel(const ui::ScrollEvent &event);
+
+    // Panel: the background's press and the flick it may become.
+    void panelPressed(ui::PointF position);
+    void panelMoved(ui::PointF position);
+    void panelReleased(ui::PointF position);
+    void commitName();
+    void retire(std::unique_ptr<ui::View> view);
+
+    LaunchpadView *m_view;
+    LaunchpadModel &m_model;
+    ApplicationBadges &m_badges;
+    LaunchpadWallpaper &m_wallpaper;
+    LaunchpadMetrics m_metrics;
+    std::string m_folder;
+    bool m_detached = false;
+    bool m_closing = false;
+    // Which dismissal a finished shrink belongs to.
+    int m_closeSerial = 0;
+    ui::RectF m_from;
+    double m_progress = 1;
+    Panel *m_panel = nullptr;
+    NameField *m_name = nullptr;
+    // The cells, clipped to the panel.
+    ui::View *m_grid = nullptr;
+    LaunchpadPageIndicator *m_indicator = nullptr;
+    std::map<std::string, LaunchpadCell *> m_cells;
+    std::vector<std::string> m_order;
+    LaunchpadTween m_fade;
+
+    int m_currentPage = 0;
+    // How far the pages have slid, a panel's width per page.
+    double m_contentX = 0;
+    bool m_swiping = false;
+    LaunchpadTween m_slide;
+    double m_wheelAccumulated = 0;
+    base::Timer m_wheelReset;
+    bool m_panelPressed = false;
+    bool m_flicking = false;
+    ui::PointF m_pressPosition;
+    double m_pressContentX = 0;
+    std::vector<std::pair<std::chrono::steady_clock::time_point, double>> m_flickSamples;
+    std::unique_ptr<ui::Scroller> m_scroller;
+    std::vector<std::unique_ptr<ui::View>> m_retired;
+    base::Subscription m_wallpaperChanged;
+    std::shared_ptr<bool> m_alive = std::make_shared<bool>(true);
+};
+
+} // namespace cutefish::shell
+
+#endif // CUTEFISH_SHELL_LAUNCHPAD_LAUNCHPAD_FOLDER_VIEW_H_

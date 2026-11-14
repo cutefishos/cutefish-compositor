@@ -78,8 +78,8 @@ scene::Node *surfaceContainer(WindowManager *manager)
 scene::WindowAnimation::Style animationStyleFor(WindowRole role)
 {
     switch (role) {
-    case WindowRole::Launcher:
-        return scene::WindowAnimation::Style::Launcher;
+    case WindowRole::Launchpad:
+        return scene::WindowAnimation::Style::Launchpad;
     case WindowRole::Desktop:
     case WindowRole::Osd:
     case WindowRole::Picker:

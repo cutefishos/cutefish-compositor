@@ -133,7 +133,7 @@ bool AcceleratorFilter::onPointerMotion(input::Timestamp timestamp, const base::
 bool AcceleratorFilter::onPointerButton(input::Timestamp timestamp, const base::PointF &location,
                                         uint32_t evdevButton, bool pressed)
 {
-    m_controller->launcherStateMachine()->onPointerButton(pressed);
+    m_controller->launchpadStateMachine()->onPointerButton(pressed);
     if (pressed && m_windowCycle && m_windowCycle->onPointerButtonPressed(location))
         return true;
     return m_next && m_next->onPointerButton(timestamp, location, evdevButton, pressed);
@@ -184,7 +184,7 @@ bool AcceleratorFilter::onKey(input::Timestamp timestamp, uint32_t evdevCode, bo
     // Ash registers these on aura::Env, ahead of every other pre-target
     // handler, so they see the key whatever happens to it afterwards.
     m_controller->history()->storeCurrentAccelerator(accelerator);
-    m_controller->launcherStateMachine()->onKey(accelerator.keysym(), pressed);
+    m_controller->launchpadStateMachine()->onKey(accelerator.keysym(), pressed);
 
     // The way out of a window holding the pointer or the shortcuts; checked
     // before an inhibitor could hand the key to it.
@@ -221,7 +221,7 @@ bool AcceleratorFilter::onKey(input::Timestamp timestamp, uint32_t evdevCode, bo
 
 bool AcceleratorFilter::onSecureKey(input::Timestamp, uint32_t evdevCode, bool pressed)
 {
-    // Only the system keys: the history, the launcher and the window cycle
+    // Only the system keys: the history, the launchpad and the window cycle
     // have nothing to see behind the lock screen.
     const Accelerator accelerator = acceleratorForKey(evdevCode, pressed);
     if (pressed || evdevCode == m_repeatAccelerator.evdevCode())

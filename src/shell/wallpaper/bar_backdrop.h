@@ -14,12 +14,12 @@ class Bitmap;
 namespace cutefish::shell {
 
 // The wallpaper's strip under the
-// status bar, averaged, decides whether the bar's contents are light or dark
+// menu bar, averaged, decides whether the bar's contents are light or dark
 // and whether the desktop draws a gradient under the bar to lift them.
 class BarBackdrop
 {
 public:
-    // The status bar's height; the sample is its strip of the wallpaper.
+    // The menu bar's height; the sample is its strip of the wallpaper.
     static constexpr int kBarHeight = 32;
     // The gradient under the bar, three bars tall.
     static constexpr int kGradientHeight = kBarHeight * 3;

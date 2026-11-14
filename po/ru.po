@@ -245,14 +245,14 @@ msgid "{name} is recording system audio"
 msgstr "{name} записывает системный звук"
 
 #: src/shell/dock/dock_model.cpp
-msgid "Launcher"
-msgstr "Панель запуска"
+msgid "Apps"
+msgstr "Приложения"
 
 #: src/shell/dock/dock_window.cpp
 msgid "Trash"
 msgstr "Корзина"
 
-#: src/shell/dock/dock_window.cpp src/shell/launcher/launcher_view.cpp
+#: src/shell/dock/dock_window.cpp src/shell/launchpad/launchpad_view.cpp
 msgid "Remove from Dock"
 msgstr "Удалить из Dock"
 
@@ -260,7 +260,7 @@ msgstr "Удалить из Dock"
 msgid "Keep in Dock"
 msgstr "Оставить в Dock"
 
-#: src/shell/dock/dock_window.cpp src/shell/launcher/launcher_view.cpp
+#: src/shell/dock/dock_window.cpp src/shell/launchpad/launchpad_view.cpp
 msgid "Open"
 msgstr "Открыть"
 
@@ -284,39 +284,39 @@ msgstr "Очистить Корзину"
 msgid "Remove"
 msgstr "Удалить"
 
-#: src/shell/launcher/launcher_search_field.cpp
+#: src/shell/launchpad/launchpad_search_field.cpp
 msgid "Search"
 msgstr "Поиск"
 
-#: src/shell/launcher/launcher_view.cpp
+#: src/shell/launchpad/launchpad_view.cpp
 msgid "New Folder"
 msgstr "Новая папка"
 
-#: src/shell/launcher/launcher_view.cpp
+#: src/shell/launchpad/launchpad_view.cpp
 msgid "Not found"
 msgstr "Ничего не найдено"
 
-#: src/shell/launcher/launcher_view.cpp
+#: src/shell/launchpad/launchpad_view.cpp
 msgid "Rename"
 msgstr "Переименовать"
 
-#: src/shell/launcher/launcher_view.cpp
+#: src/shell/launchpad/launchpad_view.cpp
 msgid "Ungroup"
 msgstr "Разгруппировать"
 
-#: src/shell/launcher/launcher_view.cpp
+#: src/shell/launchpad/launchpad_view.cpp
 msgid "Move to Folder"
 msgstr "Переместить в папку"
 
-#: src/shell/launcher/launcher_view.cpp
+#: src/shell/launchpad/launchpad_view.cpp
 msgid "Remove from Folder"
 msgstr "Убрать из папки"
 
-#: src/shell/launcher/launcher_view.cpp
+#: src/shell/launchpad/launchpad_view.cpp
 msgid "Send to Desktop"
 msgstr "Отправить на рабочий стол"
 
-#: src/shell/launcher/launcher_view.cpp
+#: src/shell/launchpad/launchpad_view.cpp
 msgid "Send to Dock"
 msgstr "Отправить в Dock"
 
@@ -487,7 +487,7 @@ msgid "Screenshots"
 msgstr "Снимки экрана"
 
 #: src/shell/screenshot/capture_toolbar.cpp
-#: src/shell/statusbar/application_menu.cpp
+#: src/shell/menubar/application_menu.cpp
 msgid "Desktop"
 msgstr "Рабочий стол"
 
@@ -729,12 +729,12 @@ msgid "One-time password"
 msgstr "Одноразовый пароль"
 
 #. TRANSLATORS: {reason} is a sentence of its own, such as "The VPN service stopped."
-#: src/shell/statusbar/vpn_notifier.cpp
+#: src/shell/menubar/vpn_notifier.cpp
 #, python-brace-format
 msgid "“{name}” could not connect. {reason}"
 msgstr "Не удалось подключить «{name}». {reason}"
 
-#: src/shell/statusbar/vpn_notifier.cpp
+#: src/shell/menubar/vpn_notifier.cpp
 msgid "VPN connection failed"
 msgstr "Ошибка подключения VPN"
 

@@ -33,11 +33,11 @@ void callOsd(const char *method)
 
 void DBusAcceleratorDelegate::toggleAppList()
 {
-    if (launcherToggle) {
-        launcherToggle();
+    if (launchpadToggle) {
+        launchpadToggle();
         return;
     }
-    call("org.cutefish.Launcher", "/Launcher", "toggle");
+    call("org.cutefish.Launchpad", "/Launchpad", "toggle");
 }
 
 void DBusAcceleratorDelegate::takeScreenshot(bool toClipboard)
@@ -67,27 +67,27 @@ void DBusAcceleratorDelegate::toggleClipboardHistory()
 
 void DBusAcceleratorDelegate::mediaPlayPause()
 {
-    call("org.cutefish.Statusbar", "/Statusbar", "mediaPlayPause");
+    call("org.cutefish.MenuBar", "/MenuBar", "mediaPlayPause");
 }
 
 void DBusAcceleratorDelegate::mediaPause()
 {
-    call("org.cutefish.Statusbar", "/Statusbar", "mediaPause");
+    call("org.cutefish.MenuBar", "/MenuBar", "mediaPause");
 }
 
 void DBusAcceleratorDelegate::mediaPrevious()
 {
-    call("org.cutefish.Statusbar", "/Statusbar", "mediaPrevious");
+    call("org.cutefish.MenuBar", "/MenuBar", "mediaPrevious");
 }
 
 void DBusAcceleratorDelegate::mediaNext()
 {
-    call("org.cutefish.Statusbar", "/Statusbar", "mediaNext");
+    call("org.cutefish.MenuBar", "/MenuBar", "mediaNext");
 }
 
 void DBusAcceleratorDelegate::mediaStop()
 {
-    call("org.cutefish.Statusbar", "/Statusbar", "mediaStop");
+    call("org.cutefish.MenuBar", "/MenuBar", "mediaStop");
 }
 
 void DBusAcceleratorDelegate::volumeDown()

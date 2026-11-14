@@ -243,14 +243,14 @@ msgid "{name} is recording system audio"
 msgstr "{name}에서 시스템 오디오를 녹음 중"
 
 #: src/shell/dock/dock_model.cpp
-msgid "Launcher"
-msgstr "런처"
+msgid "Apps"
+msgstr "앱"
 
 #: src/shell/dock/dock_window.cpp
 msgid "Trash"
 msgstr "휴지통"
 
-#: src/shell/dock/dock_window.cpp src/shell/launcher/launcher_view.cpp
+#: src/shell/dock/dock_window.cpp src/shell/launchpad/launchpad_view.cpp
 msgid "Remove from Dock"
 msgstr "Dock에서 제거"
 
@@ -258,7 +258,7 @@ msgstr "Dock에서 제거"
 msgid "Keep in Dock"
 msgstr "Dock에 유지"
 
-#: src/shell/dock/dock_window.cpp src/shell/launcher/launcher_view.cpp
+#: src/shell/dock/dock_window.cpp src/shell/launchpad/launchpad_view.cpp
 msgid "Open"
 msgstr "열기"
 
@@ -282,39 +282,39 @@ msgstr "휴지통 비우기"
 msgid "Remove"
 msgstr "제거"
 
-#: src/shell/launcher/launcher_search_field.cpp
+#: src/shell/launchpad/launchpad_search_field.cpp
 msgid "Search"
 msgstr "검색"
 
-#: src/shell/launcher/launcher_view.cpp
+#: src/shell/launchpad/launchpad_view.cpp
 msgid "New Folder"
 msgstr "새 폴더"
 
-#: src/shell/launcher/launcher_view.cpp
+#: src/shell/launchpad/launchpad_view.cpp
 msgid "Not found"
 msgstr "찾을 수 없음"
 
-#: src/shell/launcher/launcher_view.cpp
+#: src/shell/launchpad/launchpad_view.cpp
 msgid "Rename"
 msgstr "이름 변경"
 
-#: src/shell/launcher/launcher_view.cpp
+#: src/shell/launchpad/launchpad_view.cpp
 msgid "Ungroup"
 msgstr "그룹 해제"
 
-#: src/shell/launcher/launcher_view.cpp
+#: src/shell/launchpad/launchpad_view.cpp
 msgid "Move to Folder"
 msgstr "폴더로 이동"
 
-#: src/shell/launcher/launcher_view.cpp
+#: src/shell/launchpad/launchpad_view.cpp
 msgid "Remove from Folder"
 msgstr "폴더에서 제거"
 
-#: src/shell/launcher/launcher_view.cpp
+#: src/shell/launchpad/launchpad_view.cpp
 msgid "Send to Desktop"
 msgstr "데스크톱으로 보내기"
 
-#: src/shell/launcher/launcher_view.cpp
+#: src/shell/launchpad/launchpad_view.cpp
 msgid "Send to Dock"
 msgstr "Dock으로 보내기"
 
@@ -477,7 +477,7 @@ msgid "Screenshots"
 msgstr "스크린샷"
 
 #: src/shell/screenshot/capture_toolbar.cpp
-#: src/shell/statusbar/application_menu.cpp
+#: src/shell/menubar/application_menu.cpp
 msgid "Desktop"
 msgstr "데스크톱"
 
@@ -715,12 +715,12 @@ msgid "One-time password"
 msgstr "일회용 암호"
 
 #. TRANSLATORS: {reason} is a sentence of its own, such as "The VPN service stopped."
-#: src/shell/statusbar/vpn_notifier.cpp
+#: src/shell/menubar/vpn_notifier.cpp
 #, python-brace-format
 msgid "“{name}” could not connect. {reason}"
 msgstr "“{name}”에 연결할 수 없습니다. {reason}"
 
-#: src/shell/statusbar/vpn_notifier.cpp
+#: src/shell/menubar/vpn_notifier.cpp
 msgid "VPN connection failed"
 msgstr "VPN 연결 실패"
 

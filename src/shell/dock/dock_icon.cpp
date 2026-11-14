@@ -109,7 +109,7 @@ private:
     double m_startMs = -1;
 };
 
-// The launcher's artwork, an SVG drawn at the icon's device size as
+// The launchpad's artwork, an SVG drawn at the icon's device size as
 // FishUI's IconItem renders a file.
 class DockIcon::SvgFace final : public ui::View
 {

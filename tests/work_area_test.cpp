@@ -25,9 +25,9 @@ TEST(ExclusiveZonesTest, NoReservationsLeaveTheOutputAlone)
 TEST(ExclusiveZonesTest, TopAndBottomCompose)
 {
     ExclusiveZones zones;
-    const int statusBar = 1;
+    const int menuBar = 1;
     const int dock = 2;
-    EXPECT_TRUE(zones.set(&statusBar, ScreenEdge::Top, 30));
+    EXPECT_TRUE(zones.set(&menuBar, ScreenEdge::Top, 30));
     EXPECT_TRUE(zones.set(&dock, ScreenEdge::Bottom, 70));
     EXPECT_EQ(base::Rect(0, 30, 1920, 980), zones.apply(kOutput));
 }
@@ -64,9 +64,9 @@ TEST(ExclusiveZonesTest, ZeroThicknessReleasesTheReservation)
 TEST(ExclusiveZonesTest, AYieldingReservationGivesWayToMaximizedWindows)
 {
     ExclusiveZones zones;
-    const int statusBar = 1;
+    const int menuBar = 1;
     const int dock = 2;
-    zones.set(&statusBar, ScreenEdge::Top, 30);
+    zones.set(&menuBar, ScreenEdge::Top, 30);
     EXPECT_FALSE(zones.hasYieldingZone());
     EXPECT_TRUE(zones.set(&dock, ScreenEdge::Bottom, 70, {}, true));
     EXPECT_TRUE(zones.hasYieldingZone());
@@ -100,10 +100,10 @@ TEST(StackingTest, RolesMapToTheDocumentedLayerOrder)
     EXPECT_LT(layerFor(WindowRole::Desktop, PanelBehavior::StayAbove),
               layerFor(WindowRole::Normal, PanelBehavior::StayAbove));
     EXPECT_LT(layerFor(WindowRole::Normal, PanelBehavior::StayAbove),
-              layerFor(WindowRole::Launcher, PanelBehavior::StayAbove));
+              layerFor(WindowRole::Launchpad, PanelBehavior::StayAbove));
     EXPECT_LT(layerFor(WindowRole::Panel, PanelBehavior::StayAbove),
-              layerFor(WindowRole::Launcher, PanelBehavior::StayAbove));
-    EXPECT_LT(layerFor(WindowRole::Launcher, PanelBehavior::StayAbove),
+              layerFor(WindowRole::Launchpad, PanelBehavior::StayAbove));
+    EXPECT_LT(layerFor(WindowRole::Launchpad, PanelBehavior::StayAbove),
               layerFor(WindowRole::Dock, PanelBehavior::StayAbove));
     EXPECT_LT(layerFor(WindowRole::Dock, PanelBehavior::StayAbove),
               layerFor(WindowRole::Notification, PanelBehavior::StayAbove));
@@ -117,9 +117,9 @@ TEST(StackingTest, WindowsCanCoverDropsAPanelIntoTheNormalLayer)
 {
     EXPECT_EQ(StackingLayer::Normal, layerFor(WindowRole::Panel, PanelBehavior::WindowsCanCover));
     EXPECT_EQ(StackingLayer::Normal, layerFor(WindowRole::Dock, PanelBehavior::WindowsCanCover));
-    // A launcher raised over them then covers both.
+    // A launchpad raised over them then covers both.
     EXPECT_LT(layerFor(WindowRole::Dock, PanelBehavior::WindowsCanCover),
-              layerFor(WindowRole::Launcher, PanelBehavior::StayAbove));
+              layerFor(WindowRole::Launchpad, PanelBehavior::StayAbove));
 }
 
 } // namespace

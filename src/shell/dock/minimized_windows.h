@@ -69,7 +69,7 @@ public:
     void close(uint64_t id);
     void move(int from, int to);
 
-    std::function<void()> hideLauncher;
+    std::function<void()> hideLaunchpad;
 
 private:
     int indexOf(uint64_t id) const;

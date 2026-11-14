@@ -3,7 +3,7 @@
 // found in the LICENSE file.
 
 // The desktop's wallpaper node through the real GL renderer at 1.5: the
-// picture pixel for pixel, the gradient under the status bar along its stops,
+// picture pixel for pixel, the gradient under the menu bar along its stops,
 // darkened in place by the overview, and drawn small in a desk preview.
 
 #include <GLES3/gl3.h>
@@ -28,7 +28,7 @@ const base::Rect kViewport(0, 0, 32, 16);
 constexpr base::Size kNative(48, 24);
 constexpr int kGradientHeight = 8;
 
-// The status bar gradient's stops.
+// The menu bar gradient's stops.
 double strength(double position)
 {
     static constexpr double kStops[] = {1.0, 0.896, 0.648, 0.352, 0.104, 0.0};

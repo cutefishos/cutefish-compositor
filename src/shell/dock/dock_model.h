@@ -40,7 +40,7 @@ void save(const std::string &path, const std::vector<std::string> &desktopIds);
 
 } // namespace pinned_applications
 
-// One entry of the dock: the launcher button, a pinned application, or a
+// One entry of the dock: the launchpad button, a pinned application, or a
 // running one.
 struct DockItem {
     // The TaskManager application: the desktop id, or the app id of windows
@@ -57,9 +57,9 @@ struct DockItem {
     size_t currentActive = 0;
     bool isActive = false;
     bool isPinned = false;
-    // The launcher button: always first, never moved.
+    // The launchpad button: always first, never moved.
     bool fixed = false;
-    // The launcher stopped listing it; a running one can no longer be pinned.
+    // The launchpad stopped listing it; a running one can no longer be pinned.
     bool uninstalled = false;
     // A pinned application bundle whose folder is gone, as when the disk
     // image it is on was ejected: it keeps its place and shows it is missing.
@@ -68,13 +68,13 @@ struct DockItem {
     bool pinnable() const { return !fixed && !desktopPath.empty() && !uninstalled; }
 };
 
-// The dock's applications: the launcher button, the pinned applications, then
+// The dock's applications: the launchpad button, the pinned applications, then
 // the running ones in the order they started.
 class DockModel : public ListModelSignals
 {
 public:
-    // The dock's built-in launcher button; not backed by a desktop file.
-    static constexpr const char *kLauncherId = "cutefish-launcher";
+    // The dock's built-in launchpad button; not backed by a desktop file.
+    static constexpr const char *kLaunchpadId = "cutefish-launchpad";
     // Let the application close its windows before the runtime ends what is
     // left of it.
     static constexpr std::chrono::milliseconds kQuitGrace{3000};
@@ -90,11 +90,11 @@ public:
     DockModel(const DockModel &) = delete;
     DockModel &operator=(const DockModel &) = delete;
 
-    // The launcher shows and hides through these; the dock never takes the
-    // keyboard, so the launcher does not lose activation when a dock item
+    // The launchpad shows and hides through these; the dock never takes the
+    // keyboard, so the launchpad does not lose activation when a dock item
     // brings up an application.
-    std::function<void()> hideLauncher;
-    std::function<void()> toggleLauncher;
+    std::function<void()> hideLaunchpad;
+    std::function<void()> toggleLaunchpad;
     // An application of the dock's was started from it, one that wants
     // launch feedback.
     std::function<void(const std::string &id)> launched;
@@ -152,7 +152,7 @@ public:
     // The id of the entry a window belongs to; empty if none has it yet.
     std::string appIdForWindow(uint64_t window) const;
 
-    // Takes the launcher button's name again after the session language
+    // Takes the launchpad button's name again after the session language
     // changed.
     void retranslate();
 

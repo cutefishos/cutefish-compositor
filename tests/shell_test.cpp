@@ -533,32 +533,32 @@ TEST_F(ShellTest, PointerInputReachesTheWindowThroughTheSeat)
 TEST_F(ShellTest, AnActivatedWindowTakesTheKeyboardAndGivesItBack)
 {
     wm::Window *application = openApplication(base::Rect(100, 100, 400, 300));
-    shell::ShellWindow launcher(shell.get(), wm::WindowRole::Launcher);
+    shell::ShellWindow launchpad(shell.get(), wm::WindowRole::Launchpad);
     auto field = std::make_unique<ui::TextField>();
     ui::TextField *text = field.get();
-    launcher.setContentView(std::move(field));
-    launcher.setGeometry(kOutput);
-    launcher.show();
+    launchpad.setContentView(std::move(field));
+    launchpad.setGeometry(kOutput);
+    launchpad.show();
     frame();
     text->setFocus();
-    // Mapped, the launcher is activated.
-    EXPECT_TRUE(launcher.wmWindow()->isActive());
+    // Mapped, the launchpad is activated.
+    EXPECT_TRUE(launchpad.wmWindow()->isActive());
     EXPECT_FALSE(application->isActive());
 
     application->activate();
-    EXPECT_FALSE(launcher.window()->isActive());
+    EXPECT_FALSE(launchpad.window()->isActive());
     EXPECT_EQ(nullptr, shell->input()->keyboardWindow());
-    launcher.activate();
-    EXPECT_TRUE(launcher.wmWindow()->isActive());
-    EXPECT_EQ(launcher.surface(), seat.focusedSurface());
-    EXPECT_EQ(&launcher, shell->input()->keyboardWindow());
-    EXPECT_TRUE(launcher.window()->isActive());
+    launchpad.activate();
+    EXPECT_TRUE(launchpad.wmWindow()->isActive());
+    EXPECT_EQ(launchpad.surface(), seat.focusedSurface());
+    EXPECT_EQ(&launchpad, shell->input()->keyboardWindow());
+    EXPECT_TRUE(launchpad.window()->isActive());
     key(10, KEY_C);
     key(12, KEY_F);
     EXPECT_EQ("cf", text->text());
 
     // Unmapped, the keyboard returns to the application.
-    launcher.hide();
+    launchpad.hide();
     EXPECT_TRUE(application->isActive());
     EXPECT_EQ(application->rootSurface(), seat.focusedSurface());
     EXPECT_EQ(nullptr, shell->input()->keyboardWindow());
@@ -881,18 +881,18 @@ TEST_F(TextInputShellTest, AFocusedTextFieldIsOnTheInputMethodRelay)
     ASSERT_EQ(1u, inputMethod->inputs.size());
     wayland::TextInput *textInput = inputMethod->inputs.front();
     wm::Window *application = openApplication(base::Rect(100, 100, 400, 300));
-    shell::ShellWindow launcher(shell.get(), wm::WindowRole::Launcher);
+    shell::ShellWindow launchpad(shell.get(), wm::WindowRole::Launchpad);
     auto field = std::make_unique<ui::TextField>();
     ui::TextField *text = field.get();
-    launcher.setContentView(std::move(field));
-    launcher.setGeometry(base::Rect(0, 0, 400, 40));
-    launcher.show();
+    launchpad.setContentView(std::move(field));
+    launchpad.setGeometry(base::Rect(0, 0, 400, 40));
+    launchpad.show();
     frame();
     text->setFocus();
     frame();
     ASSERT_EQ(textInput, inputMethod->activeInput);
     EXPECT_TRUE(textInput->attached());
-    EXPECT_TRUE(textInput->ownsSurface(launcher.surface()));
+    EXPECT_TRUE(textInput->ownsSurface(launchpad.surface()));
     EXPECT_EQ(std::string(), textInput->state().surrounding);
     ASSERT_TRUE(textInput->state().rectangle);
 
@@ -917,7 +917,7 @@ TEST_F(TextInputShellTest, AFocusedTextFieldIsOnTheInputMethodRelay)
     application->activate();
     frame();
     EXPECT_EQ(nullptr, inputMethod->activeInput);
-    EXPECT_FALSE(textInput->ownsSurface(launcher.surface()));
+    EXPECT_FALSE(textInput->ownsSurface(launchpad.surface()));
 }
 
 TEST_F(ShellTest, ADragFromOneShellWindowDropsOnAnother)
@@ -1128,16 +1128,16 @@ TEST_F(ShellTest, ComputerControlLeavesTheShellsSecretPromptsAlone)
     agent.rejections.clear();
 
     // Other shell windows take the agent's input as the user's.
-    shell::ShellWindow launcher(shell.get(), wm::WindowRole::Launcher);
+    shell::ShellWindow launchpad(shell.get(), wm::WindowRole::Launchpad);
     auto field = std::make_unique<ui::TextField>();
     ui::TextField *text = field.get();
-    launcher.setContentView(std::move(field));
-    launcher.setGeometry(base::Rect(700, 600, 200, 40));
-    launcher.show();
+    launchpad.setContentView(std::move(field));
+    launchpad.setGeometry(base::Rect(700, 600, 200, 40));
+    launchpad.show();
     frame();
-    launcher.activate();
+    launchpad.activate();
     text->setFocus();
-    ASSERT_EQ(launcher.surface(), seat.focusedSurface());
+    ASSERT_EQ(launchpad.surface(), seat.focusedSurface());
     control->typeText("cf");
     EXPECT_EQ("cf", text->text());
 

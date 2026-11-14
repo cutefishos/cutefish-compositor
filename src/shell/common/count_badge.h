@@ -22,10 +22,10 @@ class CountBadge final : public ui::View
 {
 public:
     static constexpr ui::Color kColor {255, 59, 48, 255};
-    // Its height as a share of the icon's: the dock's, and the launcher's
+    // Its height as a share of the icon's: the dock's, and the launchpad's
     // larger icons'.
     static constexpr double kDockRatio = 0.34;
-    static constexpr double kLauncherRatio = 0.24;
+    static constexpr double kLaunchpadRatio = 0.24;
 
     CountBadge();
     ~CountBadge() override;

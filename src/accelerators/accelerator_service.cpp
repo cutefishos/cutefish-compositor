@@ -181,7 +181,7 @@ Accelerator AcceleratorService::resolve(uint32_t keycode, uint32_t keysym, uint3
             resolved = positional;
     }
     // A lone Meta is Ash's launcher key: it triggers on release, so that
-    // Meta+<key> can still be typed with Meta held, and the launcher state
+    // Meta+<key> can still be typed with Meta held, and the launchpad state
     // machine decides whether the tap was really alone.
     const uint32_t customizationModifiers = modifiers & kCustomizationModifierMask;
     const bool metaTap = isMetaKeysym(resolved) && customizationModifiers == NoModifier;

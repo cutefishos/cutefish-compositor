@@ -1,0 +1,868 @@
+// Copyright 2026 Reion Wong <reionwong@gmail.com>
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+// The launchpad as the compositor draws it: its window, layout, keys, search,
+// paging, menu and drags, headless on a fake renderer.
+
+#include <chrono>
+#include <cmath>
+#include <functional>
+
+#include <linux/input-event-codes.h>
+
+#include <gtest/gtest.h>
+
+#include "base/settings.h"
+#include "compositor/compositor.h"
+#include "compositor/surface.h"
+#include "dbus_test_client.h"
+#include "fake_renderer.h"
+#include "input/input_manager.h"
+#include "input/seat.h"
+#include "loop_test_util.h"
+#include "scene/node.h"
+#include "scene/scene.h"
+#include "shell/common/file_thread.h"
+#include "shell/common/app_launcher.h"
+#include "shell/common/count_badge.h"
+#include "shell/common/task_manager.h"
+#include "shell/launchpad/launchpad.h"
+#include "shell/launchpad/launchpad_cell.h"
+#include "shell/launchpad/launchpad_folder_view.h"
+#include "shell/launchpad/launchpad_metrics.h"
+#include "shell/launchpad/launchpad_model.h"
+#include "shell/launchpad/launchpad_search_field.h"
+#include "shell/launchpad/launchpad_view.h"
+#include "shell/launchpad/launchpad_wallpaper.h"
+#include "shell/wallpaper/wallpaper.h"
+#include "shell/launchpad/launchpad_window.h"
+#include "shell/shell.h"
+#include "shell/shell_window.h"
+#include "shell_test_util.h"
+#include "temporary_directory.h"
+#include "ui/bitmap.h"
+#include "ui/embedded_window.h"
+#include "ui/menu.h"
+#include "ui/text_field.h"
+#include "wm/window.h"
+#include "wm/window_manager.h"
+
+using namespace cutefish;
+
+namespace {
+
+input::Timestamp at(int ms)
+{
+    return input::Timestamp(std::chrono::milliseconds(ms));
+}
+
+const base::Rect kOutput(0, 0, 1440, 960);
+constexpr int kMenuBar = 32;
+
+class LaunchpadWindowTest : public testing::Test
+{
+protected:
+    scene::Scene scene;
+    scene::Node *surfaceContainer = scene.root()->addChild(std::make_unique<scene::Node>("surfaces"));
+    compositor::Compositor compositor {surfaceContainer};
+    testsupport::FakeRenderer renderer;
+    input::Seat seat {&compositor};
+    input::InputManager input {&seat};
+    wm::WindowManager manager {&compositor, &seat};
+    test::TemporaryDirectory directory;
+    test::FakeApplications *applications = nullptr;
+    std::unique_ptr<shell::Shell> shell;
+    shell::Wallpaper *wallpaper = nullptr;
+    shell::LaunchpadWindow *launchpadWindow = nullptr;
+    int menuBar = 0;
+    int clock = 1000;
+
+    void SetUp() override
+    {
+        scene.setSize(kOutput.size());
+        manager.setOutputBounds(kOutput);
+        manager.setExclusiveZone(&menuBar, wm::ScreenEdge::Top, kMenuBar);
+        input.setBounds(kOutput.size());
+        input.setEventSink(&manager);
+        directory.write("services.conf", "[Appearance]\nBackgroundType=1\nBackgroundColor=#336699\n");
+        startShell(nullptr);
+    }
+
+    // A shell on `bus`, which may be null.
+    void startShell(base::dbus::Connection *bus)
+    {
+        shell.reset();
+        shell::ShellEnvironment environment {&compositor, &manager, &seat, bus};
+        environment.servicesSettings = directory.filePath("services.conf");
+        shell = std::make_unique<shell::Shell>(environment);
+        auto apps = std::make_unique<test::FakeApplications>();
+        applications = apps.get();
+        // More than one page at 1440x960 (6 columns, 4 rows).
+        for (int i = 0; i < 30; ++i) {
+            char id[16];
+            snprintf(id, sizeof(id), "app%02d", i);
+            applications->addSimple(id, std::string("App ") + id, "application-x-executable");
+        }
+        applications->addSimple("terminal", "Terminal", "utilities-terminal");
+        applications->scan();
+        shell->setApplications(std::move(apps));
+        shell->setTaskWindows(std::make_unique<test::FakeTaskWindows>());
+    }
+
+    void TearDown() override
+    {
+        shell.reset();
+        seat.shutdown();
+    }
+
+    // `count` is how many icons the grid shows once it has loaded.
+    void open(int count = 31)
+    {
+        auto launchpad = std::make_unique<shell::Launchpad>(nullptr, shell->tasks(), shell->launcher(), nullptr,
+                                                            directory.filePath("shell.conf"));
+        wallpaper = shell->addComponent(std::make_unique<shell::Wallpaper>(shell.get(), directory.filePath("cache")));
+        shell::Wallpaper::Background background;
+        background.type = 1;
+        background.color = ui::Color::rgb(0x336699);
+        wallpaper->setBackground(background);
+        launchpadWindow = shell->addComponent(std::make_unique<shell::LaunchpadWindow>(
+                shell.get(), std::move(launchpad), nullptr, wallpaper));
+        ASSERT_TRUE(test::runUntil([this, count] { return model().count() == count; }));
+        ASSERT_TRUE(test::runUntil([this] { return launchpadWindow->wallpaper().isLoaded(); }));
+    }
+
+    shell::Launchpad &launchpad() { return launchpadWindow->launchpad(); }
+    shell::LaunchpadModel &model() { return launchpad().applications(); }
+    shell::LaunchpadView *view() { return launchpadWindow->view(); }
+
+    void frame() { compositor.updateTextures(renderer); }
+
+    // Animations run on the window's frames: frames for `duration`, or
+    // until `done`.
+    void frames(std::chrono::milliseconds duration, const std::function<bool()> &done = {})
+    {
+        for (auto run = std::chrono::milliseconds(0); run < duration && !(done && done());
+             run += std::chrono::milliseconds(16)) {
+            test::runFor(std::chrono::milliseconds(16));
+            frame();
+        }
+    }
+
+    void key(uint32_t code)
+    {
+        input.onKey(at(clock), code, true);
+        input.onKey(at(clock + 1), code, false);
+        clock += 10;
+    }
+
+    void move(double x, double y)
+    {
+        input.onPointerMotionAbsolute(at(clock), {x, y});
+        clock += 10;
+    }
+
+    void click(double x, double y, uint32_t button = BTN_LEFT)
+    {
+        move(x, y);
+        input.onPointerButton(at(clock), button, true);
+        input.onPointerButton(at(clock + 1), button, false);
+        clock += 10;
+    }
+
+    ui::PointF iconCentre(int row)
+    {
+        const ui::RectF cell = view()->cellRect(row);
+        const ui::RectF icon = view()->cellAt(row)->iconRect();
+        return {cell.x + icon.x + icon.width / 2, cell.y + icon.y + icon.height / 2};
+    }
+
+    // Beside the icon, in its cell: a drag there reorders rather than
+    // making a folder.
+    ui::PointF besideIcon(int row)
+    {
+        const ui::RectF cell = view()->cellRect(row);
+        return {cell.x + 4, iconCentre(row).y};
+    }
+
+    // Presses an icon and drags it far enough to start the drag.
+    void startDrag(ui::PointF from)
+    {
+        move(from.x, from.y);
+        input.onPointerButton(at(clock), BTN_LEFT, true);
+        move(from.x + 20, from.y);
+        test::processPendingEvents();
+    }
+
+    void release()
+    {
+        input.onPointerButton(at(clock), BTN_LEFT, false);
+        clock += 10;
+    }
+};
+
+} // namespace
+
+TEST(LaunchpadMetricsTest, FollowsTheQtLauncherAt1080p)
+{
+    shell::LaunchpadMetrics::Margins margins;
+    margins.bottom = 86;
+    const auto m = shell::LaunchpadMetrics::compute({1920, 1080}, margins);
+    EXPECT_EQ(67, m.outerMarginH);
+    EXPECT_EQ(38, m.outerMarginV);
+    EXPECT_EQ(27, m.sectionSpacing);
+    EXPECT_EQ(18, m.searchPixelSize);
+    EXPECT_EQ(422, m.searchFieldWidth);
+    EXPECT_EQ(41, m.searchFieldHeight);
+    EXPECT_EQ(18, m.searchIconSize);
+    EXPECT_EQ(12, m.indicatorDotSize);
+    EXPECT_EQ(38, m.notFoundPixelSize);
+    EXPECT_EQ(base::Rect(67, 46, 1786, 910), m.content);
+    EXPECT_EQ(1786, m.gridArea.width());
+    EXPECT_EQ(803, m.gridArea.height());
+    EXPECT_EQ(7, m.columns);
+    EXPECT_EQ(4, m.rows);
+    EXPECT_EQ(219, m.cellWidth);
+    EXPECT_EQ(200, m.cellHeight);
+    EXPECT_EQ(16, m.labelPixelSize);
+    EXPECT_EQ(21, m.labelLineHeight);
+    EXPECT_EQ(105, m.iconSize);
+    EXPECT_EQ(11, m.cellSpacing);
+    EXPECT_EQ(31, m.cellPaddingV);
+    EXPECT_EQ(151, m.selectionWidth);
+    EXPECT_EQ(23, m.selectionPadding);
+}
+
+TEST(LaunchpadMetricsTest, ArrowsMoveWithinThePageAndTurnItAtTheEdges)
+{
+    using shell::LaunchpadDirection;
+    // 6 columns, 4 rows, 30 icons: page 2 holds 6, one row.
+    const auto move = [](int selected, int page, LaunchpadDirection direction) {
+        return shell::moveLaunchpadSelection(selected, page, 30, 6, 24, direction);
+    };
+    // The first press selects the page's first icon.
+    EXPECT_EQ(0, move(-1, 0, LaunchpadDirection::Right));
+    EXPECT_EQ(24, move(-1, 1, LaunchpadDirection::Down));
+    EXPECT_EQ(1, move(0, 0, LaunchpadDirection::Right));
+    EXPECT_EQ(-1, move(0, 0, LaunchpadDirection::Left));
+    EXPECT_EQ(6, move(0, 0, LaunchpadDirection::Down));
+    EXPECT_EQ(-1, move(0, 0, LaunchpadDirection::Up));
+    // The right edge of row 2 turns to the next page's row, clamped to its
+    // last row, column 0.
+    EXPECT_EQ(24, move(17, 0, LaunchpadDirection::Right));
+    // The left edge of the next page comes back to row 0's last column.
+    EXPECT_EQ(5, move(24, 1, LaunchpadDirection::Left));
+    // Down off the page goes nowhere.
+    EXPECT_EQ(-1, move(19, 0, LaunchpadDirection::Down));
+}
+
+TEST(LaunchpadWallpaperTest, BlursAsTheProviderDoes)
+{
+    // One white pixel in black spreads into a 19-pixel wide hump, symmetric.
+    ui::Bitmap image(41, 1, ui::Bitmap::Format::Argb32Premultiplied);
+    image.fill(0xff000000);
+    image.setPixel(20, 0, 0xffffffff);
+    shell::LaunchpadWallpaper::blur(image);
+    EXPECT_EQ(image.pixel(17, 0), image.pixel(23, 0));
+    EXPECT_GT(image.pixel(20, 0) & 0xff, image.pixel(17, 0) & 0xff);
+    EXPECT_EQ(0xff000000u, image.pixel(10, 0));
+    EXPECT_EQ(0xffu, image.pixel(30, 0) >> 24);
+}
+
+TEST_F(LaunchpadWindowTest, CoversThePrimaryOutputAndTakesTheKeyboard)
+{
+    open();
+    EXPECT_FALSE(launchpad().isShown());
+    EXPECT_EQ(nullptr, launchpadWindow->window()->wmWindow());
+
+    launchpad().show();
+    wm::Window *window = launchpadWindow->window()->wmWindow();
+    ASSERT_NE(nullptr, window);
+    EXPECT_EQ(wm::WindowRole::Launchpad, window->role());
+    // The whole output, the menu bar's strip included.
+    EXPECT_EQ(kOutput, window->bounds());
+    EXPECT_TRUE(window->isActive());
+    frame();
+
+    // 1440x960 with no dock: 6 columns of 4 rows, two pages.
+    const shell::LaunchpadMetrics &m = view()->metrics();
+    EXPECT_EQ(6, m.columns);
+    EXPECT_EQ(4, m.rows);
+    EXPECT_EQ(2, view()->pageTotal());
+    EXPECT_EQ(0, view()->currentPage());
+    EXPECT_EQ(base::Rect(50, 42, 1340, 884), m.content);
+
+    key(KEY_ESC);
+    EXPECT_FALSE(launchpad().isShown());
+    EXPECT_EQ(nullptr, launchpadWindow->window()->wmWindow());
+    launchpad().toggle();
+    EXPECT_TRUE(launchpad().isShown());
+    EXPECT_NE(nullptr, launchpadWindow->window()->wmWindow());
+}
+
+TEST_F(LaunchpadWindowTest, ArrowsSelectAndTurnPages)
+{
+    open();
+    launchpad().show();
+    frame();
+    key(KEY_RIGHT);
+    EXPECT_EQ(0, view()->selectedIndex());
+    EXPECT_TRUE(view()->cellAt(0)->isSelected());
+    EXPECT_GT(view()->cellAt(0)->selectionRect().width, 0);
+    for (int i = 0; i < 5; ++i)
+        key(KEY_RIGHT);
+    EXPECT_EQ(5, view()->selectedIndex());
+    // The row's right edge turns the page.
+    key(KEY_RIGHT);
+    EXPECT_EQ(24, view()->selectedIndex());
+    EXPECT_EQ(1, view()->currentPage());
+    // The slide runs on the window's frames.
+    for (int i = 0; i < 40 && view()->contentX() != kOutput.width(); ++i) {
+        test::runFor(std::chrono::milliseconds(16));
+        frame();
+    }
+    EXPECT_EQ(kOutput.width(), view()->contentX());
+
+    // Hiding resets the selection and keeps the page.
+    launchpad().hide();
+    EXPECT_EQ(-1, view()->selectedIndex());
+    launchpad().show();
+    EXPECT_EQ(-1, view()->selectedIndex());
+    EXPECT_EQ(1, view()->currentPage());
+    EXPECT_EQ(kOutput.width(), view()->contentX());
+}
+
+TEST_F(LaunchpadWindowTest, ASearchReturnsToThePageItStartedOn)
+{
+    open();
+    launchpad().show();
+    frame();
+    view()->goToPage(1);
+    view()->stopSwipe();
+    key(KEY_T);
+    ASSERT_TRUE(test::runUntil([this] { return model().count() < 31; }));
+    EXPECT_EQ(0, view()->currentPage());
+    EXPECT_EQ(0, view()->contentX());
+
+    view()->searchField()->setText({});
+    EXPECT_EQ(1, view()->currentPage());
+    EXPECT_EQ(kOutput.width(), view()->contentX());
+
+    // Hidden mid-search, it shows that page on the next show too.
+    key(KEY_T);
+    ASSERT_TRUE(test::runUntil([this] { return model().count() < 31; }));
+    EXPECT_EQ(0, view()->currentPage());
+    key(KEY_ESC);
+    launchpad().show();
+    EXPECT_EQ(1, view()->currentPage());
+    EXPECT_EQ(kOutput.width(), view()->contentX());
+}
+
+TEST_F(LaunchpadWindowTest, TypingSearchesAndShowsNotFound)
+{
+    open();
+    launchpad().show();
+    frame();
+    key(KEY_T);
+    shell::LaunchpadSearchField *search = view()->searchField();
+    EXPECT_TRUE(search->hasFieldFocus());
+    EXPECT_EQ("t", search->text());
+    // Debounced by 150 ms.
+    EXPECT_EQ(31, model().count());
+    ASSERT_TRUE(test::runUntil([this] { return model().count() < 31; }));
+    EXPECT_EQ(1, model().count());
+    EXPECT_EQ("terminal", model().rows()[0].id);
+    EXPECT_EQ(0, view()->selectedIndex());
+    EXPECT_EQ(1, view()->pageTotal());
+
+    key(KEY_Q);
+    ASSERT_TRUE(test::runUntil([this] { return model().count() == 0; }));
+    EXPECT_TRUE(view()->isNotFoundVisible());
+    EXPECT_EQ(-1, view()->selectedIndex());
+
+    // Clearing the field shows everything at once.
+    search->setText({});
+    EXPECT_EQ(31, model().count());
+    EXPECT_FALSE(view()->isNotFoundVisible());
+
+    // Escape in the field hides; the field is empty on the next show.
+    key(KEY_A);
+    EXPECT_EQ("a", search->text());
+    key(KEY_ESC);
+    EXPECT_FALSE(launchpad().isShown());
+    EXPECT_EQ("", search->text());
+}
+
+TEST_F(LaunchpadWindowTest, ClicksOutsideTheIconsHideAndRightClicksOpenTheMenu)
+{
+    open();
+    launchpad().show();
+    frame();
+    // The icon's right button opens Open, Send to Desktop, Send to Dock.
+    const ui::PointF icon = iconCentre(0);
+    click(icon.x, icon.y, BTN_RIGHT);
+    frame();
+    ASSERT_TRUE(view()->isMenuOpen());
+    EXPECT_TRUE(view()->cellAt(0)->isPressDimmed());
+    EXPECT_TRUE(launchpad().isShown());
+    view()->menu()->close();
+    EXPECT_FALSE(view()->cellAt(0)->isPressDimmed());
+
+    // A label is not the icon: it dismisses.
+    const ui::RectF cell = view()->cellRect(0);
+    click(cell.x + cell.width / 2, cell.y + cell.height - 4);
+    EXPECT_FALSE(launchpad().isShown());
+}
+
+TEST_F(LaunchpadWindowTest, TheWheelTurnsAPagePerNotchAndTheDotsPage)
+{
+    open();
+    launchpad().show();
+    frame();
+    move(700, 500);
+    input.onPointerAxis(at(clock), {0, 15}, true);
+    clock += 10;
+    EXPECT_EQ(1, view()->currentPage());
+    // The slide keeps the next notch from paging again.
+    input.onPointerAxis(at(clock), {0, -15}, true);
+    clock += 10;
+    EXPECT_EQ(1, view()->currentPage());
+
+    const std::vector<ui::PointF> dots = view()->indicatorDots();
+    ASSERT_EQ(2u, dots.size());
+    test::runFor(std::chrono::milliseconds(320));
+    click(dots[0].x, dots[0].y);
+    EXPECT_EQ(0, view()->currentPage());
+    EXPECT_TRUE(launchpad().isShown());
+}
+
+TEST_F(LaunchpadWindowTest, LosingTheActivationHides)
+{
+    open();
+    launchpad().show();
+    frame();
+    ASSERT_TRUE(launchpad().isShown());
+    manager.activation()->deactivate(launchpadWindow->window()->wmWindow());
+    ASSERT_TRUE(test::runUntil([this] { return !launchpad().isShown(); }));
+
+    // Not while a drag holds it.
+    launchpad().show();
+    launchpad().setDragging(true);
+    manager.activation()->deactivate(launchpadWindow->window()->wmWindow());
+    test::runFor(std::chrono::milliseconds(20));
+    EXPECT_TRUE(launchpad().isShown());
+    launchpad().setDragging(false);
+}
+
+TEST_F(LaunchpadWindowTest, ACancelledDragPutsTheOrderBackUnsaved)
+{
+    std::string stored;
+    for (int i = 0; i < 30; ++i)
+        stored += (i ? ", app" : "app") + std::string(i < 10 ? "0" : "") + std::to_string(i);
+    stored += ", terminal";
+    directory.write("shell.conf", "[Launchpad]\norder=" + stored + "\n");
+    open();
+    launchpad().show();
+    frame();
+    const auto order = [this] {
+        std::vector<std::string> ids;
+        for (const shell::LaunchpadItem &item : model().allItems())
+            ids.push_back(item.id);
+        return ids;
+    };
+    const auto saved = [this] {
+        shell::waitForFileThread();
+        return base::Settings(directory.filePath("shell.conf")).stringListValue("Launchpad/order");
+    };
+    const std::vector<std::string> before = order();
+    ASSERT_EQ("app00", before.front());
+    // A save rewrites the group, so a key of its own there shows whether
+    // one ran, even with the order unchanged.
+    test::runFor(shell::LaunchpadModel::kSaveDelay + std::chrono::milliseconds(200));
+    shell::waitForFileThread();
+    {
+        base::Settings settings(directory.filePath("shell.conf"));
+        settings.setValue("Launchpad/marker", std::string("unsaved"));
+        settings.sync();
+    }
+    const auto marked = [this] {
+        shell::waitForFileThread();
+        return base::Settings(directory.filePath("shell.conf")).contains("Launchpad/marker");
+    };
+    const ui::PointF from = iconCentre(0);
+    const ui::PointF to = besideIcon(3);
+    const auto dragToFourth = [&] {
+        move(from.x, from.y);
+        input.onPointerButton(at(clock), BTN_LEFT, true);
+        move(from.x + 20, from.y);
+        test::processPendingEvents();
+        move(to.x, to.y);
+        // The dwell moves it into the fourth slot while the drag runs.
+        ASSERT_TRUE(test::runUntil([&] { return model().findById("app00") == 3; }));
+    };
+
+    // Escape: the order as it was, and the moved one never written.
+    dragToFourth();
+    test::runFor(shell::LaunchpadModel::kSaveDelay + std::chrono::milliseconds(200));
+    EXPECT_EQ(before, saved());
+    key(KEY_ESC);
+    input.onPointerButton(at(clock), BTN_LEFT, false);
+    clock += 10;
+    ASSERT_TRUE(test::runUntil([this] { return view()->draggedId().empty(); }));
+    EXPECT_EQ(before, order());
+    test::runFor(shell::LaunchpadModel::kSaveDelay + std::chrono::milliseconds(200));
+    EXPECT_EQ(before, saved());
+    EXPECT_TRUE(marked());
+
+    // Dropped on the launchpad, the move stays and is written.
+    frame();
+    dragToFourth();
+    input.onPointerButton(at(clock), BTN_LEFT, false);
+    clock += 10;
+    ASSERT_TRUE(test::runUntil([this] { return view()->draggedId().empty(); }));
+    test::runFor(shell::LaunchpadModel::kSaveDelay + std::chrono::milliseconds(200));
+    EXPECT_EQ(3, model().findById("app00"));
+    EXPECT_EQ(order(), saved());
+    EXPECT_FALSE(marked());
+}
+
+TEST_F(LaunchpadWindowTest, ThePictureIsTheDesktopsDecodeShrunkAndBlurred)
+{
+    open();
+    ui::Bitmap grey(64, 64, ui::Bitmap::Format::Argb32Premultiplied);
+    grey.fill(0xff808080u);
+    ASSERT_TRUE(grey.savePng(directory.filePath("grey.png")));
+    shell::Wallpaper::Background background;
+    background.path = directory.filePath("grey.png");
+    wallpaper->setBackground(background);
+    ASSERT_TRUE(test::runUntil([this] {
+        return launchpadWindow->wallpaper().isPicture() && !launchpadWindow->wallpaper().image().isNull();
+    }));
+    // An eighth of the surface, from the decode the desktop shows.
+    EXPECT_EQ(180, launchpadWindow->wallpaper().image().width());
+    EXPECT_EQ(120, launchpadWindow->wallpaper().image().height());
+    EXPECT_FALSE(wallpaper->cache().cached(directory.filePath("grey.png"), kOutput.size()).isNull());
+    // The icons sit on the average under the dimmer.
+    EXPECT_EQ((ui::Color {77, 77, 77, 255}), launchpadWindow->wallpaper().backdropColor());
+}
+
+TEST_F(LaunchpadWindowTest, AnApplicationsCountSitsOnItsIconsCorner)
+{
+    namespace dbus = base::dbus;
+    dbus::Connection *bus = dbus::Connection::session(core::mainLoop());
+    ASSERT_NE(nullptr, bus);
+    startShell(bus);
+    open();
+    test::roundTrip(bus);
+    launchpad().show();
+    frame();
+
+    test::DBusTestClient client;
+    client.sendLauncherEntry("application://terminal.desktop",
+                             dbus::VariantMap {{"count", dbus::Variant(int64_t(5))},
+                                               {"count-visible", dbus::Variant(true)}});
+    shell::LaunchpadCell *cell = view()->cell("terminal");
+    ASSERT_NE(nullptr, cell);
+    ASSERT_TRUE(test::runUntil([cell] { return cell->countBadge() && cell->countBadge()->isVisible(); }));
+    shell::CountBadge *badge = cell->countBadge();
+    EXPECT_EQ("5", badge->text());
+    const ui::RectF icon = cell->iconRect();
+    const double height = shell::CountBadge::heightFor(icon.width, shell::CountBadge::kLaunchpadRatio);
+    const double outset = std::round(height * 0.2);
+    EXPECT_EQ(ui::RectF(icon.x + icon.width + outset - height, icon.y - outset, height, height), badge->geometry());
+    EXPECT_EQ(nullptr, view()->cell("app00")->countBadge());
+    frame();
+
+    // Hidden with its cell while dragged.
+    cell->setDragging(true);
+    EXPECT_FALSE(badge->isVisible());
+    cell->setDragging(false);
+    EXPECT_TRUE(badge->isVisible());
+
+    client.sendLauncherEntry("application://terminal.desktop", dbus::VariantMap {{"count", dbus::Variant(int64_t(0))}});
+    ASSERT_TRUE(test::runUntil([badge] { return !badge->isVisible(); }));
+}
+
+TEST_F(LaunchpadWindowTest, DroppedOnAnIconAnApplicationMakesAFolder)
+{
+    open();
+    launchpad().show();
+    frame();
+    startDrag(iconCentre(1));
+    const ui::PointF onto = iconCentre(0);
+    move(onto.x, onto.y);
+    ASSERT_TRUE(test::runUntil([this] { return view()->mergeTargetId() == "app00"; }));
+    EXPECT_TRUE(view()->cellAt(0)->isMergeTarget());
+    // Resting on the icon does not reorder.
+    test::runFor(std::chrono::milliseconds(600));
+    EXPECT_EQ(1, model().findById("app01"));
+    release();
+    ASSERT_TRUE(test::runUntil([this] { return model().item("folder:1") != nullptr; }));
+    EXPECT_TRUE(view()->draggedId().empty());
+    EXPECT_EQ(30, model().count());
+    EXPECT_EQ(0, model().findById("folder:1"));
+    EXPECT_EQ("folder:1", model().folderOf("app00"));
+    EXPECT_EQ("folder:1", model().folderOf("app01"));
+    ASSERT_TRUE(view()->cellAt(0)->isFolder());
+    EXPECT_FALSE(view()->cellAt(0)->isMergeTarget());
+    // The new folder pops up.
+    EXPECT_TRUE(view()->cellAt(0)->isPlayingFolderAnimation());
+    frames(shell::LaunchpadCell::kFolderCreatedDuration + std::chrono::milliseconds(100),
+           [this] { return !view()->cellAt(0)->isPlayingFolderAnimation(); });
+    EXPECT_FALSE(view()->cellAt(0)->isPlayingFolderAnimation());
+
+    // One more application bumps it.
+    startDrag(iconCentre(1));
+    const ui::PointF folderIcon = iconCentre(0);
+    move(folderIcon.x, folderIcon.y);
+    ASSERT_TRUE(test::runUntil([this] { return view()->mergeTargetId() == "folder:1"; }));
+    release();
+    ASSERT_TRUE(test::runUntil([this] { return model().folderOf("app02") == "folder:1"; }));
+    EXPECT_EQ(3u, model().item("folder:1")->children.size());
+    EXPECT_TRUE(view()->cellAt(0)->isPlayingFolderAnimation());
+    frames(shell::LaunchpadCell::kFolderAddedDuration + std::chrono::milliseconds(100),
+           [this] { return !view()->cellAt(0)->isPlayingFolderAnimation(); });
+    EXPECT_FALSE(view()->cellAt(0)->isPlayingFolderAnimation());
+
+    // Dragged, it looks as it does at rest: its plate, not a theme's folder
+    // icon. Its centre holds no application of the two, only the plate.
+    frame();
+    const ui::Bitmap image = view()->cellAt(0)->dragImage(1);
+    ASSERT_FALSE(image.isNull());
+    EXPECT_EQ(view()->metrics().iconSize, image.width());
+    EXPECT_GT(image.alpha(image.width() / 2, image.height() / 2), 0);
+    EXPECT_LT(image.alpha(image.width() / 2, image.height() / 2), 128);
+
+    // A click opens it over the grid; Escape closes it.
+    frame();
+    const ui::PointF folder = iconCentre(0);
+    click(folder.x, folder.y);
+    shell::LaunchpadFolderView *open = view()->folderView();
+    ASSERT_TRUE(open->isOpen());
+    // In a layer of its own: the pages' layers would cover it otherwise.
+    EXPECT_TRUE(open->isLayered());
+    EXPECT_EQ("folder:1", open->folder());
+    EXPECT_EQ("New Folder", open->nameField()->text());
+    ASSERT_NE(nullptr, open->cell("app01"));
+    frames(shell::LaunchpadFolderView::kOpenDuration + std::chrono::milliseconds(100));
+    key(KEY_ESC);
+    EXPECT_FALSE(open->isOpen());
+    // It shrinks back into the icon, then goes.
+    EXPECT_FALSE(open->folder().empty());
+    frames(shell::LaunchpadFolderView::kCloseDuration + std::chrono::milliseconds(200),
+           [open] { return open->folder().empty(); });
+    EXPECT_TRUE(open->folder().empty());
+    EXPECT_FALSE(open->isVisible());
+    EXPECT_TRUE(launchpad().isShown());
+}
+
+TEST_F(LaunchpadWindowTest, ANewFolderIsNumberedPastTheNamesInUse)
+{
+    directory.write("shell.conf",
+                    "[Launchpad]\norder=folder:1, app02, app03\nFolder1/name=New Folder\nFolder1/apps=app00, app01\n");
+    open(30);
+    launchpad().show();
+    frame();
+    startDrag(iconCentre(2));
+    const ui::PointF onto = iconCentre(1);
+    move(onto.x, onto.y);
+    ASSERT_TRUE(test::runUntil([this] { return view()->mergeTargetId() == "app02"; }));
+    release();
+    ASSERT_TRUE(test::runUntil([this] { return model().item("folder:2") != nullptr; }));
+    EXPECT_EQ("New Folder 2", model().item("folder:2")->name);
+}
+
+TEST_F(LaunchpadWindowTest, DraggedOutOfItsFolderAnApplicationLeavesIt)
+{
+    directory.write("shell.conf", "[Launchpad]\norder=folder:2, app02\nFolder2/name=Tools\nFolder2/apps=app00, app01\n");
+    open(30);
+    ASSERT_NE(nullptr, model().item("folder:2"));
+    launchpad().show();
+    frame();
+    view()->openFolder("folder:2");
+    shell::LaunchpadFolderView *folder = view()->folderView();
+    ASSERT_TRUE(folder->isOpen());
+    // Grown out of its icon.
+    frames(shell::LaunchpadFolderView::kOpenDuration + std::chrono::milliseconds(100));
+    const ui::RectF cell = folder->cellRect(1);
+    const ui::RectF icon = folder->cell("app01")->iconRect();
+    startDrag({cell.x + icon.x + icon.width / 2, cell.y + icon.y + icon.height / 2});
+    ASSERT_EQ("app01", view()->draggedId());
+
+    // Out of the panel, on the grid.
+    const ui::RectF panel = folder->panelRect();
+    move(panel.x - 30, panel.y + panel.height / 2);
+    ASSERT_TRUE(test::runUntil([folder] { return !folder->isOpen(); }));
+    EXPECT_EQ("", view()->mergeTargetId());
+    EXPECT_EQ("", model().folderOf("app01"));
+    EXPECT_EQ(1, model().findById("app01"));
+    release();
+    ASSERT_TRUE(test::runUntil([this] { return view()->draggedId().empty(); }));
+    // The folder left with one application gave way to it.
+    EXPECT_EQ(nullptr, model().item("folder:2"));
+    EXPECT_EQ(0, model().findById("app00"));
+    // Dropped beside an icon of the grid, it took that slot.
+    EXPECT_GT(model().findById("app01"), 0);
+}
+
+TEST_F(LaunchpadWindowTest, AFolderPastItsRowsPagesSidewaysWithDots)
+{
+    directory.write("shell.conf", "[Launchpad]\norder=folder:1\nFolder1/name=Tools\nFolder1/apps=app00, app01, app02, app03, app04, app05, app06, app07, app08, app09, app10, app11, app12, app13\n");
+    open(18);
+    launchpad().show();
+    frame();
+    view()->openFolder("folder:1");
+    shell::LaunchpadFolderView *folder = view()->folderView();
+    frames(shell::LaunchpadFolderView::kOpenDuration + std::chrono::milliseconds(100));
+    // 4 columns and 3 rows a page at 1440x960.
+    ASSERT_EQ(2, folder->pageTotal());
+    EXPECT_EQ(0, folder->currentPage());
+    const ui::RectF panel = folder->panelRect();
+    const ui::RectF first = folder->cellRect(0);
+    // The next page rests a panel's width along.
+    EXPECT_EQ(first.x + panel.width, folder->cellRect(12).x);
+    EXPECT_EQ(first.y, folder->cellRect(12).y);
+    // The dots sit below the panel, centred on it.
+    const std::vector<ui::PointF> dots = folder->indicatorDots();
+    ASSERT_EQ(2u, dots.size());
+    const double dotSize = view()->metrics().indicatorDotSize;
+    EXPECT_DOUBLE_EQ(3 * view()->metrics().cellSpacing, dots[0].y - dotSize / 2 - panel.bottom());
+    // The name's baseline sits further above it.
+    const ui::TextField *name = folder->nameField();
+    EXPECT_DOUBLE_EQ(4 * view()->metrics().cellSpacing, panel.y - (name->geometry().y + name->baseline()));
+    EXPECT_EQ(dots[0].y, dots[1].y);
+    EXPECT_NEAR(panel.x + panel.width / 2, (dots[0].x + dots[1].x) / 2, 0.5);
+    // A drag pages only towards a page there is.
+    EXPECT_EQ(0, folder->edgeAt({panel.x + 2, panel.y + panel.height / 2}));
+    EXPECT_EQ(1, folder->edgeAt({panel.right() - 2, panel.y + panel.height / 2}));
+
+    // A drag on the panel's background, here a label, turns the page.
+    const ui::RectF cell = folder->cellRect(5);
+    const double y = cell.bottom() - 4;
+    move(cell.right() - 2, y);
+    input.onPointerButton(at(clock), BTN_LEFT, true);
+    for (int i = 1; i <= 8; ++i)
+        move(cell.right() - 2 - i * 30, y);
+    release();
+    EXPECT_EQ(1, folder->currentPage());
+    frames(std::chrono::milliseconds(400));
+    EXPECT_TRUE(folder->isOpen());
+    EXPECT_EQ(first.x, folder->cellRect(12).x);
+    EXPECT_EQ(-1, folder->edgeAt({panel.x + 2, panel.y + panel.height / 2}));
+
+    // A notch of the wheel turns it back, a dot forward again; the grid's
+    // pages behind stay.
+    move(panel.x + panel.width / 2, y);
+    input.onPointerAxis(at(clock), {0, -15}, true);
+    clock += 10;
+    EXPECT_EQ(0, folder->currentPage());
+    frames(std::chrono::milliseconds(400));
+    click(dots[1].x, dots[1].y);
+    EXPECT_EQ(1, folder->currentPage());
+    EXPECT_TRUE(folder->isOpen());
+    EXPECT_EQ(0, view()->currentPage());
+}
+
+TEST_F(LaunchpadWindowTest, AReorderInTheGridSlidesTheDisplacedCells)
+{
+    open();
+    launchpad().show();
+    frame();
+    const ui::RectF slot = view()->cellRect(0);
+    startDrag(iconCentre(0));
+    const ui::PointF to = besideIcon(3);
+    move(to.x, to.y);
+    ASSERT_TRUE(test::runUntil([this] { return model().findById("app00") == 3; }));
+    // app01 slides into the first slot rather than jumping there.
+    shell::LaunchpadCell *displaced = view()->cell("app01");
+    EXPECT_TRUE(displaced->isMoving());
+    frames(std::chrono::milliseconds(800), [displaced] { return !displaced->isMoving(); });
+    EXPECT_FALSE(displaced->isMoving());
+    EXPECT_EQ(slot.x, displaced->geometry().x);
+    release();
+    ASSERT_TRUE(test::runUntil([this] { return view()->draggedId().empty(); }));
+}
+
+TEST_F(LaunchpadWindowTest, AReorderInAFolderSlidesTheDisplacedCellsAsTheGridDoes)
+{
+    directory.write("shell.conf",
+                    "[Launchpad]\norder=folder:1, app04\nFolder1/name=Tools\nFolder1/apps=app00, app01, app02, app03\n");
+    open(28);
+    launchpad().show();
+    frame();
+    view()->openFolder("folder:1");
+    shell::LaunchpadFolderView *folder = view()->folderView();
+    frames(shell::LaunchpadFolderView::kOpenDuration + std::chrono::milliseconds(100));
+
+    const auto order = [this] {
+        std::vector<std::string> ids;
+        for (const shell::LaunchpadItem &child : model().item("folder:1")->children)
+            ids.push_back(child.id);
+        return ids;
+    };
+    // Where each slot's cell rests, in the folder's grid.
+    std::vector<ui::PointF> slots;
+    for (const std::string &id : order())
+        slots.push_back(folder->cell(id)->geometry().topLeft());
+    const auto centre = [folder](int index) {
+        const ui::RectF cell = folder->cellRect(index);
+        return ui::PointF {cell.x + cell.width / 2, cell.y + cell.height / 2};
+    };
+    const auto anyMoving = [&] {
+        for (const std::string &id : order()) {
+            if (folder->cell(id)->isMoving())
+                return true;
+        }
+        return false;
+    };
+    const auto settle = [&] {
+        frames(std::chrono::milliseconds(800), [&] { return !anyMoving(); });
+        EXPECT_FALSE(anyMoving());
+        // Every cell rests in its application's slot.
+        const std::vector<std::string> ids = order();
+        for (size_t i = 0; i < ids.size(); ++i) {
+            EXPECT_EQ(slots[i].x, folder->cell(ids[i])->geometry().x) << ids[i];
+            EXPECT_EQ(slots[i].y, folder->cell(ids[i])->geometry().y) << ids[i];
+        }
+    };
+    // The dwell over a slot moves the dragged application there; the cells
+    // it passes over slide.
+    const auto dwellOver = [&](int index, const std::vector<std::string> &expected, const std::string &slides) {
+        const ui::PointF point = centre(index);
+        move(point.x, point.y);
+        ASSERT_TRUE(test::runUntil([&] { return order() == expected; }));
+        EXPECT_TRUE(folder->cell(slides)->isMoving()) << slides;
+        settle();
+    };
+
+    const ui::RectF first = folder->cellRect(0);
+    const ui::RectF icon = folder->cell("app00")->iconRect();
+    startDrag({first.x + icon.x + icon.width / 2, first.y + icon.y + icon.height / 2});
+    ASSERT_EQ("app00", view()->draggedId());
+    // To the end, back to the start, then between two others.
+    dwellOver(3, {"app01", "app02", "app03", "app00"}, "app03");
+    dwellOver(0, {"app00", "app01", "app02", "app03"}, "app01");
+    dwellOver(2, {"app01", "app02", "app00", "app03"}, "app02");
+    release();
+    ASSERT_TRUE(test::runUntil([this] { return view()->draggedId().empty(); }));
+    settle();
+
+    // A second application, dropped on its new slot.
+    const ui::RectF last = folder->cellRect(3);
+    startDrag({last.x + icon.x + icon.width / 2, last.y + icon.y + icon.height / 2});
+    ASSERT_EQ("app03", view()->draggedId());
+    dwellOver(1, {"app01", "app03", "app02", "app00"}, "app02");
+    release();
+    ASSERT_TRUE(test::runUntil([this] { return view()->draggedId().empty(); }));
+    settle();
+
+    // Closed and opened again, the cells rest in the new order at once.
+    key(KEY_ESC);
+    frames(shell::LaunchpadFolderView::kCloseDuration + std::chrono::milliseconds(200),
+           [folder] { return folder->folder().empty(); });
+    ASSERT_TRUE(folder->folder().empty());
+    view()->openFolder("folder:1");
+    EXPECT_FALSE(anyMoving());
+    settle();
+    EXPECT_EQ((std::vector<std::string>{"app01", "app03", "app02", "app00"}), order());
+}

@@ -78,8 +78,8 @@ double MinimizedWindows::aspect(int row) const
 
 void MinimizedWindows::restore(uint64_t id)
 {
-    if (hideLauncher)
-        hideLauncher();
+    if (hideLaunchpad)
+        hideLaunchpad();
     // Activating restores a minimized window first.
     m_windows.activate(id);
 }

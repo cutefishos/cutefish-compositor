@@ -61,7 +61,7 @@ std::unique_ptr<OsdLevels> createSessionOsdLevels(base::dbus::Connection *sessio
 
 // The on-screen display: the level a volume,
 // microphone or brightness key set, a glass panel with the control centre's
-// track, top centre below the status bar, gone 1.5 s after the last key.
+// track, top centre below the menu bar, gone 1.5 s after the last key.
 // Serves org.cutefish.Osd at /Osd, which the compositor's media keys call.
 class Osd : public Component
 {
@@ -77,7 +77,7 @@ public:
     static constexpr int kTrackHeight = 22;
     static constexpr int kPadding = 16;
     static constexpr int kHeight = kTrackHeight + 2 * kPadding;
-    // PanelStyle.popupMargin: the gap below the status bar.
+    // PanelStyle.popupMargin: the gap below the menu bar.
     static constexpr int kTopMargin = 6;
     // FishUI's bigRadius * 1.5.
     static constexpr double kRadius = 18;

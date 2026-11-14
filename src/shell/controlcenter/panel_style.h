@@ -67,7 +67,7 @@ ui::RectF parityPlate(const ui::RectF &slot, double glyph, double scale);
 // TileBackground: a continuous-corner rect of the tile colour over a faint shadow.
 void paintTile(ui::Painter &painter, const ui::RectF &rect);
 
-// The status bar's images: `light/<name>.svg` (#383838 artwork) or
+// The menu bar's images: `light/<name>.svg` (#383838 artwork) or
 // `dark/<name>.svg` (white), and the theme-less ones such as
 // power-profile-*.svg, all installed under controlcenter/.
 std::string artwork(std::string_view name, bool white);

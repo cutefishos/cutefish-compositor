@@ -42,7 +42,7 @@ namespace cutefish::shell {
 // picture or the plain colour
 // org.cutefish.Services.Appearance names, one WallpaperNode per output at the
 // bottom of the desktop layer, and on the primary output the gradient under
-// the status bar. A new picture replaces the old one only once it is decoded
+// the menu bar. A new picture replaces the old one only once it is decoded
 // and, on the primary output, judged for the bar; the picture, the gradient
 // and the bar's contents then change in the same frame.
 class Wallpaper final : public Component
@@ -74,7 +74,7 @@ public:
 
     WallpaperCache &cache() { return m_cache; }
 
-    // What is behind the status bar, judged from what the primary output
+    // What is behind the menu bar, judged from what the primary output
     // shows; invalid while nothing is judged.
     bool isJudged() const { return m_judged; }
     const BarBackdrop::Style &style() const { return m_style; }

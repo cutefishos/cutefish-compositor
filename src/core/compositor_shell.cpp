@@ -67,19 +67,19 @@
 #include "shell/notresponding/not_responding_sheets.h"
 #include "shell/notification/notification_ui.h"
 #include "shell/notification/notifications.h"
-#include "shell/launcher/launcher.h"
-#include "shell/launcher/launcher_window.h"
-#include "shell/menubar/menu_bar_view.h"
+#include "shell/launchpad/launchpad.h"
+#include "shell/launchpad/launchpad_window.h"
+#include "shell/menubar/app_menus_view.h"
 #include "shell/osd/osd.h"
 #include "shell/screenshot/screen_capture.h"
 #include "shell/screenshot/screen_grabber.h"
 #include "shell/secrets/secret_prompts.h"
 #include "shell/shell.h"
 #include "shell/shell_window.h"
-#include "shell/statusbar/device_usage.h"
-#include "shell/statusbar/status_bar.h"
-#include "shell/statusbar/status_bar_window.h"
-#include "shell/statusbar/vpn_notifier.h"
+#include "shell/menubar/device_usage.h"
+#include "shell/menubar/menu_bar.h"
+#include "shell/menubar/menu_bar_window.h"
+#include "shell/menubar/vpn_notifier.h"
 #include "shell/wallpaper/wallpaper.h"
 #include "switcher/switcher_view.h"
 #include "toolkit/toolkit_host.h"
@@ -817,37 +817,37 @@ void CompositorShell::initShell()
     auto *notifications = m_shell->addComponent(std::make_unique<shell::NotificationUi>(
             m_shell.get(), std::make_unique<shell::Notifications>(environment.bus, m_shell->applications(),
                                                                   &m_shell->tasks())));
-    auto launcher = std::make_unique<shell::Launcher>(environment.bus, m_shell->tasks(), m_shell->launcher(),
-                                                      dockService, preferencesFile("shell"));
-    shell::Launcher *launcherService = launcher.get();
-    m_shell->addComponent(std::make_unique<shell::LauncherWindow>(m_shell.get(), std::move(launcher),
-                                                                  dockService, wallpaper));
-    // The dock and the accelerators reach the launcher directly.
-    dockService->applications().hideLauncher = [launcherService] { launcherService->hide(); };
-    dockService->applications().toggleLauncher = [launcherService] { launcherService->toggle(); };
-    dockService->minimizedWindows().hideLauncher = [launcherService] { launcherService->hide(); };
+    auto launchpad = std::make_unique<shell::Launchpad>(environment.bus, m_shell->tasks(), m_shell->launcher(),
+                                                        dockService, preferencesFile("shell"));
+    shell::Launchpad *launchpadService = launchpad.get();
+    m_shell->addComponent(std::make_unique<shell::LaunchpadWindow>(m_shell.get(), std::move(launchpad),
+                                                                   dockService, wallpaper));
+    // The dock and the accelerators reach the launchpad directly.
+    dockService->applications().hideLaunchpad = [launchpadService] { launchpadService->hide(); };
+    dockService->applications().toggleLaunchpad = [launchpadService] { launchpadService->toggle(); };
+    dockService->minimizedWindows().hideLaunchpad = [launchpadService] { launchpadService->hide(); };
     if (m_acceleratorDelegate)
-        m_acceleratorDelegate->launcherToggle = [launcherService] { launcherService->toggle(); };
-    auto statusBar = std::make_unique<shell::StatusBar>(
+        m_acceleratorDelegate->launchpadToggle = [launchpadService] { launchpadService->toggle(); };
+    auto menuBar = std::make_unique<shell::MenuBar>(
             environment.bus, environment.bus ? base::dbus::Connection::system(mainLoop()) : nullptr,
             &m_shell->tasks(), preferencesFile("shell"));
-    shell::StatusBar *statusBarService = statusBar.get();
+    shell::MenuBar *menuBarService = menuBar.get();
     auto *bar = m_shell->addComponent(
-            std::make_unique<shell::StatusBarWindow>(m_shell.get(), std::move(statusBar)));
+            std::make_unique<shell::MenuBarWindow>(m_shell.get(), std::move(menuBar)));
     bar->setWallpaper(wallpaper);
     if (m_computerControl) {
         bar->setAgentControl(m_computerControl->isActive());
         bar->onStopAgentControl = [this] { m_computerControl->stop(); };
-        m_statusBarAgentControl = m_computerControl->activeChanged.connect(
+        m_menuBarAgentControl = m_computerControl->activeChanged.connect(
                 [bar](bool active) { bar->setAgentControl(active); });
     }
-    bar->setMenuBar(std::make_unique<shell::MenuBarView>(m_shell.get(), bar->menuBarHost()));
+    bar->setAppMenus(std::make_unique<shell::AppMenusView>(m_shell.get(), bar->appMenusHost()));
     bar->setRecording(screenshot->isRecording());
     bar->onStopRecording = [screenshot] { screenshot->stopRecording(); };
     m_shellSubscriptions.push_back(screenshot->recordingChanged.connect(
             [bar, screenshot] { bar->setRecording(screenshot->isRecording()); }));
     auto *controlCenter = m_shell->addComponent(
-            shell::ControlCenter::create(m_shell.get(), bar->statusBar(), &notifications->notifications().settings()));
+            shell::ControlCenter::create(m_shell.get(), bar->menuBar(), &notifications->notifications().settings()));
     bar->addPanels(controlCenter);
     bar->setIndicators(controlCenter);
     m_shellSubscriptions.push_back(controlCenter->vpnFailed.connect(
@@ -872,8 +872,8 @@ void CompositorShell::initShell()
         screenshot->registerService();
         secrets->start();
         notifications->registerServices();
-        launcherService->registerService();
-        statusBarService->registerServices();
+        launchpadService->registerService();
+        menuBarService->registerServices();
     }
 }
 
@@ -1466,7 +1466,7 @@ CompositorShell::~CompositorShell()
     // With input stopped, so what the agent holds is left to the seat's teardown.
     m_computerControlPolicy.setController(nullptr);
     m_computerControlDrawn.reset();
-    m_statusBarAgentControl.reset();
+    m_menuBarAgentControl.reset();
     m_computerControl.reset();
     if (m_windowCycle)
         m_windowCycle->setView(nullptr);

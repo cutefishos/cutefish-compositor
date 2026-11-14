@@ -17,7 +17,7 @@ class Window;
 //
 // Bottom to top:
 //
-//   Desktop < Normal applications < AlwaysOnTop < DesktopPopup < Panel < Launcher < Dock < Notification < Osd < Capture
+//   Desktop < Normal applications < AlwaysOnTop < DesktopPopup < Panel < Launchpad < Dock < Notification < Osd < Capture
 //
 // Osd is the level a volume or brightness key shows, which must not hide
 // behind a banner that happens to be up.
@@ -33,7 +33,7 @@ enum class StackingLayer {
     AlwaysOnTop = 2,
     DesktopPopup = 3,
     Panel = 4,
-    Launcher = 5,
+    Launchpad = 5,
     Dock = 6,
     Notification = 7,
     Osd = 8,

@@ -1727,7 +1727,7 @@ TEST_F(XdgShellProtocolTest, AClientsNestedGrabsStackOnItsOwnChain)
     });
 }
 
-TEST_F(XdgShellProtocolTest, AStatusBarPopupBorrowsTheKeyboardAndLeavesTheBarItsPresses)
+TEST_F(XdgShellProtocolTest, AMenuBarPopupBorrowsTheKeyboardAndLeavesTheBarItsPresses)
 {
     run([&](Client &c) {
         c.bindSeat();

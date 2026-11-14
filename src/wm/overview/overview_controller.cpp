@@ -1210,7 +1210,7 @@ void OverviewController::onWindowActivated(Window *gainedActive, Window *lostAct
         return;
     // Activation moving on from a window that closed, or to a window of the
     // desk switched to, leaves the overview up; anything else the user
-    // brought up - a dock task, the launcher, a dialog - ends it.
+    // brought up - a dock task, the launchpad, a dialog - ends it.
     if (lostActive && !m_manager->hasWindow(lostActive))
         return;
     if (m_manager->desks()->areDesksBeingModified())

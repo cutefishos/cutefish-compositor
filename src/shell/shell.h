@@ -54,7 +54,7 @@ class TaskWindows;
 class ShellWindow;
 class WindowRenderer;
 
-// One part of the desktop shell: the dock, the status bar, the launcher.
+// One part of the desktop shell: the dock, the menu bar, the launchpad.
 // Created and owned by the Shell, destroyed before anything it uses.
 class Component
 {

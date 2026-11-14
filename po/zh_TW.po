@@ -243,14 +243,14 @@ msgid "{name} is recording system audio"
 msgstr "{name} 正在錄製系統音訊"
 
 #: src/shell/dock/dock_model.cpp
-msgid "Launcher"
-msgstr "啟動器"
+msgid "Apps"
+msgstr "應用程式"
 
 #: src/shell/dock/dock_window.cpp
 msgid "Trash"
 msgstr "垃圾桶"
 
-#: src/shell/dock/dock_window.cpp src/shell/launcher/launcher_view.cpp
+#: src/shell/dock/dock_window.cpp src/shell/launchpad/launchpad_view.cpp
 msgid "Remove from Dock"
 msgstr "從 Dock 移除"
 
@@ -258,7 +258,7 @@ msgstr "從 Dock 移除"
 msgid "Keep in Dock"
 msgstr "保留在 Dock 中"
 
-#: src/shell/dock/dock_window.cpp src/shell/launcher/launcher_view.cpp
+#: src/shell/dock/dock_window.cpp src/shell/launchpad/launchpad_view.cpp
 msgid "Open"
 msgstr "開啟"
 
@@ -282,39 +282,39 @@ msgstr "清空垃圾桶"
 msgid "Remove"
 msgstr "移除"
 
-#: src/shell/launcher/launcher_search_field.cpp
+#: src/shell/launchpad/launchpad_search_field.cpp
 msgid "Search"
 msgstr "搜尋"
 
-#: src/shell/launcher/launcher_view.cpp
+#: src/shell/launchpad/launchpad_view.cpp
 msgid "New Folder"
 msgstr "新增資料夾"
 
-#: src/shell/launcher/launcher_view.cpp
+#: src/shell/launchpad/launchpad_view.cpp
 msgid "Not found"
 msgstr "找不到"
 
-#: src/shell/launcher/launcher_view.cpp
+#: src/shell/launchpad/launchpad_view.cpp
 msgid "Rename"
 msgstr "重新命名"
 
-#: src/shell/launcher/launcher_view.cpp
+#: src/shell/launchpad/launchpad_view.cpp
 msgid "Ungroup"
 msgstr "取消群組"
 
-#: src/shell/launcher/launcher_view.cpp
+#: src/shell/launchpad/launchpad_view.cpp
 msgid "Move to Folder"
 msgstr "移到資料夾"
 
-#: src/shell/launcher/launcher_view.cpp
+#: src/shell/launchpad/launchpad_view.cpp
 msgid "Remove from Folder"
 msgstr "從資料夾移除"
 
-#: src/shell/launcher/launcher_view.cpp
+#: src/shell/launchpad/launchpad_view.cpp
 msgid "Send to Desktop"
 msgstr "傳送到桌面"
 
-#: src/shell/launcher/launcher_view.cpp
+#: src/shell/launchpad/launchpad_view.cpp
 msgid "Send to Dock"
 msgstr "傳送到 Dock"
 
@@ -477,7 +477,7 @@ msgid "Screenshots"
 msgstr "截圖"
 
 #: src/shell/screenshot/capture_toolbar.cpp
-#: src/shell/statusbar/application_menu.cpp
+#: src/shell/menubar/application_menu.cpp
 msgid "Desktop"
 msgstr "桌面"
 
@@ -715,12 +715,12 @@ msgid "One-time password"
 msgstr "一次性密碼"
 
 #. TRANSLATORS: {reason} is a sentence of its own, such as "The VPN service stopped."
-#: src/shell/statusbar/vpn_notifier.cpp
+#: src/shell/menubar/vpn_notifier.cpp
 #, python-brace-format
 msgid "“{name}” could not connect. {reason}"
 msgstr "「{name}」無法連線。{reason}"
 
-#: src/shell/statusbar/vpn_notifier.cpp
+#: src/shell/menubar/vpn_notifier.cpp
 msgid "VPN connection failed"
 msgstr "VPN 連線失敗"
 

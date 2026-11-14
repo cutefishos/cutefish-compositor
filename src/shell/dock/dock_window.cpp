@@ -45,12 +45,12 @@ namespace cutefish::shell {
 
 namespace {
 
-// The launcher's own D-Bus service, org.cutefish.Launcher.
-void callLauncher(base::dbus::Connection *bus, const char *method)
+// The launchpad's own D-Bus service, org.cutefish.Launchpad.
+void callLaunchpad(base::dbus::Connection *bus, const char *method)
 {
     if (!bus)
         return;
-    bus->send(bus->newMethodCall("org.cutefish.Launcher", "/Launcher", "org.cutefish.Launcher",
+    bus->send(bus->newMethodCall("org.cutefish.Launchpad", "/Launchpad", "org.cutefish.Launchpad",
                                  method));
 }
 
@@ -315,13 +315,13 @@ DockWindow::DockWindow(Shell *shell, std::unique_ptr<Dock> dock)
 
     DockModel &applications = m_dock->applications();
     base::dbus::Connection *bus = m_shell->bus();
-    applications.hideLauncher = [bus] { callLauncher(bus, "hide"); };
-    applications.toggleLauncher = [bus] { callLauncher(bus, "toggle"); };
+    applications.hideLaunchpad = [bus] { callLaunchpad(bus, "hide"); };
+    applications.toggleLaunchpad = [bus] { callLaunchpad(bus, "toggle"); };
     applications.launched = [this](const std::string &id) {
         if (DockIcon *icon = applicationIcon(id))
             icon->bounce();
     };
-    m_dock->minimizedWindows().hideLauncher = [bus] { callLauncher(bus, "hide"); };
+    m_dock->minimizedWindows().hideLaunchpad = [bus] { callLaunchpad(bus, "hide"); };
     m_dock->primaryGeometry = [this] { return primaryGeometry(); };
 
     const auto changed = [this] {
@@ -601,8 +601,8 @@ void DockWindow::rebuild()
             icon->setKey(item.id);
         }
         icon->setDraggable(!item.fixed);
-        if (item.id == DockModel::kLauncherId)
-            icon->setIcon(shellDataFile("launcher.svg"), true);
+        if (item.id == DockModel::kLaunchpadId)
+            icon->setIcon(shellDataFile("launchpad.svg"), true);
         else if (item.missing)
             icon->setIcon(shellDataFile("application-missing.svg"));
         else
@@ -1388,7 +1388,7 @@ void DockWindow::iconClicked(DockIcon *icon, int button)
         break;
     case DockIcon::Kind::Trash:
         if (button == int(ui::MouseButton::Left)) {
-            callLauncher(m_shell->bus(), "hide");
+            callLaunchpad(m_shell->bus(), "hide");
             TrashMonitor::openTrash(m_shell->bus());
         }
         break;
@@ -1402,8 +1402,8 @@ void DockWindow::iconMenuRequested(DockIcon *icon)
     switch (icon->kind()) {
     case DockIcon::Kind::Application: {
         const std::string id = icon->key();
-        // The launcher has no menu.
-        if (id == DockModel::kLauncherId)
+        // The launchpad has no menu.
+        if (id == DockModel::kLaunchpadId)
             return;
         DockModel &model = m_dock->applications();
         const int row = model.indexOf(id);
@@ -1449,7 +1449,7 @@ void DockWindow::iconMenuRequested(DockIcon *icon)
     }
     case DockIcon::Kind::Trash: {
         menu->addItem(tr("Open"), [bus] {
-            callLauncher(bus, "hide");
+            callLaunchpad(bus, "hide");
             TrashMonitor::openTrash(bus);
         });
         const size_t empty = menu->addItem(tr("Empty Trash"), [bus] { TrashMonitor::emptyTrash(bus); });
@@ -1724,7 +1724,7 @@ void DockWindow::onDragEnded()
     } else if (own) {
         finishIconDrag();
     } else if (!m_drag && m_applications->isDragging()) {
-        // The launcher's drag ended without a drop on the dock.
+        // The launchpad's drag ended without a drop on the dock.
         m_applications->endDrag();
     }
     resetDropTarget();
@@ -1979,7 +1979,7 @@ void DockWindow::anchorApplicationArea()
 
 void DockWindow::enterApplicationArea()
 {
-    // What the drag carries must be known first; the launcher's is read.
+    // What the drag carries must be known first; the launchpad's is read.
     if ((m_drop.application && !m_drop.appId) || (m_drop.desktop && !m_drop.desktopId))
         return;
     const std::string appId = m_drop.appId.value_or(std::string());

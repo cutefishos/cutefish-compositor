@@ -502,7 +502,7 @@ TEST_F(DockLayoutTest, HiddenDockTakesNoInputWhileItSlidesAway)
     EXPECT_FALSE(dock->node()->isEventTargetingBlocked());
 }
 
-TEST_F(DockLayoutTest, OpenMenuAndLauncherKeepTheDockShown)
+TEST_F(DockLayoutTest, OpenMenuAndLaunchpadKeepTheDockShown)
 {
     layout.setBehavior(DockAutoHideBehavior::Always);
     makeWindow(base::Rect(100, 100, 300, 200));
@@ -515,12 +515,12 @@ TEST_F(DockLayoutTest, OpenMenuAndLauncherKeepTheDockShown)
     manager.destroyWindow(menu);
     EXPECT_FALSE(isShown());
 
-    Window *launcher = makeWindow(kOutput);
-    launcher->setRole(WindowRole::Launcher);
+    Window *launchpad = makeWindow(kOutput);
+    launchpad->setRole(WindowRole::Launchpad);
     layout.update();
     waitForReveal();
     EXPECT_TRUE(isShown());
-    manager.destroyWindow(launcher);
+    manager.destroyWindow(launchpad);
     EXPECT_FALSE(isShown());
 }
 

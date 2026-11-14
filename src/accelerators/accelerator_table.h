@@ -44,8 +44,8 @@ struct AcceleratorData {
 // Everything else: handled before the focused window unless it is fullscreen,
 // since without a key-ack extension there is no post-target pass.
 //
-// As in Ash, a lone Meta opens the launcher on release; the
-// AcceleratorLauncherStateMachine keeps Meta+L from doing it as well.
+// As in Ash, a lone Meta opens the launchpad on release; the
+// AcceleratorLaunchpadStateMachine keeps Meta+L from doing it as well.
 inline constexpr auto kAcceleratorData = std::to_array<AcceleratorData>({
         {false, XKB_KEY_Super_L, NoModifier, AcceleratorAction::ToggleAppList},
         {true, XKB_KEY_l, MetaDown, AcceleratorAction::LockScreen},
@@ -122,7 +122,7 @@ inline constexpr auto kAcceleratorData = std::to_array<AcceleratorData>({
 // Command+Up. Keys no application uses stay as under PC: XF86LaunchA, Print
 // and its combinations, the device keys, and Control+Command+Escape stops a
 // recording. Command+Shift+3, 4 and 5 capture as well, onto the clipboard with
-// Control. The launcher has no default.
+// Control. The launchpad has no default.
 inline constexpr auto kCommandAcceleratorData = std::to_array<AcceleratorData>({
         {true, XKB_KEY_q, ControlDown | MetaDown, AcceleratorAction::LockScreen},
 

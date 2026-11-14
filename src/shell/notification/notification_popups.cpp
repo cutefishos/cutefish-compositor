@@ -215,7 +215,7 @@ NotificationPopups::NotificationPopups(Shell *shell, NotificationBanners &model)
     m_subscriptions.push_back(model.dataChanged.connect([this](int first, int last) { update(first, last); }));
     m_subscriptions.push_back(model.rowMoved.connect([this](int, int) { reset(); }));
     m_subscriptions.push_back(model.modelReset.connect([this] { reset(); }));
-    // The work area moves with the status bar and the dock.
+    // The work area moves with the menu bar and the dock.
     m_subscriptions.push_back(shell->windowManager()->outputsChanged.connect([this] { schedulePositioning(); }));
     reset();
 }

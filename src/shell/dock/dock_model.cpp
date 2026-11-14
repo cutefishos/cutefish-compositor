@@ -233,8 +233,8 @@ void DockModel::clicked(const std::string &id)
     if (!item)
         return;
 
-    if (item->id != kLauncherId && hideLauncher)
-        hideLauncher();
+    if (item->id != kLaunchpadId && hideLaunchpad)
+        hideLaunchpad();
 
     if (item->windows.empty()) {
         // A pinned application that is not running starts.
@@ -257,13 +257,13 @@ void DockModel::clicked(const std::string &id)
 void DockModel::raiseWindow(const std::string &id)
 {
     DockItem *item = findById(id);
-    // Pinned items and the launcher have no windows to raise.
+    // Pinned items and the launchpad have no windows to raise.
     if (!item || item->windows.empty())
         return;
     if (item->currentActive >= item->windows.size())
         item->currentActive = 0;
-    if (hideLauncher)
-        hideLauncher();
+    if (hideLaunchpad)
+        hideLaunchpad();
     unhide(item);
     m_windows.activate(item->windows[item->currentActive]);
 }
@@ -301,8 +301,8 @@ void DockModel::activateWindow(uint64_t window)
     DockItem *item = findByWindow(window);
     if (!item)
         return;
-    if (hideLauncher)
-        hideLauncher();
+    if (hideLaunchpad)
+        hideLaunchpad();
     // A click on the icon then cycles on from this window.
     item->currentActive = size_t(std::find(item->windows.begin(), item->windows.end(), window) - item->windows.begin());
     // Activating unhides and restores the window.
@@ -328,14 +328,14 @@ bool DockModel::openNewInstance(const std::string &id)
     if (!item)
         return false;
 
-    if (item->id == kLauncherId) {
-        if (toggleLauncher)
-            toggleLauncher();
+    if (item->id == kLaunchpadId) {
+        if (toggleLaunchpad)
+            toggleLaunchpad();
         return true;
     }
 
-    if (hideLauncher)
-        hideLauncher();
+    if (hideLaunchpad)
+        hideLaunchpad();
 
     // Without a desktop entry there is no command: the app id is the
     // client's own choice, and a sandboxed one could name a program it wrote.
@@ -578,22 +578,22 @@ void DockModel::load()
 
 void DockModel::retranslate()
 {
-    if (DockItem *launcher = findById(kLauncherId)) {
-        launcher->visibleName = tr("Launcher");
-        changed(launcher);
+    if (DockItem *launchpad = findById(kLaunchpadId)) {
+        launchpad->visibleName = tr("Apps");
+        changed(launchpad);
     }
 }
 
 void DockModel::loadPins(const std::optional<std::vector<std::string>> &saved)
 {
-    auto launcher = std::make_unique<DockItem>();
-    launcher->id = kLauncherId;
-    launcher->iconName = kLauncherId;
-    launcher->visibleName = tr("Launcher");
-    launcher->fixed = true;
+    auto launchpad = std::make_unique<DockItem>();
+    launchpad->id = kLaunchpadId;
+    launchpad->iconName = kLaunchpadId;
+    launchpad->visibleName = tr("Apps");
+    launchpad->fixed = true;
 
     std::vector<std::unique_ptr<DockItem>> items;
-    items.push_back(std::move(launcher));
+    items.push_back(std::move(launchpad));
     const std::vector<std::string> &ids = saved ? *saved : pinned_applications::defaults();
     for (const std::string &id : ids) {
         const DesktopEntryPtr entry = m_applications.byId(id);
@@ -671,7 +671,7 @@ void DockModel::checkInstalled()
         DesktopEntryPtr entry = m_applications.byPath(item->desktopPath);
         if (!entry)
             entry = m_applications.byId(item->id);
-        // Uninstalled means the launcher no longer lists it.
+        // Uninstalled means the launchpad no longer lists it.
         const bool bundle = isBundle(*item);
         const bool uninstalled = !entry || (!entry->bundle && !entry->shouldShow(desktops));
         if (item->uninstalled == uninstalled)

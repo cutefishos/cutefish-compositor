@@ -278,11 +278,11 @@ bool DockLayoutManager::hasVisibleWindow(const base::Rect &output) const
     });
 }
 
-bool DockLayoutManager::isLauncherShowing(const base::Rect &output) const
+bool DockLayoutManager::isLaunchpadShowing(const base::Rect &output) const
 {
     const auto &windows = m_manager->windows();
     return std::any_of(windows.begin(), windows.end(), [&](const Window *window) {
-        return window->role() == WindowRole::Launcher && !window->isPopup() && window->isVisible()
+        return window->role() == WindowRole::Launchpad && !window->isPopup() && window->isVisible()
                 && m_manager->outputBoundsFor(window) == output;
     });
 }
@@ -321,7 +321,7 @@ DockAutoHideState DockLayoutManager::computeAutoHideState(const Window *dock, co
     if (isAwayForSession())
         return DockAutoHideState::Hidden;
 
-    if (isLauncherShowing(output))
+    if (isLaunchpadShowing(output))
         return DockAutoHideState::Shown;
 
     // A menu or tooltip of the dock's is being read.

@@ -2,7 +2,7 @@
 # on src/shell (internal windows) and their backends.
 
 # The desktop background: the shared wallpaper decode, one node per output
-# and the status bar's backdrop rules.
+# and the menu bar's backdrop rules.
 find_package(CutefishClients REQUIRED COMPONENTS appearance)
 add_library(cutefish-shell-wallpaper STATIC
     src/shell/wallpaper/bar_backdrop.cpp
@@ -23,7 +23,7 @@ add_library(cutefish-shell-osd STATIC
     src/shell/osd/osd.h
     src/shell/osd/osd_levels.cpp
 )
-target_link_libraries(cutefish-shell-osd PUBLIC cutefish-shell cutefish-shell-statusbar
+target_link_libraries(cutefish-shell-osd PUBLIC cutefish-shell cutefish-shell-menubar
     Cutefish::AudioClient)
 target_link_libraries(cutefish-compositor PRIVATE cutefish-shell-osd)
 
@@ -122,29 +122,29 @@ add_library(cutefish-shell-notification-view STATIC
 )
 target_link_libraries(cutefish-shell-notification-view PUBLIC cutefish-shell cutefish-shell-notification)
 target_link_libraries(cutefish-compositor PRIVATE cutefish-shell-notification-view)
-# The launcher: its window, grid, folders, search and paging on the launcher's backend.
-add_library(cutefish-shell-launcher-view STATIC
-    src/shell/launcher/launcher_cell.cpp
-    src/shell/launcher/launcher_cell.h
-    src/shell/launcher/launcher_folder_view.cpp
-    src/shell/launcher/launcher_folder_view.h
-    src/shell/launcher/launcher_metrics.cpp
-    src/shell/launcher/launcher_metrics.h
-    src/shell/launcher/launcher_page_indicator.cpp
-    src/shell/launcher/launcher_page_indicator.h
-    src/shell/launcher/launcher_search_field.cpp
-    src/shell/launcher/launcher_search_field.h
-    src/shell/launcher/launcher_tween.h
-    src/shell/launcher/launcher_view.cpp
-    src/shell/launcher/launcher_view.h
-    src/shell/launcher/launcher_wallpaper.cpp
-    src/shell/launcher/launcher_wallpaper.h
-    src/shell/launcher/launcher_window.cpp
-    src/shell/launcher/launcher_window.h
+# The launchpad: its window, grid, folders, search and paging on the launchpad's backend.
+add_library(cutefish-shell-launchpad-view STATIC
+    src/shell/launchpad/launchpad_cell.cpp
+    src/shell/launchpad/launchpad_cell.h
+    src/shell/launchpad/launchpad_folder_view.cpp
+    src/shell/launchpad/launchpad_folder_view.h
+    src/shell/launchpad/launchpad_metrics.cpp
+    src/shell/launchpad/launchpad_metrics.h
+    src/shell/launchpad/launchpad_page_indicator.cpp
+    src/shell/launchpad/launchpad_page_indicator.h
+    src/shell/launchpad/launchpad_search_field.cpp
+    src/shell/launchpad/launchpad_search_field.h
+    src/shell/launchpad/launchpad_tween.h
+    src/shell/launchpad/launchpad_view.cpp
+    src/shell/launchpad/launchpad_view.h
+    src/shell/launchpad/launchpad_wallpaper.cpp
+    src/shell/launchpad/launchpad_wallpaper.h
+    src/shell/launchpad/launchpad_window.cpp
+    src/shell/launchpad/launchpad_window.h
 )
-target_link_libraries(cutefish-shell-launcher-view PUBLIC cutefish-shell cutefish-shell-launcher
+target_link_libraries(cutefish-shell-launchpad-view PUBLIC cutefish-shell cutefish-shell-launchpad
     cutefish-shell-wallpaper)
-target_link_libraries(cutefish-compositor PRIVATE cutefish-shell-launcher-view)
+target_link_libraries(cutefish-compositor PRIVATE cutefish-shell-launchpad-view)
 # The control centre, the status panels and the power dialog.
 find_package(CutefishClients REQUIRED COMPONENTS networkmanager bluez audio)
 add_library(cutefish-shell-controlcenter STATIC
@@ -165,41 +165,41 @@ add_library(cutefish-shell-controlcenter STATIC
     src/shell/controlcenter/status_panel.h
     src/shell/controlcenter/tiles.cpp
     src/shell/controlcenter/tiles.h
-    src/shell/statusbar/status_bar_panels.h
+    src/shell/menubar/menu_bar_panels.h
 )
 target_link_libraries(cutefish-shell-controlcenter PUBLIC cutefish-shell cutefish-shell-osd
-    cutefish-shell-statusbar cutefish-shell-notification Cutefish::NetworkManagerClient
+    cutefish-shell-menubar cutefish-shell-notification Cutefish::NetworkManagerClient
     Cutefish::BluezClient Cutefish::AudioClient)
 target_link_libraries(cutefish-compositor PRIVATE cutefish-shell-controlcenter)
-# The status bar's items, which the lock screen shows too.
+# The menu bar's items, which the lock screen shows too.
 add_library(cutefish-shell-bar-items STATIC
-    src/shell/statusbar/bar_item.cpp
-    src/shell/statusbar/bar_item.h
-    src/shell/statusbar/status_bar_panels.h
-    src/shell/statusbar/status_icon.cpp
-    src/shell/statusbar/status_icon.h
+    src/shell/menubar/bar_item.cpp
+    src/shell/menubar/bar_item.h
+    src/shell/menubar/menu_bar_panels.h
+    src/shell/menubar/status_icon.cpp
+    src/shell/menubar/status_icon.h
 )
-target_link_libraries(cutefish-shell-bar-items PUBLIC cutefish-shell cutefish-shell-statusbar)
-# The status bar: its window, tray, status icons and clock on the bar's backend.
+target_link_libraries(cutefish-shell-bar-items PUBLIC cutefish-shell cutefish-shell-menubar)
+# The menu bar: its window, tray, status icons and clock on the bar's backend.
 find_package(CutefishClients REQUIRED COMPONENTS appearance)
-add_library(cutefish-shell-statusbar-view STATIC
-    src/shell/statusbar/menu_popup.cpp
-    src/shell/statusbar/menu_popup.h
-    src/shell/statusbar/device_usage.cpp
-    src/shell/statusbar/device_usage.h
-    src/shell/statusbar/status_bar_backdrop.cpp
-    src/shell/statusbar/status_bar_backdrop.h
-    src/shell/statusbar/status_bar_menu_bar.h
-    src/shell/statusbar/status_bar_panels.h
-    src/shell/statusbar/status_bar_window.cpp
-    src/shell/statusbar/status_bar_window.h
-    src/shell/statusbar/status_items_view.cpp
-    src/shell/statusbar/status_items_view.h
-    src/shell/statusbar/system_tray_view.cpp
-    src/shell/statusbar/system_tray_view.h
+add_library(cutefish-shell-menubar-view STATIC
+    src/shell/menubar/menu_popup.cpp
+    src/shell/menubar/menu_popup.h
+    src/shell/menubar/device_usage.cpp
+    src/shell/menubar/device_usage.h
+    src/shell/menubar/menu_bar_backdrop.cpp
+    src/shell/menubar/menu_bar_backdrop.h
+    src/shell/menubar/menu_bar_app_menus.h
+    src/shell/menubar/menu_bar_panels.h
+    src/shell/menubar/menu_bar_window.cpp
+    src/shell/menubar/menu_bar_window.h
+    src/shell/menubar/status_items_view.cpp
+    src/shell/menubar/status_items_view.h
+    src/shell/menubar/system_tray_view.cpp
+    src/shell/menubar/system_tray_view.h
 )
-target_link_libraries(cutefish-shell-statusbar-view PUBLIC cutefish-shell cutefish-shell-bar-items
-    cutefish-shell-statusbar cutefish-shell-wallpaper Cutefish::AudioClient)
-target_link_libraries(cutefish-compositor PRIVATE cutefish-shell-statusbar-view)
-# The status bar's menu bar.
-include(src/shell/menubar/menubar.cmake)
+target_link_libraries(cutefish-shell-menubar-view PUBLIC cutefish-shell cutefish-shell-bar-items
+    cutefish-shell-menubar cutefish-shell-wallpaper Cutefish::AudioClient)
+target_link_libraries(cutefish-compositor PRIVATE cutefish-shell-menubar-view)
+# The menu bar's app menus.
+include(src/shell/menubar/app_menus.cmake)

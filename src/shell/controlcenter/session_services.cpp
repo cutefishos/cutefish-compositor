@@ -25,8 +25,8 @@
 #include "shell/common/pending_calls.h"
 #include "shell/notification/notification_settings.h"
 #include "shell/shell.h"
-#include "shell/statusbar/status_bar.h"
-#include "shell/statusbar/wireless_status.h"
+#include "shell/menubar/menu_bar.h"
+#include "shell/menubar/wireless_status.h"
 
 namespace cutefish::shell {
 
@@ -53,9 +53,9 @@ struct PendingJoin {
 class SessionServices final : public ControlCenterServices
 {
 public:
-    SessionServices(Shell *shell, StatusBar &statusBar, NotificationSettings *notifications)
+    SessionServices(Shell *shell, MenuBar &menuBar, NotificationSettings *notifications)
         : m_shell(shell)
-        , m_statusBar(statusBar)
+        , m_menuBar(menuBar)
         , m_notifications(notifications)
         , m_client(nm::Client::instance())
         , m_wireless(std::make_unique<WirelessStatus>())
@@ -96,13 +96,13 @@ public:
         m_subscriptions.push_back(m_audio->defaultNodeChanged.connect(notify));
         if (m_notifications)
             m_subscriptions.push_back(m_notifications->doNotDisturbChanged.connect(notify));
-        m_subscriptions.push_back(m_statusBar.mpris().currentChanged.connect(notify));
-        m_subscriptions.push_back(m_statusBar.mpris().currentPlayerChanged.connect(notify));
-        m_subscriptions.push_back(m_statusBar.brightness().valueChanged.connect(notify));
-        m_subscriptions.push_back(m_statusBar.brightness().enabledChanged.connect(notify));
-        m_subscriptions.push_back(m_statusBar.battery().changed.connect(notify));
-        m_subscriptions.push_back(m_statusBar.powerProfiles().profilesChanged.connect(notify));
-        m_subscriptions.push_back(m_statusBar.powerProfiles().activeProfileChanged.connect(notify));
+        m_subscriptions.push_back(m_menuBar.mpris().currentChanged.connect(notify));
+        m_subscriptions.push_back(m_menuBar.mpris().currentPlayerChanged.connect(notify));
+        m_subscriptions.push_back(m_menuBar.brightness().valueChanged.connect(notify));
+        m_subscriptions.push_back(m_menuBar.brightness().enabledChanged.connect(notify));
+        m_subscriptions.push_back(m_menuBar.battery().changed.connect(notify));
+        m_subscriptions.push_back(m_menuBar.powerProfiles().profilesChanged.connect(notify));
+        m_subscriptions.push_back(m_menuBar.powerProfiles().activeProfileChanged.connect(notify));
 
         m_matches.push_back(m_privacy.onSignal("cameraEnabledChanged", [this](const dbus::Message &message) {
             bool enabled = true;
@@ -288,7 +288,7 @@ public:
     MediaState media() const override
     {
         MediaState state;
-        const MprisPlayer *player = m_statusBar.mpris().current();
+        const MprisPlayer *player = m_menuBar.mpris().current();
         if (!player || player->playbackStatus() == MprisPlayer::PlaybackStatus::Stopped)
             return state;
         state.hasPlayer = true;
@@ -307,33 +307,33 @@ public:
 
     void mediaPrevious() override
     {
-        if (MprisPlayer *player = m_statusBar.mpris().current())
+        if (MprisPlayer *player = m_menuBar.mpris().current())
             player->previous();
     }
 
     void mediaPlay() override
     {
-        if (MprisPlayer *player = m_statusBar.mpris().current())
+        if (MprisPlayer *player = m_menuBar.mpris().current())
             player->play();
     }
 
     void mediaPause() override
     {
-        if (MprisPlayer *player = m_statusBar.mpris().current())
+        if (MprisPlayer *player = m_menuBar.mpris().current())
             player->pause();
     }
 
     void mediaNext() override
     {
-        if (MprisPlayer *player = m_statusBar.mpris().current())
+        if (MprisPlayer *player = m_menuBar.mpris().current())
             player->next();
     }
 
     // --- Display ---
 
-    bool brightnessEnabled() const override { return m_statusBar.brightness().isEnabled(); }
-    int brightness() const override { return m_statusBar.brightness().value(); }
-    void setBrightness(int value) override { m_statusBar.brightness().setValue(value); }
+    bool brightnessEnabled() const override { return m_menuBar.brightness().isEnabled(); }
+    int brightness() const override { return m_menuBar.brightness().value(); }
+    void setBrightness(int value) override { m_menuBar.brightness().setValue(value); }
 
     // --- Sound ---
 
@@ -382,16 +382,16 @@ public:
 
     // --- Battery ---
 
-    int chargePercent() const override { return m_statusBar.battery().chargePercent(); }
-    bool onBattery() const override { return m_statusBar.battery().onBattery(); }
-    std::string batteryStatus() const override { return m_statusBar.battery().statusString(); }
+    int chargePercent() const override { return m_menuBar.battery().chargePercent(); }
+    bool onBattery() const override { return m_menuBar.battery().onBattery(); }
+    std::string batteryStatus() const override { return m_menuBar.battery().statusString(); }
 
-    std::vector<std::string> powerProfiles() const override { return m_statusBar.powerProfiles().profiles(); }
-    std::string powerProfile() const override { return m_statusBar.powerProfiles().activeProfile(); }
+    std::vector<std::string> powerProfiles() const override { return m_menuBar.powerProfiles().profiles(); }
+    std::string powerProfile() const override { return m_menuBar.powerProfiles().activeProfile(); }
 
     void setPowerProfile(const std::string &profile) override
     {
-        m_statusBar.powerProfiles().setActiveProfile(profile);
+        m_menuBar.powerProfiles().setActiveProfile(profile);
     }
 
     void openSettings(const std::vector<std::string> &arguments) override
@@ -461,7 +461,7 @@ private:
     }
 
     Shell *m_shell;
-    StatusBar &m_statusBar;
+    MenuBar &m_menuBar;
     NotificationSettings *m_notifications;
     nm::Client *m_client;
     std::unique_ptr<WirelessStatus> m_wireless;
@@ -483,10 +483,10 @@ private:
     std::vector<dbus::Match> m_matches;
 };
 
-std::unique_ptr<ControlCenterServices> createSessionServices(Shell *shell, StatusBar &statusBar,
+std::unique_ptr<ControlCenterServices> createSessionServices(Shell *shell, MenuBar &menuBar,
                                                              NotificationSettings *notifications)
 {
-    return std::make_unique<SessionServices>(shell, statusBar, notifications);
+    return std::make_unique<SessionServices>(shell, menuBar, notifications);
 }
 
 } // namespace cutefish::shell

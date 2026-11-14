@@ -19,7 +19,7 @@ class AcceleratorDelegate
 public:
     virtual ~AcceleratorDelegate() = default;
 
-    // org.cutefish.Launcher.toggle.
+    // org.cutefish.Launchpad.toggle.
     virtual void toggleAppList() = 0;
 
     // org.cutefish.Screenshot: every screen at once, a part of one chosen
@@ -32,7 +32,7 @@ public:
     // org.cutefish.ClipboardHistory.toggle: shows or hides the picker.
     virtual void toggleClipboardHistory() = 0;
 
-    // org.cutefish.Statusbar: control the current MPRIS player.
+    // org.cutefish.MenuBar: control the current MPRIS player.
     virtual void mediaPlayPause() = 0;
     virtual void mediaPause() = 0;
     virtual void mediaPrevious() = 0;
@@ -54,8 +54,8 @@ public:
 class DBusAcceleratorDelegate : public AcceleratorDelegate
 {
 public:
-    // The launcher drawn in this process; unset, the call goes over D-Bus.
-    std::function<void()> launcherToggle;
+    // The launchpad drawn in this process; unset, the call goes over D-Bus.
+    std::function<void()> launchpadToggle;
 
     void toggleAppList() override;
     void takeScreenshot(bool toClipboard) override;

@@ -9,7 +9,7 @@
 #include <vector>
 
 #include "base/signal.h"
-#include "shell/statusbar/bar_item.h"
+#include "shell/menubar/bar_item.h"
 
 namespace cutefish::powerprofiles {
 class PowerProfiles;
@@ -23,13 +23,13 @@ class WirelessStatus;
 
 namespace cutefish::auth {
 
-// The status bar's Wi-Fi and battery icons for the screen's top-right corner
+// The menu bar's Wi-Fi and battery icons for the screen's top-right corner
 // at the login and lock screen, with the percentage always shown. They only
 // show: nothing passes input to them.
 class AuthStatus final : public ui::View, public shell::BarContext
 {
 public:
-    // The status bar's height.
+    // The menu bar's height.
     static constexpr double kHeight = 32;
 
     // At the login screen there is no session bus: the battery comes from
@@ -41,7 +41,7 @@ public:
     bool lightContents() const override { return m_lightContents; }
 
     // The icons' width, the last one reaching as near the edge as the
-    // status bar's last item does; 0 when neither shows.
+    // menu bar's last item does; 0 when neither shows.
     double preferredWidth() const;
 
     shell::StatusIcon *networkIcon() const { return m_network; }

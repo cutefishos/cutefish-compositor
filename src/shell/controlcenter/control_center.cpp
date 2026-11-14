@@ -16,8 +16,8 @@
 #include "shell/controlcenter/status_panel.h"
 #include "shell/shell_host.h"
 #include "shell/shell_window.h"
-#include "shell/statusbar/power_actions.h"
-#include "shell/statusbar/status_bar.h"
+#include "shell/menubar/power_actions.h"
+#include "shell/menubar/menu_bar.h"
 #include "ui/application.h"
 #include "ui/embedded_window.h"
 #include "ui/keys.h"
@@ -26,7 +26,7 @@
 
 namespace cutefish::shell {
 
-// The status bar's height: the control centre hangs this far below the
+// The menu bar's height: the control centre hangs this far below the
 // bar's screen's top, whatever the item.
 static constexpr int kBarHeight = 32;
 
@@ -97,11 +97,11 @@ ControlCenter::~ControlCenter()
     m_powerDialog.reset();
 }
 
-std::unique_ptr<ControlCenter> ControlCenter::create(Shell *shell, StatusBar &statusBar,
+std::unique_ptr<ControlCenter> ControlCenter::create(Shell *shell, MenuBar &menuBar,
                                                      NotificationSettings *notifications)
 {
-    return std::make_unique<ControlCenter>(shell, createSessionServices(shell, statusBar, notifications),
-                                           &statusBar.powerActions());
+    return std::make_unique<ControlCenter>(shell, createSessionServices(shell, menuBar, notifications),
+                                           &menuBar.powerActions());
 }
 
 size_t ControlCenter::index(Panel panel)
@@ -385,7 +385,7 @@ void ControlCenter::refresh()
     }
 }
 
-StatusBarIndicators::Audio ControlCenter::audio() const
+MenuBarIndicators::Audio ControlCenter::audio() const
 {
     Audio audio;
     audio.hasSink = m_services->hasSink();
@@ -394,7 +394,7 @@ StatusBarIndicators::Audio ControlCenter::audio() const
     return audio;
 }
 
-StatusBarIndicators::Network ControlCenter::network() const
+MenuBarIndicators::Network ControlCenter::network() const
 {
     Network network;
     network.wirelessHwEnabled = m_services->wirelessHardwareEnabled();

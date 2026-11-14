@@ -50,7 +50,7 @@ bool WmShadowControllerDelegate::shouldShowShadowForWindow(const Window *window)
         return true;
     case WindowRole::Desktop:
     case WindowRole::Panel:
-    case WindowRole::Launcher:
+    case WindowRole::Launchpad:
     case WindowRole::Capture:
         return false;
     }

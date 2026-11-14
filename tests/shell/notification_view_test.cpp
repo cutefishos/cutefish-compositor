@@ -53,7 +53,7 @@ constexpr const char *kService = "org.freedesktop.Notifications";
 constexpr const char *kPath = "/org/freedesktop/Notifications";
 
 const base::Rect kOutput(0, 0, 1440, 960);
-constexpr int kStatusBar = 32;
+constexpr int kMenuBar = 32;
 constexpr int kDock = 92;
 
 class NotificationViewTest : public testing::Test
@@ -68,11 +68,11 @@ protected:
     wm::WindowManager manager {&compositor, &seat};
     test::TemporaryDirectory directory;
     std::unique_ptr<shell::Shell> shell;
-    std::unique_ptr<shell::ShellWindow> statusBar;
+    std::unique_ptr<shell::ShellWindow> menuBar;
     shell::NotificationUi *ui = nullptr;
     shell::Notifications *notifications = nullptr;
     test::DBusTestClient client;
-    int statusBarZone = 0;
+    int menuBarZone = 0;
     int dockZone = 0;
     int ms = 1000;
 
@@ -81,7 +81,7 @@ protected:
         shell::setShellDataDirectoryForTesting(CUTEFISH_SOURCE_DIR "/data/shell");
         scene.setSize(kOutput.size());
         manager.setOutputBounds(kOutput);
-        manager.setExclusiveZone(&statusBarZone, wm::ScreenEdge::Top, kStatusBar);
+        manager.setExclusiveZone(&menuBarZone, wm::ScreenEdge::Top, kMenuBar);
         manager.setExclusiveZone(&dockZone, wm::ScreenEdge::Bottom, kDock);
         input.setBounds(kOutput.size());
         input.setEventSink(&manager);
@@ -95,11 +95,11 @@ protected:
         shell->setApplications(std::move(apps));
         shell->setTaskWindows(std::make_unique<test::FakeTaskWindows>());
 
-        statusBar = std::make_unique<shell::ShellWindow>(shell.get(), wm::WindowRole::Panel);
-        statusBar->setFocusPolicy(wm::FocusPolicy::NoFocus);
-        statusBar->setContentView(std::make_unique<ui::View>());
-        statusBar->setGeometry(base::Rect(0, 0, kOutput.width(), kStatusBar));
-        statusBar->show();
+        menuBar = std::make_unique<shell::ShellWindow>(shell.get(), wm::WindowRole::Panel);
+        menuBar->setFocusPolicy(wm::FocusPolicy::NoFocus);
+        menuBar->setContentView(std::make_unique<ui::View>());
+        menuBar->setGeometry(base::Rect(0, 0, kOutput.width(), kMenuBar));
+        menuBar->show();
 
         auto backend = std::make_unique<shell::Notifications>(
                 shell->bus(), shell->applications(), &shell->tasks(),
@@ -116,7 +116,7 @@ protected:
 
     void TearDown() override
     {
-        statusBar.reset();
+        menuBar.reset();
         shell.reset();
         shell::waitForFileThread();
         seat.shutdown();
@@ -254,7 +254,7 @@ TEST_F(NotificationViewTest, ABannerShowsTopRightOnGlassAndTimesOut)
     EXPECT_EQ(wm::WindowRole::Notification, window->role());
     EXPECT_EQ(wm::FocusPolicy::NoFocus, window->focusPolicy());
     // 6 from the work area's top right corner, 380 wide, as tall as the card.
-    EXPECT_EQ(base::Rect(1440 - 6 - 380, kStatusBar + 6, 380, banner->card()->implicitHeight(380)),
+    EXPECT_EQ(base::Rect(1440 - 6 - 380, kMenuBar + 6, 380, banner->card()->implicitHeight(380)),
               window->bounds());
     const compositor::Surface *surface = banner->window()->surface();
     EXPECT_TRUE(surface->glass().enabled);
@@ -327,7 +327,7 @@ TEST_F(NotificationViewTest, BannersStackNewestFirstAndGlide)
     notify("Fourth", tall);
     notify("Fifth", tall);
     frames(450);
-    const int limit = kStatusBar + int((960 - kStatusBar - kDock) * 0.6);
+    const int limit = kMenuBar + int((960 - kMenuBar - kDock) * 0.6);
     int shown = 0;
     for (const auto &banner : popups().banners()) {
         if (!banner->isShown())
@@ -424,11 +424,11 @@ TEST_F(NotificationViewTest, TheCentreOpensUnderTheBarAndTakesTheBanners)
 {
     notify("On screen");
     ASSERT_EQ(1u, popups().banners().size());
-    centre().open(statusBar.get(), base::Point(1440 - 120, kStatusBar));
+    centre().open(menuBar.get(), base::Point(1440 - 120, kMenuBar));
     frames();
     ASSERT_TRUE(centre().isOpen());
     // 6 from the right edge, the work area's height less 6 at either end.
-    EXPECT_EQ(base::Rect(1054, kStatusBar + 6, 380, 960 - kStatusBar - kDock - 12), centre().geometry());
+    EXPECT_EQ(base::Rect(1054, kMenuBar + 6, 380, 960 - kMenuBar - kDock - 12), centre().geometry());
     shell::ShellWindow *window = centre().shellWindow();
     ASSERT_NE(nullptr, window);
     ASSERT_NE(nullptr, window->wmWindow());
@@ -456,20 +456,20 @@ TEST_F(NotificationViewTest, TheCentreOpensUnderTheBarAndTakesTheBanners)
     frames();
     EXPECT_FALSE(centre().isOpen());
     EXPECT_FALSE(notifications->banners().bannersSuppressed());
-    centre().open(statusBar.get(), base::Point(900, kStatusBar));
+    centre().open(menuBar.get(), base::Point(900, kMenuBar));
     frames();
     EXPECT_EQ(900, centre().geometry().x());
 
     // Escape closes it, as does a press outside.
     key(KEY_ESC);
     EXPECT_FALSE(centre().isOpen());
-    centre().toggle(statusBar.get(), base::Point(900, kStatusBar));
+    centre().toggle(menuBar.get(), base::Point(900, kMenuBar));
     frames();
     EXPECT_TRUE(centre().isOpen());
     click(200, 400);
     EXPECT_FALSE(centre().isOpen());
-    centre().toggle(statusBar.get(), base::Point(900, kStatusBar));
-    centre().toggle(statusBar.get(), base::Point(900, kStatusBar));
+    centre().toggle(menuBar.get(), base::Point(900, kMenuBar));
+    centre().toggle(menuBar.get(), base::Point(900, kMenuBar));
     EXPECT_FALSE(centre().isOpen());
 }
 
@@ -479,7 +479,7 @@ TEST_F(NotificationViewTest, TheCentreStacksEachApplicationAndFansItOut)
     addHistory("org.example.Chat", "Chat", "Chat 1");
     addHistory("org.example.Chat", "Chat", "Chat 2");
     addHistory("org.example.Chat", "Chat", "Chat 3");
-    centre().open(statusBar.get(), base::Point(1440 - 120, kStatusBar));
+    centre().open(menuBar.get(), base::Point(1440 - 120, kMenuBar));
     frames(100);
     const auto &rows = centre().rows();
     ASSERT_EQ(4u, rows.size());
@@ -531,7 +531,7 @@ TEST_F(NotificationViewTest, ALongGroupGlidesOnlyTheCardsInView)
 {
     for (int i = 1; i <= 30; ++i)
         addHistory("org.example.Chat", "Chat", "Chat " + std::to_string(i));
-    centre().open(statusBar.get(), base::Point(1440 - 120, kStatusBar));
+    centre().open(menuBar.get(), base::Point(1440 - 120, kMenuBar));
     frames(100);
     const auto &rows = centre().rows();
     ASSERT_EQ(30u, rows.size());
@@ -563,7 +563,7 @@ TEST_F(NotificationViewTest, TheCentreDismissesAfterTheCardsFade)
     addHistory("org.example.Mail", "Mail", "Mail 1");
     addHistory("org.example.Chat", "Chat", "Chat 1");
     addHistory("org.example.Chat", "Chat", "Chat 2");
-    centre().open(statusBar.get(), base::Point(1440 - 120, kStatusBar));
+    centre().open(menuBar.get(), base::Point(1440 - 120, kMenuBar));
     frames(100);
     const base::Point origin = centre().geometry().topLeft();
     auto rows = centre().rows();
@@ -619,7 +619,7 @@ TEST_F(NotificationViewTest, ClosingCommitsPendingRemovalsAndFoldsGroups)
     addHistory("org.example.Chat", "Chat", "Chat 1");
     addHistory("org.example.Chat", "Chat", "Chat 2");
     addHistory("org.example.Mail", "Mail", "Mail 1");
-    centre().open(statusBar.get(), base::Point(1440 - 120, kStatusBar));
+    centre().open(menuBar.get(), base::Point(1440 - 120, kMenuBar));
     frames(100);
     const base::Point origin = centre().geometry().topLeft();
     auto rows = centre().rows();
@@ -637,7 +637,7 @@ TEST_F(NotificationViewTest, ClosingCommitsPendingRemovalsAndFoldsGroups)
     frames();
     EXPECT_EQ(2, notifications->history().count());
     EXPECT_FALSE(centre().isExpanded("org.example.Chat"));
-    centre().open(statusBar.get(), base::Point(1440 - 120, kStatusBar));
+    centre().open(menuBar.get(), base::Point(1440 - 120, kMenuBar));
     frames(100);
     ASSERT_EQ(2u, centre().rows().size());
     EXPECT_TRUE(centre().rows()[0]->isStacked());

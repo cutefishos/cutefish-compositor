@@ -150,7 +150,7 @@ protected:
 TEST_F(DockTest, LoadsThePinsAndForgetsUninstalledOnes)
 {
     start("[Dock]\nPinned=terminal, gone, files\n");
-    EXPECT_EQ(ids(), (std::vector<std::string>{DockModel::kLauncherId, "terminal", "files"}));
+    EXPECT_EQ(ids(), (std::vector<std::string>{DockModel::kLaunchpadId, "terminal", "files"}));
     EXPECT_TRUE(model().at(0).fixed);
     EXPECT_EQ(model().at(1).iconName, "terminal-icon");
     EXPECT_EQ(model().pinnedCount(), 3);
@@ -168,7 +168,7 @@ TEST_F(DockTest, KeepsAPinnedBundleWhileItIsGone)
     const std::string bundle = "/run/media/Image/Editor.app";
     const std::string icon = bundle + "/Contents/Resources/AppIcon.icns";
     start("[Dock]\nPinned=" + bundle + ", files\n");
-    EXPECT_EQ(ids(), (std::vector<std::string>{DockModel::kLauncherId, bundle, "files"}));
+    EXPECT_EQ(ids(), (std::vector<std::string>{DockModel::kLaunchpadId, bundle, "files"}));
     EXPECT_TRUE(model().at(1).missing);
     EXPECT_EQ(model().at(1).visibleName, "Editor");
     EXPECT_EQ(savedPins(), (std::vector<std::string>{bundle, "files"}));
@@ -194,8 +194,8 @@ TEST_F(DockTest, KeepsAPinnedBundleWhileItIsGone)
     ASSERT_TRUE(test::runUntil([&] { return !runtime.launched.empty(); }));
     EXPECT_EQ(runtime.launched.front(), bundle);
     EXPECT_EQ(launched, (std::vector<std::string>{bundle}));
-    // The launcher button is no application.
-    model().clicked(DockModel::kLauncherId);
+    // The launchpad button is no application.
+    model().clicked(DockModel::kLaunchpadId);
     EXPECT_EQ(launched.size(), 1u);
 }
 
@@ -204,7 +204,7 @@ TEST_F(DockTest, StartsFromTheDefaultPinsWithoutAList)
     applications.addSimple("cutefish-terminal", "Terminal");
     applications.scan();
     start();
-    EXPECT_EQ(ids(), (std::vector<std::string>{DockModel::kLauncherId, "cutefish-terminal"}));
+    EXPECT_EQ(ids(), (std::vector<std::string>{DockModel::kLaunchpadId, "cutefish-terminal"}));
     // Nothing is written until the user changes the pins.
     shell::waitForFileThread();
     EXPECT_FALSE(base::Settings(directory.filePath("shell.conf")).contains("Dock/Pinned"));
@@ -216,7 +216,7 @@ TEST_F(DockTest, FollowsRunningApplications)
     const uint64_t first = open("files", "Home");
     const uint64_t second = open("files", "Documents");
     const uint64_t loose = open("unknown", "Tool");
-    EXPECT_EQ(ids(), (std::vector<std::string>{DockModel::kLauncherId, "files", "unknown"}));
+    EXPECT_EQ(ids(), (std::vector<std::string>{DockModel::kLaunchpadId, "files", "unknown"}));
     EXPECT_EQ(model().at(1).windows, (std::vector<uint64_t>{first, second}));
     EXPECT_EQ(model().at(2).visibleName, "Tool");
     EXPECT_EQ(model().at(2).iconName, "unknown");
@@ -242,7 +242,7 @@ TEST_F(DockTest, FollowsRunningApplications)
     windows.remove(loose);
     windows.remove(first);
     windows.remove(second);
-    EXPECT_EQ(ids(), (std::vector<std::string>{DockModel::kLauncherId, "files"}));
+    EXPECT_EQ(ids(), (std::vector<std::string>{DockModel::kLaunchpadId, "files"}));
     EXPECT_TRUE(model().at(1).windows.empty());
 }
 
@@ -298,7 +298,7 @@ TEST_F(DockTest, LaunchesAndQuitsThroughTheRuntime)
     applications.addSimple("capture", "Capture", {}, "StartupNotify=false\n");
     start("[Dock]\nPinned=editor, capture\n");
     bool hidden = false;
-    model().hideLauncher = [&] { hidden = true; };
+    model().hideLaunchpad = [&] { hidden = true; };
     std::vector<std::string> launched;
     model().launched = [&launched](const std::string &id) { launched.push_back(id); };
     model().clicked("editor");
@@ -310,8 +310,8 @@ TEST_F(DockTest, LaunchesAndQuitsThroughTheRuntime)
     EXPECT_EQ(runtime.tokens.front(), "launch-token");
 
     bool toggled = false;
-    model().toggleLauncher = [&] { toggled = true; };
-    model().clicked(DockModel::kLauncherId);
+    model().toggleLaunchpad = [&] { toggled = true; };
+    model().clicked(DockModel::kLaunchpadId);
     EXPECT_TRUE(toggled);
 
     const uint64_t window = open("editor");
@@ -330,34 +330,34 @@ TEST_F(DockTest, PinsMovesAndDrops)
     start("[Dock]\nPinned=files\n");
     open("terminal");
     open("editor");
-    EXPECT_EQ(ids(), (std::vector<std::string>{DockModel::kLauncherId, "files", "terminal", "editor"}));
+    EXPECT_EQ(ids(), (std::vector<std::string>{DockModel::kLaunchpadId, "files", "terminal", "editor"}));
 
     model().pin("editor");
-    EXPECT_EQ(ids(), (std::vector<std::string>{DockModel::kLauncherId, "files", "editor", "terminal"}));
+    EXPECT_EQ(ids(), (std::vector<std::string>{DockModel::kLaunchpadId, "files", "editor", "terminal"}));
     EXPECT_EQ(savedPins(), (std::vector<std::string>{"files", "editor"}));
 
-    // Within the pinned section; nothing goes before the launcher.
+    // Within the pinned section; nothing goes before the launchpad.
     model().move(2, 1);
-    EXPECT_EQ(ids(), (std::vector<std::string>{DockModel::kLauncherId, "editor", "files", "terminal"}));
+    EXPECT_EQ(ids(), (std::vector<std::string>{DockModel::kLaunchpadId, "editor", "files", "terminal"}));
     model().move(1, 0);
-    EXPECT_EQ(ids()[0], DockModel::kLauncherId);
+    EXPECT_EQ(ids()[0], DockModel::kLaunchpadId);
     // A pinned item does not cross the divider.
     model().move(1, 3, true);
-    EXPECT_EQ(ids(), (std::vector<std::string>{DockModel::kLauncherId, "editor", "files", "terminal"}));
+    EXPECT_EQ(ids(), (std::vector<std::string>{DockModel::kLaunchpadId, "editor", "files", "terminal"}));
 
     // An unpinned one dropped among the pins is pinned there.
     EXPECT_TRUE(model().dropApplication("terminal", 1, true));
-    EXPECT_EQ(ids(), (std::vector<std::string>{DockModel::kLauncherId, "terminal", "editor", "files"}));
+    EXPECT_EQ(ids(), (std::vector<std::string>{DockModel::kLaunchpadId, "terminal", "editor", "files"}));
     EXPECT_EQ(savedPins(), (std::vector<std::string>{"terminal", "editor", "files"}));
 
     // Unpinning a running application moves it among the running ones.
     model().unPin("terminal");
-    EXPECT_EQ(ids(), (std::vector<std::string>{DockModel::kLauncherId, "editor", "files", "terminal"}));
+    EXPECT_EQ(ids(), (std::vector<std::string>{DockModel::kLaunchpadId, "editor", "files", "terminal"}));
     EXPECT_FALSE(model().at(3).isPinned);
 
     // A desktop file inserted where a drag left a gap.
     EXPECT_TRUE(model().insert("/usr/share/applications/terminal.desktop", 1));
-    EXPECT_EQ(ids(), (std::vector<std::string>{DockModel::kLauncherId, "terminal", "editor", "files"}));
+    EXPECT_EQ(ids(), (std::vector<std::string>{DockModel::kLaunchpadId, "terminal", "editor", "files"}));
 }
 
 TEST_F(DockTest, ServesOrgCutefishDock)

@@ -137,7 +137,7 @@ private:
     std::set<uint32_t> m_pendingSerials;
 };
 
-// A main menu as the status bar sees it: the menu's items under the root,
+// A main menu as the menu bar sees it: the menu's items under the root,
 // their submenus under them. Windows keep it while they show the menu; it
 // clears them when the menu goes.
 class RootModel final : public compositor::MenuModel, public compositor::SurfaceObserver

@@ -244,14 +244,14 @@ msgid "{name} is recording system audio"
 msgstr "{name} está grabando el audio del sistema"
 
 #: src/shell/dock/dock_model.cpp
-msgid "Launcher"
-msgstr "Lanzador"
+msgid "Apps"
+msgstr "Apps"
 
 #: src/shell/dock/dock_window.cpp
 msgid "Trash"
 msgstr "Papelera"
 
-#: src/shell/dock/dock_window.cpp src/shell/launcher/launcher_view.cpp
+#: src/shell/dock/dock_window.cpp src/shell/launchpad/launchpad_view.cpp
 msgid "Remove from Dock"
 msgstr "Quitar del Dock"
 
@@ -259,7 +259,7 @@ msgstr "Quitar del Dock"
 msgid "Keep in Dock"
 msgstr "Mantener en el Dock"
 
-#: src/shell/dock/dock_window.cpp src/shell/launcher/launcher_view.cpp
+#: src/shell/dock/dock_window.cpp src/shell/launchpad/launchpad_view.cpp
 msgid "Open"
 msgstr "Abrir"
 
@@ -283,39 +283,39 @@ msgstr "Vaciar papelera"
 msgid "Remove"
 msgstr "Eliminar"
 
-#: src/shell/launcher/launcher_search_field.cpp
+#: src/shell/launchpad/launchpad_search_field.cpp
 msgid "Search"
 msgstr "Buscar"
 
-#: src/shell/launcher/launcher_view.cpp
+#: src/shell/launchpad/launchpad_view.cpp
 msgid "New Folder"
 msgstr "Nueva carpeta"
 
-#: src/shell/launcher/launcher_view.cpp
+#: src/shell/launchpad/launchpad_view.cpp
 msgid "Not found"
 msgstr "Sin resultados"
 
-#: src/shell/launcher/launcher_view.cpp
+#: src/shell/launchpad/launchpad_view.cpp
 msgid "Rename"
 msgstr "Cambiar nombre"
 
-#: src/shell/launcher/launcher_view.cpp
+#: src/shell/launchpad/launchpad_view.cpp
 msgid "Ungroup"
 msgstr "Desagrupar"
 
-#: src/shell/launcher/launcher_view.cpp
+#: src/shell/launchpad/launchpad_view.cpp
 msgid "Move to Folder"
 msgstr "Mover a una carpeta"
 
-#: src/shell/launcher/launcher_view.cpp
+#: src/shell/launchpad/launchpad_view.cpp
 msgid "Remove from Folder"
 msgstr "Quitar de la carpeta"
 
-#: src/shell/launcher/launcher_view.cpp
+#: src/shell/launchpad/launchpad_view.cpp
 msgid "Send to Desktop"
 msgstr "Enviar al escritorio"
 
-#: src/shell/launcher/launcher_view.cpp
+#: src/shell/launchpad/launchpad_view.cpp
 msgid "Send to Dock"
 msgstr "Enviar al Dock"
 
@@ -482,7 +482,7 @@ msgid "Screenshots"
 msgstr "Capturas de pantalla"
 
 #: src/shell/screenshot/capture_toolbar.cpp
-#: src/shell/statusbar/application_menu.cpp
+#: src/shell/menubar/application_menu.cpp
 msgid "Desktop"
 msgstr "Escritorio"
 
@@ -722,12 +722,12 @@ msgid "One-time password"
 msgstr "Contraseña de un solo uso"
 
 #. TRANSLATORS: {reason} is a sentence of its own, such as "The VPN service stopped."
-#: src/shell/statusbar/vpn_notifier.cpp
+#: src/shell/menubar/vpn_notifier.cpp
 #, python-brace-format
 msgid "“{name}” could not connect. {reason}"
 msgstr "“{name}” no se pudo conectar. {reason}"
 
-#: src/shell/statusbar/vpn_notifier.cpp
+#: src/shell/menubar/vpn_notifier.cpp
 msgid "VPN connection failed"
 msgstr "Error en la conexión VPN"
 

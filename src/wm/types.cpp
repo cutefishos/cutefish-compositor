@@ -36,8 +36,8 @@ const char* toString(WindowRole role)
         return "panel";
     case WindowRole::Dock:
         return "dock";
-    case WindowRole::Launcher:
-        return "launcher";
+    case WindowRole::Launchpad:
+        return "launchpad";
     case WindowRole::Notification:
         return "notification";
     case WindowRole::Capture:

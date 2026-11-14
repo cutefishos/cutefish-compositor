@@ -43,8 +43,8 @@ double easeOut(double t, double power)
     return 1 - std::pow(1 - std::clamp(t, 0.0, 1.0), power);
 }
 
-// How much larger than the output a launcher is when fully transparent.
-constexpr double kLauncherZoom = 1.05;
+// How much larger than the output a launchpad is when fully transparent.
+constexpr double kLaunchpadZoom = 1.05;
 
 // gfx::Tween::ACCEL_20_DECEL_60: moving from the first frame, with no dwell
 // at either end, so the motion fills the whole duration and lands softly.
@@ -147,9 +147,9 @@ WindowAnimation::WindowAnimation(std::function<double()> clock)
 
 int WindowAnimation::duration(Type type, const base::RectF &from, const base::RectF &to, Style style)
 {
-    if (style == Style::Launcher && type == Type::Open)
+    if (style == Style::Launchpad && type == Type::Open)
         return 360;
-    if (style == Style::Launcher && type == Type::Close)
+    if (style == Style::Launchpad && type == Type::Close)
         return 160;
     // Menus open under the pointer and are read immediately: shorter than the
     // 150 ms ui/wm gives WINDOW_TYPE_MENU so the fade never reads as a delay.
@@ -180,8 +180,8 @@ WindowAnimation::Sample WindowAnimation::sample(Type type, const base::RectF &fr
                                                 double progress, Style style)
 {
     const double t = std::clamp(progress, 0.0, 1.0);
-    if (style == Style::Launcher && (type == Type::Open || type == Type::Close)) {
-        // Opening decelerates: the launcher responds on the first frame and
+    if (style == Style::Launchpad && (type == Type::Open || type == Type::Close)) {
+        // Opening decelerates: the launchpad responds on the first frame and
         // lands without a visible stop. Closing, it fades out at an even rate
         // (an eased fade lingers as a faint ghost) and is still zooming as it
         // vanishes, at 0.4 of its mean speed: a zoom that settles first leaves
@@ -227,9 +227,9 @@ WindowAnimation::Sample WindowAnimation::sample(Type type, const base::RectF &fr
 WindowAnimation::Sample WindowAnimation::current() const
 {
     double length = duration(m_type, m_from, m_to, m_style);
-    // A launcher close vanishes on a refresh: a fraction of a step left over
+    // A launchpad close vanishes on a refresh: a fraction of a step left over
     // shows as one faint frame that lingers after the even steps before it.
-    if (m_style == Style::Launcher && m_type == Type::Close && m_framePeriod > 0)
+    if (m_style == Style::Launchpad && m_type == Type::Close && m_framePeriod > 0)
         length = std::max(1.0, std::round(length / m_framePeriod)) * m_framePeriod;
     const double t = (m_started >= 0) ? (now() - m_started) / length : 0;
     Sample result = sample(m_type, m_from, m_to, t, m_style);
@@ -323,12 +323,12 @@ void WindowAnimation::start(Type type, const base::Rect &from, const base::Rect 
     // Start on the next presented opportunity, so a delayed client/event loop
     // cannot consume an animation before its first frame is drawn.
     m_started = -1;
-    const bool launcher = m_style == Style::Launcher;
+    const bool launchpad = m_style == Style::Launchpad;
     const bool inPlace = m_style == Style::Popup || m_style == Style::Fade;
     if (type == Type::Open && !interrupted)
-        m_from = inPlace ? base::RectF(to) : shrink(to, launcher ? kLauncherZoom : .94);
+        m_from = inPlace ? base::RectF(to) : shrink(to, launchpad ? kLaunchpadZoom : .94);
     if (type == Type::Close)
-        m_to = inPlace ? m_from : launcher ? shrink(from, kLauncherZoom) : shrink(m_from, .95);
+        m_to = inPlace ? m_from : launchpad ? shrink(from, kLaunchpadZoom) : shrink(m_from, .95);
     m_presented = {m_from, m_startOpacity, 0};
     if (type == Type::DragBounds && !base::RectF(to).isEmpty()) {
         m_dragOffset = base::RectF(from).topLeft() - base::RectF(to).topLeft();
@@ -535,11 +535,11 @@ void WindowAnimation::setBoundsContentReady(bool ready)
 void WindowAnimation::setStyle(Style style)
 {
     m_style = style;
-    if (style != Style::Launcher || !m_firstFrame || !parent())
+    if (style != Style::Launchpad || !m_firstFrame || !parent())
         return;
     for (Node *sibling : parent()->children()) {
         auto *closing = dynamic_cast<WindowAnimation *>(sibling);
-        if (!closing || closing == this || closing->m_style != Style::Launcher
+        if (!closing || closing == this || closing->m_style != Style::Launchpad
             || !closing->m_closing || !closing->m_running || closing->m_textureBounds.isEmpty())
             continue;
         const base::RectF snapshot = closing->m_textureBounds;
@@ -769,7 +769,7 @@ bool WindowAnimation::hasOpaqueSurface() const
 bool WindowAnimation::renderSiblingsBelow(render::Renderer &renderer, size_t begin,
                                           size_t end) const
 {
-    if (m_style != Style::Launcher || !animating() || (!isVisible() && !paintsWhenHidden())) {
+    if (m_style != Style::Launchpad || !animating() || (!isVisible() && !paintsWhenHidden())) {
         m_belowTextures.clear();
         return false;
     }
@@ -778,11 +778,11 @@ bool WindowAnimation::renderSiblingsBelow(render::Renderer &renderer, size_t beg
     if (renderer.capturing || renderer.suppressBackgroundBlur
         || !absolutePaintBounds().intersects(viewport))
         return false;
-    // A launcher this one takes over leaves on its first frame.
+    // A launchpad this one takes over leaves on its first frame.
     const auto &siblings = parent()->children();
     for (size_t i = begin; i < end; ++i) {
         const auto *animation = dynamic_cast<const WindowAnimation *>(siblings[i]);
-        if ((animation && animation->style() == Style::Launcher)
+        if ((animation && animation->style() == Style::Launchpad)
             || hasPromotedSurface(*siblings[i]))
             return false;
     }
@@ -791,7 +791,7 @@ bool WindowAnimation::renderSiblingsBelow(render::Renderer &renderer, size_t beg
     below.damage.setChildRange(begin, end);
     const bool reusable = below.texture && below.scale == scale && below.viewport == viewport
             && below.rootRevision == sceneRoot(*this).revision();
-    // Opening, the launcher covers what changes under it by its end: focus
+    // Opening, the launchpad covers what changes under it by its end: focus
     // leaving the windows there would otherwise redraw their blurs each frame.
     // The history stays put, so a close from here catches up.
     if (reusable && m_type == Type::Open && !m_closing) {
@@ -829,7 +829,7 @@ bool WindowAnimation::renderSiblingsBelow(render::Renderer &renderer, size_t beg
         below.scale = scale;
         below.viewport = viewport;
         below.rootRevision = sceneRoot(*this).revision();
-        below.texture->label = "launcher underlay";
+        below.texture->label = "launchpad underlay";
     }
     renderer.drawTexture(below.texture.get(), viewport);
     return true;
@@ -1029,7 +1029,7 @@ void WindowAnimation::render(render::Renderer &renderer) const
         // showing where it starts would only add a frame of latency.
         const bool leadIn =
                 (m_style == Style::Window && (m_type == Type::Open || m_type == Type::Close))
-                || (m_style == Style::Launcher && m_type == Type::Close);
+                || (m_style == Style::Launchpad && m_type == Type::Close);
         m_started = leadIn ? m_firstStepAt - renderer.framePeriod : m_firstStepAt;
         m_firstStep = true;
     } else if (m_running && std::exchange(m_firstStep, false) && renderer.framePeriod > 0

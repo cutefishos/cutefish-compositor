@@ -45,7 +45,7 @@ public:
         DragBounds
     };
 
-    // Launcher is a full-screen shell surface: it fades through a slight zoom
+    // Launchpad is a full-screen shell surface: it fades through a slight zoom
     // instead of scaling a window rectangle up from its centre. Popup is a
     // menu or tooltip: a short pure fade in place, following the live
     // geometry, the way exo gives non-activatable windows
@@ -55,7 +55,7 @@ public:
     // None shows and removes the subtree immediately, ash's wm::ANIMATE_NONE.
     enum class Style {
         Window,
-        Launcher,
+        Launchpad,
         Popup,
         Fade,
         None
@@ -81,7 +81,7 @@ public:
     void close();
     void setBoundsContentReady(bool ready);
 
-    // A launcher that has not painted yet takes over a launcher still closing
+    // A launchpad that has not painted yet takes over a launchpad still closing
     // beside it, so reopening mid-close reverses instead of stacking two fades.
     void setStyle(Style style);
 
@@ -197,7 +197,7 @@ public:
 
     bool redrawsSubtree(const base::Rect &viewport, double scale) const override;
 
-    // A launcher fading over the whole output keeps what lies under it as a
+    // A launchpad fading over the whole output keeps what lies under it as a
     // texture while it animates, and draws again only what changed there.
     bool renderSiblingsBelow(render::Renderer &renderer, size_t begin,
                              size_t end) const override;
@@ -320,7 +320,7 @@ private:
     };
     mutable std::unique_ptr<StashedTexture> m_stashedTexture;
     void swapStashedTexture(bool blurSuppressed) const;
-    // What lies under a launcher animation, per output.
+    // What lies under a launchpad animation, per output.
     struct BelowTexture {
         std::unique_ptr<render::Texture> texture;
         DamageTracker damage {true};
@@ -344,7 +344,7 @@ private:
     base::SizeF m_dragScale {1, 1};
     Type m_type = Type::Open;
     Style m_style = Style::Window;
-    // The presented state of the launcher this one took over, relative to its snapshot.
+    // The presented state of the launchpad this one took over, relative to its snapshot.
     std::optional<Sample> m_handoff;
     std::function<double()> m_now;
     mutable double m_frameTime = -1;

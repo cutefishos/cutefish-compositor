@@ -69,7 +69,7 @@ private:
     SnapType m_snapType = SnapType::None;
     // Ash's can_snap_to_maximize_, but gated on having been below the top edge
     // rather than on 64px of vertical travel, which a window already sitting
-    // under the status bar can never make.
+    // under the menu bar can never make.
     bool m_canSnapToMaximize = false;
     std::optional<base::PointF> m_dwellLocation;
     // The countdown's state, not the timer's: a test with no event loop to run

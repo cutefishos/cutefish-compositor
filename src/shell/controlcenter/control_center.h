@@ -13,7 +13,7 @@
 #include "base/signal.h"
 #include "shell/controlcenter/control_center_services.h"
 #include "shell/shell.h"
-#include "shell/statusbar/status_bar_panels.h"
+#include "shell/menubar/menu_bar_panels.h"
 
 namespace cutefish::ui {
 class Window;
@@ -26,14 +26,14 @@ class NotificationSettings;
 class PowerActions;
 class PowerDialog;
 class ShellWindow;
-class StatusBar;
+class MenuBar;
 class StatusPanelView;
 
-// The control centre and the status bar's Wi-Fi, Sound and
+// The control centre and the menu bar's Wi-Fi, Sound and
 // Battery panels, each a popup of the bar's window with the panels' glass,
-// and the power dialog the bar's menu and org.cutefish.Statusbar ask for.
+// and the power dialog the bar's menu and org.cutefish.MenuBar ask for.
 // Also tells the bar what its volume and Wi-Fi icons show.
-class ControlCenter : public Component, public StatusBarPanels, public StatusBarIndicators
+class ControlCenter : public Component, public MenuBarPanels, public MenuBarIndicators
 {
 public:
     // `powerActions` may be null (no power dialog).
@@ -41,16 +41,16 @@ public:
     ~ControlCenter() override;
 
     // The session's, on the bar's backend.
-    static std::unique_ptr<ControlCenter> create(Shell *shell, StatusBar &statusBar,
+    static std::unique_ptr<ControlCenter> create(Shell *shell, MenuBar &menuBar,
                                                  NotificationSettings *notifications);
 
-    // --- StatusBarPanels ---
+    // --- MenuBarPanels ---
     bool hasPanel(Panel panel) const override;
     void openPanel(Panel panel, ShellWindow *bar, const base::Rect &anchor) override;
     void closePanels() override;
     bool isOpen(Panel panel) const override;
 
-    // --- StatusBarIndicators ---
+    // --- MenuBarIndicators ---
     Audio audio() const override;
     Network network() const override;
 

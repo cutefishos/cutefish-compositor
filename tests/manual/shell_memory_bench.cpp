@@ -13,7 +13,7 @@
 //                               COMPONENT...
 //
 // Steps: the renderer with a wallpaper, the Shell, then each COMPONENT
-// (osd, dock, wallpaper, launcher, notifications) added and drawn for a
+// (osd, dock, wallpaper, launchpad, notifications) added and drawn for a
 // second, then each one used `--cycles` times, with the peak while it was
 // used, then idle as the compositor idles (a frame only when something asked
 // for one) up to each `--idle` mark, then Skia's GPU cache purged and the
@@ -71,8 +71,8 @@
 #include "scene/scene.h"
 #include "shell/dock/dock.h"
 #include "shell/dock/dock_window.h"
-#include "shell/launcher/launcher.h"
-#include "shell/launcher/launcher_window.h"
+#include "shell/launchpad/launchpad.h"
+#include "shell/launchpad/launchpad_window.h"
 #include "shell/notification/notification_ui.h"
 #include "shell/notification/notifications.h"
 #include "shell/osd/osd.h"
@@ -308,7 +308,7 @@ private:
     std::unique_ptr<render::EglRenderTarget> m_target;
 };
 
-// One output with a wallpaper and a status bar's reservation, rendered as
+// One output with a wallpaper and a menu bar's reservation, rendered as
 // the compositor renders it; the shell and its components come later.
 class Desktop
 {
@@ -326,7 +326,7 @@ public:
         m_input.setEventSink(&m_manager);
         m_manager.setFrameProvider(&m_frames);
         m_manager.setVisualStyle(m_theme.visualStyle());
-        m_manager.setExclusiveZone(&m_statusBar, wm::ScreenEdge::Top, 32);
+        m_manager.setExclusiveZone(&m_menuBar, wm::ScreenEdge::Top, 32);
         m_scene.root()->setChangeCallback([this] { m_dirty = true; });
         m_repaint = m_compositor.repaintNeeded.connect([this](bool) { m_dirty = true; });
 
@@ -521,7 +521,7 @@ private:
     uint64_t m_frame = 0;
     int m_sinceSample = 0;
     bool m_dirty = true;
-    int m_statusBar = 0;
+    int m_menuBar = 0;
     scene::Scene m_scene;
     scene::TextureNode *m_background =
             static_cast<scene::TextureNode *>(m_scene.root()->addChild(
@@ -593,7 +593,7 @@ struct DockServiceHolder : shell::Component {
     std::unique_ptr<shell::Dock> dock;
 };
 
-// The dock's service for the launcher: the dock component's when it was
+// The dock's service for the launchpad: the dock component's when it was
 // added, made here otherwise.
 shell::Dock *dockService(Desktop &desktop, base::dbus::Connection *bus)
 {
@@ -735,35 +735,35 @@ std::map<std::string, Component> components()
                     desktop.run(500);
                 }
             }};
-    static shell::LauncherWindow *launcher = nullptr;
-    all["launcher"] = {
+    static shell::LaunchpadWindow *launchpad = nullptr;
+    all["launchpad"] = {
             [](Desktop &desktop, base::dbus::Connection *bus) {
-                auto service = std::make_unique<shell::Launcher>(bus, desktop.shell()->tasks(),
-                                                                 desktop.shell()->launcher(),
-                                                                 dockService(desktop, bus), shellConf());
-                launcher = desktop.shell()->addComponent(std::make_unique<shell::LauncherWindow>(
+                auto service = std::make_unique<shell::Launchpad>(bus, desktop.shell()->tasks(),
+                                                                  desktop.shell()->launcher(),
+                                                                  dockService(desktop, bus), shellConf());
+                launchpad = desktop.shell()->addComponent(std::make_unique<shell::LaunchpadWindow>(
                         desktop.shell(), std::move(service), dockService(desktop, bus), wallpaper));
             },
             [](Desktop &desktop) {
-                launcher->launcher().show();
+                launchpad->launchpad().show();
                 desktop.run(1500);
-                launcher->launcher().hide();
+                launchpad->launchpad().hide();
                 desktop.run(1000);
             }};
-    // The launcher opened again, as it is and with its whole content
+    // The launchpad opened again, as it is and with its whole content
     // repainted first as a released texture would make it, then the texture
-    // creation that release adds; first frames in ms. Needs launcher.
-    all["launcher-reopen"] = {
+    // creation that release adds; first frames in ms. Needs launchpad.
+    all["launchpad-reopen"] = {
             [](Desktop &, base::dbus::Connection *) {},
             [](Desktop &desktop) {
                 const auto open = [&](bool repaint) {
                     if (repaint)
-                        launcher->window()->window()->contentView()->requestPaint();
-                    launcher->launcher().show();
+                        launchpad->window()->window()->contentView()->requestPaint();
+                    launchpad->launchpad().show();
                     const double first = desktop.timedFrame();
                     const double second = desktop.timedFrame();
                     desktop.run(1500);
-                    launcher->launcher().hide();
+                    launchpad->launchpad().hide();
                     desktop.run(1000);
                     return std::pair(first, second);
                 };
@@ -774,8 +774,8 @@ std::map<std::string, Component> components()
                                     repaint ? "repainted" : "kept", run, first, second);
                     }
                 }
-                const base::Size size(launcher->window()->size().width() * 3 / 2,
-                                      launcher->window()->size().height() * 3 / 2);
+                const base::Size size(launchpad->window()->size().width() * 3 / 2,
+                                      launchpad->window()->size().height() * 3 / 2);
                 for (int run = 0; run < 10; ++run)
                     std::printf("texture %dx%d creation run %d: %.2f ms\n", size.width(), size.height(), run,
                                 desktop.timeTextureCreation(size));

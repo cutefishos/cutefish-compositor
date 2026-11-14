@@ -13,13 +13,13 @@ namespace cutefish::shell {
 
 class NotificationSettings;
 class Shell;
-class StatusBar;
+class MenuBar;
 
 // The session's: NetworkManager and BlueZ on the system bus, PipeWire,
 // org.cutefish.Privacy's switches, the Appearance service, and the bar's
 // backend for MPRIS, brightness, battery and power profiles. `notifications`
 // may be null (no Do Not Disturb).
-std::unique_ptr<ControlCenterServices> createSessionServices(Shell *shell, StatusBar &statusBar,
+std::unique_ptr<ControlCenterServices> createSessionServices(Shell *shell, MenuBar &menuBar,
                                                              NotificationSettings *notifications);
 
 } // namespace cutefish::shell

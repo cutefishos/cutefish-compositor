@@ -1,0 +1,1378 @@
+// Copyright 2026 Reion Wong <reionwong@gmail.com>
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+#include "shell/launchpad/launchpad_view.h"
+
+#include <algorithm>
+#include <cmath>
+#include <set>
+
+#include "base/i18n.h"
+#include "core/main_loop.h"
+#include "shell/common/application_badges.h"
+#include "shell/launchpad/launchpad.h"
+#include "shell/launchpad/launchpad_cell.h"
+#include "shell/launchpad/launchpad_folder_view.h"
+#include "shell/launchpad/launchpad_page_indicator.h"
+#include "shell/launchpad/launchpad_search_field.h"
+#include "shell/launchpad/launchpad_wallpaper.h"
+#include "ui/application.h"
+#include "ui/drag.h"
+#include "ui/icon.h"
+#include "ui/keys.h"
+#include "ui/label.h"
+#include "ui/menu.h"
+#include "ui/painter.h"
+#include "ui/theme.h"
+#include "ui/window.h"
+
+namespace cutefish::shell {
+
+using Clock = std::chrono::steady_clock;
+using cutefish::i18n::tr;
+
+static const ui::Color kWhite {255, 255, 255, 255};
+// AllAppsView's highlightMoveDuration, and how long a slide or swap keeps
+// the wheel and the reorder dwell waiting by default.
+static constexpr std::chrono::milliseconds kSlideDuration {300};
+static constexpr std::chrono::milliseconds kSettleDuration {270};
+// Flickable's drag threshold, and the speed past which a released flick
+// turns the page rather than settling on the nearest one.
+static constexpr double kFlickThreshold = 10;
+static constexpr double kFlickVelocity = 400;
+
+static int jsRound(double value)
+{
+    return int(std::floor(value + 0.5));
+}
+
+// Centred: the parent's centre less half the size, that half
+// rounded, so a half pixel goes up and to the left.
+static double centred(double start, double extent, double size)
+{
+    return start + jsRound(extent / 2 - jsRound(size / 2));
+}
+
+// The count on an icon: an application's own, or the sum of a folder's
+// applications'.
+static int64_t badgeCount(const ApplicationBadges &badges, const LaunchpadModel &model, const std::string &id)
+{
+    if (!LaunchpadItem::isFolderId(id))
+        return badges.count(id);
+    int64_t count = 0;
+    if (const LaunchpadItem *folder = model.item(id)) {
+        for (const LaunchpadItem &child : folder->children)
+            count += badges.count(child.id);
+    }
+    return count;
+}
+
+// The name a new folder starts with, numbered past the folders that have it.
+static std::string newFolderName(const LaunchpadModel &model)
+{
+    std::set<std::string> names;
+    for (const LaunchpadItem &item : model.allItems()) {
+        if (item.isFolder())
+            names.insert(item.name);
+    }
+    const std::string base = tr("New Folder");
+    std::string name = base;
+    for (int number = 2; names.count(name); ++number)
+        name = base + ' ' + std::to_string(number);
+    return name;
+}
+
+// One page of the grid. It slides by its transform, so a page in motion is
+// drawn from its texture.
+class LaunchpadView::Page final : public ui::View
+{
+public:
+    Page() { setName("launchpad-page"); }
+};
+
+// Behind the pages: a click hides the launchpad, a drag pages as the
+// ListView's flick did.
+class LaunchpadView::Pages final : public ui::View
+{
+public:
+    explicit Pages(LaunchpadView *view)
+        : m_view(view)
+    {
+        setName("launchpad-pages");
+    }
+
+    bool acceptsPointer() const override { return true; }
+
+protected:
+    void pointerPress(const ui::PointerEvent &event) override
+    {
+        if (event.button == ui::MouseButton::Left)
+            m_view->backgroundPressed(mapToWindow(event.position));
+    }
+    void pointerMove(const ui::PointerEvent &event) override
+    {
+        m_view->backgroundMoved(mapToWindow(event.position));
+    }
+    void pointerRelease(const ui::PointerEvent &event) override
+    {
+        if (event.button == ui::MouseButton::Left)
+            m_view->backgroundReleased(mapToWindow(event.position));
+    }
+
+private:
+    LaunchpadView *m_view;
+};
+
+LaunchpadView::LaunchpadView(Launchpad &launchpad, LaunchpadWallpaper &wallpaper, ApplicationBadges &badges)
+    : m_launchpad(launchpad)
+    , m_wallpaper(wallpaper)
+    , m_badges(badges)
+    , m_wheelReset(core::mainLoop())
+    , m_searchTimer(core::mainLoop())
+    , m_reorderTimer(core::mainLoop())
+    , m_reorderAnimation(core::mainLoop())
+    , m_edgeTimer(core::mainLoop())
+    , m_preloadTimer(core::mainLoop())
+{
+    setName("launchpad");
+    m_pagesView = addChild<Pages>(this);
+    m_search = addChild<LaunchpadSearchField>();
+    m_notFound = addChild<ui::Label>(tr("Not found"));
+    m_notFound->setColor(kWhite);
+    m_notFound->setVisible(false);
+    m_indicator = addChild<LaunchpadPageIndicator>();
+    m_indicator->onPick = [this](int page) { goToPage(page); };
+    // Above everything else.
+    m_folder = addChild<LaunchpadFolderView>(this, m_launchpad.applications(), m_badges, m_wallpaper);
+
+    m_wheelReset.setSingleShot(true);
+    m_wheelReset.setInterval(std::chrono::milliseconds(250));
+    m_wheelReset.onTimeout = [this] { m_wheelAccumulated = 0; };
+    m_searchTimer.setSingleShot(true);
+    m_searchTimer.setInterval(std::chrono::milliseconds(150));
+    m_searchTimer.onTimeout = [this] { applySearch(m_search->text()); };
+    m_reorderTimer.setSingleShot(true);
+    // Passing through the grid on the way to the dock must not rearrange it.
+    m_reorderTimer.setInterval(std::chrono::milliseconds(450));
+    m_reorderTimer.onTimeout = [this] {
+        if (m_hoveredId.empty() || !m_reorderPending)
+            return;
+        // Wait out the previous swap's animation.
+        if (settling()) {
+            m_reorderTimer.start();
+            return;
+        }
+        m_reorderPending = false;
+        if (m_folder->isOpen()) {
+            if (const LaunchpadCell *hovered = m_folder->cell(m_hoveredId))
+                requestMove(hovered->index());
+            return;
+        }
+        const LaunchpadCell *hovered = cell(m_hoveredId);
+        if (hovered)
+            requestMove(hovered->page() * m_metrics.pageCount + hovered->index());
+    };
+    // Only a drag reorder slides the icons; this keeps them sliding a moment
+    // after a swap.
+    m_reorderAnimation.setSingleShot(true);
+    m_reorderAnimation.setInterval(std::chrono::milliseconds(400));
+    m_edgeTimer.setInterval(std::chrono::milliseconds(600));
+    m_edgeTimer.onTimeout = [this] {
+        if (m_folder->isOpen())
+            m_folder->goToPage(m_folder->currentPage() + m_edge);
+        else if (m_edge < 0)
+            scrollPreviousPage();
+        else if (m_edge > 0)
+            scrollNextPage();
+    };
+
+    // A burst of model changes asks once.
+    m_preloadTimer.setSingleShot(true);
+    m_preloadTimer.setInterval(std::chrono::milliseconds(0));
+    m_preloadTimer.onTimeout = [this] { preloadIcons(); };
+
+    m_search->onTextChanged = [this] { searchTextChanged(); };
+    m_search->onKey = [this](uint32_t key) { return searchKey(key); };
+
+    LaunchpadModel &model = m_launchpad.applications();
+    const auto changed = [this] { syncCells(); };
+    m_subscriptions.push_back(model.rowsInserted.connect([changed](int, int) { changed(); }));
+    m_subscriptions.push_back(model.rowsRemoved.connect([changed](int, int) { changed(); }));
+    m_subscriptions.push_back(model.rowMoved.connect([changed](int, int) { changed(); }));
+    m_subscriptions.push_back(model.dataChanged.connect([changed](int, int) { changed(); }));
+    m_subscriptions.push_back(model.modelReset.connect(changed));
+    m_subscriptions.push_back(m_wallpaper.changed.connect([this] {
+        updateBackdrop();
+        requestPaint();
+    }));
+    m_subscriptions.push_back(m_badges.changed.connect([this] {
+        for (const auto &[id, cell] : m_cells)
+            cell->setCount(badgeCount(m_badges, m_launchpad.applications(), id));
+        m_folder->sync();
+    }));
+    m_subscriptions.push_back(ui::Application::instance()->languageChanged.connect([this] { retranslate(); }));
+}
+
+LaunchpadView::~LaunchpadView()
+{
+    *m_alive = false;
+    m_subscriptions.clear();
+    m_menu.reset();
+    m_scroller.reset();
+}
+
+LaunchpadMetrics LaunchpadView::computeMetrics() const
+{
+    return LaunchpadMetrics::compute(base::Size(int(std::lround(geometry().width)),
+                                                int(std::lround(geometry().height))),
+                                    m_margins);
+}
+
+void LaunchpadView::setMargins(const LaunchpadMetrics::Margins &margins)
+{
+    if (margins == m_margins)
+        return;
+    m_margins = margins;
+    requestLayout();
+}
+
+void LaunchpadView::setShown(bool shown)
+{
+    if (shown == m_shown)
+        return;
+    m_shown = shown;
+    m_search->setAnimated(shown);
+    if (shown) {
+        preloadIcons();
+        setFocus();
+        return;
+    }
+    // Reset while hidden, synchronously: a hidden window renders no frames,
+    // so anything deferred would play on the next show.
+    if (m_menu)
+        m_menu->close();
+    stopSwipe();
+    m_slide.finish();
+    m_searchTimer.stop();
+    m_search->setText({});
+    applySearch({});
+    setSelectedIndex(-1);
+    m_backgroundPressed = false;
+    m_flicking = false;
+    endDrag();
+    m_folder->close();
+    for (const auto &[id, cell] : m_cells)
+        cell->finishMove();
+    setFocus();
+}
+
+bool LaunchpadView::acceptsFocus() const
+{
+    // A press elsewhere leaves the search field focused, so a click that
+    // dismisses the launchpad hides it as it was.
+    return !m_search->hasFieldFocus();
+}
+
+bool LaunchpadView::isSearching() const
+{
+    return !m_search->text().empty();
+}
+
+LaunchpadCell *LaunchpadView::cell(const std::string &id) const
+{
+    const auto it = m_cells.find(id);
+    return it != m_cells.end() ? it->second : nullptr;
+}
+
+LaunchpadCell *LaunchpadView::anyCell(const std::string &id) const
+{
+    if (LaunchpadCell *cell = this->cell(id))
+        return cell;
+    return m_folder->cell(id);
+}
+
+LaunchpadCell *LaunchpadView::cellAt(int row) const
+{
+    const auto &rows = m_launchpad.applications().rows();
+    if (row < 0 || row >= int(rows.size()))
+        return nullptr;
+    return cell(rows[size_t(row)].id);
+}
+
+ui::RectF LaunchpadView::cellRect(int row) const
+{
+    if (row < 0)
+        return {};
+    const base::Rect rect = m_metrics.cellRect(row % m_metrics.pageCount);
+    const double offset = pageX(row / m_metrics.pageCount) - m_contentX;
+    return {rect.x() + offset, double(rect.y()), double(rect.width()), double(rect.height())};
+}
+
+ui::Menu *LaunchpadView::menu() const
+{
+    return m_menu.get();
+}
+
+bool LaunchpadView::isMenuOpen() const
+{
+    return m_menu && m_menu->isOpen();
+}
+
+std::vector<ui::PointF> LaunchpadView::indicatorDots() const
+{
+    std::vector<ui::PointF> dots;
+    const ui::RectF bounds = m_indicator->geometry();
+    for (int i = 0; i < pageTotal(); ++i) {
+        const ui::RectF dot = m_indicator->dotRect(i);
+        dots.push_back({bounds.x + dot.x + dot.width / 2, bounds.y + dot.y + dot.height / 2});
+    }
+    return dots;
+}
+
+bool LaunchpadView::isNotFoundVisible() const
+{
+    return m_notFound->isVisible();
+}
+
+void LaunchpadView::layout()
+{
+    const LaunchpadMetrics metrics = computeMetrics();
+    const bool changed = !(metrics == m_metrics);
+    m_metrics = metrics;
+    m_pagesView->setGeometry(localRect());
+
+    const base::Rect row = m_metrics.searchRow;
+    m_search->setMetrics(m_metrics);
+    m_search->setGeometry({centred(row.x(), row.width(), m_metrics.searchFieldWidth),
+                           centred(row.y(), row.height(), m_metrics.searchFieldHeight),
+                           double(m_metrics.searchFieldWidth), double(m_metrics.searchFieldHeight)});
+
+    m_notFound->setFontSize(m_metrics.notFoundPixelSize);
+    const ui::SizeF notFound = m_notFound->sizeHint();
+    const base::Rect grid = m_metrics.gridArea;
+    m_notFound->setGeometry({centred(grid.x(), grid.width(), notFound.width),
+                             centred(grid.y(), grid.height(), notFound.height),
+                             notFound.width, notFound.height});
+
+    if (changed)
+        syncCells();
+    else
+        placePages();
+    m_folder->setGeometry(localRect());
+    m_folder->setMetrics(m_metrics);
+
+    m_indicator->setDotSize(m_metrics.indicatorDotSize);
+    const ui::SizeF indicator = m_indicator->implicitSize();
+    const base::Rect dots = m_metrics.indicatorRow;
+    m_indicator->setGeometry({centred(dots.x(), dots.width(), indicator.width),
+                              centred(dots.y(), dots.height(), indicator.height),
+                              indicator.width, indicator.height});
+}
+
+void LaunchpadView::paint(ui::Painter &painter)
+{
+    m_wallpaper.paint(painter, localRect());
+}
+
+void LaunchpadView::updateBackdrop()
+{
+    const ui::Color backdrop = m_wallpaper.backdropColor();
+    for (const auto &[id, cell] : m_cells)
+        cell->setBackdrop(backdrop);
+}
+
+// The cell menu is made when it opens: an open one closes. The search
+// stays.
+void LaunchpadView::retranslate()
+{
+    if (m_menu)
+        m_menu->close();
+    m_search->retranslate();
+    m_notFound->setText(tr("Not found"));
+    requestLayout();
+}
+
+void LaunchpadView::syncCells()
+{
+    m_preloadTimer.start();
+    if (geometry().width <= 0 || geometry().height <= 0)
+        return;
+    const LaunchpadModel &model = m_launchpad.applications();
+    const auto &rows = model.rows();
+    const bool animate = animatesReorder();
+
+    // Pages are added and removed one by one; their cells stay.
+    const int total = rows.empty() ? 0 : m_metrics.pagesFor(int(rows.size()));
+    while (int(m_pages.size()) < total) {
+        Page *page = m_pagesView->addChild<Page>();
+        page->setGeometry(localRect());
+        m_pages.push_back(page);
+    }
+
+    std::set<std::string> present;
+    const ui::Color backdrop = m_wallpaper.backdropColor();
+    for (size_t row = 0; row < rows.size(); ++row) {
+        const LaunchpadItem &item = rows[row];
+        present.insert(item.id);
+        const int pageIndex = int(row) / m_metrics.pageCount;
+        const int index = int(row) % m_metrics.pageCount;
+        Page *page = m_pages[size_t(pageIndex)];
+        LaunchpadCell *cell = this->cell(item.id);
+        bool samePage = false;
+        if (!cell) {
+            cell = page->addChild<LaunchpadCell>(this, item.id);
+            m_cells[item.id] = cell;
+        } else if (cell->parent() != page) {
+            // Across pages a cell is a new one there, as a delegate is.
+            cell->finishMove();
+            std::unique_ptr<ui::View> moved = cell->parent()->takeChild(cell);
+            page->addChild(std::move(moved));
+        } else {
+            samePage = cell->isVisible();
+        }
+        cell->setVisible(true);
+        cell->setItem(item);
+        cell->setCount(badgeCount(m_badges, model, item.id));
+        cell->setMetrics(m_metrics);
+        cell->setBackdrop(backdrop);
+        cell->setSlot(pageIndex, index);
+        cell->setDragging(item.id == m_draggedId);
+        const base::Rect rect = m_metrics.cellRect(index);
+        cell->moveTo({double(rect.x()), double(rect.y())}, animate && samePage);
+    }
+
+    // Cells of applications gone go on the next turn: one may be handling
+    // the press that removed it. Those a search leaves out only hide.
+    std::set<std::string> all;
+    for (const LaunchpadItem &item : model.allItems())
+        all.insert(item.id);
+    for (auto it = m_cells.begin(); it != m_cells.end();) {
+        if (present.count(it->first)) {
+            ++it;
+            continue;
+        }
+        LaunchpadCell *cell = it->second;
+        if (all.count(it->first)) {
+            cell->setVisible(false);
+            ++it;
+            continue;
+        }
+        retire(cell->parent()->takeChild(cell));
+        it = m_cells.erase(it);
+    }
+
+    while (int(m_pages.size()) > total) {
+        Page *page = m_pages.back();
+        m_pages.pop_back();
+        // Hidden cells move to the first page, which stays while any exist.
+        for (const auto &[id, cell] : m_cells) {
+            if (cell->parent() == page && !m_pages.empty())
+                m_pages.front()->addChild(page->takeChild(cell));
+        }
+        if (m_pages.empty()) {
+            for (const auto &[id, cell] : m_cells) {
+                if (cell->parent() == page)
+                    m_pagesView->addChild(page->takeChild(cell));
+            }
+        }
+        retire(m_pagesView->takeChild(page));
+    }
+    for (const auto &[id, cell] : m_cells) {
+        // Cells parked on the pages view while there are no pages go back to
+        // a page as soon as one exists.
+        if (cell->parent() == m_pagesView && !m_pages.empty())
+            m_pages.front()->addChild(m_pagesView->takeChild(cell));
+    }
+
+    syncPages();
+    if (m_selectedIndex >= int(rows.size()))
+        setSelectedIndex(int(rows.size()) - 1);
+    else
+        updateSelection();
+    m_notFound->setVisible(isSearching() && rows.empty());
+    m_folder->sync();
+    requestPaint();
+}
+
+bool LaunchpadView::animatesReorder() const
+{
+    return m_shown && (!m_draggedId.empty() || m_reorderAnimation.isActive());
+}
+
+void LaunchpadView::syncPages()
+{
+    // An explicit -1 marks the index as cleared, so the view never picks
+    // page 0 on its own.
+    if (pageTotal() > 0 && m_currentPage < 0) {
+        m_currentPage = 0;
+        setContentX(pageX(0));
+    } else {
+        clampCurrentPage();
+    }
+    if (pageTotal() == 0)
+        m_currentPage = -1;
+    m_indicator->setDotSize(m_metrics.indicatorDotSize);
+    m_indicator->setDots(pageTotal(), m_currentPage, m_shown);
+    const ui::SizeF size = m_indicator->implicitSize();
+    const base::Rect dots = m_metrics.indicatorRow;
+    m_indicator->setGeometry({centred(dots.x(), dots.width(), size.width),
+                              centred(dots.y(), dots.height(), size.height), size.width,
+                              size.height});
+    placePages();
+}
+
+void LaunchpadView::clampCurrentPage()
+{
+    if (pageTotal() == 0 || m_currentPage < pageTotal())
+        return;
+    m_slide.stop();
+    m_currentPage = pageTotal() - 1;
+    setContentX(pageX(m_currentPage));
+}
+
+double LaunchpadView::pageX(int page) const
+{
+    return page * geometry().width;
+}
+
+int LaunchpadView::nearestPage() const
+{
+    const double width = geometry().width;
+    if (width <= 0 || pageTotal() == 0)
+        return 0;
+    return std::clamp(int(std::lround(m_contentX / width)), 0, pageTotal() - 1);
+}
+
+void LaunchpadView::setContentX(double x)
+{
+    if (x == m_contentX)
+        return;
+    m_contentX = x;
+    placePages();
+}
+
+void LaunchpadView::placePages()
+{
+    const double width = geometry().width;
+    for (size_t i = 0; i < m_pages.size(); ++i) {
+        Page *page = m_pages[i];
+        page->setGeometry(localRect());
+        const double offset = std::round((pageX(int(i)) - m_contentX) * 64) / 64;
+        page->setVisible(std::abs(offset) < width);
+        page->setTransform({{offset, 0}, 1});
+    }
+}
+
+void LaunchpadView::startSettle(std::chrono::milliseconds duration)
+{
+    m_settleUntil = Clock::now() + duration;
+}
+
+bool LaunchpadView::settling() const
+{
+    return m_swiping || Clock::now() < m_settleUntil;
+}
+
+void LaunchpadView::slideTo(int page)
+{
+    m_slide.start(m_shown ? window() : nullptr, m_contentX, pageX(page), kSlideDuration, easing::inOutQuad,
+                  [this](double x) { setContentX(x); });
+}
+
+void LaunchpadView::goToPage(int page)
+{
+    stopSwipe();
+    if (page < 0 || page >= pageTotal() || page == m_currentPage)
+        return;
+    m_currentPage = page;
+    m_indicator->setDots(pageTotal(), m_currentPage, m_shown);
+    startSettle(kSlideDuration);
+    slideTo(page);
+}
+
+void LaunchpadView::scrollNextPage()
+{
+    goToPage(std::max(0, m_currentPage) + 1);
+}
+
+void LaunchpadView::scrollPreviousPage()
+{
+    goToPage(std::max(0, m_currentPage) - 1);
+}
+
+void LaunchpadView::jumpToPage(int page)
+{
+    stopSwipe();
+    if (pageTotal() == 0)
+        return;
+    m_slide.stop();
+    m_currentPage = std::clamp(page, 0, pageTotal() - 1);
+    setContentX(pageX(m_currentPage));
+    m_indicator->setDots(pageTotal(), m_currentPage, m_shown);
+}
+
+void LaunchpadView::stopSwipe()
+{
+    if (m_scroller)
+        m_scroller->cancel(false);
+    if (m_swiping)
+        settleSwipe(nearestPage());
+}
+
+void LaunchpadView::settleSwipe(int page)
+{
+    m_slide.stop();
+    setContentX(pageX(page));
+    m_currentPage = pageTotal() > 0 ? page : -1;
+    m_swiping = false;
+    m_indicator->setDots(pageTotal(), m_currentPage, m_shown);
+}
+
+ui::Scroller::Axis LaunchpadView::horizontalAxis() const
+{
+    const double width = geometry().width;
+    return {0, std::max(0, pageTotal() - 1) * width, width, pageTotal() > 0};
+}
+
+ui::Scroller::Axis LaunchpadView::verticalAxis() const
+{
+    return {};
+}
+
+ui::PointF LaunchpadView::position() const
+{
+    return {m_contentX, 0};
+}
+
+void LaunchpadView::applyPosition(ui::PointF position)
+{
+    setContentX(position.x);
+}
+
+void LaunchpadView::movingChanged(bool moving)
+{
+    if (moving) {
+        m_slide.stop();
+        m_swiping = true;
+    } else if (m_swiping) {
+        settleSwipe(nearestPage());
+    }
+}
+
+void LaunchpadView::setSelectedIndex(int index)
+{
+    if (index == m_selectedIndex)
+        return;
+    m_selectedIndex = index;
+    updateSelection();
+}
+
+void LaunchpadView::updateSelection()
+{
+    const auto &rows = m_launchpad.applications().rows();
+    const std::string selected = m_selectedIndex >= 0 && m_selectedIndex < int(rows.size())
+            ? rows[size_t(m_selectedIndex)].id
+            : std::string();
+    for (const auto &[id, cell] : m_cells)
+        cell->setSelected(id == selected);
+}
+
+void LaunchpadView::moveSelection(LaunchpadDirection direction)
+{
+    const int total = m_launchpad.applications().count();
+    const int next = moveLaunchpadSelection(m_selectedIndex, m_currentPage, total, m_metrics.columns,
+                                            m_metrics.pageCount, direction);
+    if (next < 0)
+        return;
+    setSelectedIndex(next);
+    goToPage(next / m_metrics.pageCount);
+}
+
+void LaunchpadView::launchSelected()
+{
+    flushSearch();
+    LaunchpadModel &model = m_launchpad.applications();
+    if (m_selectedIndex >= 0 && m_selectedIndex < model.count()
+        && model.rows()[size_t(m_selectedIndex)].isFolder())
+        openFolder(model.rows()[size_t(m_selectedIndex)].id);
+    else if (m_selectedIndex >= 0)
+        model.launchRow(m_selectedIndex);
+    else if (isSearching() && model.count() > 0)
+        model.launchRow(0);
+}
+
+void LaunchpadView::openFolder(const std::string &folder, bool editName)
+{
+    if (isSearching() || !m_launchpad.applications().item(folder))
+        return;
+    if (m_menu)
+        m_menu->close();
+    // The panel grows out of the folder's icon.
+    ui::RectF from;
+    const auto &rows = m_launchpad.applications().rows();
+    const auto row = std::find_if(rows.begin(), rows.end(),
+                                  [&folder](const LaunchpadItem &item) { return item.id == folder; });
+    if (const LaunchpadCell *cell = this->cell(folder); cell && row != rows.end()) {
+        const ui::RectF slot = cellRect(int(row - rows.begin()));
+        const ui::RectF icon = cell->iconRect();
+        from = {slot.x + icon.x, slot.y + icon.y, icon.width, icon.height};
+    }
+    m_folder->open(folder, m_shown, from);
+    if (editName)
+        m_folder->editName();
+    else
+        setFocus();
+}
+
+void LaunchpadView::closeFolder()
+{
+    m_folder->close();
+}
+
+void LaunchpadView::applySearch(const std::string &text)
+{
+    if (!text.empty())
+        closeFolder();
+    if (!text.empty() && m_pageBeforeSearch < 0)
+        m_pageBeforeSearch = std::max(0, m_currentPage);
+    m_launchpad.applications().search(text);
+    if (!text.empty()) {
+        jumpToPage(0);
+    } else if (m_pageBeforeSearch >= 0) {
+        jumpToPage(m_pageBeforeSearch);
+        m_pageBeforeSearch = -1;
+    }
+    setSelectedIndex(!text.empty() && m_launchpad.applications().count() > 0 ? 0 : -1);
+    m_notFound->setVisible(!text.empty() && m_launchpad.applications().count() == 0);
+}
+
+void LaunchpadView::flushSearch()
+{
+    // Keys typed within the debounce act on the filtered list, not the stale one.
+    if (!m_searchTimer.isActive())
+        return;
+    m_searchTimer.stop();
+    applySearch(m_search->text());
+}
+
+void LaunchpadView::searchTextChanged()
+{
+    // Search mode follows the text at once; the results after the debounce.
+    m_notFound->setVisible(isSearching() && m_launchpad.applications().count() == 0);
+    if (m_search->text().empty()) {
+        m_searchTimer.stop();
+        applySearch({});
+    } else {
+        m_searchTimer.start();
+    }
+}
+
+bool LaunchpadView::searchKey(uint32_t key)
+{
+    switch (key) {
+    case ui::key::Escape:
+        if (m_folder->isOpen())
+            m_folder->dismiss();
+        else
+            m_launchpad.hide();
+        return true;
+    case ui::key::Up:
+        flushSearch();
+        moveSelection(LaunchpadDirection::Up);
+        return true;
+    case ui::key::Down:
+        flushSearch();
+        moveSelection(LaunchpadDirection::Down);
+        return true;
+    case ui::key::Return:
+    case ui::key::KeypadEnter:
+        launchSelected();
+        return true;
+    default:
+        return false;
+    }
+}
+
+bool LaunchpadView::keyPress(const ui::KeyEvent &event)
+{
+    // An open folder closes on Escape; the arrows and Return, which would
+    // act on the grid behind it, do nothing.
+    if (m_folder->isOpen()) {
+        switch (event.key) {
+        case ui::key::Escape:
+            m_folder->dismiss();
+            return true;
+        case ui::key::Left:
+        case ui::key::Right:
+        case ui::key::Up:
+        case ui::key::Down:
+        case ui::key::Return:
+        case ui::key::KeypadEnter:
+            return true;
+        default:
+            break;
+        }
+    }
+    switch (event.key) {
+    case ui::key::Escape:
+        m_launchpad.hide();
+        return true;
+    case ui::key::Left:
+        moveSelection(LaunchpadDirection::Left);
+        return true;
+    case ui::key::Right:
+        moveSelection(LaunchpadDirection::Right);
+        return true;
+    case ui::key::Up:
+        moveSelection(LaunchpadDirection::Up);
+        return true;
+    case ui::key::Down:
+        moveSelection(LaunchpadDirection::Down);
+        return true;
+    case ui::key::Return:
+    case ui::key::KeypadEnter:
+        launchSelected();
+        return true;
+    default:
+        break;
+    }
+    // The first letter or digit starts a search. A shortcut such as Ctrl+A
+    // must not.
+    const uint32_t modifiers = event.modifiers & ~uint32_t(ui::ShiftModifier);
+    const uint32_t key = event.key;
+    const bool letter = (key >= 'a' && key <= 'z') || (key >= 'A' && key <= 'Z');
+    const bool digit = (key >= '0' && key <= '9') || (key >= 0xffb0 && key <= 0xffb9);
+    if (modifiers == 0 && !event.text.empty() && (letter || digit)) {
+        closeFolder();
+        m_search->focusField();
+        m_search->setText(event.text);
+        return true;
+    }
+    return false;
+}
+
+bool LaunchpadView::scroll(const ui::ScrollEvent &event)
+{
+    if (event.precise || event.stop) {
+        // Fingers page only sideways; up and down do nothing.
+        if (!m_scroller && window()) {
+            m_scroller = std::make_unique<ui::Scroller>(window(), static_cast<ui::Scroller::Target *>(this));
+            m_scroller->setPaged(true);
+        }
+        if (m_scroller && pageTotal() > 0)
+            m_scroller->handleScroll(event);
+        return true;
+    }
+    handleWheel(event);
+    return true;
+}
+
+void LaunchpadView::handleWheel(const ui::ScrollEvent &event)
+{
+    // Wheels count down as angleDelta counts up.
+    const double delta = event.value120Y != 0 ? -event.value120Y : -event.value120X;
+    if (delta == 0)
+        return;
+    m_wheelReset.start();
+    // Nothing pages until the slide has finished: the rest of a quick spin
+    // would otherwise flip the next page at once.
+    if (settling()) {
+        m_wheelAccumulated = 0;
+        return;
+    }
+    if ((m_wheelAccumulated > 0) != (delta > 0))
+        m_wheelAccumulated = 0;
+    m_wheelAccumulated += delta;
+    if (std::abs(m_wheelAccumulated) < 120)
+        return;
+    m_wheelAccumulated = 0;
+    if (delta > 0)
+        scrollPreviousPage();
+    else
+        scrollNextPage();
+}
+
+void LaunchpadView::backgroundPressed(ui::PointF position)
+{
+    m_backgroundPressed = true;
+    m_flicking = false;
+    m_pressPosition = position;
+    m_pressContentX = m_contentX;
+    m_flickSamples.clear();
+}
+
+void LaunchpadView::backgroundMoved(ui::PointF position)
+{
+    if (!m_backgroundPressed || pageTotal() == 0)
+        return;
+    const double dx = position.x - m_pressPosition.x;
+    if (!m_flicking) {
+        if (std::abs(dx) < kFlickThreshold)
+            return;
+        m_flicking = true;
+        stopSwipe();
+        m_slide.stop();
+        m_swiping = true;
+        m_pressContentX = m_contentX + dx;
+    }
+    // DragOverBounds: past either end the content follows at half the rate.
+    double x = m_pressContentX - dx;
+    const double maximum = pageX(pageTotal() - 1);
+    if (x < 0)
+        x /= 2;
+    else if (x > maximum)
+        x = maximum + (x - maximum) / 2;
+    setContentX(x);
+    const auto now = Clock::now();
+    m_flickSamples.push_back({now, position.x});
+    while (m_flickSamples.size() > 2 && now - m_flickSamples.front().first > std::chrono::milliseconds(100))
+        m_flickSamples.erase(m_flickSamples.begin());
+}
+
+void LaunchpadView::backgroundReleased(ui::PointF position)
+{
+    if (!m_backgroundPressed)
+        return;
+    m_backgroundPressed = false;
+    if (!m_flicking) {
+        // Anything that is not an icon, the search field or the dots dismisses.
+        dismissRequested();
+        return;
+    }
+    m_flicking = false;
+    double velocity = 0;
+    if (m_flickSamples.size() >= 2) {
+        const auto &[t0, x0] = m_flickSamples.front();
+        const double seconds = std::chrono::duration<double>(Clock::now() - t0).count();
+        if (seconds > 0)
+            velocity = (position.x - x0) / seconds;
+    }
+    // SnapOneItem: at most one page from where the press started.
+    int page = nearestPage();
+    const int from = std::clamp(int(std::lround(m_pressContentX / std::max(1.0, geometry().width))), 0,
+                                std::max(0, pageTotal() - 1));
+    if (std::abs(velocity) > kFlickVelocity)
+        page = std::clamp(velocity < 0 ? from + 1 : from - 1, 0, pageTotal() - 1);
+    page = std::clamp(page, from - 1, from + 1);
+    m_swiping = false;
+    m_currentPage = page;
+    m_indicator->setDots(pageTotal(), m_currentPage, m_shown);
+    startSettle(kSlideDuration);
+    slideTo(page);
+}
+
+void LaunchpadView::cellClicked(LaunchpadCell *cell, ui::MouseButton button, ui::PointF windowPosition)
+{
+    if (button == ui::MouseButton::Left && cell->isFolder())
+        openFolder(cell->id());
+    else if (button == ui::MouseButton::Left)
+        m_launchpad.applications().launch(cell->id());
+    else if (button == ui::MouseButton::Right)
+        openMenu(cell, windowPosition);
+}
+
+void LaunchpadView::openMenu(LaunchpadCell *cell, ui::PointF windowPosition)
+{
+    if (m_menu)
+        m_menu->close();
+    if (LaunchpadCell *previous = anyCell(m_menuId))
+        previous->setMenuOpen(false);
+    const std::string id = cell->id();
+    m_menuId = id;
+    auto menu = std::make_unique<ui::Menu>();
+    Launchpad &launchpad = m_launchpad;
+    LaunchpadModel &model = m_launchpad.applications();
+    // The menu belongs to the view, so its actions may capture it.
+    if (cell->isFolder()) {
+        menu->addItem(tr("Open"), [this, id] { openFolder(id); });
+        menu->addItem(tr("Rename"), [this, id] { openFolder(id, true); });
+        menu->addItem(tr("Ungroup"), [&model, id] { model.ungroupFolder(id); });
+    } else {
+        menu->addItem(tr("Open"), [&launchpad, id] { launchpad.applications().launch(id); });
+        // Folders change only outside a search.
+        if (!isSearching()) {
+            if (model.folderOf(id).empty()) {
+                menu->addItem(tr("New Folder"), [this, &model, id] {
+                    const std::string created = model.createFolder(id, newFolderName(model));
+                    if (!created.empty())
+                        openFolder(created, true);
+                });
+                std::vector<std::pair<std::string, std::string>> folders;
+                for (const LaunchpadItem &item : model.allItems()) {
+                    if (item.isFolder())
+                        folders.emplace_back(item.id, item.name);
+                }
+                if (!folders.empty()) {
+                    ui::Menu *moveTo = menu->addSubmenu(tr("Move to Folder"));
+                    for (const auto &[target, name] : folders)
+                        moveTo->addItem(name, [this, id, target] { merge(id, target); });
+                }
+            } else {
+                menu->addItem(tr("Remove from Folder"), [&model, id] { model.removeFromFolder(id); });
+            }
+        }
+        menu->addItem(tr("Send to Desktop"), [&launchpad, id] { launchpad.applications().sendToDesktop(id); });
+        const size_t sendToDock = menu->addItem(tr("Send to Dock"), [&launchpad, id] { launchpad.sendToDock(id); });
+        const size_t removeFromDock =
+                menu->addItem(tr("Remove from Dock"), [&launchpad, id] { launchpad.removeFromDock(id); });
+        const bool pinned = m_launchpad.isPinnedInDock(id);
+        menu->setItemVisible(sendToDock, !pinned);
+        menu->setItemVisible(removeFromDock, pinned);
+    }
+    std::weak_ptr<bool> alive = m_alive;
+    menu->onClosed = [this, alive, id] {
+        if (alive.expired())
+            return;
+        if (LaunchpadCell *cell = anyCell(id))
+            cell->setMenuOpen(false);
+        if (m_menuId == id)
+            m_menuId.clear();
+    };
+    if (m_availableGeometry)
+        menu->setAvailableGeometry(*m_availableGeometry);
+    m_menu = std::move(menu);
+    m_menu->popup(window(), windowPosition);
+    cell->setMenuOpen(m_menu->isOpen());
+}
+
+bool LaunchpadView::startCellDrag(LaunchpadCell *cell, ui::View *icon)
+{
+    if (isSearching() || !m_draggedId.empty())
+        return false;
+    ui::DragSource source;
+    source.mimeTypes = {kDesktopIdMimeType};
+    source.data = [id = cell->id()](const std::string &) { return id; };
+    source.actions = ui::MoveAction;
+    const double size = m_metrics.iconSize;
+    source.hotSpot = {size / 2, size / 2};
+    if (ui::Window *window = this->window()) {
+        // icon.grabToImage(): the icon as drawn, at the window's scale.
+        source.iconScale = window->scale();
+        source.icon = cell->dragImage(source.iconScale);
+    }
+    std::weak_ptr<bool> alive = m_alive;
+    source.onFinished = [this, alive](ui::DropAction action) {
+        if (alive.expired())
+            return;
+        // A drop applies its pending move a loop turn later, after this.
+        m_launchpad.applications().endReorder(action != ui::NoAction);
+        endDrag();
+    };
+    if (!icon->startDrag(std::move(source)))
+        return false;
+    m_launchpad.applications().beginReorder();
+    m_draggedId = cell->id();
+    cell->setDragging(true);
+    // Losing the activation to the drag must not hide the launchpad.
+    m_launchpad.setDragging(true);
+    return true;
+}
+
+void LaunchpadView::endDrag()
+{
+    m_reorderTimer.stop();
+    m_edgeTimer.stop();
+    m_edge = 0;
+    m_hoveredId.clear();
+    m_reorderPending = false;
+    setMergeTarget({});
+    // A folder the drag left stays up only while its cell is dragged.
+    if (m_folder->isDetached())
+        m_folder->close();
+    if (m_draggedId.empty())
+        return;
+    const std::string id = std::exchange(m_draggedId, {});
+    if (LaunchpadCell *cell = anyCell(id))
+        cell->setDragging(false);
+    m_launchpad.setDragging(false);
+}
+
+void LaunchpadView::requestMove(int to)
+{
+    // Captured now: the drag is over by the time a move asked for on drop
+    // gets to run.
+    m_pendingMoveId = m_draggedId;
+    m_pendingMoveTo = to;
+    m_pendingMoveFolder = m_folder->isOpen() ? m_folder->folder() : std::string();
+    std::weak_ptr<bool> alive = m_alive;
+    core::mainLoop()->post([this, alive] {
+        if (!alive.expired())
+            applyMove();
+    });
+}
+
+void LaunchpadView::applyMove()
+{
+    const std::string id = std::exchange(m_pendingMoveId, {});
+    const int to = std::exchange(m_pendingMoveTo, -1);
+    const std::string folder = std::exchange(m_pendingMoveFolder, {});
+    if (id.empty() || to < 0)
+        return;
+    LaunchpadModel &model = m_launchpad.applications();
+    int from = -1;
+    if (folder.empty()) {
+        from = model.findById(id);
+    } else if (const LaunchpadItem *item = model.item(folder)) {
+        const auto &children = item->children;
+        const auto found = std::find_if(children.begin(), children.end(),
+                                        [&id](const LaunchpadItem &child) { return child.id == id; });
+        if (found != children.end())
+            from = int(found - children.begin());
+    }
+    if (from < 0 || from == to)
+        return;
+    // In a folder as in the grid, the cells the move displaces slide.
+    startSettle(kSettleDuration);
+    m_reorderAnimation.start();
+    if (folder.empty())
+        model.move(from, to);
+    else
+        model.moveInFolder(folder, from, to);
+}
+
+void LaunchpadView::requestMerge()
+{
+    // As a move: after the drag has finished.
+    const std::string id = m_draggedId;
+    const std::string target = m_mergeTargetId;
+    std::weak_ptr<bool> alive = m_alive;
+    core::mainLoop()->post([this, alive, id, target] {
+        if (!alive.expired())
+            merge(id, target);
+    });
+}
+
+void LaunchpadView::merge(const std::string &id, const std::string &target)
+{
+    LaunchpadModel &model = m_launchpad.applications();
+    const LaunchpadItem *item = model.item(target);
+    const bool created = item && !item->isFolder();
+    const std::string folder = model.merge(id, target, newFolderName(model));
+    // The model's signals have made the folder's cell by now.
+    LaunchpadCell *cell = this->cell(folder);
+    if (cell && m_shown)
+        cell->playFolderAnimation(created);
+}
+
+bool LaunchpadView::canDrop(const ui::DropOffer &offer) const
+{
+    // The whole surface takes the drag, so the cursor never says "no drop"
+    // between the icons.
+    return offer.hasMimeType(kDesktopIdMimeType);
+}
+
+void LaunchpadView::dragEnter(const ui::DragEvent &event)
+{
+    updateDragTarget(event.position);
+}
+
+uint32_t LaunchpadView::dragUpdate(const ui::DragEvent &event)
+{
+    updateDragTarget(event.position);
+    return ui::MoveAction;
+}
+
+void LaunchpadView::dragLeave()
+{
+    setMergeTarget({});
+    m_reorderTimer.stop();
+    m_reorderPending = false;
+    m_hoveredId.clear();
+    m_edgeTimer.stop();
+    m_edge = 0;
+}
+
+uint32_t LaunchpadView::drop(const ui::DragEvent &event)
+{
+    updateDragTarget(event.position);
+    m_reorderTimer.stop();
+    m_edgeTimer.stop();
+    m_edge = 0;
+    if (!m_mergeTargetId.empty() && !m_draggedId.empty()) {
+        requestMerge();
+    } else if (m_reorderPending && !m_draggedId.empty()) {
+        // A swap rebinds the hovered slot, so moving again here would undo
+        // the dwell's move.
+        if (m_folder->isOpen()) {
+            if (const LaunchpadCell *hovered = m_folder->cell(m_hoveredId))
+                requestMove(hovered->index());
+        } else if (const LaunchpadCell *hovered = cell(m_hoveredId)) {
+            requestMove(hovered->page() * m_metrics.pageCount + hovered->index());
+        }
+    }
+    setMergeTarget({});
+    m_reorderPending = false;
+    m_hoveredId.clear();
+    return ui::MoveAction;
+}
+
+void LaunchpadView::setMergeTarget(const std::string &id)
+{
+    if (id == m_mergeTargetId)
+        return;
+    if (LaunchpadCell *previous = cell(m_mergeTargetId))
+        previous->setMergeTarget(false);
+    m_mergeTargetId = id;
+    if (LaunchpadCell *target = cell(id))
+        target->setMergeTarget(true);
+}
+
+void LaunchpadView::setHovered(const std::string &id)
+{
+    if (id == m_hoveredId)
+        return;
+    m_hoveredId = id;
+    m_reorderPending = !id.empty();
+    if (m_reorderPending)
+        m_reorderTimer.start();
+    else
+        m_reorderTimer.stop();
+}
+
+bool LaunchpadView::updateFolderDragTarget(ui::PointF position)
+{
+    if (!m_folder->isOpen())
+        return false;
+    LaunchpadModel &model = m_launchpad.applications();
+    const std::string folder = m_folder->folder();
+    if (m_folder->panelRect().contains(position)) {
+        // The panel's sides page the folder while the drag rests there.
+        const int edge = m_folder->edgeAt(position);
+        if (edge != m_edge) {
+            m_edge = edge;
+            if (edge)
+                m_edgeTimer.start();
+            else
+                m_edgeTimer.stop();
+        }
+        if (edge) {
+            setHovered({});
+            return true;
+        }
+        // Within the panel the drag reorders the folder's applications.
+        std::string hovered;
+        const int index = m_folder->indexAt(position);
+        const LaunchpadItem *item = model.item(folder);
+        if (index >= 0 && item && size_t(index) < item->children.size())
+            hovered = item->children[size_t(index)].id;
+        setHovered(hovered);
+        return true;
+    }
+    // Out of the panel, the application leaves its folder for the grid.
+    setHovered({});
+    if (!m_draggedId.empty() && model.folderOf(m_draggedId) == folder) {
+        m_folder->detach();
+        model.removeFromFolder(m_draggedId);
+    } else {
+        m_folder->close();
+    }
+    return false;
+}
+
+void LaunchpadView::updateDragTarget(ui::PointF position)
+{
+    if (updateFolderDragTarget(position))
+        return;
+
+    // The edge areas, above the cells, page every 600 ms while the drag
+    // rests in them.
+    int edge = 0;
+    bool inEdge = false;
+    if (m_shown && !isSearching() && pageTotal() > 1) {
+        const double extra = m_metrics.gridArea.width() * (1 - LaunchpadMetrics::kContentWidthRatio) / 2;
+        const double left = m_metrics.content.x() + extra;
+        const double right = geometry().width - (m_metrics.content.x() + m_metrics.content.width()) + extra;
+        if (position.x < left) {
+            inEdge = true;
+            edge = m_currentPage > 0 ? -1 : 0;
+        } else if (position.x >= geometry().width - right) {
+            inEdge = true;
+            edge = m_currentPage < pageTotal() - 1 ? 1 : 0;
+        }
+    }
+    if (edge != m_edge) {
+        m_edge = edge;
+        if (edge)
+            m_edgeTimer.start();
+        else
+            m_edgeTimer.stop();
+    }
+
+    // The cell under the drag, by its resting slot on the page shown, and
+    // the icon there a drop would make a folder with.
+    std::string hovered;
+    std::string mergeTarget;
+    if (!inEdge && !isSearching() && m_currentPage >= 0) {
+        const base::Rect grid = m_metrics.pageGrid();
+        const double x = position.x - (pageX(m_currentPage) - m_contentX);
+        if (x >= grid.x() && position.y >= grid.y() && x < grid.x() + grid.width()
+            && position.y < grid.y() + grid.height()) {
+            const int column = int((x - grid.x()) / m_metrics.cellWidth);
+            const int row = int((position.y - grid.y()) / m_metrics.cellHeight);
+            const int index = m_currentPage * m_metrics.pageCount + row * m_metrics.columns + column;
+            const auto &rows = m_launchpad.applications().rows();
+            if (column < m_metrics.columns && row < m_metrics.rows && index < int(rows.size()))
+                hovered = rows[size_t(index)].id;
+            // Only an application goes into a folder, and not onto itself.
+            if (!hovered.empty() && hovered != m_draggedId && !m_draggedId.empty()
+                && !LaunchpadItem::isFolderId(m_draggedId)) {
+                const base::Rect slot = m_metrics.cellRect(index % m_metrics.pageCount);
+                const ui::RectF icon = LaunchpadCell::iconRect(m_metrics);
+                if (icon.contains({x - slot.x(), position.y - slot.y()})) {
+                    mergeTarget = hovered;
+                    hovered.clear();
+                }
+            }
+        }
+    }
+    setMergeTarget(mergeTarget);
+    setHovered(hovered);
+}
+
+void LaunchpadView::preloadIcons()
+{
+    m_preloadTimer.stop();
+    ui::Window *window = this->window();
+    if (!window || window->size().width <= 0)
+        return;
+    // A page whose icons rasterise as it slides in stalls the slide, so the
+    // icons rasterise on the pool ahead of the first show and of every page.
+    const LaunchpadMetrics metrics = LaunchpadMetrics::compute(
+            base::Size(int(std::lround(window->size().width)), int(std::lround(window->size().height))),
+            m_margins);
+    std::vector<std::string> names;
+    for (const LaunchpadItem &item : m_launchpad.applications().allItems()) {
+        if (!item.isFolder())
+            names.push_back(item.iconName.empty() ? "application-x-desktop" : item.iconName);
+        for (const LaunchpadItem &child : item.children)
+            names.push_back(child.iconName.empty() ? "application-x-desktop" : child.iconName);
+    }
+    std::sort(names.begin(), names.end());
+    names.erase(std::unique(names.begin(), names.end()), names.end());
+    const std::string key = ui::Theme::current().iconTheme + "/" + std::to_string(metrics.iconSize) + "@"
+            + std::to_string(window->scale());
+    if (names.empty() || (names == m_preloadedNames && key == m_preloadedKey))
+        return;
+    m_preloadedNames = names;
+    m_preloadedKey = key;
+    std::weak_ptr<bool> alive = m_alive;
+    ui::preloadThemeIcons(std::move(names), metrics.iconSize, window->scale(), [this, alive] {
+        if (!alive.expired())
+            requestPaint();
+    });
+}
+
+void LaunchpadView::retire(std::unique_ptr<ui::View> view)
+{
+    if (!view)
+        return;
+    m_retired.push_back(std::move(view));
+    std::weak_ptr<bool> alive = m_alive;
+    core::mainLoop()->post([this, alive] {
+        if (!alive.expired())
+            m_retired.clear();
+    });
+}
+
+} // namespace cutefish::shell

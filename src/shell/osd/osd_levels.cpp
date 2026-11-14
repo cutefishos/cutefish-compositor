@@ -8,7 +8,7 @@
 #include "cutefish/audio/audio_object.h"
 #include "cutefish/audio/backend.h"
 #include "shell/osd/osd.h"
-#include "shell/statusbar/brightness.h"
+#include "shell/menubar/brightness.h"
 
 namespace cutefish::shell {
 

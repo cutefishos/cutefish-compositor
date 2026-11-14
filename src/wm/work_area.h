@@ -13,7 +13,7 @@
 
 namespace cutefish::wm {
 
-// Aggregates the work-area reservations of the shell's panels (the status bar,
+// Aggregates the work-area reservations of the shell's panels (the menu bar,
 // the dock). Keys are opaque tokens owned by the caller - the panel's window -
 // so a reservation can be dropped again when the panel that made it goes.
 class ExclusiveZones

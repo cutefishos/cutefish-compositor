@@ -180,7 +180,7 @@ public:
 
     ShowDesktopController *showDesktop() const { return m_showDesktop.get(); }
 
-    // The items applications draw in the status bar.
+    // The items applications draw in the menu bar.
     StatusItems *statusItems() const { return m_statusItems.get(); }
 
     ToplevelEventHandler *eventHandler() { return m_eventHandler.get(); }
@@ -370,7 +370,7 @@ public:
 
     // The chain of popups holding an explicit grab, outermost first. A pointer
     // press outside the chain dismisses all of it and is not delivered, except
-    // on the status bar the chain hangs from (see isPopupGrabMenuBar()). The
+    // on the menu bar the chain hangs from (see isPopupGrabMenuBar()). The
     // chain belongs to one client, or to the shell: a grab from anyone else
     // dismisses it first.
     void pushPopupGrab(ShellSurface *popup);
@@ -424,7 +424,7 @@ public:
 
     // Where normal and maximized windows are laid out: the output bounds minus
     // what the shell's panels reserved. A shell window is never confined to it
-    // - the launcher covers the whole screen - so this is the output bounds for
+    // - the launchpad covers the whole screen - so this is the output bounds for
     // those.
     base::Rect workAreaFor(const Window *window) const;
     // The same for `window` once it is at `bounds`, which may be on another output.
@@ -540,7 +540,7 @@ private:
     bool isInsidePopupGrabChain(compositor::Surface *surface) const;
     // The window the outermost grabbing popup hangs from.
     Window *popupGrabRoot() const;
-    // The status bar the grabbing popups hang from, unless they hang from a
+    // The menu bar the grabbing popups hang from, unless they hang from a
     // status item in it. It switches between its panels and menus, or closes
     // them, itself, as a menu bar does.
     bool isPopupGrabMenuBar(const Window *window) const;
@@ -551,7 +551,7 @@ private:
     // the bar a client's status item popups hang from.
     bool pressReachesPopupGrabRoot(const Window *target) const;
     // While grabbing popups hang from a window that never takes the keyboard,
-    // the status bar or the dock, that window borrows it, as Ash reroutes keys
+    // the menu bar or the dock, that window borrows it, as Ash reroutes keys
     // to a tray bubble: the client hands them to its popups, and the
     // application keeps activation.
     void updatePopupKeyboard();

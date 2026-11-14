@@ -186,7 +186,7 @@ RUNTIME_DIR="$WORKDIR/runtime"
 COMPOSITOR_LOG="$WORKDIR/compositor.log"
 CLIENT_LOG="$WORKDIR/client.log"
 PID_FILE="$WORKDIR/compositor.pid"
-LAUNCHER="$WORKDIR/launch.sh"
+LAUNCHPAD="$WORKDIR/launch.sh"
 
 # 0700 keeps libwayland from complaining; root can still create the socket here.
 mkdir -p "$RUNTIME_DIR"
@@ -316,13 +316,13 @@ QT_RULES=""
         printf ' %s' "$(printf '%q' "$arg")"
     done
     printf '\n'
-} > "$LAUNCHER"
-chmod 0755 "$LAUNCHER"
+} > "$LAUNCHPAD"
+chmod 0755 "$LAUNCHPAD"
 
 info "starting the compositor on VT $VT"
 # No --force: openvt refuses a VT that is already allocated, which is one more
 # guard against landing on someone else's terminal.
-if ! sudo -n openvt -c "$VT" -s -- "$LAUNCHER"; then
+if ! sudo -n openvt -c "$VT" -s -- "$LAUNCHPAD"; then
     die "openvt failed to start the compositor on VT $VT"
 fi
 

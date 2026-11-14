@@ -12,7 +12,7 @@
 
 namespace cutefish::scene {
 
-// The status bar gradient's stops along a smoothstep, linear between them.
+// The menu bar gradient's stops along a smoothstep, linear between them.
 static double gradientStrength(double position)
 {
     static constexpr double kStops[] = {1.0, 0.896, 0.648, 0.352, 0.104, 0.0};

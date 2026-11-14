@@ -26,13 +26,13 @@ namespace cutefish::accelerators {
 namespace {
 
 bool canHandleToggleAppList(const Accelerator &accelerator,
-                            const AcceleratorLauncherStateMachine &launcherStateMachine)
+                            const AcceleratorLaunchpadStateMachine &launchpadStateMachine)
 {
     // Meta on its own goes through the state machine; a combination that
-    // happens to be bound to the launcher does not.
+    // happens to be bound to the launchpad does not.
     if (accelerator.keysym() != XKB_KEY_Super_L && accelerator.keysym() != XKB_KEY_Super_R)
         return true;
-    return launcherStateMachine.canHandleLauncher();
+    return launchpadStateMachine.canHandleLaunchpad();
 }
 
 } // namespace
@@ -40,7 +40,7 @@ bool canHandleToggleAppList(const Accelerator &accelerator,
 AcceleratorController::AcceleratorController(AcceleratorConfiguration *configuration,
                                              const CommandContext &context,
                                              std::function<bool()> anyKeysPressed)
-    : m_launcherStateMachine(std::move(anyKeysPressed))
+    : m_launchpadStateMachine(std::move(anyKeysPressed))
     , m_configuration(configuration)
     , m_context(context)
 {
@@ -160,7 +160,7 @@ bool AcceleratorController::canPerformAction(AcceleratorAction action,
     case AcceleratorAction::MoveActiveWindowBetweenDisplays:
         return commands::canMoveActiveWindowBetweenDisplays(m_context);
     case AcceleratorAction::ToggleAppList:
-        return canHandleToggleAppList(accelerator, m_launcherStateMachine);
+        return canHandleToggleAppList(accelerator, m_launchpadStateMachine);
     case AcceleratorAction::WindowCycleSnapLeft:
     case AcceleratorAction::WindowCycleSnapRight:
         return commands::canWindowSnap(m_context);

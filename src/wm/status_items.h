@@ -28,7 +28,7 @@ class ShellSurface;
 class StatusItems;
 class WindowManager;
 
-// A surface an application draws in the status bar, as exo's notification
+// A surface an application draws in the menu bar, as exo's notification
 // surfaces are client surfaces Ash's message centre embeds in its views. The
 // bar gives it a place in its row; while placed, the surface is a
 // synchronized subsurface of the bar's own surface, so the seat targets it,

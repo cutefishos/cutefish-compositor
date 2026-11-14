@@ -45,7 +45,7 @@ WindowVisualController::evaluate(const Window &window, const decoration::WindowV
     // A sheet is a dialog: clipped and outlined like an application window.
     if (window.isPopup()
         || (window.role() != WindowRole::Normal && window.role() != WindowRole::Sheet)) {
-        // The status bar has no body: its blur is only behind the plate of an item.
+        // The menu bar has no body: its blur is only behind the plate of an item.
         if (!window.isPopup() && window.role() == WindowRole::Panel)
             return state;
         // Menus and shell panels describe their rounded body through the blur request.

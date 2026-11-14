@@ -1652,10 +1652,10 @@ TEST(WindowAnimation, ResizeWaitKeepsInterruptedOpeningOpacity)
     EXPECT_FLOAT_EQ(renderer.calls.back().alpha, previous.alpha);
 }
 
-TEST(WindowAnimation, LauncherFadesThroughASlightZoomAndLandsSoftly)
+TEST(WindowAnimation, LaunchpadFadesThroughASlightZoomAndLandsSoftly)
 {
     const base::RectF screen(0, 0, 1000, 800), zoomed(-25, -20, 1050, 840);
-    const auto style = Animation::Style::Launcher;
+    const auto style = Animation::Style::Launchpad;
     EXPECT_EQ(Animation::duration(Type::Open, screen, screen, style), 360);
     EXPECT_EQ(Animation::duration(Type::Close, screen, screen, style), 160);
     for (const auto type : {Type::Open, Type::Close}) {
@@ -1690,13 +1690,13 @@ TEST(WindowAnimation, LauncherFadesThroughASlightZoomAndLandsSoftly)
 
 // A hide is drawn as it arrives, between refreshes; each refresh after it must
 // still take the same share of the fade, down to the last one.
-TEST(WindowAnimation, LauncherCloseFadesInEvenRefreshSteps)
+TEST(WindowAnimation, LaunchpadCloseFadesInEvenRefreshSteps)
 {
     const base::Rect screen(0, 0, 1000, 800);
     scene::Scene scene;
     SnapshotRenderer renderer;
     auto *node = static_cast<Animation *>(scene.root()->addChild(std::make_unique<Animation>()));
-    node->setStyle(Animation::Style::Launcher);
+    node->setStyle(Animation::Style::Launchpad);
     node->setGeometry(screen);
     node->finish();
     scene.render(renderer);
@@ -1846,7 +1846,7 @@ TEST(WindowAnimation, StyleNoneShowsAndRemovesWithoutAnimating)
     EXPECT_TRUE(scene.root()->children().empty());
 }
 
-TEST(WindowAnimation, ReopeningALauncherReversesItsCloseWithoutStackingFades)
+TEST(WindowAnimation, ReopeningALaunchpadReversesItsCloseWithoutStackingFades)
 {
     int64_t now = 0;
     scene::Scene scene;
@@ -1857,7 +1857,7 @@ TEST(WindowAnimation, ReopeningALauncherReversesItsCloseWithoutStackingFades)
     const base::Rect screen(0, 0, 1000, 800);
     auto *closing =
             static_cast<Animation *>(scene.root()->addChild(std::make_unique<Animation>(clock)));
-    closing->setStyle(Animation::Style::Launcher);
+    closing->setStyle(Animation::Style::Launchpad);
     closing->setGeometry(screen);
     closing->finish();
     scene.render(renderer);
@@ -1872,12 +1872,12 @@ TEST(WindowAnimation, ReopeningALauncherReversesItsCloseWithoutStackingFades)
     auto *opening =
             static_cast<Animation *>(scene.root()->addChild(std::make_unique<Animation>(clock)));
     opening->setGeometry(screen);
-    opening->setStyle(Animation::Style::Launcher);
+    opening->setStyle(Animation::Style::Launchpad);
     renderer.calls.clear();
     scene.render(renderer);
     ASSERT_EQ(scene.root()->children().size(), 1u);
     EXPECT_EQ(scene.root()->children().front(), opening);
-    // Only the new launcher draws: the one it took over never overlaps it.
+    // Only the new launchpad draws: the one it took over never overlaps it.
     EXPECT_EQ(std::count_if(renderer.calls.begin(), renderer.calls.end(),
                             [](const auto &call) {
                                 return call.texture;
@@ -1890,7 +1890,7 @@ TEST(WindowAnimation, ReopeningALauncherReversesItsCloseWithoutStackingFades)
     EXPECT_FLOAT_EQ(renderer.calls.back().alpha, 1);
 }
 
-TEST(WindowAnimation, ALauncherKeepsWhatLiesUnderItWhileItAnimates)
+TEST(WindowAnimation, ALaunchpadKeepsWhatLiesUnderItWhileItAnimates)
 {
     int64_t now = 0;
     scene::Scene scene;
@@ -1902,34 +1902,34 @@ TEST(WindowAnimation, ALauncherKeepsWhatLiesUnderItWhileItAnimates)
     auto *desktop = static_cast<scene::ColorNode *>(surfaces->addChild(
             std::make_unique<scene::ColorNode>(render::Color {.2f, .3f, .4f, 1})));
     desktop->setGeometry(screen);
-    auto *launcher = static_cast<Animation *>(surfaces->addChild(
+    auto *launchpad = static_cast<Animation *>(surfaces->addChild(
             std::make_unique<Animation>([&] { return now; })));
-    launcher->setStyle(Animation::Style::Launcher);
-    launcher->setGeometry(screen);
+    launchpad->setStyle(Animation::Style::Launchpad);
+    launchpad->setGeometry(screen);
     const auto fills = [&] {
         return countKind(renderer, "fill");
     };
 
     scene.render(renderer);
     EXPECT_EQ(fills(), 1);
-    // Drawn from the texture while nothing under the launcher changes.
+    // Drawn from the texture while nothing under the launchpad changes.
     for (now = 40; now < 200; now += 40) {
         renderer.calls.clear();
         scene.render(renderer);
         EXPECT_EQ(fills(), 0);
         EXPECT_GE(countKind(renderer, "texture"), 1);
     }
-    // Opening, what changes under it waits: the launcher covers it by its end.
+    // Opening, what changes under it waits: the launchpad covers it by its end.
     auto *window = static_cast<scene::ColorNode *>(surfaces->addChild(
             std::make_unique<scene::ColorNode>(render::Color {1, 1, 1, 1})));
     window->setGeometry({100, 100, 200, 100});
-    surfaces->reorderChildren({desktop, window, launcher});
+    surfaces->reorderChildren({desktop, window, launchpad});
     renderer.calls.clear();
     scene.render(renderer);
     EXPECT_EQ(fills(), 0);
 
     // Closing, it catches up, drawing only the part that changed.
-    launcher->close();
+    launchpad->close();
     renderer.calls.clear();
     renderer.repaintRects.clear();
     scene.render(renderer);

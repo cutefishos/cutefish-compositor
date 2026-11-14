@@ -36,7 +36,7 @@ class Shell;
 class ShellWindow;
 
 // The notification centre: the history in a
-// 380 px popup of the status bar on PanelGlass, from 6 below the work
+// 380 px popup of the menu bar on PanelGlass, from 6 below the work
 // area's top to 6 above its bottom, under the item that opened it or 6 from
 // the output's right edge. Each application's notifications stack behind
 // its newest; a click fans the stack out under a header with "Show Less"
@@ -65,7 +65,7 @@ public:
     NotificationCentre(const NotificationCentre &) = delete;
     NotificationCentre &operator=(const NotificationCentre &) = delete;
 
-    // Opens as a popup of `parent`, the status bar on its output, with its
+    // Opens as a popup of `parent`, the menu bar on its output, with its
     // left edge at `position.x` (global logical: the opening item's left
     // inset), moved in to 6 px from the
     // output's right edge where it would not fit.
@@ -74,7 +74,7 @@ public:
     // Opens, or closes when open.
     void toggle(ShellWindow *parent, const base::Point &position);
     bool isOpen() const { return m_open; }
-    // Opened or closed: the status bar's clock item is checked while open.
+    // Opened or closed: the menu bar's clock item is checked while open.
     base::Signal<> openChanged;
 
     // Where it is, global logical, while open.

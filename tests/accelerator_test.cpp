@@ -4,7 +4,7 @@
 
 // Keyboard shortcuts. Behaviour modelled on chromium/src/ash/accelerators
 // (accelerator_controller_unittest.cc, ash_accelerator_configuration_unittest.cc,
-// accelerator_launcher_state_machine_unittest.cc, accelerator_history_unittest.cc)
+// accelerator_launchpad_state_machine_unittest.cc, accelerator_history_unittest.cc)
 // and ash/wm/window_cycle/window_cycle_controller_unittest.cc, rewritten
 // against the Cutefish abstractions. No DRM, no GL, no Wayland client.
 
@@ -24,7 +24,7 @@
 #include "accelerators/accelerator_delegate.h"
 #include "accelerators/accelerator_filter.h"
 #include "accelerators/accelerator_history.h"
-#include "accelerators/accelerator_launcher_state_machine.h"
+#include "accelerators/accelerator_launchpad_state_machine.h"
 #include "accelerators/accelerator_manager.h"
 #include "accelerators/accelerator_map.h"
 #include "accelerators/accelerator_service.h"
@@ -536,7 +536,7 @@ TEST(AcceleratorConfiguration, EachConventionKeepsItsOwnOverrides)
     input_test::TemporaryDirectory directory;
     const std::string file = directory.filePath("compositor.conf");
     const auto maximize = toActionId(AcceleratorAction::ToggleMaximized);
-    const auto launcher = toActionId(AcceleratorAction::ToggleAppList);
+    const auto launchpad = toActionId(AcceleratorAction::ToggleAppList);
     const Accelerator pcBinding(XKB_KEY_k, MetaDown | ControlDown);
     const Accelerator commandBinding(XKB_KEY_space, MetaDown);
 
@@ -551,7 +551,7 @@ TEST(AcceleratorConfiguration, EachConventionKeepsItsOwnOverrides)
     EXPECT_FALSE(configuration.findAcceleratorAction(pcBinding));
     EXPECT_FALSE(configuration.hasCustomAccelerators());
     ASSERT_EQ(AcceleratorConfigResult::Success,
-              configuration.addUserAccelerator(launcher, commandBinding));
+              configuration.addUserAccelerator(launchpad, commandBinding));
     EXPECT_EQ(AcceleratorAction::ToggleAppList,
               *configuration.findAcceleratorAction(commandBinding));
 
@@ -593,7 +593,7 @@ TEST(AcceleratorConfiguration, MalformedOverridesAreDropped)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// AcceleratorHistory and the launcher state machine
+// AcceleratorHistory and the launchpad state machine
 
 TEST(AcceleratorHistory, TracksCurrentAndPreviousWithoutDoubleCountingHeldKeys)
 {
@@ -611,13 +611,13 @@ TEST(AcceleratorHistory, TracksCurrentAndPreviousWithoutDoubleCountingHeldKeys)
     EXPECT_EQ(1u, history.currentlyPressedKeys().size());
 }
 
-TEST(AcceleratorLauncherStateMachine, OnlyALoneMetaTapTriggers)
+TEST(AcceleratorLaunchpadStateMachine, OnlyALoneMetaTapTriggers)
 {
     int pressed = 0;
-    AcceleratorLauncherStateMachine machine([&pressed] {
+    AcceleratorLaunchpadStateMachine machine([&pressed] {
         return pressed > 0;
     });
-    using State = AcceleratorLauncherStateMachine::LauncherState;
+    using State = AcceleratorLaunchpadStateMachine::LaunchpadState;
 
     ++pressed;
     machine.onKey(XKB_KEY_Super_L, true);
@@ -625,9 +625,9 @@ TEST(AcceleratorLauncherStateMachine, OnlyALoneMetaTapTriggers)
     --pressed;
     machine.onKey(XKB_KEY_Super_L, false);
     EXPECT_EQ(State::Trigger, machine.currentState());
-    EXPECT_TRUE(machine.canHandleLauncher());
+    EXPECT_TRUE(machine.canHandleLaunchpad());
 
-    // Meta+L is not a launcher tap.
+    // Meta+L is not a launchpad tap.
     ++pressed;
     machine.onKey(XKB_KEY_Super_L, true);
     ++pressed;
@@ -639,7 +639,7 @@ TEST(AcceleratorLauncherStateMachine, OnlyALoneMetaTapTriggers)
     --pressed;
     machine.onKey(XKB_KEY_Super_L, false);
     EXPECT_EQ(State::Start, machine.currentState());
-    EXPECT_FALSE(machine.canHandleLauncher());
+    EXPECT_FALSE(machine.canHandleLaunchpad());
 
     // A click while Meta is held suppresses the release.
     ++pressed;
@@ -648,13 +648,13 @@ TEST(AcceleratorLauncherStateMachine, OnlyALoneMetaTapTriggers)
     machine.onPointerButton(false);
     --pressed;
     machine.onKey(XKB_KEY_Super_L, false);
-    EXPECT_FALSE(machine.canHandleLauncher());
+    EXPECT_FALSE(machine.canHandleLaunchpad());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // Controller and filter, end to end from physical keys
 
-TEST_F(AcceleratorTest, ALoneMetaOpensTheLauncherAndMetaChordsDoNot)
+TEST_F(AcceleratorTest, ALoneMetaOpensTheLaunchpadAndMetaChordsDoNot)
 {
     wm::Window *window = makeWindow(base::Rect(100, 100, 300, 200));
     manager.activation()->activate(window);
@@ -662,7 +662,7 @@ TEST_F(AcceleratorTest, ALoneMetaOpensTheLauncherAndMetaChordsDoNot)
     RecordingKeyboardDelegate *keyboardDelegate = delegateOwner.get();
     input::Keyboard keyboard(std::move(delegateOwner), &seat);
 
-    // Ash's default: the launcher on Meta's release, the key still reaching
+    // Ash's default: the launchpad on Meta's release, the key still reaching
     // the window.
     tap(KEY_LEFTMETA);
     EXPECT_EQ(1, delegate.appListToggles);
@@ -969,7 +969,7 @@ TEST_F(AcceleratorTest, ThePcConventionTakesEveryKeyboardAsItIs)
     input::Keyboard keyboard(std::move(delegateOwner), &seat);
 
     // An Apple keyboard's Command is Meta, as on any Linux desktop: a lone tap
-    // opens the launcher and the client sees Meta.
+    // opens the launchpad and the client sees Meta.
     input.onKey(at(++time), KEY_LEFTMETA, true, input::KeyboardModifierLayout::Apple);
     input.onKey(at(++time), KEY_LEFTMETA, false, input::KeyboardModifierLayout::Apple);
     EXPECT_EQ(1, delegate.appListToggles);
@@ -1057,7 +1057,7 @@ TEST_F(AcceleratorTest, UnderTheCommandConventionApplicationsGetCommandAsCtrl)
             {KEY_LEFTCTRL, true}, {KEY_C, true}, {KEY_C, false}, {KEY_LEFTCTRL, false}};
     EXPECT_EQ(expected, keyboardDelegate->keys);
 
-    // The launcher has no default here; Command+Space is the application's.
+    // The launchpad has no default here; Command+Space is the application's.
     keyboardDelegate->keys.clear();
     chord({KEY_LEFTALT}, KEY_SPACE);
     EXPECT_EQ(0, delegate.appListToggles);
@@ -1803,11 +1803,11 @@ TEST_F(AcceleratorTest, ServiceValidatesConfirmsAndReportsConflicts)
     // Control+Command is clear of it.
     seat.setShortcutConvention(input::ShortcutConvention::Command);
     configuration->setConvention(input::ShortcutConvention::Command);
-    const std::string launcher = "toggle-app-list";
-    answer = parse(service.addAccelerator(launcher, KEY_K, 0, MetaDown));
+    const std::string launchpad = "toggle-app-list";
+    answer = parse(service.addAccelerator(launchpad, KEY_K, 0, MetaDown));
     EXPECT_EQ("non-meta-accelerator-warning",
               answer["result"].toString());
-    answer = parse(service.addAccelerator(launcher, KEY_K, 0, ControlDown | MetaDown));
+    answer = parse(service.addAccelerator(launchpad, KEY_K, 0, ControlDown | MetaDown));
     EXPECT_EQ("success", answer["result"].toString());
     seat.setShortcutConvention(input::ShortcutConvention::Pc);
     configuration->setConvention(input::ShortcutConvention::Pc);
@@ -1845,7 +1845,7 @@ TEST_F(AcceleratorTest, ServiceValidatesConfirmsAndReportsConflicts)
     chord({KEY_LEFTMETA}, KEY_SPACE);
     EXPECT_EQ(1, delegate.appListToggles);
 
-    // The launcher's default is Ash's lone Meta tap: it fires on release, only
+    // The launchpad's default is Ash's lone Meta tap: it fires on release, only
     // when nothing else was pressed meanwhile, and the client still sees both
     // halves of the key.
     const Accelerator metaTap(XKB_KEY_Super_L, NoModifier, Accelerator::KeyState::Released);

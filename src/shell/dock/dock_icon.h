@@ -48,7 +48,7 @@ public:
     uint64_t windowId() const { return m_windowId; }
     void setWindowId(uint64_t id) { m_windowId = id; }
 
-    // A theme icon's name, or an SVG file for the launcher.
+    // A theme icon's name, or an SVG file for the launchpad.
     void setIcon(std::string name, bool file = false);
     const std::string &iconName() const { return m_iconName; }
     void setToolTip(std::string text) { m_toolTip = std::move(text); }
@@ -153,7 +153,7 @@ private:
     bool m_iconIsFile = false;
     std::string m_toolTip;
     bool m_running = false;
-    // The icon: a theme icon, or the launcher's artwork.
+    // The icon: a theme icon, or the launchpad's artwork.
     ui::ThemeIcon *m_themeFace = nullptr;
     SvgFace *m_svgFace = nullptr;
     // The pressed look: the icon's silhouette in black at 0.4 over it.

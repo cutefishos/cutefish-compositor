@@ -46,7 +46,7 @@ input::Timestamp at(int ms)
 }
 
 const base::Rect kOutput(0, 0, 1440, 960);
-constexpr int kStatusBar = 32;
+constexpr int kMenuBar = 32;
 
 std::shared_ptr<clipboard::StoredSource> textSource(const std::string &text)
 {
@@ -90,7 +90,7 @@ protected:
     std::unique_ptr<shell::Shell> shell;
     std::vector<std::unique_ptr<compositor::Surface>> surfaces;
     std::shared_ptr<compositor::ShmPool> pool = testsupport::makePool(1 << 22);
-    int statusBar = 0;
+    int menuBar = 0;
     wm::Window *application = nullptr;
     shell::ClipboardPicker *picker = nullptr;
     int ms = 0;
@@ -99,7 +99,7 @@ protected:
     {
         scene.setSize(kOutput.size());
         manager.setOutputBounds(kOutput);
-        manager.setExclusiveZone(&statusBar, wm::ScreenEdge::Top, kStatusBar);
+        manager.setExclusiveZone(&menuBar, wm::ScreenEdge::Top, kMenuBar);
         input.setBounds(kOutput.size());
         input.setEventSink(&manager);
         shell::ShellEnvironment environment {&compositor, &manager, &seat};
@@ -189,7 +189,7 @@ TEST_F(ClipboardPickerTest, OpensCentredInTheWorkAreaBorrowingTheKeyboard)
     ASSERT_NE(nullptr, window);
     EXPECT_EQ(wm::WindowRole::Picker, window->role());
     // 720 x 440 in the middle of what the bar leaves.
-    EXPECT_EQ(base::Rect(360, kStatusBar + (960 - kStatusBar - 440) / 2, 720, 440), window->bounds());
+    EXPECT_EQ(base::Rect(360, kMenuBar + (960 - kMenuBar - 440) / 2, 720, 440), window->bounds());
     EXPECT_EQ(picker->geometry(), window->bounds());
 
     // The application stays active; the picker has the keys.

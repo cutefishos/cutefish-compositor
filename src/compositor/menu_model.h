@@ -75,7 +75,7 @@ inline std::string plainMenuLabel(const std::string &label)
     return text;
 }
 
-// An application's menu as the status bar shows it, from whichever channel
+// An application's menu as the menu bar shows it, from whichever channel
 // the application uses: entries by id, the root being 0, each listing its
 // children. Before a submenu shows the application is asked to bring it up
 // to date; it says when its entries arrived and when one of them changed.
