@@ -284,6 +284,15 @@ std::string DrmBackend::deviceKey() const
     return error || key.empty() ? m_devicePath : key.string();
 }
 
+bool DrmBackend::hasSyntheticModeRefresh() const
+{
+    // virtio-gpu exposes the host's EDID: the mode we set can say 75 Hz while
+    // the frames reach a panel running at its own 60 or 120 Hz. Every driver
+    // that drives a display itself owns its timing, and a missing vblank
+    // counter alone (nvidia-drm) does not make the mode's refresh any less real.
+    return m_driverName == "virtio_gpu";
+}
+
 DrmDeviceApi *DrmBackend::device() const
 {
     return m_device.get();

@@ -57,6 +57,11 @@ public:
 
     bool hasMonotonicPresentationClock() const { return m_monotonicPresentationClock; }
 
+    // True when the connector's modes describe the host's panel rather than the
+    // display this device drives, so their refresh is not the rate the frames
+    // land at.
+    bool hasSyntheticModeRefresh() const;
+
     int fd() const { return m_fd; }
 
     const std::string &devicePath() const { return m_devicePath; }
