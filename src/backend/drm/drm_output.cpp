@@ -72,21 +72,18 @@ DrmOutput::DrmOutput(DrmBackend *backend, Config config)
               [backend] {
                   return backend->session() && backend->session()->isActive();
               },
-              backend->hasMonotonicPresentationClock(),
-              render::OutputScheduler::Clock::now, backend->hasSyntheticModeRefresh())
+              backend->hasMonotonicPresentationClock())
 {
     m_backend = backend;
 }
 
 DrmOutput::DrmOutput(DrmDeviceApi *device, Config config, std::function<bool()> sessionActive,
                      bool monotonicClock,
-                     std::function<render::OutputScheduler::Time()> now,
-                     bool syntheticModeRefresh)
+                     std::function<render::OutputScheduler::Time()> now)
     : m_config(std::move(config))
     , m_device(device)
     , m_sessionActive(std::move(sessionActive))
     , m_monotonicClock(monotonicClock)
-    , m_syntheticModeRefresh(syntheticModeRefresh)
     , m_now(std::move(now))
     , m_scheduler(framePeriod(refreshRate()), m_now)
 {
@@ -216,11 +213,7 @@ double DrmOutput::refreshRate() const
 
 double DrmOutput::pacingRate() const
 {
-    // No vblank counter is not the same as no refresh: nvidia-drm stamps every
-    // flip with a real completion time and its mode is the panel's. Only a mode
-    // that describes the host's panel (virtio-gpu) cannot say how fast the
-    // display actually runs.
-    return m_unsynced && m_syntheticModeRefresh ? 60.0 : refreshRate();
+    return m_unsynced ? 60.0 : refreshRate();
 }
 
 void DrmOutput::setRenderCallback(std::function<void(render::Renderer &, uint64_t)> callback)
@@ -1187,19 +1180,17 @@ void DrmOutput::onPageFlip(uint64_t frame, uint32_t seconds, uint32_t microsecon
 {
     if (!m_events.erase(frame))
         return; // One unique kernel event per token.
-    // Drivers with no vblank counter stamp every flip with sequence 0, but the
-    // flip still carries when it completed. That is a real time for nvidia-drm;
-    // only for a host-paced mode (virtio-gpu) does it say nothing about the
-    // refresh the frames land on.
-    if (!m_unsynced && sequence == 0 && m_lastSequence == 0 && m_completions > 0) {
+    // A driver without vblank (virtio-gpu) stamps every flip with sequence 0,
+    // and its mode's refresh is made up: QEMU's EDID says 75 Hz. The frames
+    // reach a host display running at its own rate, 60 or 120 Hz, where 75 fps
+    // cannot be paced evenly and 60 can. A driver that stamps such flips when
+    // the display took them keeps its mode's refresh.
+    if (!m_unsynced && sequence == 0 && m_lastSequence == 0 && m_completions > 0
+        && !m_device->flipTimesMarkRefresh()) {
         m_unsynced = true;
         m_scheduler.setPeriod(framePeriod(pacingRate()));
-        if (m_syntheticModeRefresh)
-            CF_INFO(cfDrm) << m_config.name << "has no vblank; pacing at" << pacingRate()
-                           << "Hz instead of the mode's" << refreshRate();
-        else
-            CF_INFO(cfDrm) << m_config.name << "has no vblank; pacing from page-flip times at"
-                           << pacingRate() << "Hz";
+        CF_INFO(cfDrm) << m_config.name << "has no vblank; pacing at" << pacingRate()
+                       << "Hz instead of the mode's" << refreshRate();
     }
     m_presentations.complete(frame, seconds, microseconds, sequence, m_monotonicClock,
                              pacingRate(), presentationOutput);
@@ -1248,12 +1239,9 @@ void DrmOutput::finishFlip(uint64_t frame, uint32_t timeMs,
         // drawn, and every microsecond it waits here is latency.
         commitQueued();
     }
-    // A host-paced mode's flips land on the host panel's refresh, which is no
-    // grid for these slots. A real mode's do, with or without sequence numbers.
-    std::optional<render::OutputScheduler::Time> grid = presented;
-    if (m_unsynced && m_syntheticModeRefresh)
-        grid.reset();
-    if (m_scheduler.complete(frame, grid)) {
+    // A device without vblank stamps when the host finished, which is no
+    // refresh to lay the slots on.
+    if (m_scheduler.complete(frame, m_unsynced ? std::nullopt : presented)) {
         std::erase(m_outstanding, frame);
         imagePresented(frame,
                               presented ? uint64_t(std::chrono::nanoseconds(

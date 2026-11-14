@@ -43,6 +43,7 @@ public:
                    const base::Point &hotspot) override;
     bool moveCursor(uint32_t crtcId, const base::Point &position) override;
     bool cursorWaitsForFlips() const override { return m_cursorWaitsForFlips; }
+    bool flipTimesMarkRefresh() const override { return m_flipTimesMarkRefresh; }
 
     base::Size maxCursorSize() const override { return m_maxCursorSize; }
 
@@ -61,6 +62,7 @@ private:
     // caller to fold the hotspot into the cursor position instead.
     bool m_hasCursor2 = true;
     bool m_cursorWaitsForFlips = false;
+    bool m_flipTimesMarkRefresh = false;
 };
 
 } // namespace cutefish::backend

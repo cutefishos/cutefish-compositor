@@ -156,6 +156,7 @@ public:
     }
 
     bool cursorWaitsForFlips() const override { return cursorWaits; }
+    bool flipTimesMarkRefresh() const override { return flipTimesMark; }
 
     base::Size maxCursorSize() const override { return maxCursor; }
 
@@ -207,6 +208,7 @@ public:
     bool setCursorFails = false;
     bool dumbBufferFails = false;
     bool cursorWaits = false;
+    bool flipTimesMark = false;
     base::Size maxCursor {64, 64};
     // A real GBM device standing in for the renderer that shares this file.
     gbm_device *gbm = nullptr;

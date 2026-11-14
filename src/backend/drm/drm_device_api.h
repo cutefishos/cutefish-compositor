@@ -115,6 +115,10 @@ public:
     // cursor plane on its own.
     virtual bool cursorWaitsForFlips() const = 0;
 
+    // Whether a page flip the driver reports without a vblank count is still
+    // stamped when the display took it, so the stamps mark the mode's refresh.
+    virtual bool flipTimesMarkRefresh() const = 0;
+
     // The largest cursor the hardware accepts, or an empty size when it has no
     // cursor plane at all.
     virtual base::Size maxCursorSize() const = 0;

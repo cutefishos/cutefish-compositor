@@ -104,9 +104,6 @@ protected:
     std::vector<Output::FlipEvent> events;
     std::function<bool(const cutefish::testing::FakeDrmDevice::Commit &)> accept;
     bool active = true;
-    // A mode that describes the host's panel rather than this display, as on
-    // virtio-gpu. Tests that model it set this before SetUp runs.
-    bool syntheticModeRefresh = false;
     ScopedFd outFence;
     std::chrono::steady_clock::duration clockOffset {};
     bool acquireFails = false;
@@ -188,8 +185,7 @@ protected:
                 true,
                 [&] {
                     return std::chrono::steady_clock::now() + clockOffset;
-                },
-                syntheticModeRefresh);
+                });
         auto target = createTarget({16, 16});
         ASSERT_TRUE(target);
         ASSERT_TRUE(drm->init(
@@ -978,20 +974,9 @@ TEST_F(DrmOutputTest, WithoutColourPropertiesTheTintIsBlendedOverEachFrame)
     flip(2);
 }
 
-// Outputs whose mode belongs to the host panel, as on virtio-gpu.
-class DrmOutputHostPacedTest : public DrmOutputTest
-{
-protected:
-    void SetUp() override
-    {
-        syntheticModeRefresh = true;
-        DrmOutputTest::SetUp();
-    }
-};
-
 // virtio-gpu has no vblank: every flip carries sequence 0, and the mode's
 // refresh is QEMU's invention. Two such flips switch the output to 60 Hz.
-TEST_F(DrmOutputHostPacedTest, AnOutputWithoutVblankIsPacedAtSixtyHertz)
+TEST_F(DrmOutputTest, AnOutputWithoutVblankIsPacedAtSixtyHertz)
 {
     auto &a = update();
     ASSERT_TRUE(drm->enable());
@@ -1007,16 +992,15 @@ TEST_F(DrmOutputHostPacedTest, AnOutputWithoutVblankIsPacedAtSixtyHertz)
     EXPECT_NEAR(drm->refreshRate(), 75.0, 0.01);
 }
 
-// nvidia-drm has no vblank counter either, but every flip carries a real
-// completion time and the mode is the panel's. The output keeps the mode's
-// refresh: falling back to 60 Hz would judder on a 155 Hz display.
-TEST_F(DrmOutputTest, AnOutputWithoutVblankKeepsItsModeRateWhenTheDisplayOwnsItsTiming)
+// nvidia-drm counts no vblanks either, but stamps every flip when the display
+// took it and its mode is the panel's: 60 Hz would judder on a 155 Hz display.
+TEST_F(DrmOutputTest, AnOutputWithoutVblankKeepsItsModeRateWhenFlipTimesMarkTheRefresh)
 {
+    device.flipTimesMark = true;
     auto &a = update();
     ASSERT_TRUE(drm->enable());
     flip(0, 0);
     EXPECT_EQ(a.refresh, 13333333u);
-    EXPECT_NEAR(drm->pacingRate(), drm->refreshRate(), 0.01);
     auto &b = update();
     drm->scheduleFrame();
     ASSERT_TRUE(waitEvents(2));
@@ -1240,10 +1224,9 @@ TEST_F(DrmOutputTest, ATintFlipsWithNothingNewToDrawAndSurvivesAWake)
     EXPECT_EQ(propertyValue(modeset->request, 7, 24), blob);
 }
 
-TEST_F(DrmOutputHostPacedTest, DisablingDiscardsTheQueuedFrameAndReleasesItsBuffer)
+TEST_F(DrmOutputTest, DisablingDiscardsTheQueuedFrameAndReleasesItsBuffer)
 {
-    // Only the 60 Hz fallback for a host-paced mode leaves a frame queued
-    // behind another.
+    // Only flips without a vblank stamp leave a frame queued behind another.
     update();
     ASSERT_TRUE(drm->enable());
     flip(0, 0);
