@@ -5,18 +5,39 @@
 #include "session/free_console.h"
 
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <tuple>
 #include <vector>
 
 #include "base/dbus.h"
+#include "base/strings.h"
 
 namespace cutefish::session {
 
-int freeConsole(const std::set<int> &taken)
+std::set<int> displayManagerConsoles(const char *variable)
 {
-    for (int vt = 3; vt <= kAutoConsoles; ++vt) {
-        if (!taken.contains(vt))
+    std::set<int> consoles;
+    if (!variable)
+        return consoles;
+    for (const std::string &part : base::strings::split(variable, ',')) {
+        if (const std::optional<int> vt = base::strings::toNumber<int>(base::strings::trimmed(part));
+            vt && *vt > 0)
+            consoles.insert(*vt);
+    }
+    return consoles;
+}
+
+bool mayEnterConsole(int vt, const std::set<int> &displayManager, const std::set<int> &taken)
+{
+    return !displayManager.contains(vt) || taken.contains(vt);
+}
+
+int freeConsole(const std::set<int> &taken, const std::set<int> &displayManager)
+{
+    const std::set<int> reserved = displayManager.empty() ? std::set<int> {1, 2} : displayManager;
+    for (int vt = 1; vt <= kAutoConsoles; ++vt) {
+        if (!taken.contains(vt) && !reserved.contains(vt))
             return vt;
     }
     return 0;

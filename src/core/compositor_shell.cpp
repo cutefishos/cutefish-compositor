@@ -1236,12 +1236,25 @@ bool CompositorShell::initDrm()
     if (!m_inputBackend)
         CF_WARNING(cfInput) << "Continuing without input devices";
 
-    // Ctrl+Alt+F1 to F12, and the lock screen's and greeter's Console: the
-    // first terminal no session is on, where logind starts a login prompt.
-    m_inputManager.switchVirtualTerminal = [this](int vt) { m_session->switchSession(vt); };
-    m_authUi.setConsoleAction([this] {
+    // Ctrl+Alt+F1 to F12, except to a display manager's terminal with no
+    // session on it; and the lock screen's and greeter's Console, to the
+    // first terminal no session is on where logind starts a login prompt.
+    m_inputManager.switchVirtualTerminal = [this, displayManager = session::displayManagerConsoles(
+                                                          std::getenv("CUTEFISH_DM_VTS"))](int vt) {
+        if (!displayManager.empty()) {
+            base::dbus::Connection *bus = base::dbus::Connection::system(core::mainLoop());
+            if (bus && !session::mayEnterConsole(vt, displayManager, session::takenConsoles(bus))) {
+                CF_INFO(base::LogCategory::defaultCategory())
+                        << "Not switching to virtual terminal" << vt << ": the display manager's, with no session on it";
+                return;
+            }
+        }
+        m_session->switchSession(vt);
+    };
+    m_authUi.setConsoleAction([this, displayManager = session::displayManagerConsoles(
+                                             std::getenv("CUTEFISH_DM_VTS"))] {
         base::dbus::Connection *bus = base::dbus::Connection::system(core::mainLoop());
-        if (const int vt = bus ? session::freeConsole(session::takenConsoles(bus)) : 0)
+        if (const int vt = bus ? session::freeConsole(session::takenConsoles(bus), displayManager) : 0)
             m_session->switchSession(vt);
         else
             CF_WARNING(base::LogCategory::defaultCategory()) << "No free text console to switch to";
