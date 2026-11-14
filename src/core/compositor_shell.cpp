@@ -1435,7 +1435,10 @@ bool CompositorShell::notifyReady()
 {
     if (m_options.readyFd < 0)
         return true;
-    if (write(m_options.readyFd, "R", 1) != 1) {
+    // "R" and the socket listened on, which libwayland picked when the
+    // session named none.
+    const std::string ready = "R" + socketName() + "\n";
+    if (write(m_options.readyFd, ready.data(), ready.size()) != ssize_t(ready.size())) {
         CF_CRITICAL(cfWayland) << "Cannot notify session that the compositor is ready";
         return false;
     }
