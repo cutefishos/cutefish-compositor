@@ -2,7 +2,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: cutefish-compositor\n"
 "Report-Msgid-Bugs-To: https://github.com/cutefishos\n"
-"POT-Creation-Date: 2026-11-13 16:33+0800\n"
+"POT-Creation-Date: 2026-11-14 10:16+0800\n"
 "PO-Revision-Date: 2026-11-13 16:33+0800\n"
 "Last-Translator: \n"
 "Language-Team: \n"
@@ -277,6 +277,10 @@ msgstr "關閉"
 #: src/shell/dock/dock_window.cpp
 msgid "Empty Trash"
 msgstr "清空垃圾桶"
+
+#: src/shell/dock/dock_window.cpp
+msgid "Remove"
+msgstr "移除"
 
 #: src/shell/launcher/launcher_search_field.cpp
 msgid "Search"

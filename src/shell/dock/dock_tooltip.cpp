@@ -45,13 +45,23 @@ void DockTooltip::hide()
 void DockTooltip::show(const std::string &text, const base::PointF &target, double farSide,
                        const ui::PointF &offset)
 {
+    place(text, target, farSide, offset, m_dock->dock().settings().direction() != DockSettings::Bottom);
+}
+
+void DockTooltip::showAbove(const std::string &text, const base::PointF &top)
+{
+    place(text, top, top.y(), {}, false);
+}
+
+void DockTooltip::place(const std::string &text, const base::PointF &target, double farSide,
+                        const ui::PointF &offset, bool across)
+{
     m_text = text;
     if (text.empty()) {
         hide();
         return;
     }
     const DockSettings::Direction direction = m_dock->dock().settings().direction();
-    const bool across = direction != DockSettings::Bottom;
     const ui::Theme &theme = ui::Theme::current();
     ui::BubbleShape bubble;
     bubble.radius = theme.mediumRadius;

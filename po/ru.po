@@ -2,7 +2,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: cutefish-compositor\n"
 "Report-Msgid-Bugs-To: https://github.com/cutefishos\n"
-"POT-Creation-Date: 2026-11-13 16:33+0800\n"
+"POT-Creation-Date: 2026-11-14 10:16+0800\n"
 "PO-Revision-Date: 2026-11-13 12:00+0800\n"
 "Last-Translator: \n"
 "Language-Team: \n"
@@ -54,11 +54,15 @@ msgstr[2] "{n} файлов"
 msgid "Clear the clipboard history?"
 msgstr "Очистить историю буфера обмена?"
 
-#: src/shell/clipboard/clipboard_picker_view.cpp src/shell/controlcenter/power_dialog.cpp src/shell/secrets/bluetooth_pairing_dialog.cpp src/shell/secrets/secret_dialog.cpp
+#: src/shell/clipboard/clipboard_picker_view.cpp
+#: src/shell/controlcenter/power_dialog.cpp
+#: src/shell/secrets/bluetooth_pairing_dialog.cpp
+#: src/shell/secrets/secret_dialog.cpp
 msgid "Cancel"
 msgstr "Отмена"
 
-#: src/shell/clipboard/clipboard_picker_view.cpp src/shell/notification/notification_controls.cpp
+#: src/shell/clipboard/clipboard_picker_view.cpp
+#: src/shell/notification/notification_controls.cpp
 msgid "Clear"
 msgstr "Очистить"
 
@@ -74,7 +78,8 @@ msgstr "Буфер обмена пуст"
 msgid "No Results"
 msgstr "Нет результатов"
 
-#: src/shell/controlcenter/control_center_view.cpp src/shell/controlcenter/status_panel.cpp
+#: src/shell/controlcenter/control_center_view.cpp
+#: src/shell/controlcenter/status_panel.cpp
 msgid "Wi-Fi"
 msgstr "Wi-Fi"
 
@@ -94,7 +99,8 @@ msgstr "Не беспокоить"
 msgid "Camera"
 msgstr "Камера"
 
-#: src/shell/controlcenter/control_center_view.cpp src/shell/screenshot/capture_toolbar.cpp
+#: src/shell/controlcenter/control_center_view.cpp
+#: src/shell/screenshot/capture_toolbar.cpp
 msgid "Microphone"
 msgstr "Микрофон"
 
@@ -103,7 +109,8 @@ msgstr "Микрофон"
 msgid "Display"
 msgstr "Дисплей"
 
-#: src/shell/controlcenter/control_center_view.cpp src/shell/controlcenter/status_panel.cpp
+#: src/shell/controlcenter/control_center_view.cpp
+#: src/shell/controlcenter/status_panel.cpp
 msgid "Sound"
 msgstr "Звук"
 
@@ -131,7 +138,8 @@ msgstr "Выключить компьютер сейчас?"
 msgid "Log out now?"
 msgstr "Завершить сеанс сейчас?"
 
-#: src/shell/controlcenter/power_dialog.cpp src/shell/menubar/menu_bar_model.cpp
+#: src/shell/controlcenter/power_dialog.cpp
+#: src/shell/menubar/menu_bar_model.cpp
 msgid "Restart"
 msgstr "Перезагрузить"
 
@@ -271,6 +279,10 @@ msgstr "Закрыть"
 #: src/shell/dock/dock_window.cpp
 msgid "Empty Trash"
 msgstr "Очистить Корзину"
+
+#: src/shell/dock/dock_window.cpp
+msgid "Remove"
+msgstr "Удалить"
 
 #: src/shell/launcher/launcher_search_field.cpp
 msgid "Search"
@@ -474,7 +486,8 @@ msgstr "Видео"
 msgid "Screenshots"
 msgstr "Снимки экрана"
 
-#: src/shell/screenshot/capture_toolbar.cpp src/shell/statusbar/application_menu.cpp
+#: src/shell/screenshot/capture_toolbar.cpp
+#: src/shell/statusbar/application_menu.cpp
 msgid "Desktop"
 msgstr "Рабочий стол"
 
@@ -607,7 +620,8 @@ msgstr[2] "Введено {n} цифр"
 msgid "Passkey"
 msgstr "Ключ доступа"
 
-#: src/shell/secrets/bluetooth_pairing_dialog.cpp src/shell/secrets/vpn_secret_fields.cpp
+#: src/shell/secrets/bluetooth_pairing_dialog.cpp
+#: src/shell/secrets/vpn_secret_fields.cpp
 msgid "PIN"
 msgstr "PIN-код"
 
@@ -668,7 +682,8 @@ msgstr "Показать пароль"
 msgid "WEP key"
 msgstr "Ключ WEP"
 
-#: src/shell/secrets/network_dialogs.cpp src/shell/secrets/vpn_secret_fields.cpp
+#: src/shell/secrets/network_dialogs.cpp
+#: src/shell/secrets/vpn_secret_fields.cpp
 msgid "Password"
 msgstr "Пароль"
 

@@ -125,6 +125,8 @@ private:
         DockIcon::Kind kind;
         std::string key;
         uint64_t window = 0;
+        // Of the icon as dragged, held at its centre.
+        double iconHeight = 0;
         bool started = false;
         // A pinned icon held far enough off the dock: unpinned where let go.
         bool removes = false;

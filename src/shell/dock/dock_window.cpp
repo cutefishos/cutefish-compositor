@@ -1611,6 +1611,7 @@ void DockWindow::iconDragRequested(DockIcon *icon)
     source.iconScale = scale;
     const ui::RectF rect = icon->magnifiedIconRect();
     source.hotSpot = {rect.width / 2, rect.height / 2};
+    drag.iconHeight = rect.height;
     // A drag the compositor never ran ends here; one it ran, in onDragEnded().
     source.onFinished = [this, alive = m_alive](ui::DropAction) {
         if (*alive && m_drag && !m_drag->started)
@@ -1698,12 +1699,21 @@ void DockWindow::onDragMoved(const base::PointF &location)
     drag->setIconOpacity(m_drag->removes ? 0.5f : 1.0f);
     drag->setReturnsHome(!m_drag->removes);
     drag->setVanishesOnDrop(m_drag->removes);
+    if (m_drag->removes) {
+        const base::Rect window = m_window->geometry();
+        m_tooltip->showAbove(tr("Remove"), base::PointF(location.x() - window.x(),
+                                                        location.y() - m_drag->iconHeight / 2 - window.y()));
+    } else if (m_tooltip->isShown()) {
+        hideTooltip();
+    }
 }
 
 void DockWindow::onDragEnded()
 {
     input::DragController *drag = m_shell->seat()->drag();
     const bool own = m_drag && m_drag->started && !m_drag->returning;
+    if (own)
+        hideTooltip();
     if (own && drag->isReturning()) {
         // Nothing took it: the slot opens again under the icon on its way back.
         m_drag->removes = false;
