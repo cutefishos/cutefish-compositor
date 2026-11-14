@@ -889,6 +889,7 @@ add_library(cutefish-auth STATIC
     src/auth/auth_status.cpp src/auth/auth_status.h
     src/auth/auth_ui.cpp src/auth/auth_ui.h
     src/auth/auth_view.cpp src/auth/auth_view.h
+    src/auth/power_actions.cpp src/auth/power_actions.h
     src/auth/auth_controller.cpp src/auth/auth_controller.h src/auth/auth_backend.h
     src/auth/pam_backend.cpp src/auth/pam_backend.h
     src/auth/greetd_backend.cpp src/auth/greetd_backend.h
