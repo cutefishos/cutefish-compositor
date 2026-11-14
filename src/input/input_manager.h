@@ -131,8 +131,9 @@ public:
     void onPointerGestureEnd(Timestamp timestamp, GestureType type, bool cancelled);
     // `layout` says where the keyboard has its Command key, if any. Under the
     // Command convention a PC keyboard's Alt and Meta trade places, so that
-    // the key next to the space bar is Command (Meta) on every keyboard. The
-    // Pc convention leaves every keyboard as it is.
+    // the key next to the space bar is Command (Meta) on every keyboard,
+    // unless the seat's CommandKey names another key. The Pc convention
+    // leaves every keyboard as it is.
     void onKey(Timestamp timestamp, uint32_t evdevCode, bool pressed,
                KeyboardModifierLayout layout = KeyboardModifierLayout::Pc);
 

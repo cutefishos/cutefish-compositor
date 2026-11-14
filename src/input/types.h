@@ -94,6 +94,17 @@ enum class ShortcutConvention {
     Command,
 };
 
+// Which key is Command under the Command convention. Auto goes by position:
+// the key next to the space bar, so Alt on a PC keyboard and Command on an
+// Apple one (see InputManager::onKey). The others name the key on every
+// keyboard alike; the two keys not chosen are Option and Control.
+enum class CommandKey {
+    Auto,
+    Alt,
+    Meta,
+    Ctrl,
+};
+
 // Key repeat defaults. Wayland sends a rate in Hz and a delay in milliseconds.
 constexpr int kDefaultKeyRepeatDelayMs = 500;
 constexpr int kDefaultKeyRepeatIntervalMs = 40;

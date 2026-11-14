@@ -21,6 +21,22 @@ static constexpr auto group = "Keyboard/";
 static constexpr auto pcConvention = "pc";
 static constexpr auto commandConvention = "command";
 
+static constexpr std::pair<const char *, CommandKey> commandKeyNames[] = {
+        {"auto", CommandKey::Auto},
+        {"alt", CommandKey::Alt},
+        {"meta", CommandKey::Meta},
+        {"ctrl", CommandKey::Ctrl},
+};
+
+static std::optional<CommandKey> commandKeyFromName(const std::string &name)
+{
+    for (const auto &[key, value] : commandKeyNames) {
+        if (name == key)
+            return value;
+    }
+    return std::nullopt;
+}
+
 // What xkbcommon compiles for empty rule names.
 static std::string defaultLayout()
 {
@@ -53,6 +69,8 @@ KeyboardSettings::KeyboardSettings(const std::string &settingsFile)
     m_layout = m_settings.stringValue("Keyboard/layout");
     if (m_settings.stringValue("Keyboard/shortcutConvention") == pcConvention)
         m_shortcutConvention = ShortcutConvention::Pc;
+    if (const auto key = commandKeyFromName(m_settings.stringValue("Keyboard/commandKey")))
+        m_commandKey = *key;
 }
 
 KeyboardSettings::~KeyboardSettings() = default;
@@ -72,6 +90,7 @@ bool KeyboardSettings::registerService()
     object.addProperty("repeatInterval", [this] { return int32_t(m_repeatInterval); });
     object.addProperty("layout", [this] { return layout(); });
     object.addProperty("shortcutConvention", [this] { return shortcutConventionName(); });
+    object.addProperty("commandKey", [this] { return commandKeyName(); });
     object.addMethod("setRepeatEnabled", [this](bool enabled) { setRepeatEnabled(enabled); },
                      base::dbus::ArgumentNames{{"enabled"}, {}});
     object.addMethod("setRepeatDelay",
@@ -85,9 +104,11 @@ bool KeyboardSettings::registerService()
     object.addMethod("setShortcutConvention",
                      [this](const std::string &name) { return setShortcutConvention(name); },
                      base::dbus::ArgumentNames{{"name"}, {"result"}});
+    object.addMethod("setCommandKey", [this](const std::string &name) { return setCommandKey(name); },
+                     base::dbus::ArgumentNames{{"name"}, {"result"}});
     for (const char *member : {"repeatEnabledChanged", "repeatDelayChanged",
                                "repeatIntervalChanged", "layoutChanged",
-                               "shortcutConventionChanged"})
+                               "shortcutConventionChanged", "commandKeyChanged"})
         object.addSignal(member, "");
     if (!exported->publish("keyboard settings"))
         return false;
@@ -120,6 +141,15 @@ std::string KeyboardSettings::layout() const
 std::string KeyboardSettings::shortcutConventionName() const
 {
     return m_shortcutConvention == ShortcutConvention::Command ? commandConvention : pcConvention;
+}
+
+std::string KeyboardSettings::commandKeyName() const
+{
+    for (const auto &[key, value] : commandKeyNames) {
+        if (value == m_commandKey)
+            return key;
+    }
+    return commandKeyNames[0].first;
 }
 
 template<typename T>
@@ -189,6 +219,19 @@ bool KeyboardSettings::setShortcutConvention(const std::string &name)
     save("shortcutConvention",
          convention == ShortcutConvention::Command ? std::nullopt : std::optional(name));
     notify(shortcutConventionChanged, "shortcutConventionChanged");
+    return true;
+}
+
+bool KeyboardSettings::setCommandKey(const std::string &name)
+{
+    const auto key = commandKeyFromName(name);
+    if (!key)
+        return false;
+    if (*key == m_commandKey)
+        return true;
+    m_commandKey = *key;
+    save("commandKey", *key == CommandKey::Auto ? std::nullopt : std::optional(name));
+    notify(commandKeyChanged, "commandKeyChanged");
     return true;
 }
 
