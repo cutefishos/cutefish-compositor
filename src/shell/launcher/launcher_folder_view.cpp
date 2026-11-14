@@ -114,7 +114,9 @@ protected:
 
     void paint(ui::Painter &painter) override
     {
-        painter.drawSmoothRectangle(localRect(), jsRound(m_owner->m_metrics.iconSize * 0.3), kWhite.withAlpha(0.16));
+        painter.drawRoundedRect(localRect(),
+                                {double(jsRound(m_owner->m_metrics.iconSize * 0.3)), 0, ui::Corners::Continuous},
+                                kWhite.withAlpha(0.16));
     }
 
 private:

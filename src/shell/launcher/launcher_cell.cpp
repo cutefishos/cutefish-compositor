@@ -128,7 +128,8 @@ protected:
         // Darkened rather than lightened while pressed.
         const bool dimmed = m_cell->isPressDimmed();
         const ui::Color plate = dimmed ? ui::Color {0, 0, 0, 255} : ui::Color {255, 255, 255, 255};
-        painter.drawSmoothRectangle(bounds, jsRound(bounds.width * 0.22), plate.withAlpha(dimmed ? 0.3 : 0.22));
+        painter.drawRoundedRect(bounds, {double(jsRound(bounds.width * 0.22)), 0, ui::Corners::Continuous},
+                                plate.withAlpha(dimmed ? 0.3 : 0.22));
     }
 
 private:
@@ -413,7 +414,8 @@ void LauncherCell::paint(ui::Painter &painter)
         const ui::RectF icon = iconRect();
         const double grow = jsRound(icon.width * 0.12);
         const ui::RectF plate = icon.adjusted(-grow, -grow, grow, grow);
-        painter.drawSmoothRectangle(plate, jsRound(plate.width * 0.22), inkOn(m_backdrop, 0.25));
+        painter.drawRoundedRect(plate, {double(jsRound(plate.width * 0.22)), 0, ui::Corners::Continuous},
+                                inkOn(m_backdrop, 0.25));
     }
     const ui::RectF selection = selectionRect();
     if (selection.width > 0)
