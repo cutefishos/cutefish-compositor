@@ -16,6 +16,7 @@
 #include "shell/menubar/app_menu_registrar.h"
 #include "shell/menubar/battery.h"
 #include "shell/menubar/brightness.h"
+#include "shell/menubar/gtk_settings.h"
 #include "shell/menubar/mpris.h"
 #include "shell/menubar/power_actions.h"
 #include "shell/menubar/status_notifier_watcher.h"
@@ -96,6 +97,7 @@ private:
     StatusNotifierWatcher m_watcher;
     SystemTrayModel m_tray;
     AppMenuRegistrar m_registrar;
+    GtkSettings m_gtkSettings;
     MprisManager m_mpris;
     std::unique_ptr<Battery> m_battery;
     Brightness m_brightness;

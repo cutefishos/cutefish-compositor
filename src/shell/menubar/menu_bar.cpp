@@ -31,6 +31,7 @@ MenuBar::MenuBar(dbus::Connection *sessionBus, dbus::Connection *systemBus, Task
     , m_watcher(sessionBus)
     , m_tray(m_watcher, sessionBus, tasks)
     , m_registrar(sessionBus)
+    , m_gtkSettings(sessionBus)
     , m_mpris(sessionBus)
     , m_battery(std::make_unique<Battery>(std::make_shared<upower::BatteryStatus>(sessionBus, systemBus),
                                           m_settingsPath))
@@ -128,7 +129,8 @@ bool MenuBar::registerServices()
     }
     const bool watcher = m_watcher.registerService();
     const bool registrar = m_registrar.registerService();
-    return watcher && registrar;
+    const bool gtkSettings = m_gtkSettings.registerService();
+    return watcher && registrar && gtkSettings;
 }
 
 bool MenuBar::isControlShown(Control control) const

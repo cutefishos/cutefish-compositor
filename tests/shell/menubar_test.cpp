@@ -848,6 +848,11 @@ TEST(MenuBarTest, ServesOrgCutefishMenuBar)
     EXPECT_EQ(menuBar.timeFormat().find('H'), std::string::npos);
 
     test::DBusTestClient settings;
+    // GTK reads the modules to load from here.
+    const dbus::Reply modules = settings.getProperty("org.gtk.Settings", "/org/gtk/Settings", "org.gtk.Settings",
+                                                     "Modules");
+    EXPECT_EQ(modules.value<dbus::Variant>().value_or(dbus::Variant()).value<std::string>(), "appmenu-gtk-module");
+
     settings.call("org.cutefish.MenuBar", "/MenuBar", "org.cutefish.MenuBar", "setBatteryPercentage", true);
     EXPECT_TRUE(menuBar.battery().showPercentage());
     EXPECT_TRUE(menuBar.isControlShown(shell::MenuBar::Control::Battery));

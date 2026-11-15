@@ -17,6 +17,8 @@ add_library(cutefish-shell-menubar STATIC
     dbus_menu.h
     gtk_menu.cpp
     gtk_menu.h
+    gtk_settings.cpp
+    gtk_settings.h
     mpris.cpp
     mpris.h
     power_actions.cpp
