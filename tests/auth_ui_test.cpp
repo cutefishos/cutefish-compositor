@@ -940,7 +940,7 @@ TEST(AuthUiTest, DoubleClickSelectsTheWholePasswordToRetype)
     seat.shutdown();
 }
 
-TEST(AuthUiTest, SubmitButtonAsksForAPointingHand)
+TEST(AuthUiTest, SubmitButtonKeepsTheArrow)
 {
     scene::Node root;
     session::SecureContainer secure(&root);
@@ -966,8 +966,10 @@ TEST(AuthUiTest, SubmitButtonAsksForAPointingHand)
     EXPECT_TRUE(cursors.empty() || cursors.back() == input::CursorShape::Default);
     input.onKey({}, KEY_A, true);
     input.onKey({}, KEY_A, false);
+    ui.onPointerMotion({}, panel + field.center());
+    EXPECT_EQ(cursors.back(), input::CursorShape::Text);
     ui.onPointerMotion({}, go + base::PointF(1, 0));
-    EXPECT_EQ(cursors.back(), input::CursorShape::Pointer);
+    EXPECT_EQ(cursors.back(), input::CursorShape::Default);
     ui.onPointerButton({}, go, BTN_LEFT, true);
     ui.onPointerButton({}, go, BTN_LEFT, false);
     EXPECT_EQ(backend.authenticateCount, 1);

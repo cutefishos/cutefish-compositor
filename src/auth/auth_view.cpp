@@ -1071,7 +1071,6 @@ private:
                 setVisible(m_opacity.value() > 0);
             })
         {
-            setCursorShape(ui::CursorShape::Pointer);
             onHoverChanged = [this] { update(); };
             onClicked = [this] { m_field->m_input->onAccepted(); };
         }
