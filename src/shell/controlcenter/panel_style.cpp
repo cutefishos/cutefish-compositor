@@ -40,19 +40,7 @@ ui::Color secondaryTextColor()
 
 render::GlassParams panelGlass()
 {
-    render::GlassParams glass = dark() ? popupGlass(0.13, 0.13, 0.14, 0.86)
-                                       : popupGlass(0.94, 0.94, 0.95, 0.86);
-    glass.blurSigma = glassFixed(20.0);
-    glass.saturation = glassFixed(2.4);
-    return glass;
-}
-
-render::GlassParams controlCenterGlass()
-{
-    render::GlassParams glass = dark() ? popupGlass(0.1, 0.1, 0.11, 0.82) : popupGlass(0.97, 0.97, 0.98, 0.65);
-    glass.blurSigma = glassFixed(20.0);
-    glass.saturation = glassFixed(1.2);
-    return glass;
+    return dark() ? popupGlass(0.17, 0.17, 0.19, 0.6) : popupGlass(1, 1, 1, 0.6);
 }
 
 ui::Color statusSurfaceColor()

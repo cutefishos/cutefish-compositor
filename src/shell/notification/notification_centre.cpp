@@ -670,13 +670,9 @@ void NotificationCentre::applyGlass()
     ShellWindow *window = shellWindow();
     if (!window)
         return;
-    // PanelGlass: PopupGlass with a heavier blur and saturation, tinted
-    // PanelStyle.panelTint.
     const bool dark = ui::Theme::current().darkMode;
-    render::GlassParams glass = dark ? popupGlass(0.13, 0.13, 0.14, 0.86) : popupGlass(0.94, 0.94, 0.95, 0.86);
-    glass.blurSigma = glassFixed(20.0);
-    glass.saturation = glassFixed(2.4);
-    window->setBackgroundBlur(base::Rect(0, 0, m_geometry.width(), m_geometry.height()), int(kRadius), glass);
+    window->setBackgroundBlur(base::Rect(0, 0, m_geometry.width(), m_geometry.height()), int(kRadius),
+                              dark ? popupGlass(0.17, 0.17, 0.19, 0.6) : popupGlass(1, 1, 1, 0.6));
 }
 
 // --- The model's rows -------------------------------------------------------

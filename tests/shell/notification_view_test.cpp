@@ -435,8 +435,8 @@ TEST_F(NotificationViewTest, TheCentreOpensUnderTheBarAndTakesTheBanners)
     EXPECT_TRUE(window->isPopup());
     EXPECT_EQ(centre().geometry(), window->wmWindow()->bounds());
     EXPECT_TRUE(window->surface()->glass().enabled);
-    EXPECT_FLOAT_EQ(shell::glassFixed(20.0), window->surface()->glass().blurSigma);
-    EXPECT_FLOAT_EQ(shell::glassFixed(2.4), window->surface()->glass().saturation);
+    EXPECT_FLOAT_EQ(shell::glassFixed(6.0), window->surface()->glass().blurSigma);
+    EXPECT_FLOAT_EQ(shell::glassFixed(1.2), window->surface()->glass().saturation);
     EXPECT_EQ(18, window->surface()->backgroundBlurRadius());
 
     // The banner went into the history, where the centre shows it.

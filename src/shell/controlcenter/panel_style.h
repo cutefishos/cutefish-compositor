@@ -40,11 +40,8 @@ ui::Color tileColor();
 ui::Color tileInkColor();
 // PanelStyle.secondaryTextColor.
 ui::Color secondaryTextColor();
-// PanelStyle.panelTint over PanelGlass.
+// The menus' glass, which the control centre and the status panels share.
 render::GlassParams panelGlass();
-// The control centre's thinner glass: the wallpaper shows through, and the
-// tiles lifted off it carry the text.
-render::GlassParams controlCenterGlass();
 // StatusPanel's surfaceColor: the ink reference of the status panels.
 ui::Color statusSurfaceColor();
 // FishUI's Theme.textColor at `opacity`, as a Rectangle's opacity draws it.
