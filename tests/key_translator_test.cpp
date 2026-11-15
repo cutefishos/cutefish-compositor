@@ -217,6 +217,13 @@ TEST_F(KeyTranslatorTest, TerminalsOpenAndCloseTabsAndPickThemByNumber)
                       {down(KEY_LEFTALT), down(KEY_3), up(KEY_3), up(KEY_LEFTALT)}),
               take());
 
+    press(KEY_LEFTMETA);
+    tap(KEY_K);
+    release(KEY_LEFTMETA);
+    EXPECT_EQ(std::vector<Delivered>({down(KEY_LEFTCTRL), down(KEY_LEFTSHIFT), down(KEY_K),
+                                      up(KEY_K), up(KEY_LEFTSHIFT), up(KEY_LEFTCTRL)}),
+              take());
+
     // Elsewhere Command+3 is Ctrl+3, which browsers pick tabs with.
     terminal = false;
     press(KEY_LEFTMETA);

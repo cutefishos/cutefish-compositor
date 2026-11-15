@@ -53,7 +53,7 @@ PressedShortcut pressedShortcut(ShortcutConvention convention, bool terminal, ui
 // - Command, Option and Control are held back until a key or a click needs
 //   them. Pressing one alone reaches no client (no menu bar pops up on a lone
 //   Alt).
-// - In a terminal Command+C/V/T/W/N/F go out as Ctrl+Shift+C/V/T/W/N/F and
+// - In a terminal Command+C/V/T/W/N/F/K go out as Ctrl+Shift+C/V/T/W/N/F/K and
 //   Command+1 to 9 as Alt+1 to 9, the terminal's own shortcuts, so Control+C
 //   still interrupts the program. Any other Command+letter, and Command with
 //   [ \ ] or /, reaches no terminal, since as Ctrl it would be a control

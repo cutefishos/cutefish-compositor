@@ -38,9 +38,9 @@ enum ModifierKind : uint32_t {
 };
 
 // Terminals take their own shortcuts with Ctrl+Shift, leaving Ctrl to the
-// program: copy, paste, new tab, close tab, new window, find.
-constexpr std::array<uint32_t, 6> kTerminalCtrlShiftKeys = {XKB_KEY_c, XKB_KEY_v, XKB_KEY_t,
-                                                           XKB_KEY_w, XKB_KEY_n, XKB_KEY_f};
+// program: copy, paste, new tab, close tab, new window, find, clear.
+constexpr std::array<uint32_t, 7> kTerminalCtrlShiftKeys = {XKB_KEY_c, XKB_KEY_v, XKB_KEY_t, XKB_KEY_w,
+                                                           XKB_KEY_n, XKB_KEY_f, XKB_KEY_k};
 
 // Besides the letters, the keys a terminal turns into control characters with
 // Ctrl: Ctrl+[ is Esc and Ctrl+Backslash the quit signal.
