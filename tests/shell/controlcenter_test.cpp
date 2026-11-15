@@ -431,7 +431,11 @@ TEST_F(ControlCenterTest, TheWifiBluetoothAndSoundTilesOpenTheirPanelsAsDetailPa
     EXPECT_LT(pager->progress(), 1);
     EXPECT_GT(panel->opacity(), 0);
     EXPECT_LT(view->opacity(), 1);
-    // The window follows the pages frame by frame.
+    // The window follows the pages frame by frame, narrowing to a status
+    // panel's width with its right edge kept.
+    EXPECT_LT(window->drawnBounds().width(), 360);
+    EXPECT_GT(window->drawnBounds().width(), 320);
+    EXPECT_EQ(1440 - 6, window->drawnBounds().right());
     EXPECT_GT(window->drawnBounds().height(), std::min(mainHeight, int(std::lround(panel->shownBottom()))));
     EXPECT_LT(window->drawnBounds().height(), std::max(mainHeight, int(std::lround(panel->shownBottom()))));
     frames(std::chrono::milliseconds(400));
@@ -440,11 +444,11 @@ TEST_F(ControlCenterTest, TheWifiBluetoothAndSoundTilesOpenTheirPanelsAsDetailPa
     EXPECT_TRUE(panel->transform().isIdentity());
     const int detailHeight = int(std::lround(panel->shownBottom()));
     EXPECT_NE(mainHeight, detailHeight);
-    EXPECT_EQ(base::Rect(1440 - 360 - 6, 38, 360, detailHeight), window->drawnBounds());
-    EXPECT_EQ(base::Rect(0, 0, 360, detailHeight), window->surface()->backgroundBlurRect());
-    // The panel's rows span the control centre's width.
+    EXPECT_EQ(base::Rect(1440 - 320 - 6, 38, 320, detailHeight), window->drawnBounds());
+    EXPECT_EQ(base::Rect(0, 0, 320, detailHeight), window->surface()->backgroundBlurRect());
+    // The panel is as wide as it is from the menu bar.
     ASSERT_EQ(2u, panel->rows().size());
-    EXPECT_EQ(360 - 2 * 6, panel->rows()[0]->geometry().width);
+    EXPECT_EQ(320 - 2 * 6, panel->rows()[0]->geometry().width);
     expectFooterGaps(panel, panel->rows().back());
 
     // Escape goes back to the tiles, and again closes the control centre.
@@ -456,7 +460,7 @@ TEST_F(ControlCenterTest, TheWifiBluetoothAndSoundTilesOpenTheirPanelsAsDetailPa
     EXPECT_EQ(nullptr, pager->detailPage());
     EXPECT_TRUE(view->isVisible());
     EXPECT_EQ(1, view->opacity());
-    EXPECT_EQ(mainHeight, window->drawnBounds().height());
+    EXPECT_EQ(base::Rect(1440 - 360 - 6, 38, 360, mainHeight), window->drawnBounds());
 
     // The Sound slider's chevron sits at its title row's end, centred on the
     // title's capitals; a click anywhere off the slider opens the sound panel.
@@ -479,7 +483,7 @@ TEST_F(ControlCenterTest, TheWifiBluetoothAndSoundTilesOpenTheirPanelsAsDetailPa
     auto *volume = dynamic_cast<shell::VolumePanel *>(pager->detailPage());
     ASSERT_NE(nullptr, volume);
     ASSERT_EQ(2u, volume->rows().size());
-    EXPECT_EQ(360 - 2 * 6, volume->rows()[0]->geometry().width);
+    EXPECT_EQ(320 - 2 * 6, volume->rows()[0]->geometry().width);
     EXPECT_EQ(int(std::lround(volume->shownBottom())), window->drawnBounds().height());
     key(KEY_ESC);
     frames(std::chrono::milliseconds(420));

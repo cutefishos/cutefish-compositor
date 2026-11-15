@@ -242,7 +242,7 @@ ControlCenterPager::ControlCenterPager(std::unique_ptr<ControlCenterView> main)
 {
     m_main = main.get();
     addChild(std::move(main));
-    m_main->onHeightChanged = [this] { heightChanged(); };
+    m_main->onHeightChanged = [this] { sizeChanged(); };
 }
 
 ControlCenterPager::~ControlCenterPager() = default;
@@ -260,9 +260,9 @@ void ControlCenterPager::showDetail(std::unique_ptr<StatusPanelView> page)
     addChild(std::move(page));
     m_detail->onShownBottomChanged = [this] {
         requestLayout();
-        heightChanged();
+        sizeChanged();
     };
-    m_detail->setGeometry({0, 0, geometry().width, m_detail->contentHeight()});
+    m_detail->setGeometry({0, 0, status_panel::kWidth, m_detail->contentHeight()});
     // Measured in the window now: the page starts at its height rather than
     // growing into it.
     m_detail->setShown(false);
@@ -312,7 +312,7 @@ void ControlCenterPager::setProgress(double progress)
         return;
     m_progress = progress;
     requestLayout();
-    heightChanged();
+    sizeChanged();
 }
 
 void ControlCenterPager::settle()
@@ -327,13 +327,21 @@ void ControlCenterPager::settle()
         m_detail->setLayered(false);
     setClipsChildren(false);
     requestLayout();
-    heightChanged();
+    sizeChanged();
 }
 
-void ControlCenterPager::heightChanged()
+void ControlCenterPager::sizeChanged()
 {
-    if (onHeightChanged)
-        onHeightChanged();
+    if (onSizeChanged)
+        onSizeChanged();
+}
+
+double ControlCenterPager::windowWidth() const
+{
+    const double main = ControlCenterView::kWidth;
+    if (!m_detail)
+        return main;
+    return std::round(main + (status_panel::kWidth - main) * m_progress);
 }
 
 double ControlCenterPager::windowHeight(double scale) const
@@ -352,14 +360,13 @@ double ControlCenterPager::windowHeight(double scale) const
 void ControlCenterPager::layout()
 {
     const double scale = windowScale(this);
-    const double width = geometry().width;
     // Whole device pixels, so the pages' text stays sharp on the way.
     const auto snapped = [scale](double x) { return std::round(x * scale) / scale; };
-    m_main->setGeometry({0, 0, width, m_main->windowHeight(scale)});
+    m_main->setGeometry({0, 0, ControlCenterView::kWidth, m_main->windowHeight(scale)});
     m_main->setOpacity(1 - m_progress);
     m_main->setTransform({{snapped(-kSlide * m_progress), 0}, 1});
     if (m_detail) {
-        m_detail->setGeometry({0, 0, width, std::max(1.0, std::ceil(m_detail->shownBottom()))});
+        m_detail->setGeometry({0, 0, status_panel::kWidth, std::max(1.0, std::ceil(m_detail->shownBottom()))});
         m_detail->setOpacity(m_progress);
         m_detail->setTransform({{snapped(kSlide * (1 - m_progress)), 0}, 1});
     }

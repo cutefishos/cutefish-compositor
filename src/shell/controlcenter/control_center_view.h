@@ -104,12 +104,15 @@ public:
     void showDetail(std::unique_ptr<StatusPanelView> page);
     void showMain();
 
+    // The window's width: the tiles' or a status panel's, and between the
+    // two while the pages slide.
+    double windowWidth() const;
     // The window's height at `scale`: the tiles' or the detail page's as it
     // is drawn, and between the two while the pages slide.
     double windowHeight(double scale) const;
 
-    // windowHeight() may have changed.
-    std::function<void()> onHeightChanged;
+    // windowWidth() or windowHeight() may have changed.
+    std::function<void()> onSizeChanged;
 
 protected:
     void layout() override;
@@ -118,7 +121,7 @@ private:
     void slideTo(double target);
     void setProgress(double progress);
     void settle();
-    void heightChanged();
+    void sizeChanged();
 
     ControlCenterView *m_main;
     StatusPanelView *m_detail = nullptr;

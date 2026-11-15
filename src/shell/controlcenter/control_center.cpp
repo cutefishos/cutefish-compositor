@@ -166,6 +166,20 @@ ShellWindow *ControlCenter::popupWindow(Panel panel) const
     return window ? m_shell->host()->windowFor(static_cast<ui::EmbeddedWindow *>(window)) : nullptr;
 }
 
+// A popup of `bar` at `geometry`, in screen coordinates.
+static ui::PopupPlacement placementAt(ShellWindow *bar, const base::Rect &geometry)
+{
+    const base::Point origin = bar->geometry().topLeft();
+    ui::PopupPlacement placement;
+    placement.anchorRect = {double(geometry.x() - origin.x()), double(geometry.y() - origin.y()), 1, 1};
+    placement.anchor = ui::PopupAnchor::TopLeft;
+    placement.gravity = ui::PopupAnchor::BottomRight;
+    placement.flipX = false;
+    placement.flipY = false;
+    placement.slide = false;
+    return placement;
+}
+
 base::Rect ControlCenter::panelGeometry(Panel panel, ShellWindow *bar, const base::Rect &anchor) const
 {
     const base::Point barOrigin = bar ? bar->geometry().topLeft() : base::Point();
@@ -176,7 +190,7 @@ base::Rect ControlCenter::panelGeometry(Panel panel, ShellWindow *bar, const bas
     const int margin = int(panel::kPopupMargin);
 
     if (panel == Panel::ControlCenter) {
-        const int width = int(ControlCenterView::kWidth);
+        const int width = m_open[0].pager ? int(m_open[0].pager->windowWidth()) : int(ControlCenterView::kWidth);
         const double scale = bar ? bar->scale() : 1;
         const int height = m_open[0].pager ? int(m_open[0].pager->windowHeight(scale)) : 0;
         int x = position.x();
@@ -215,7 +229,7 @@ void ControlCenter::openPanel(Panel panel, ShellWindow *bar, const base::Rect &a
         view->onSoundDetail = [this] { showDetail(Panel::Volume); };
         auto pager = std::make_unique<ControlCenterPager>(std::move(view));
         open.pager = pager.get();
-        pager->onHeightChanged = [this] { resizeControlCenter(); };
+        pager->onSizeChanged = [this] { resizeControlCenter(); };
         content = std::move(pager);
         break;
     }
@@ -245,15 +259,7 @@ void ControlCenter::openPanel(Panel panel, ShellWindow *bar, const base::Rect &a
     open.geometry = panelGeometry(panel, bar, anchor);
     if (open.panel)
         open.panel->setMaximumHeight(open.geometry.height());
-    const base::Point origin = bar->geometry().topLeft();
-    ui::PopupPlacement placement;
-    placement.anchorRect = {double(open.geometry.x() - origin.x()), double(open.geometry.y() - origin.y()), 1, 1};
-    placement.anchor = ui::PopupAnchor::TopLeft;
-    placement.gravity = ui::PopupAnchor::BottomRight;
-    placement.flipX = false;
-    placement.flipY = false;
-    placement.slide = false;
-    open.window = ui::Window::createPopup(bar->window(), placement, true);
+    open.window = ui::Window::createPopup(bar->window(), placementAt(bar, open.geometry), true);
     auto root = std::make_unique<PopupRoot>(std::move(content));
     open.root = root.get();
     open.root->onEscape = [this, panel] { escape(panel); };
@@ -333,12 +339,14 @@ void ControlCenter::resizeControlCenter()
     Open &open = m_open[0];
     if (!open.window || !open.pager)
         return;
-    const double scale = open.bar ? open.bar->scale() : 1;
-    const int height = int(open.pager->windowHeight(scale));
-    if (height == open.geometry.height())
+    const base::Rect geometry = panelGeometry(Panel::ControlCenter, open.bar, open.anchor);
+    if (geometry == open.geometry)
         return;
-    open.geometry.setHeight(height);
-    open.window->resize({double(open.geometry.width()), double(height)});
+    const bool moved = geometry.topLeft() != open.geometry.topLeft();
+    open.geometry = geometry;
+    open.window->resize({double(geometry.width()), double(geometry.height())});
+    if (moved)
+        open.window->setPopupPlacement(placementAt(open.bar, geometry));
     updateWindow(Panel::ControlCenter);
 }
 
@@ -400,7 +408,7 @@ void ControlCenter::close(Panel panel)
         open.controlCenter->onSoundDetail = nullptr;
     }
     if (open.pager) {
-        open.pager->onHeightChanged = nullptr;
+        open.pager->onSizeChanged = nullptr;
         if (StatusPanelView *detail = open.pager->detailPage()) {
             detail->onCloseRequested = nullptr;
             if (auto *network = dynamic_cast<NetworkPanel *>(detail))
