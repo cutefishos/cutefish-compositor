@@ -635,6 +635,11 @@ TEST(MenuBarTest, ServesOrgCutefishMenuBar)
     test::DBusTestClient settings;
     settings.call("org.cutefish.MenuBar", "/MenuBar", "org.cutefish.MenuBar", "setBatteryPercentage", true);
     EXPECT_TRUE(menuBar.battery().showPercentage());
+    EXPECT_TRUE(menuBar.isControlShown(shell::MenuBar::Control::Battery));
+    settings.call("org.cutefish.MenuBar", "/MenuBar", "org.cutefish.MenuBar", "setControlShown",
+                  std::string("battery"), false);
+    EXPECT_FALSE(menuBar.isControlShown(shell::MenuBar::Control::Battery));
+    EXPECT_TRUE(menuBar.isControlShown(shell::MenuBar::Control::WiFi));
 
     bool requested = false;
     auto subscription = menuBar.powerActions().requested.connect([&] { requested = true; });
@@ -648,6 +653,8 @@ TEST(MenuBarTest, ServesOrgCutefishMenuBar)
     shell::waitForFileThread();
     base::Settings saved(directory.filePath("shell.conf"));
     EXPECT_TRUE(saved.boolValue("MenuBar/BatteryPercentage", false));
+    EXPECT_FALSE(saved.boolValue("MenuBar/ShowBattery", true));
+    EXPECT_FALSE(saved.contains("MenuBar/ShowWiFi"));
 
     const std::string xml = settings.introspect("org.cutefish.MenuBar", "/MenuBar");
     EXPECT_NE(xml.find("name=\"batteryPercentage\""), std::string::npos);

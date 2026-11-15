@@ -192,6 +192,10 @@ MenuBarWindow::MenuBarWindow(Shell *shell, std::unique_ptr<MenuBar> menuBar)
     m_subscriptions.push_back(battery.changed.connect([this] { updateBattery(); }));
     m_subscriptions.push_back(battery.showPercentageChanged.connect([this] { updateBattery(); }));
     m_subscriptions.push_back(m_menuBar->powerProfiles().activeProfileChanged.connect([this] { updateBattery(); }));
+    m_subscriptions.push_back(m_menuBar->controlsChanged.connect([this] {
+        updateBattery();
+        updateIndicators();
+    }));
 
     m_subscriptions.push_back(m_backdrop->changed.connect([this] { updateLook(); }));
     if (bus)
@@ -351,6 +355,8 @@ void MenuBarWindow::updateBattery()
     const Battery &battery = m_menuBar->battery();
     const bool powerSaver = m_menuBar->powerProfiles().activeProfile() == "power-saver";
     m_battery->showBattery(battery, battery.showPercentage(), powerSaver);
+    if (!m_menuBar->isControlShown(MenuBar::Control::Battery))
+        m_battery->setVisible(false);
     layoutRow();
 }
 
@@ -366,7 +372,7 @@ void MenuBarWindow::setIndicators(MenuBarIndicators *indicators)
 void MenuBarWindow::updateIndicators()
 {
     const MenuBarIndicators::Audio audio = m_indicators ? m_indicators->audio() : MenuBarIndicators::Audio();
-    m_volume->setVisible(audio.hasSink);
+    m_volume->setVisible(audio.hasSink && m_menuBar->isControlShown(MenuBar::Control::Sound));
     const double level = audio.hasSink ? audio.volume * 100.0 : -1;
     const char *volumeIcon = level <= 0 ? "audio-volume-muted-symbolic"
             : level <= 25              ? "audio-volume-low-symbolic"
@@ -375,6 +381,8 @@ void MenuBarWindow::updateIndicators()
     m_volume->setIconName(audio.hasSink && !audio.muted ? volumeIcon : "audio-volume-muted-symbolic");
 
     m_network->showNetwork(m_indicators ? m_indicators->network() : MenuBarIndicators::Network());
+    if (!m_menuBar->isControlShown(MenuBar::Control::WiFi))
+        m_network->setVisible(false);
 
     layoutRow();
 }

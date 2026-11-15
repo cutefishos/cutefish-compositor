@@ -300,6 +300,18 @@ TEST_F(MenuBarViewTest, IndicatorsPickTheIcons)
     EXPECT_EQ("recorder", bar->deviceUsage()->applications().front().name);
     EXPECT_TRUE(bar->deviceUsage()->applications().front().microphone);
 
+    // The user's choices take the icons off the bar.
+    bar->menuBar().setControlShown(shell::MenuBar::Control::WiFi, false);
+    bar->menuBar().setControlShown(shell::MenuBar::Control::Sound, false);
+    bar->menuBar().setControlShown(shell::MenuBar::Control::Battery, false);
+    EXPECT_FALSE(bar->volumeIcon()->isVisible());
+    EXPECT_FALSE(bar->networkIcon()->isVisible());
+    EXPECT_FALSE(bar->batteryIcon()->isVisible());
+    bar->menuBar().setControlShown(shell::MenuBar::Control::WiFi, true);
+    bar->menuBar().setControlShown(shell::MenuBar::Control::Sound, true);
+    EXPECT_TRUE(bar->volumeIcon()->isVisible());
+    EXPECT_TRUE(bar->networkIcon()->isVisible());
+
     indicators.m_network.wirelessHwEnabled = false;
     indicators.m_audio.hasSink = false;
     indicators.changed();

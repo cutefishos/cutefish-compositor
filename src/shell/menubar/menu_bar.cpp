@@ -20,6 +20,8 @@ namespace dbus = base::dbus;
 
 static const base::LogCategory cfMenuBar("cutefish.shell.menubar");
 
+static const char *const kControlKeys[] = {"MenuBar/ShowWiFi", "MenuBar/ShowBattery", "MenuBar/ShowSound"};
+
 MenuBar::MenuBar(dbus::Connection *sessionBus, dbus::Connection *systemBus, TaskManager *tasks,
                  std::string settingsPath)
     : m_bus(sessionBus)
@@ -48,6 +50,26 @@ MenuBar::MenuBar(dbus::Connection *sessionBus, dbus::Connection *systemBus, Task
         m_languageChanged = m_bus->subscribe(rule, [this](const dbus::Message &) { reloadLanguage(); });
     }
     reloadLanguage();
+
+    m_controlsLoad = runOnFileThread(
+            [path = m_settingsPath] {
+                const base::Settings settings(path);
+                std::array<bool, kControlCount> shown {};
+                for (int i = 0; i < kControlCount; ++i)
+                    shown[i] = settings.boolValue(kControlKeys[i], true);
+                return shown;
+            },
+            [this](std::array<bool, kControlCount> shown) {
+                bool changed = false;
+                for (int i = 0; i < kControlCount; ++i) {
+                    if (m_controlSet[i] || shown[i] == m_controlShown[i])
+                        continue;
+                    m_controlShown[i] = shown[i];
+                    changed = true;
+                }
+                if (changed)
+                    controlsChanged();
+            });
 }
 
 MenuBar::~MenuBar()
@@ -64,6 +86,13 @@ bool MenuBar::registerServices()
         auto object = std::make_unique<dbus::Object>(m_bus, "/MenuBar", "org.cutefish.MenuBar");
         object->addMethod("setBatteryPercentage", [this](bool enabled) { m_battery->setShowPercentage(enabled); },
                           dbus::ArgumentNames{{"batteryPercentage"}, {}});
+        object->addMethod(
+                "setControlShown",
+                [this](const std::string &name, bool shown) {
+                    if (const std::optional<Control> control = controlFromName(name))
+                        setControlShown(*control, shown);
+                },
+                dbus::ArgumentNames{{"control", "shown"}, {}});
         object->addMethod("mediaPlayPause", [this] {
             if (auto *player = m_mpris.current())
                 player->playPause();
@@ -98,6 +127,35 @@ bool MenuBar::registerServices()
     const bool watcher = m_watcher.registerService();
     const bool registrar = m_registrar.registerService();
     return watcher && registrar;
+}
+
+bool MenuBar::isControlShown(Control control) const
+{
+    return m_controlShown[int(control)];
+}
+
+void MenuBar::setControlShown(Control control, bool shown)
+{
+    const int index = int(control);
+    m_controlSet[index] = true;
+    if (shown == m_controlShown[index])
+        return;
+    m_controlShown[index] = shown;
+    writeSettings(m_settingsPath, [key = kControlKeys[index], shown](base::Settings &settings) {
+        settings.setValue(key, shown);
+    });
+    controlsChanged();
+}
+
+std::optional<MenuBar::Control> MenuBar::controlFromName(const std::string &name)
+{
+    if (name == "wifi")
+        return Control::WiFi;
+    if (name == "battery")
+        return Control::Battery;
+    if (name == "sound")
+        return Control::Sound;
+    return std::nullopt;
 }
 
 namespace {

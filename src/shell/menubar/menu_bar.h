@@ -5,7 +5,9 @@
 #ifndef CUTEFISH_SHELL_MENUBAR_MENU_BAR_H_
 #define CUTEFISH_SHELL_MENUBAR_MENU_BAR_H_
 
+#include <array>
 #include <memory>
+#include <optional>
 #include <string>
 
 #include "base/dbus.h"
@@ -29,11 +31,19 @@ class TaskManager;
 
 // The menu bar without its views: the tray and its watcher, the AppMenu
 // registrar, the media player, battery, brightness and power profiles, the
-// power actions, the clock's format, and org.cutefish.MenuBar at
-// /MenuBar.
+// power actions, the clock's format, which controls the bar shows, and
+// org.cutefish.MenuBar at /MenuBar.
 class MenuBar
 {
 public:
+    // The controls the user can take off the bar (MenuBar/ShowWiFi,
+    // ShowBattery and ShowSound in shell.conf, all shown by default).
+    enum class Control {
+        WiFi,
+        Battery,
+        Sound,
+    };
+
     // `settingsPath` is shell.conf; `tasks` may be null.
     MenuBar(base::dbus::Connection *sessionBus, base::dbus::Connection *systemBus, TaskManager *tasks,
             std::string settingsPath);
@@ -65,7 +75,16 @@ public:
 
     base::Signal<> timeFormatChanged;
 
+    bool isControlShown(Control control) const;
+    void setControlShown(Control control, bool shown);
+    // "wifi", "battery" or "sound", as org.cutefish.MenuBar names them.
+    static std::optional<Control> controlFromName(const std::string &name);
+
+    base::Signal<> controlsChanged;
+
 private:
+    static constexpr int kControlCount = 3;
+
     void reloadLanguage();
     void updateTimeFormat();
 
@@ -82,6 +101,10 @@ private:
     std::unique_ptr<base::dbus::Object> m_object;
     base::dbus::Match m_languageChanged;
     base::Job m_language;
+    base::Job m_controlsLoad;
+    std::array<bool, kControlCount> m_controlShown {true, true, true};
+    // Controls set while the file was read, which keep their new state.
+    std::array<bool, kControlCount> m_controlSet {};
     bool m_twentyFourTime = false;
     std::string m_timeLocale;
     std::string m_timeFormat;
