@@ -127,6 +127,8 @@ public:
     virtual void retranslate() = 0;
 
     ui::View *settingsLink() const;
+    // The separator above the settings link, in the panel's coordinates.
+    double footerLineY() const;
 
     // shownBottom() changed: the window's glass and input follow it.
     std::function<void()> onShownBottomChanged;
@@ -146,6 +148,8 @@ protected:
     // is the panel's; the body column runs from kHorizontalPadding over
     // kWidth - 2 kHorizontalPadding.
     virtual void layoutBody(double top) = 0;
+    // How far above the body's end its last ink is, such as a row's badge.
+    virtual double bodyInkInset() const = 0;
     // The body's height changed: animates to the new height.
     void contentChanged();
     // What the body may take before the panel reaches the work area's height.
@@ -163,6 +167,7 @@ private:
     class SettingsLink;
 
     double headerHeight() const;
+    double inkInset() const;
     double footerHeight() const;
     double layoutHeight() const;
     double footerTop() const;
@@ -206,6 +211,7 @@ public:
 protected:
     double bodyHeight() const override;
     void layoutBody(double top) override;
+    double bodyInkInset() const override;
 
 private:
     class List;
@@ -238,6 +244,7 @@ public:
 protected:
     double bodyHeight() const override;
     void layoutBody(double top) override;
+    double bodyInkInset() const override;
 
 private:
     ui::Label *m_noOutput;
@@ -263,6 +270,7 @@ public:
 protected:
     double bodyHeight() const override;
     void layoutBody(double top) override;
+    double bodyInkInset() const override;
 
 private:
     ui::Label *m_source;

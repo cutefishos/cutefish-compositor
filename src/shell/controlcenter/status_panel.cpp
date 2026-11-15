@@ -35,6 +35,11 @@ static constexpr double kGlyphSize = 16;
 static constexpr double kRowSpacing = 12;
 static constexpr double kListSpacing = 2;
 static constexpr double kMinimumRowHeight = 36;
+// A row's badge sits this far inside its background.
+static constexpr double kBadgeInset = (kMinimumRowHeight - kBadgeSize) / 2;
+// The footer's line this far below the body's last ink, the link's capitals
+// as far below the line, and its baseline as far from the bottom edge.
+static constexpr double kFooterGap = 14;
 // FishUI's Font.DemiBold.
 static constexpr int kDemiBold = 600;
 static constexpr ui::Color kLightArtwork = ui::Color::rgb(0x383838);
@@ -42,6 +47,12 @@ static constexpr ui::Color kWhite = ui::Color::rgb(0xFFFFFF);
 // NetworkManager scans only now and then while connected; an open list asks
 // for more.
 static constexpr std::chrono::milliseconds kScanInterval {15000};
+
+// How far a label's line box reaches below its last baseline.
+static double descent(const ui::Label *label)
+{
+    return label->sizeHint().height - label->baselineOffset();
+}
 
 static double windowScale(const ui::View *view)
 {
@@ -267,15 +278,14 @@ void PanelRow::pointerRelease(const ui::PointerEvent &event)
         onClicked();
 }
 
-// The settings link: its text where the rows' text is, its background 6
-// above and below the text and out to kBackgroundMargin from the sides.
+// The settings link: its text where the rows' text is, its background
+// centred on the capitals and out to kBackgroundMargin from the sides.
 class StatusPanelView::SettingsLink final : public ui::View
 {
 public:
     explicit SettingsLink(std::string text)
     {
         m_label = addChild<ui::Label>(std::move(text));
-        m_label->setVerticallyCentered(true);
         setTracksHover(true);
     }
 
@@ -285,19 +295,21 @@ public:
         requestLayout();
     }
 
-    // The text's own height, at least 20.
-    double textHeight() const { return std::max(20.0, m_label->sizeHint().height); }
+    double capHeight() const { return m_label->capHeight(); }
+    // The label's top for a baseline at `baseline`, both in the link's parent.
+    double labelTop(double baseline, double scale) const { return alignedLabelTop(m_label, baseline, scale); }
+    void setLabelTop(double top)
+    {
+        m_labelTop = top;
+        placeLabel();
+    }
 
     std::function<void()> onClicked;
 
     bool acceptsPointer() const override { return true; }
 
 protected:
-    void layout() override
-    {
-        const double inset = kHorizontalPadding - kBackgroundMargin;
-        m_label->setGeometry({inset, kRowInset, geometry().width - 2 * inset, textHeight()});
-    }
+    void layout() override { placeLabel(); }
 
     void paint(ui::Painter &painter) override
     {
@@ -327,7 +339,14 @@ protected:
     }
 
 private:
+    void placeLabel()
+    {
+        const double inset = kHorizontalPadding - kBackgroundMargin;
+        m_label->setGeometry({inset, m_labelTop, geometry().width - 2 * inset, m_label->sizeHint().height});
+    }
+
     ui::Label *m_label;
+    double m_labelTop = 0;
     bool m_pressed = false;
 };
 
@@ -404,13 +423,21 @@ double StatusPanelView::headerHeight() const
     return textBaseline + kHorizontalPadding - kSectionSpacing;
 }
 
+double StatusPanelView::inkInset() const
+{
+    // Without a body the title's baseline is the last ink.
+    return m_bodyVisible ? bodyInkInset() : headerHeight() - (kHorizontalPadding - kContentPadding + m_title->capHeight());
+}
+
 double StatusPanelView::footerHeight() const
 {
-    // The separator 12 below the body and 12 above the link; the link
-    // kRowInset clear of the bottom for its background.
-    const double separator = kSectionSpacing + std::max(0.0, kSeparatorSpacing - kSectionSpacing) + 1
-            + std::max(0.0, kSeparatorSpacing - kSectionSpacing);
-    return separator + kSectionSpacing + m_link->textHeight() + kRowInset;
+    return kFooterGap - inkInset() + 1 + kFooterGap + m_link->capHeight() + kFooterGap - kBottomPadding;
+}
+
+double StatusPanelView::footerLineY() const
+{
+    // On whole device pixels, or the line spreads over two rows.
+    return snapToDevice(footerTop() - inkInset() + kFooterGap, windowScale(this));
 }
 
 double StatusPanelView::layoutHeight() const
@@ -538,17 +565,20 @@ void StatusPanelView::layout()
     m_body->setGeometry({0, 0, kWidth, std::max(0.0, m_maximumHeight)});
     layoutBody(headerHeight() + kSectionSpacing);
 
-    const double linkTop = footer + kSeparatorSpacing + 1 + std::max(0.0, kSeparatorSpacing - kSectionSpacing)
-            + kSectionSpacing;
-    m_link->setGeometry({kBackgroundMargin, linkTop - kRowInset, kWidth - 2 * kBackgroundMargin,
-                         m_link->textHeight() + 2 * kRowInset});
+    const double baseline = footerLineY() + 1 + kFooterGap + m_link->capHeight();
+    // Its background kBackgroundMargin clear of the bottom edge, as far above
+    // the capitals' centre as below it.
+    const double capCenter = baseline - m_link->capHeight() / 2;
+    const double backgroundBottom = baseline + kFooterGap - kBackgroundMargin;
+    const double linkTop = snapToDevice(2 * capCenter - backgroundBottom, scale);
+    m_link->setGeometry({kBackgroundMargin, linkTop, kWidth - 2 * kBackgroundMargin, backgroundBottom - linkTop});
+    m_link->setLabelTop(m_link->labelTop(baseline, scale) - linkTop);
 }
 
 void StatusPanelView::paint(ui::Painter &painter)
 {
     // The separator above the settings link.
-    const double y = footerTop() + kSeparatorSpacing;
-    painter.fillRect({kHorizontalPadding, y, kWidth - 2 * kHorizontalPadding, 1}, panel::textColor(0.08));
+    painter.fillRect({kHorizontalPadding, footerLineY(), kWidth - 2 * kHorizontalPadding, 1}, panel::textColor(0.08));
 }
 
 // A 1 px line of the text colour at 0.08, as the panels' separators.
@@ -701,12 +731,15 @@ double NetworkPanel::listHeight() const
 // the first row's badge as far below it. Fixed lengths, so the line keeps its
 // place while the list fills in.
 static constexpr double kHeaderLineGap = 14;
-// A row's badge sits this far inside its background.
-static constexpr double kBadgeInset = (kMinimumRowHeight - kBadgeSize) / 2;
 
 double NetworkPanel::listLead() const
 {
     return kHeaderLineGap - kHorizontalPadding + 1 + kHeaderLineGap - kBadgeInset;
+}
+
+double NetworkPanel::bodyInkInset() const
+{
+    return kBadgeInset;
 }
 
 double NetworkPanel::bodyHeight() const
@@ -802,6 +835,15 @@ void VolumePanel::refresh()
 // hard edge than over the heading, whose capitals start below its line box.
 static constexpr double kOutputLineAbove = 14;
 static constexpr double kOutputLineBelow = 10;
+
+double VolumePanel::bodyInkInset() const
+{
+    if (!m_outputs.empty())
+        return kBadgeInset;
+    if (m_slider->isVisible())
+        return 0;
+    return m_noOutput->isVisible() ? descent(m_noOutput) : 0;
+}
 
 double VolumePanel::bodyHeight() const
 {
@@ -909,6 +951,13 @@ void BatteryPanel::refresh()
     contentChanged();
 }
 
+double BatteryPanel::bodyInkInset() const
+{
+    if (!m_profiles.empty())
+        return kBadgeInset;
+    return descent(m_state->isVisible() ? m_state : m_source);
+}
+
 double BatteryPanel::bodyHeight() const
 {
     const double width = kWidth - 2 * kHorizontalPadding;
@@ -917,7 +966,7 @@ double BatteryPanel::bodyHeight() const
         height += 3 + m_state->heightForWidth(width);
     if (m_profiles.empty())
         return height;
-    // The separator, spaced like the one above the settings link.
+    // The separator, kSeparatorSpacing clear of the text and the heading.
     const double margin = std::max(0.0, kSeparatorSpacing - kSectionSpacing);
     height += kSectionSpacing + margin + 1 + margin;
     height += kSectionSpacing + m_heading->sizeHint().height;
@@ -952,7 +1001,7 @@ void BatteryPanel::layoutBody(double top)
     }
     if (m_profiles.empty())
         return;
-    // Spaced like the separator above the settings link.
+    // kSeparatorSpacing clear of the text and the heading.
     const double margin = std::max(0.0, kSeparatorSpacing - kSectionSpacing);
     const double separator = snapToDevice(y + kSectionSpacing + margin, windowScale(this));
     m_separator->setGeometry({x, separator, width, 1});

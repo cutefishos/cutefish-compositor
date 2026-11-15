@@ -40,6 +40,7 @@
 #include "temporary_directory.h"
 #include "ui/application.h"
 #include "ui/dialog_window.h"
+#include "ui/label.h"
 #include "ui/switch.h"
 #include "ui/window.h"
 #include "wm/window.h"
@@ -253,6 +254,24 @@ protected:
         const base::PointF point = centre(panel, view);
         click(point.x(), point.y());
     }
+
+    // The footer's gaps, in the panel's coordinates: the last row's badge to
+    // the line, the line to the link's capitals, the link's baseline to the
+    // panel's bottom edge.
+    void expectFooterGaps(Panel panel, const shell::PanelRow *lastRow)
+    {
+        const shell::StatusPanelView *view = center->statusPanel(panel);
+        const double rowBottom = lastRow->mapToWindow({0, lastRow->geometry().height}).y;
+        const double badgeBottom = rowBottom - (lastRow->geometry().height - 28) / 2;
+        const double line = view->mapToWindow({0, view->footerLineY()}).y;
+        const auto *label = static_cast<const ui::Label *>(view->settingsLink()->children().front().get());
+        const double baseline = label->mapToWindow({0, 0}).y + label->baselineOffset();
+        const double capTop = baseline - label->capHeight();
+        // Within the line's snap to whole pixels and the label's.
+        EXPECT_NEAR(14, line - badgeBottom, 0.5);
+        EXPECT_NEAR(14, capTop - (line + 1), 1);
+        EXPECT_NEAR(14, view->contentHeight() - baseline, 1);
+    }
 };
 
 } // namespace
@@ -419,6 +438,7 @@ TEST_F(ControlCenterTest, TheWifiPanelListsNetworksAndJoinsThem)
 
     ASSERT_EQ(4u, panel->rows().size());
     EXPECT_TRUE(panel->rows()[0]->isActive());
+    expectFooterGaps(Panel::Network, panel->rows().back());
     EXPECT_FALSE(panel->rows()[1]->isActive());
     clickView(Panel::Network, panel->rows()[1]);
     // A connecting network takes no clicks.
@@ -466,6 +486,7 @@ TEST_F(ControlCenterTest, TheSoundAndBatteryPanelsPickOutputsAndModes)
     auto *volume = static_cast<shell::VolumePanel *>(center->statusPanel(Panel::Volume));
     ASSERT_EQ(2u, volume->rows().size());
     EXPECT_TRUE(volume->rows()[0]->isActive());
+    expectFooterGaps(Panel::Volume, volume->rows().back());
     clickView(Panel::Volume, volume->rows()[0]);
     EXPECT_EQ(-1, services->defaultRequested);
     clickView(Panel::Volume, volume->rows()[1]);
@@ -482,6 +503,7 @@ TEST_F(ControlCenterTest, TheSoundAndBatteryPanelsPickOutputsAndModes)
     EXPECT_TRUE(battery->rows()[0]->isVisible());
     EXPECT_TRUE(battery->rows()[1]->isActive());
     EXPECT_FALSE(battery->rows()[2]->isVisible());
+    expectFooterGaps(Panel::Battery, battery->rows()[1]);
     clickView(Panel::Battery, battery->rows()[0]);
     test::runFor(std::chrono::milliseconds(5));
     EXPECT_EQ("power-saver", services->profile);
