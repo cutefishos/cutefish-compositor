@@ -153,31 +153,44 @@ class Clickable : public ui::View
 public:
     bool acceptsPointer() const override { return true; }
     bool containsMouse() const { return m_hovered; }
+    bool isPressed() const { return m_pressed; }
 
     std::function<void()> onClicked;
     std::function<void()> onHoverChanged;
+    std::function<void()> onPressedChanged;
 
 protected:
     void pointerEnter() override { setHovered(true); }
     void pointerLeave() override { setHovered(false); }
     void enabledChanged() override
     {
-        if (!isEnabled())
+        if (!isEnabled()) {
             setHovered(false);
+            setPressed(false);
+        }
     }
     void pointerPress(const ui::PointerEvent &event) override
     {
-        m_pressed = event.button == ui::MouseButton::Left;
+        setPressed(event.button == ui::MouseButton::Left);
     }
     void pointerRelease(const ui::PointerEvent &event) override
     {
         const bool clicked = m_pressed && localRect().contains(event.position);
-        m_pressed = false;
+        setPressed(false);
         if (clicked && onClicked)
             onClicked();
     }
 
 private:
+    void setPressed(bool pressed)
+    {
+        if (pressed == m_pressed)
+            return;
+        m_pressed = pressed;
+        if (onPressedChanged)
+            onPressedChanged();
+    }
+
     void setHovered(bool hovered)
     {
         if (hovered == m_hovered)
@@ -1064,14 +1077,13 @@ private:
     public:
         GoButton(ui::Window *window, PasswordField *field)
             : m_field(field)
-            , m_color(window, 120, ui::Animation::Easing::Linear, colorInterpolation(),
-                      [this] { requestPaint(); })
             , m_opacity(window, 140, ui::Animation::Easing::Linear, numberInterpolation(), [this] {
                 setOpacity(m_opacity.value());
                 setVisible(m_opacity.value() > 0);
             })
         {
             onHoverChanged = [this] { update(); };
+            onPressedChanged = [this] { update(); };
             onClicked = [this] { m_field->m_input->onAccepted(); };
         }
 
@@ -1079,14 +1091,16 @@ private:
         {
             const bool active = m_field->m_enabled && !m_field->m_input->text().empty();
             setEnabled(active);
-            m_color.setTarget(white(containsMouse() && active ? 0.32 : 0.22));
+            const bool hovered = containsMouse() && active;
+            m_color = white(hovered && isPressed() ? 0.14 : hovered ? 0.32 : 0.22);
+            requestPaint();
             m_opacity.setTarget(active ? 1 : 0.35);
         }
 
     protected:
         void paint(ui::Painter &painter) override
         {
-            drawPanelRect(painter, localRect(), geometry().width / 2, m_color.value());
+            drawPanelRect(painter, localRect(), geometry().width / 2, m_color);
             const double cx = geometry().width / 2;
             const double cy = geometry().height / 2;
             ui::Path arrow;
@@ -1100,7 +1114,7 @@ private:
 
     private:
         PasswordField *m_field;
-        ColorBehavior m_color;
+        ui::Color m_color = white(0.22);
         NumberBehavior m_opacity;
     };
 
