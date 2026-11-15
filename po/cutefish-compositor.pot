@@ -84,6 +84,7 @@ msgid "Wi-Fi"
 msgstr ""
 
 #: src/shell/controlcenter/control_center_view.cpp
+#: src/shell/controlcenter/status_panel.cpp
 msgid "Bluetooth"
 msgstr ""
 
@@ -170,6 +171,10 @@ msgstr ""
 #. TRANSLATORS: the heading above the list of sound output devices.
 #: src/shell/controlcenter/status_panel.cpp
 msgid "Output"
+msgstr ""
+
+#: src/shell/controlcenter/status_panel.cpp
+msgid "Bluetooth Settings"
 msgstr ""
 
 #: src/shell/controlcenter/status_panel.cpp

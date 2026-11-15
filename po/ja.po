@@ -82,6 +82,7 @@ msgid "Wi-Fi"
 msgstr "Wi-Fi"
 
 #: src/shell/controlcenter/control_center_view.cpp
+#: src/shell/controlcenter/status_panel.cpp
 msgid "Bluetooth"
 msgstr "Bluetooth"
 
@@ -169,6 +170,10 @@ msgstr "出力装置がありません"
 #: src/shell/controlcenter/status_panel.cpp
 msgid "Output"
 msgstr "出力"
+
+#: src/shell/controlcenter/status_panel.cpp
+msgid "Bluetooth Settings"
+msgstr "Bluetooth 設定"
 
 #: src/shell/controlcenter/status_panel.cpp
 msgid "Power save"
