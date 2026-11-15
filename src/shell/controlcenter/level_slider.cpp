@@ -8,6 +8,7 @@
 #include <cmath>
 
 #include "shell/controlcenter/panel_style.h"
+#include "shell/controlcenter/tiles.h"
 #include "shell/osd/level_track.h"
 #include "ui/label.h"
 #include "ui/painter.h"
@@ -167,6 +168,8 @@ TileSlider::TileSlider(std::string title)
 {
     m_title = addChild<ui::Label>(std::move(title));
     m_title->setElide(ui::Label::Elide::Right);
+    m_chevron = addChild<DetailChevron>();
+    m_chevron->setVisible(false);
     m_slider = addChild<LevelSlider>();
 }
 
@@ -174,6 +177,26 @@ void TileSlider::setTitle(std::string title)
 {
     m_title->setText(std::move(title));
     requestLayout();
+}
+
+void TileSlider::setHasDetail(bool detail)
+{
+    if (detail == m_hasDetail)
+        return;
+    m_hasDetail = detail;
+    setTracksHover(detail);
+    m_chevron->setVisible(detail);
+    requestLayout();
+}
+
+ui::RectF TileSlider::detailRect() const
+{
+    if (!m_hasDetail)
+        return {};
+    // The chevron's slot, out to the tile's end and top, down to the slider.
+    const double padding = ui::Theme::current().largeSpacing;
+    const double width = padding + DetailChevron::kSize + padding / 2;
+    return {geometry().width - width, 0, width, m_slider->geometry().y};
 }
 
 // The capitals' top, not the line box, keeps the padding from the tile's edge.
@@ -198,13 +221,45 @@ void TileSlider::layout()
     const double width = geometry().width - 2 * padding;
     const double labelTop = alignedLabelTop(m_title, m_title->capHeight(), scale);
     const double labelHeight = m_title->sizeHint().height;
-    m_title->setGeometry({padding + 3, padding + labelTop, width - 3, labelHeight});
+    double titleWidth = width - 3;
+    if (m_hasDetail) {
+        // At the title row's end, centred on the title's capitals.
+        const double size = DetailChevron::kSize;
+        const double capCenter = padding + labelTop + m_title->baselineOffset() - m_title->capHeight() / 2;
+        m_chevron->setColor(panel::secondaryTextColor());
+        m_chevron->setGeometry({padding + width - size, snapToDevice(capCenter - size / 2, scale), size, size});
+        titleWidth -= size + ui::Theme::current().smallSpacing;
+    }
+    m_title->setGeometry({padding + 3, padding + labelTop, std::max(0.0, titleWidth), labelHeight});
     m_slider->setGeometry({padding, padding + labelTop + labelHeight + spacing, width, LevelSlider::kHeight});
 }
 
 void TileSlider::paint(ui::Painter &painter)
 {
     panel::paintTile(painter, localRect());
+}
+
+void TileSlider::hoverChanged()
+{
+    m_chevron->setShown(m_hasDetail && isHovered());
+}
+
+void TileSlider::pointerPress(const ui::PointerEvent &event)
+{
+    const ui::RectF detail = detailRect();
+    m_detailPressed = event.button == ui::MouseButton::Left && m_hasDetail && event.position.x >= detail.x
+            && event.position.y < detail.height;
+}
+
+void TileSlider::pointerRelease(const ui::PointerEvent &event)
+{
+    if (event.button != ui::MouseButton::Left || !m_detailPressed)
+        return;
+    m_detailPressed = false;
+    const ui::RectF detail = detailRect();
+    if (event.position.x >= detail.x && event.position.x < detail.x + detail.width && event.position.y >= 0
+        && event.position.y < detail.height && onDetail)
+        onDetail();
 }
 
 bool TileSlider::scroll(const ui::ScrollEvent &event)

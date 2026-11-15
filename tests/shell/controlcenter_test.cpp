@@ -392,7 +392,7 @@ TEST_F(ControlCenterTest, CardsToggleTheirServicesAndHoldingOpensSettings)
     EXPECT_TRUE(services->wireless);
 }
 
-TEST_F(ControlCenterTest, TheWifiAndBluetoothChevronsOpenTheirPanelsAsDetailPages)
+TEST_F(ControlCenterTest, TheWifiBluetoothAndSoundChevronsOpenTheirPanelsAsDetailPages)
 {
     using State = shell::WirelessNetwork::State;
     using Security = shell::WirelessNetwork::Security;
@@ -464,6 +464,35 @@ TEST_F(ControlCenterTest, TheWifiAndBluetoothChevronsOpenTheirPanelsAsDetailPage
     EXPECT_TRUE(view->isVisible());
     EXPECT_EQ(1, view->opacity());
     EXPECT_EQ(mainHeight, window->drawnBounds().height());
+
+    // The Sound slider's chevron sits at its title row's end, centred on the
+    // title's capitals, and opens the sound panel.
+    shell::TileSlider *sound = view->soundSlider();
+    EXPECT_TRUE(sound->hasDetail());
+    EXPECT_FALSE(view->brightnessSlider()->hasDetail());
+    const base::PointF soundCentre = centre(Panel::ControlCenter, sound);
+    move(soundCentre.x(), soundCentre.y());
+    frames(std::chrono::milliseconds(200));
+    EXPECT_EQ(1, sound->chevron()->opacity());
+    const auto *soundTitle = static_cast<const ui::Label *>(sound->children().front().get());
+    const ui::RectF soundChevron = sound->chevron()->geometry();
+    const double capCentre = soundTitle->geometry().y + soundTitle->baselineOffset() - soundTitle->capHeight() / 2;
+    EXPECT_NEAR(capCentre, soundChevron.y + soundChevron.height / 2, 0.5);
+    EXPECT_DOUBLE_EQ(12, sound->geometry().width - soundChevron.x - soundChevron.width);
+    EXPECT_LE(soundChevron.y + soundChevron.height, sound->slider()->geometry().y);
+    const ui::RectF soundDetail = sound->detailRect();
+    const ui::PointF soundOrigin = sound->mapToWindow({soundDetail.x + soundDetail.width / 2, soundDetail.height / 2});
+    click(popup.x() + soundOrigin.x, popup.y() + soundOrigin.y);
+    frames(std::chrono::milliseconds(400));
+    auto *volume = dynamic_cast<shell::VolumePanel *>(pager->detailPage());
+    ASSERT_NE(nullptr, volume);
+    ASSERT_EQ(2u, volume->rows().size());
+    EXPECT_EQ(360 - 2 * 6, volume->rows()[0]->geometry().width);
+    EXPECT_EQ(int(std::lround(volume->shownBottom())), window->drawnBounds().height());
+    key(KEY_ESC);
+    frames(std::chrono::milliseconds(420));
+    EXPECT_EQ(nullptr, pager->detailPage());
+    EXPECT_TRUE(center->isOpen(Panel::ControlCenter));
 
     // The Bluetooth chevron; the panel's settings link closes the control centre.
     services->devices = {{"/dev/a", "AirPods", "audio-headphones", true, false, 72}};

@@ -56,6 +56,8 @@ public:
     // The Wi-Fi or Bluetooth card's chevron: its detail page.
     std::function<void()> onWirelessDetail;
     std::function<void()> onBluetoothDetail;
+    // The Sound slider's chevron: the sound panel.
+    std::function<void()> onSoundDetail;
     // The layout's height may have changed.
     std::function<void()> onHeightChanged;
 
@@ -79,8 +81,8 @@ private:
     bool m_darkModeShown = false;
 };
 
-// The control centre's pages: the tiles, and a card's detail page (the Wi-Fi
-// or Bluetooth panel) over them. Between the two the pages slide kSlide and
+// The control centre's pages: the tiles, and a tile's detail page (the
+// Wi-Fi, Bluetooth or Sound panel) over them. Between the two the pages slide kSlide and
 // cross-fade while the window's height glides from one to the other, on the
 // panels' 380 ms curve; a change of direction on the way turns from where
 // the pages are.

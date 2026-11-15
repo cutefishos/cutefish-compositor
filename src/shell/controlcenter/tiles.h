@@ -13,11 +13,11 @@
 
 #include "base/timer.h"
 #include "shell/controlcenter/control_center_services.h"
+#include "ui/icon.h"
 #include "ui/view.h"
 
 namespace cutefish::ui {
 class Animation;
-class Icon;
 class ImageView;
 class Label;
 } // namespace cutefish::ui
@@ -40,6 +40,24 @@ private:
     std::optional<ui::Color> m_tint;
 };
 
+// The chevron of a tile with a detail page, in the secondary text colour:
+// shown while the tile is hovered, fading in and out over 150 ms.
+class DetailChevron : public ui::Icon
+{
+public:
+    static constexpr double kSize = 12;
+
+    DetailChevron();
+    ~DetailChevron() override;
+
+    void setShown(bool shown);
+
+private:
+    std::unique_ptr<ui::Animation> m_fade;
+    double m_from = 0;
+    double m_to = 0;
+};
+
 // A toggle tile: a round plate with the glyph, a
 // title and a status line. The whole card clicks; holding it 800 ms does the
 // press-and-hold action instead. A card with a detail page shows a chevron at
@@ -50,7 +68,6 @@ public:
     static constexpr double kPlateSize = 28;
     static constexpr double kIconSize = 16;
     static constexpr double kHeight = kPlateSize + 12 * 2 + 4;
-    static constexpr double kChevronSize = 12;
 
     CardItem();
     ~CardItem() override;
@@ -68,7 +85,7 @@ public:
     // Where a click opens the detail page, in the card's coordinates: the
     // chevron and the padding round it.
     ui::RectF detailRect() const;
-    ui::Icon *chevron() const { return m_chevron; }
+    DetailChevron *chevron() const { return m_chevron; }
 
     std::function<void()> onClicked;
     std::function<void()> onPressAndHold;
@@ -86,7 +103,6 @@ protected:
 
 private:
     void updateIcon();
-    void fadeChevron(bool shown);
 
     std::string m_artwork;
     bool m_checked = false;
@@ -96,13 +112,10 @@ private:
     bool m_detailPressed = false;
     SvgIcon *m_svg;
     ui::Icon *m_glyph;
-    ui::Icon *m_chevron;
+    DetailChevron *m_chevron;
     ui::Label *m_title;
     ui::Label *m_status;
     base::Timer m_holdTimer;
-    std::unique_ptr<ui::Animation> m_chevronFade;
-    double m_chevronFrom = 0;
-    double m_chevronTo = 0;
 };
 
 // An icon at three quarters of the button, a

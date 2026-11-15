@@ -59,13 +59,39 @@ void SvgIcon::paint(ui::Painter &painter)
                     m_tint);
 }
 
+DetailChevron::DetailChevron()
+    : ui::Icon("chevron-right-small", kSize)
+{
+    setOpacity(0);
+}
+
+DetailChevron::~DetailChevron() = default;
+
+void DetailChevron::setShown(bool shown)
+{
+    const double target = shown ? 1 : 0;
+    if (!window()) {
+        setOpacity(target);
+        return;
+    }
+    if (!m_fade) {
+        m_fade = std::make_unique<ui::Animation>(window());
+        m_fade->setDuration(kChevronFade);
+        m_fade->setEasing(ui::Animation::Easing::OutQuad);
+        m_fade->onUpdate = [this](double t) { setOpacity(m_from + (m_to - m_from) * t); };
+    }
+    m_fade->stop();
+    m_from = opacity();
+    m_to = target;
+    m_fade->start();
+}
+
 CardItem::CardItem()
 {
     m_svg = addChild<SvgIcon>();
     m_glyph = addChild<ui::Icon>(std::string(), kIconSize);
     m_glyph->setVisible(false);
-    m_chevron = addChild<ui::Icon>("chevron-right-small", kChevronSize);
-    m_chevron->setOpacity(0);
+    m_chevron = addChild<DetailChevron>();
     m_chevron->setVisible(false);
     m_title = addChild<ui::Label>();
     m_title->setElide(ui::Label::Elide::Right);
@@ -142,34 +168,13 @@ ui::RectF CardItem::detailRect() const
         return {};
     // The chevron's slot, out to the card's end and edges.
     const double padding = ui::Theme::current().largeSpacing;
-    const double width = padding + kChevronSize + padding / 2;
+    const double width = padding + DetailChevron::kSize + padding / 2;
     return {geometry().width - width, 0, width, geometry().height};
-}
-
-void CardItem::fadeChevron(bool shown)
-{
-    const double target = shown ? 1 : 0;
-    if (!window()) {
-        m_chevron->setOpacity(target);
-        return;
-    }
-    if (!m_chevronFade) {
-        m_chevronFade = std::make_unique<ui::Animation>(window());
-        m_chevronFade->setDuration(kChevronFade);
-        m_chevronFade->setEasing(ui::Animation::Easing::OutQuad);
-        m_chevronFade->onUpdate = [this](double t) {
-            m_chevron->setOpacity(m_chevronFrom + (m_chevronTo - m_chevronFrom) * t);
-        };
-    }
-    m_chevronFade->stop();
-    m_chevronFrom = m_chevron->opacity();
-    m_chevronTo = target;
-    m_chevronFade->start();
 }
 
 void CardItem::hoverChanged()
 {
-    fadeChevron(m_hasDetail && isHovered());
+    m_chevron->setShown(m_hasDetail && isHovered());
 }
 
 void CardItem::updateIcon()
@@ -200,9 +205,10 @@ void CardItem::layout()
     // elides afresh under the pointer.
     double right = geometry().width - padding;
     if (m_hasDetail) {
+        const double size = DetailChevron::kSize;
         m_chevron->setColor(panel::secondaryTextColor());
-        m_chevron->setGeometry({right - kChevronSize, (height - kChevronSize) / 2, kChevronSize, kChevronSize});
-        right -= kChevronSize + theme.smallSpacing;
+        m_chevron->setGeometry({right - size, (height - size) / 2, size, size});
+        right -= size + theme.smallSpacing;
     }
     const double x = slot.x + kPlateSize + theme.smallSpacing * 1.5;
     const double width = std::max(0.0, right - x);

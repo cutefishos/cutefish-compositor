@@ -91,6 +91,11 @@ ControlCenterView::ControlCenterView(ControlCenterServices &services)
     };
 
     m_sound = addChild<TileSlider>(tr("Sound"));
+    m_sound->setHasDetail(true);
+    m_sound->onDetail = [this] {
+        if (onSoundDetail)
+            onSoundDetail();
+    };
     m_sound->slider()->setRange(0, 1, 0.01);
     m_sound->slider()->onMoved = [this](double value) {
         if (!m_services.hasSink())

@@ -97,7 +97,7 @@ private:
     // over the window.
     void updateWindow(Panel panel);
     void resizeControlCenter();
-    // The Wi-Fi or Bluetooth panel as the control centre's detail page.
+    // The Wi-Fi, Bluetooth or Sound panel as the control centre's detail page.
     void showDetail(Panel panel);
     // Escape: back from a detail page, else closed.
     void escape(Panel panel);

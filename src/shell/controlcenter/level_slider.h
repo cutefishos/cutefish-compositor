@@ -17,6 +17,7 @@ class Label;
 
 namespace cutefish::shell {
 
+class DetailChevron;
 class LevelTrack;
 
 // The level track made draggable, the control
@@ -73,7 +74,8 @@ private:
 };
 
 // A titled tile holding a level slider; the whole
-// tile takes the wheel.
+// tile takes the wheel. A tile with a detail page shows a chevron at the
+// title row's end while hovered, and a click there opens the page.
 class TileSlider : public ui::View
 {
 public:
@@ -81,17 +83,33 @@ public:
 
     LevelSlider *slider() const { return m_slider; }
     void setTitle(std::string title);
+    void setHasDetail(bool detail);
+    bool hasDetail() const { return m_hasDetail; }
+    // Where a click opens the detail page, in the tile's coordinates: the
+    // chevron and the padding round it, above the slider.
+    ui::RectF detailRect() const;
+    DetailChevron *chevron() const { return m_chevron; }
     double heightForWidth(double width) const override;
     ui::SizeF sizeHint() const override;
+
+    std::function<void()> onDetail;
+
+    bool acceptsPointer() const override { return m_hasDetail; }
 
 protected:
     void layout() override;
     void paint(ui::Painter &painter) override;
+    void hoverChanged() override;
+    void pointerPress(const ui::PointerEvent &event) override;
+    void pointerRelease(const ui::PointerEvent &event) override;
     bool scroll(const ui::ScrollEvent &event) override;
 
 private:
     ui::Label *m_title;
+    DetailChevron *m_chevron;
     LevelSlider *m_slider;
+    bool m_hasDetail = false;
+    bool m_detailPressed = false;
 };
 
 // FishUI.Dpi's snap(): onto the device pixel grid of `scale`.

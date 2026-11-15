@@ -213,6 +213,7 @@ void ControlCenter::openPanel(Panel panel, ShellWindow *bar, const base::Rect &a
         view->onHideRequested = [this] { close(Panel::ControlCenter); };
         view->onWirelessDetail = [this] { showDetail(Panel::Network); };
         view->onBluetoothDetail = [this] { showDetail(Panel::Bluetooth); };
+        view->onSoundDetail = [this] { showDetail(Panel::Volume); };
         auto pager = std::make_unique<ControlCenterPager>(std::move(view));
         open.pager = pager.get();
         pager->onHeightChanged = [this] { resizeControlCenter(); };
@@ -360,6 +361,8 @@ void ControlCenter::showDetail(Panel panel)
     std::unique_ptr<StatusPanelView> page;
     if (panel == Panel::Network)
         page = std::make_unique<NetworkPanel>(*m_services);
+    else if (panel == Panel::Volume)
+        page = std::make_unique<VolumePanel>(*m_services);
     else
         page = std::make_unique<BluetoothPanel>(*m_services);
     page->onCloseRequested = [this] { close(Panel::ControlCenter); };
@@ -396,6 +399,7 @@ void ControlCenter::close(Panel panel)
         open.controlCenter->onHideRequested = nullptr;
         open.controlCenter->onWirelessDetail = nullptr;
         open.controlCenter->onBluetoothDetail = nullptr;
+        open.controlCenter->onSoundDetail = nullptr;
     }
     if (open.pager) {
         open.pager->onHeightChanged = nullptr;

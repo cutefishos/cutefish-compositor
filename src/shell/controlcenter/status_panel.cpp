@@ -870,7 +870,7 @@ double VolumePanel::bodyHeight() const
 void VolumePanel::layoutBody(double top)
 {
     const double x = kHorizontalPadding;
-    const double width = kWidth - 2 * kHorizontalPadding;
+    const double width = panelWidth() - 2 * kHorizontalPadding;
     double y = top;
     m_noOutput->setColor(panel::secondaryTextColor());
     m_heading->setColor(panel::secondaryTextColor());
@@ -893,7 +893,7 @@ void VolumePanel::layoutBody(double top)
     y += m_heading->sizeHint().height + kSectionSpacing;
     for (PanelRow *row : m_rows) {
         const double height = row->heightForWidth(kWidth);
-        row->setGeometry({kBackgroundMargin, y, kWidth - 2 * kBackgroundMargin, height});
+        row->setGeometry({kBackgroundMargin, y, panelWidth() - 2 * kBackgroundMargin, height});
         y += height + kListSpacing;
     }
 }
