@@ -70,6 +70,9 @@ private:
 
 namespace {
 
+// Far past any screen, and small enough that positions inside stay in range.
+constexpr int kUnbounded = 1 << 24;
+
 int roundEdge(double value)
 {
     return int(std::lround(value));
@@ -605,6 +608,10 @@ base::Rect ShellWindow::placePopup(const ui::PopupPlacement &placement,
     // geometry coordinates.
     base::Rect workArea = m_shell->windowManager()->workAreaFor(nullptr);
     workArea.translate(-m_parent->m_shellSurface->absoluteOrigin());
+    // The positioner adjusts a popup that allows nothing anyway once it does
+    // not fit; a shell popup that allows nothing goes where it asked.
+    if (adjustment == XDG_POSITIONER_CONSTRAINT_ADJUSTMENT_NONE)
+        workArea = base::Rect(-kUnbounded, -kUnbounded, 2 * kUnbounded, 2 * kUnbounded);
     return positioner.calculateBounds(workArea).toRect();
 }
 

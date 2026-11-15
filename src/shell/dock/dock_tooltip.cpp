@@ -45,16 +45,16 @@ void DockTooltip::hide()
 void DockTooltip::show(const std::string &text, const base::PointF &target, double farSide,
                        const ui::PointF &offset)
 {
-    place(text, target, farSide, offset, m_dock->dock().settings().direction() != DockSettings::Bottom);
+    place(text, target, farSide, offset, m_dock->dock().settings().direction() != DockSettings::Bottom, true);
 }
 
 void DockTooltip::showAbove(const std::string &text, const base::PointF &top)
 {
-    place(text, top, top.y(), {}, false);
+    place(text, top, top.y(), {}, false, false);
 }
 
 void DockTooltip::place(const std::string &text, const base::PointF &target, double farSide,
-                        const ui::PointF &offset, bool across)
+                        const ui::PointF &offset, bool across, bool contained)
 {
     m_text = text;
     if (text.empty()) {
@@ -83,13 +83,15 @@ void DockTooltip::place(const std::string &text, const base::PointF &target, dou
     const double height = std::ceil(textSize.height + theme.largeSpacing + (across ? 0 : bubble.arrowLength));
 
     // The bubble, in the dock window's coordinates: beside the dock, centred
-    // on the icon, kept inside the work area.
+    // on the icon.
     const base::Rect window = m_dock->window()->geometry();
     const Shell::Output *output = m_shell->output({});
     base::Rect available = output ? m_shell->workArea(*output) : base::Rect();
     available.translate(-window.x(), -window.y());
     const double gap = theme.smallSpacing + (across ? bubble.arrowLength : 0);
-    const auto within = [](double position, double size, double start, double length) {
+    const auto within = [contained](double position, double size, double start, double length) {
+        if (!contained)
+            return std::round(position - size / 2);
         return std::round(std::max(start, std::min(position - size / 2, start + length - size)));
     };
     double x = 0;

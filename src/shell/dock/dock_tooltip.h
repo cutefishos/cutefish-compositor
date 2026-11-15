@@ -34,7 +34,7 @@ public:
     // drawn; the bubble is moved by `offset` as the icon bounces.
     void show(const std::string &text, const base::PointF &target, double farSide, const ui::PointF &offset = {});
     // Above `top`, in the dock window's coordinates, whichever side the dock
-    // is on.
+    // is on; it goes off the screen with what it labels.
     void showAbove(const std::string &text, const base::PointF &top);
     void hide();
     bool isShown() const;
@@ -42,9 +42,10 @@ public:
     ui::Window *window() const { return m_window.get(); }
 
 private:
-    // `across`: beside a side dock rather than above.
+    // `across`: beside a side dock rather than above; `contained`: kept
+    // inside the work area.
     void place(const std::string &text, const base::PointF &target, double farSide, const ui::PointF &offset,
-               bool across);
+               bool across, bool contained);
 
     DockWindow *m_dock;
     Shell *m_shell;

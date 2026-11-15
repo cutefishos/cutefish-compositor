@@ -1688,7 +1688,7 @@ void DockWindow::onDragMoved(const base::PointF &location)
     const int row = model.indexOf(m_drag->key);
     if (row < 0 || !model.at(row).isPinned || model.at(row).fixed)
         return;
-    // It undims nearer than it dims, so it does not flicker at the line.
+    // It stops removing nearer than it starts, so it does not flicker at the line.
     const double distance = distanceOffDock(location);
     const double thickness = m_metrics.thickness();
     if (distance > thickness * 1.5)
@@ -1696,7 +1696,6 @@ void DockWindow::onDragMoved(const base::PointF &location)
     else if (distance < thickness * 1.25)
         m_drag->removes = false;
     input::DragController *drag = m_shell->seat()->drag();
-    drag->setIconOpacity(m_drag->removes ? 0.5f : 1.0f);
     drag->setReturnsHome(!m_drag->removes);
     drag->setVanishesOnDrop(m_drag->removes);
     if (m_drag->removes) {
