@@ -11,8 +11,11 @@
 #include "shell/controlcenter/control_center_services.h"
 #include "shell/controlcenter/level_slider.h"
 #include "shell/controlcenter/panel_style.h"
+#include "shell/controlcenter/status_panel.h"
 #include "shell/controlcenter/tiles.h"
+#include "ui/animation.h"
 #include "ui/theme.h"
+#include "ui/window.h"
 
 using cutefish::i18n::tr;
 
@@ -32,6 +35,11 @@ ControlCenterView::ControlCenterView(ControlCenterServices &services)
             onHideRequested();
         m_services.openSettings({"-m", "wlan"});
     };
+    m_wireless->setHasDetail(true);
+    m_wireless->onDetail = [this] {
+        if (onWirelessDetail)
+            onWirelessDetail();
+    };
 
     m_bluetooth = addChild<CardItem>();
     m_bluetooth->setArtwork("bluetooth-symbolic");
@@ -41,6 +49,11 @@ ControlCenterView::ControlCenterView(ControlCenterServices &services)
         if (onHideRequested)
             onHideRequested();
         m_services.openSettings({"-m", "bluetooth"});
+    };
+    m_bluetooth->setHasDetail(true);
+    m_bluetooth->onDetail = [this] {
+        if (onBluetoothDetail)
+            onBluetoothDetail();
     };
 
     m_darkMode = addChild<CardItem>();
@@ -221,6 +234,139 @@ void ControlCenterView::layout()
         const double height = slider->heightForWidth(width);
         slider->setGeometry({kGap, y, width, height});
         y += height + kGap;
+    }
+}
+
+static double windowScale(const ui::View *view)
+{
+    const ui::Window *window = view->window();
+    return window && window->scale() > 0 ? window->scale() : 1;
+}
+
+ControlCenterPager::ControlCenterPager(std::unique_ptr<ControlCenterView> main)
+{
+    m_main = main.get();
+    addChild(std::move(main));
+    m_main->onHeightChanged = [this] { heightChanged(); };
+}
+
+ControlCenterPager::~ControlCenterPager() = default;
+
+bool ControlCenterPager::isSliding() const
+{
+    return m_tween && m_tween->isRunning();
+}
+
+void ControlCenterPager::showDetail(std::unique_ptr<StatusPanelView> page)
+{
+    if (m_detail)
+        takeChild(m_detail);
+    m_detail = page.get();
+    addChild(std::move(page));
+    m_detail->onShownBottomChanged = [this] {
+        requestLayout();
+        heightChanged();
+    };
+    m_detail->setGeometry({0, 0, geometry().width, m_detail->contentHeight()});
+    // Measured in the window now: the page starts at its height rather than
+    // growing into it.
+    m_detail->setShown(false);
+    m_detail->setShown(true);
+    slideTo(1);
+}
+
+void ControlCenterPager::showMain()
+{
+    if (m_detail)
+        slideTo(0);
+}
+
+void ControlCenterPager::slideTo(double target)
+{
+    m_target = target;
+    if (!window() || m_progress == target) {
+        if (m_tween)
+            m_tween->stop();
+        setProgress(target);
+        settle();
+        return;
+    }
+    if (!m_tween) {
+        m_tween = std::make_unique<ui::Animation>(window());
+        m_tween->setDuration(status_panel::kHeightDuration);
+        m_tween->setEasing(ui::Animation::Easing::Linear);
+        m_tween->onUpdate = [this](double t) { setProgress(m_from + (m_target - m_from) * panel::glide(t)); };
+        m_tween->onFinished = [this] { settle(); };
+    }
+    m_tween->stop();
+    m_from = m_progress;
+    // Layered, the pages move and fade without being painted again, each
+    // fading as one; the clip keeps the taller one inside the window's
+    // corners as the window's height glides.
+    m_main->setVisible(true);
+    m_main->setLayered(true);
+    m_detail->setLayered(true);
+    setClipsChildren(true);
+    setChildClipRadius(panel::kPanelRadius);
+    m_tween->start();
+}
+
+void ControlCenterPager::setProgress(double progress)
+{
+    if (progress == m_progress)
+        return;
+    m_progress = progress;
+    requestLayout();
+    heightChanged();
+}
+
+void ControlCenterPager::settle()
+{
+    if (m_target == 0 && m_detail) {
+        takeChild(m_detail);
+        m_detail = nullptr;
+    }
+    m_main->setVisible(m_target == 0);
+    m_main->setLayered(false);
+    if (m_detail)
+        m_detail->setLayered(false);
+    setClipsChildren(false);
+    requestLayout();
+    heightChanged();
+}
+
+void ControlCenterPager::heightChanged()
+{
+    if (onHeightChanged)
+        onHeightChanged();
+}
+
+double ControlCenterPager::windowHeight(double scale) const
+{
+    const double main = m_main->windowHeight(scale);
+    if (!m_detail)
+        return main;
+    const double detail = std::max(1.0, std::round(m_detail->shownBottom()));
+    if (m_progress <= 0)
+        return main;
+    if (m_progress >= 1)
+        return detail;
+    return std::round(main + (detail - main) * m_progress);
+}
+
+void ControlCenterPager::layout()
+{
+    const double scale = windowScale(this);
+    const double width = geometry().width;
+    // Whole device pixels, so the pages' text stays sharp on the way.
+    const auto snapped = [scale](double x) { return std::round(x * scale) / scale; };
+    m_main->setGeometry({0, 0, width, m_main->windowHeight(scale)});
+    m_main->setOpacity(1 - m_progress);
+    m_main->setTransform({{snapped(-kSlide * m_progress), 0}, 1});
+    if (m_detail) {
+        m_detail->setGeometry({0, 0, width, std::max(1.0, std::ceil(m_detail->shownBottom()))});
+        m_detail->setOpacity(m_progress);
+        m_detail->setTransform({{snapped(kSlide * (1 - m_progress)), 0}, 1});
     }
 }
 

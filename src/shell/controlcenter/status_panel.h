@@ -160,6 +160,8 @@ protected:
     // What the body may take before the panel reaches the work area's height.
     double bodyMaximumHeight() const;
 
+    // The panel's own width: kWidth from the bar, the control centre's in it.
+    double panelWidth() const;
     ControlCenterServices &services() const { return m_services; }
     // Where a panel's body views go: clipped from the content padding down to
     // the footer.

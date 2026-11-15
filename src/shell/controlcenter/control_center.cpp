@@ -78,10 +78,13 @@ ControlCenter::ControlCenter(Shell *shell, std::unique_ptr<ControlCenterServices
         m_subscriptions.push_back(m_powerActions->requested.connect([this] { updatePower(); }));
     }
     // StatusPanel's adjustPosition on a work area change: the panel keeps
-    // its place and takes the new height. Only the status panels follow it.
+    // its place and takes the new height. Only the status panels and the
+    // control centre's detail page follow it.
     m_subscriptions.push_back(m_shell->outputsChanged.connect([this] {
         for (Panel panel : {Panel::Network, Panel::Bluetooth, Panel::Volume, Panel::Battery})
             fitToWorkArea(panel);
+        if (m_open[0].pager && m_open[0].pager->detailPage())
+            m_open[0].pager->detailPage()->setMaximumHeight(detailMaximumHeight());
     }));
     m_subscriptions.push_back(ui::Application::instance()->languageChanged.connect([this] { retranslate(); }));
     m_audio = audio();
@@ -142,6 +145,11 @@ ControlCenterView *ControlCenter::controlCenterView() const
     return m_open[0].controlCenter;
 }
 
+ControlCenterPager *ControlCenter::controlCenterPager() const
+{
+    return m_open[0].pager;
+}
+
 StatusPanelView *ControlCenter::statusPanel(Panel panel) const
 {
     return hasPanel(panel) ? m_open[index(panel)].panel : nullptr;
@@ -170,7 +178,7 @@ base::Rect ControlCenter::panelGeometry(Panel panel, ShellWindow *bar, const bas
     if (panel == Panel::ControlCenter) {
         const int width = int(ControlCenterView::kWidth);
         const double scale = bar ? bar->scale() : 1;
-        const int height = m_open[0].controlCenter ? int(m_open[0].controlCenter->windowHeight(scale)) : 0;
+        const int height = m_open[0].pager ? int(m_open[0].pager->windowHeight(scale)) : 0;
         int x = position.x();
         if (x + width >= screen.x() + screen.width())
             x = screen.x() + screen.width() - width - margin;
@@ -203,8 +211,12 @@ void ControlCenter::openPanel(Panel panel, ShellWindow *bar, const base::Rect &a
         auto view = std::make_unique<ControlCenterView>(*m_services);
         open.controlCenter = view.get();
         view->onHideRequested = [this] { close(Panel::ControlCenter); };
-        view->onHeightChanged = [this] { resizeControlCenter(); };
-        content = std::move(view);
+        view->onWirelessDetail = [this] { showDetail(Panel::Network); };
+        view->onBluetoothDetail = [this] { showDetail(Panel::Bluetooth); };
+        auto pager = std::make_unique<ControlCenterPager>(std::move(view));
+        open.pager = pager.get();
+        pager->onHeightChanged = [this] { resizeControlCenter(); };
+        content = std::move(pager);
         break;
     }
     case Panel::Network:
@@ -244,7 +256,7 @@ void ControlCenter::openPanel(Panel panel, ShellWindow *bar, const base::Rect &a
     open.window = ui::Window::createPopup(bar->window(), placement, true);
     auto root = std::make_unique<PopupRoot>(std::move(content));
     open.root = root.get();
-    open.root->onEscape = [this, panel] { close(panel); };
+    open.root->onEscape = [this, panel] { escape(panel); };
     open.root->onLayout = [this, panel] {
         Open &shown = m_open[index(panel)];
         if (shown.dark != ui::Theme::current().darkMode)
@@ -255,7 +267,7 @@ void ControlCenter::openPanel(Panel panel, ShellWindow *bar, const base::Rect &a
         const std::shared_ptr<bool> alive = m_alive;
         core::mainLoop()->post([this, alive, panel] {
             if (*alive)
-                close(panel);
+                escape(panel);
         });
     });
     // A press outside the bar and the panel, or the bar closing its popups.
@@ -268,7 +280,7 @@ void ControlCenter::openPanel(Panel panel, ShellWindow *bar, const base::Rect &a
     };
     if (panel == Panel::ControlCenter) {
         open.window->setScale(bar->scale());
-        open.geometry.setHeight(int(open.controlCenter->windowHeight(bar->scale())));
+        open.geometry.setHeight(int(open.pager->windowHeight(bar->scale())));
     }
     // A status panel's window takes its height from the panel once shown.
     open.window->resize({double(open.geometry.width()),
@@ -319,15 +331,54 @@ void ControlCenter::fitToWorkArea(Panel panel)
 void ControlCenter::resizeControlCenter()
 {
     Open &open = m_open[0];
-    if (!open.window || !open.controlCenter)
+    if (!open.window || !open.pager)
         return;
     const double scale = open.bar ? open.bar->scale() : 1;
-    const int height = int(open.controlCenter->windowHeight(scale));
+    const int height = int(open.pager->windowHeight(scale));
     if (height == open.geometry.height())
         return;
     open.geometry.setHeight(height);
     open.window->resize({double(open.geometry.width()), double(height)});
     updateWindow(Panel::ControlCenter);
+}
+
+double ControlCenter::detailMaximumHeight() const
+{
+    const Open &open = m_open[0];
+    const Shell::Output *output = m_shell->output(open.bar ? open.bar->outputName() : std::string());
+    if (!output)
+        return 0;
+    const base::Rect area = m_shell->workArea(*output);
+    return std::max(0, area.y() + area.height() - int(panel::kPopupMargin) - open.geometry.y());
+}
+
+void ControlCenter::showDetail(Panel panel)
+{
+    Open &open = m_open[0];
+    if (!open.pager)
+        return;
+    std::unique_ptr<StatusPanelView> page;
+    if (panel == Panel::Network)
+        page = std::make_unique<NetworkPanel>(*m_services);
+    else
+        page = std::make_unique<BluetoothPanel>(*m_services);
+    page->onCloseRequested = [this] { close(Panel::ControlCenter); };
+    page->setMaximumHeight(detailMaximumHeight());
+    StatusPanelView *shown = page.get();
+    open.pager->showDetail(std::move(page));
+    shown->opened();
+}
+
+void ControlCenter::escape(Panel panel)
+{
+    ControlCenterPager *pager = panel == Panel::ControlCenter ? m_open[0].pager : nullptr;
+    if (!pager || !pager->isShowingDetail()) {
+        close(panel);
+        return;
+    }
+    if (auto *network = dynamic_cast<NetworkPanel *>(pager->detailPage()))
+        network->setShownForScans(false);
+    pager->showMain();
 }
 
 void ControlCenter::close(Panel panel)
@@ -343,7 +394,16 @@ void ControlCenter::close(Panel panel)
     }
     if (open.controlCenter) {
         open.controlCenter->onHideRequested = nullptr;
-        open.controlCenter->onHeightChanged = nullptr;
+        open.controlCenter->onWirelessDetail = nullptr;
+        open.controlCenter->onBluetoothDetail = nullptr;
+    }
+    if (open.pager) {
+        open.pager->onHeightChanged = nullptr;
+        if (StatusPanelView *detail = open.pager->detailPage()) {
+            detail->onCloseRequested = nullptr;
+            if (auto *network = dynamic_cast<NetworkPanel *>(detail))
+                network->setShownForScans(false);
+        }
     }
     std::shared_ptr<ui::Window> doomed(std::move(open.window));
     doomed->hide();
@@ -359,6 +419,8 @@ void ControlCenter::retranslate()
 {
     if (m_open[0].controlCenter)
         m_open[0].controlCenter->retranslate();
+    if (m_open[0].pager && m_open[0].pager->detailPage())
+        m_open[0].pager->detailPage()->retranslate();
     for (size_t i = 1; i < m_open.size(); ++i) {
         if (m_open[i].panel)
             m_open[i].panel->retranslate();
@@ -377,6 +439,8 @@ void ControlCenter::refresh()
 {
     if (m_open[0].controlCenter)
         m_open[0].controlCenter->refresh();
+    if (m_open[0].pager && m_open[0].pager->detailPage())
+        m_open[0].pager->detailPage()->refresh();
     for (size_t i = 1; i < m_open.size(); ++i) {
         if (m_open[i].panel)
             m_open[i].panel->refresh();

@@ -21,6 +21,7 @@ class Window;
 
 namespace cutefish::shell {
 
+class ControlCenterPager;
 class ControlCenterView;
 class NotificationSettings;
 class PowerActions;
@@ -65,6 +66,7 @@ public:
 
     // While open.
     ControlCenterView *controlCenterView() const;
+    ControlCenterPager *controlCenterPager() const;
     StatusPanelView *statusPanel(Panel panel) const;
     ui::Window *popup(Panel panel) const;
     ShellWindow *popupWindow(Panel panel) const;
@@ -79,6 +81,7 @@ private:
         std::unique_ptr<ui::Window> window;
         PopupRoot *root = nullptr;
         ControlCenterView *controlCenter = nullptr;
+        ControlCenterPager *pager = nullptr;
         StatusPanelView *panel = nullptr;
         ShellWindow *bar = nullptr;
         base::Rect anchor;
@@ -94,6 +97,12 @@ private:
     // over the window.
     void updateWindow(Panel panel);
     void resizeControlCenter();
+    // The Wi-Fi or Bluetooth panel as the control centre's detail page.
+    void showDetail(Panel panel);
+    // Escape: back from a detail page, else closed.
+    void escape(Panel panel);
+    // A detail page reaches no lower than a status panel.
+    double detailMaximumHeight() const;
     void fitToWorkArea(Panel panel);
     void updatePower();
 

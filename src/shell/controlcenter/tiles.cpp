@@ -10,6 +10,7 @@
 #include "base/i18n.h"
 #include "base/url.h"
 #include "shell/controlcenter/panel_style.h"
+#include "ui/animation.h"
 #include "ui/icon.h"
 #include "ui/geometry.h"
 #include "ui/image_view.h"
@@ -24,6 +25,7 @@ namespace cutefish::shell {
 
 // How long a press is held before it counts as press-and-hold.
 static constexpr std::chrono::milliseconds kPressAndHold {800};
+static constexpr std::chrono::milliseconds kChevronFade {150};
 
 // The light/ artwork's ink, for glyphs drawn in its place.
 static constexpr ui::Color kLightArtwork = ui::Color::rgb(0x383838);
@@ -62,6 +64,9 @@ CardItem::CardItem()
     m_svg = addChild<SvgIcon>();
     m_glyph = addChild<ui::Icon>(std::string(), kIconSize);
     m_glyph->setVisible(false);
+    m_chevron = addChild<ui::Icon>("chevron-right-small", kChevronSize);
+    m_chevron->setOpacity(0);
+    m_chevron->setVisible(false);
     m_title = addChild<ui::Label>();
     m_title->setElide(ui::Label::Elide::Right);
     m_status = addChild<ui::Label>();
@@ -121,6 +126,52 @@ void CardItem::setStatus(std::string status)
     }
 }
 
+void CardItem::setHasDetail(bool detail)
+{
+    if (detail == m_hasDetail)
+        return;
+    m_hasDetail = detail;
+    setTracksHover(detail);
+    m_chevron->setVisible(detail);
+    requestLayout();
+}
+
+ui::RectF CardItem::detailRect() const
+{
+    if (!m_hasDetail)
+        return {};
+    // The chevron's slot, out to the card's end and edges.
+    const double padding = ui::Theme::current().largeSpacing;
+    const double width = padding + kChevronSize + padding / 2;
+    return {geometry().width - width, 0, width, geometry().height};
+}
+
+void CardItem::fadeChevron(bool shown)
+{
+    const double target = shown ? 1 : 0;
+    if (!window()) {
+        m_chevron->setOpacity(target);
+        return;
+    }
+    if (!m_chevronFade) {
+        m_chevronFade = std::make_unique<ui::Animation>(window());
+        m_chevronFade->setDuration(kChevronFade);
+        m_chevronFade->setEasing(ui::Animation::Easing::OutQuad);
+        m_chevronFade->onUpdate = [this](double t) {
+            m_chevron->setOpacity(m_chevronFrom + (m_chevronTo - m_chevronFrom) * t);
+        };
+    }
+    m_chevronFade->stop();
+    m_chevronFrom = m_chevron->opacity();
+    m_chevronTo = target;
+    m_chevronFade->start();
+}
+
+void CardItem::hoverChanged()
+{
+    fadeChevron(m_hasDetail && isHovered());
+}
+
 void CardItem::updateIcon()
 {
     const bool white = panel::dark() || m_checked;
@@ -145,8 +196,16 @@ void CardItem::layout()
     m_status->setFontSize(theme.smallFontSize());
     m_status->setColor(panel::secondaryTextColor());
     m_status->setVisible(!m_status->text().empty());
+    // The chevron's slot stays clear while it is hidden, so the text never
+    // elides afresh under the pointer.
+    double right = geometry().width - padding;
+    if (m_hasDetail) {
+        m_chevron->setColor(panel::secondaryTextColor());
+        m_chevron->setGeometry({right - kChevronSize, (height - kChevronSize) / 2, kChevronSize, kChevronSize});
+        right -= kChevronSize + theme.smallSpacing;
+    }
     const double x = slot.x + kPlateSize + theme.smallSpacing * 1.5;
-    const double width = std::max(0.0, geometry().width - x - padding);
+    const double width = std::max(0.0, right - x);
     const double titleHeight = m_title->sizeHint().height;
     const double statusHeight = m_status->isVisible() ? m_status->sizeHint().height : 0;
     const double top = (height - titleHeight - statusHeight) / 2;
@@ -175,6 +234,11 @@ void CardItem::pointerPress(const ui::PointerEvent &event)
 {
     if (event.button != ui::MouseButton::Left)
         return;
+    const ui::RectF detail = detailRect();
+    if (m_hasDetail && event.position.x >= detail.x) {
+        m_detailPressed = true;
+        return;
+    }
     m_pressed = true;
     m_held = false;
     m_holdTimer.start();
@@ -183,6 +247,14 @@ void CardItem::pointerPress(const ui::PointerEvent &event)
 
 void CardItem::pointerRelease(const ui::PointerEvent &event)
 {
+    if (event.button == ui::MouseButton::Left && m_detailPressed) {
+        m_detailPressed = false;
+        const ui::RectF detail = detailRect();
+        if (event.position.x >= detail.x && event.position.x < detail.x + detail.width && event.position.y >= 0
+            && event.position.y < detail.height && onDetail)
+            onDetail();
+        return;
+    }
     if (event.button != ui::MouseButton::Left || !m_pressed)
         return;
     m_pressed = false;

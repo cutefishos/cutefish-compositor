@@ -65,28 +65,6 @@ static bool insideRect(const ui::RectF &rect, const ui::PointF &point)
     return point.x >= 0 && point.y >= 0 && point.x < rect.width && point.y < rect.height;
 }
 
-// CSS's cubic-bezier(x1, y1, x2, y2) at time t, FrameTween's easing.
-static double cubicBezier(double x1, double y1, double x2, double y2, double t)
-{
-    const auto sample = [](double a, double b, double s) {
-        return 3 * a * s * (1 - s) * (1 - s) + 3 * b * s * s * (1 - s) + s * s * s;
-    };
-    double low = 0;
-    double high = 1;
-    double s = t;
-    for (int i = 0; i < 40; ++i) {
-        const double x = sample(x1, x2, s);
-        if (std::abs(x - t) < 1e-7)
-            break;
-        if (x < t)
-            low = s;
-        else
-            high = s;
-        s = (low + high) / 2;
-    }
-    return sample(y1, y2, s);
-}
-
 // A row's background ink over the panel's surface.
 static ui::Color rowColor(bool pressed, bool hovered)
 {
@@ -432,6 +410,11 @@ void StatusPanelView::setMaximumHeight(double height)
     contentChanged();
 }
 
+double StatusPanelView::panelWidth() const
+{
+    return geometry().width > 0 ? geometry().width : kWidth;
+}
+
 double StatusPanelView::headerHeight() const
 {
     // The capitals' top is as far from the edge as the text is from the side,
@@ -522,7 +505,7 @@ void StatusPanelView::animateTo(double target)
         m_tween->setDuration(kHeightDuration);
         m_tween->setEasing(ui::Animation::Easing::Linear);
         m_tween->onUpdate = [this](double t) {
-            const double eased = cubicBezier(0.25, 1, 0.5, 1, t);
+            const double eased = panel::glide(t);
             setShownBottom(m_tweenFrom + (m_tweenTarget - m_tweenFrom) * eased);
         };
         m_tween->onFinished = [this] {
@@ -554,10 +537,10 @@ void StatusPanelView::layout()
     const double textBaseline = kHorizontalPadding - kContentPadding + m_title->capHeight();
     const double footer = footerTop();
     // Reveals and hides the body while the height animates.
-    m_clip->setGeometry({0, kContentPadding, kWidth, std::max(0.0, footer - kContentPadding)});
+    m_clip->setGeometry({0, kContentPadding, panelWidth(), std::max(0.0, footer - kContentPadding)});
 
     const double headerX = kHorizontalPadding;
-    double headerRight = kWidth - kHorizontalPadding;
+    double headerRight = panelWidth() - kHorizontalPadding;
     if (m_accessory) {
         const ui::SizeF size = m_accessory->sizeHint();
         // Centred on the capitals.
@@ -579,7 +562,7 @@ void StatusPanelView::layout()
 
     // The body stays drawn while the panel closes over it.
     m_body->setVisible(m_bodyVisible || m_reach > contentHeight());
-    m_body->setGeometry({0, 0, kWidth, std::max(0.0, m_maximumHeight)});
+    m_body->setGeometry({0, 0, panelWidth(), std::max(0.0, m_maximumHeight)});
     layoutBody(headerHeight() + kSectionSpacing);
 
     const double baseline = footerLineY() + 1 + kFooterGap + m_link->capHeight();
@@ -588,14 +571,15 @@ void StatusPanelView::layout()
     const double capCenter = baseline - m_link->capHeight() / 2;
     const double backgroundBottom = baseline + kFooterGap - kBackgroundMargin;
     const double linkTop = snapToDevice(2 * capCenter - backgroundBottom, scale);
-    m_link->setGeometry({kBackgroundMargin, linkTop, kWidth - 2 * kBackgroundMargin, backgroundBottom - linkTop});
+    m_link->setGeometry({kBackgroundMargin, linkTop, panelWidth() - 2 * kBackgroundMargin, backgroundBottom - linkTop});
     m_link->setLabelTop(m_link->labelTop(baseline, scale) - linkTop);
 }
 
 void StatusPanelView::paint(ui::Painter &painter)
 {
     // The separator above the settings link.
-    painter.fillRect({kHorizontalPadding, footerLineY(), kWidth - 2 * kHorizontalPadding, 1}, panel::textColor(0.08));
+    painter.fillRect({kHorizontalPadding, footerLineY(), panelWidth() - 2 * kHorizontalPadding, 1},
+                     panel::textColor(0.08));
 }
 
 // A 1 px line of the text colour at 0.08, as the panels' separators.
@@ -775,11 +759,11 @@ void NetworkPanel::layoutBody(double top)
     const double baseline = top - kHorizontalPadding;
     // On whole device pixels, or the line spreads over two rows.
     const double lineY = snapToDevice(baseline + kHeaderLineGap, windowScale(this));
-    m_separator->setGeometry({kHorizontalPadding, lineY, kWidth - 2 * kHorizontalPadding, 1});
+    m_separator->setGeometry({kHorizontalPadding, lineY, panelWidth() - 2 * kHorizontalPadding, 1});
     // The list keeps its final height while the panel moves, so no scroll bar
     // shows on the way.
     const double height = std::min(listHeight(), std::max(0.0, bodyMaximumHeight() - listLead()));
-    m_scroll->setGeometry({0, top + listLead(), kWidth, height});
+    m_scroll->setGeometry({0, top + listLead(), panelWidth(), height});
 }
 
 VolumePanel::VolumePanel(ControlCenterServices &services)
@@ -1046,11 +1030,11 @@ void BluetoothPanel::layoutBody(double top)
     const double baseline = top - kHorizontalPadding;
     // On whole device pixels, or the line spreads over two rows.
     const double lineY = snapToDevice(baseline + kHeaderLineGap, windowScale(this));
-    m_separator->setGeometry({kHorizontalPadding, lineY, kWidth - 2 * kHorizontalPadding, 1});
+    m_separator->setGeometry({kHorizontalPadding, lineY, panelWidth() - 2 * kHorizontalPadding, 1});
     // The list keeps its final height while the panel moves, so no scroll bar
     // shows on the way.
     const double height = std::min(listHeight(), std::max(0.0, bodyMaximumHeight() - listLead()));
-    m_scroll->setGeometry({0, top + listLead(), kWidth, height});
+    m_scroll->setGeometry({0, top + listLead(), panelWidth(), height});
 }
 
 static const char *const kProfiles[] = {"power-saver", "balanced", "performance"};
