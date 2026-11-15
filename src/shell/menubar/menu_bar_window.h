@@ -14,6 +14,7 @@
 #include "base/signal.h"
 #include "shell/shell.h"
 #include "shell/menubar/bar_item.h"
+#include "shell/menubar/menu_bar.h"
 #include "shell/menubar/menu_bar_app_menus.h"
 #include "shell/menubar/menu_bar_panels.h"
 
@@ -27,7 +28,6 @@ class ClockItem;
 class DeviceUsage;
 class VpnNotifier;
 class ShellWindow;
-class MenuBar;
 class MenuBarBackdrop;
 class StatusIcon;
 class StatusItemsView;
@@ -97,6 +97,8 @@ public:
     StatusIcon *batteryIcon() const { return m_battery; }
     StatusIcon *controlIcon() const { return m_control; }
     ClockItem *clock() const { return m_clock; }
+    // The controls' right-click menu, open or last opened.
+    ui::Menu *controlMenu() const { return m_controlMenu.get(); }
     // The bar's contents are light.
     bool lightContents() const override;
     // One of the panels is open.
@@ -114,6 +116,10 @@ private:
     void updateBattery();
     void layoutRow();
     void armClock();
+    // A right click on a control: Remove, and Show Percentage for the
+    // battery.
+    void toggleControlMenu(StatusIcon *icon, MenuBar::Control control);
+    void closeControlMenu();
     MenuBarPanels *panelsFor(MenuBarPanels::Panel panel) const;
     BarItem *itemFor(MenuBarPanels::Panel panel) const;
     void updateChecked();
@@ -142,6 +148,8 @@ private:
     StatusIcon *m_battery = nullptr;
     StatusIcon *m_control = nullptr;
     ClockItem *m_clock = nullptr;
+    std::unique_ptr<ui::Menu> m_controlMenu;
+    StatusIcon *m_controlMenuIcon = nullptr;
     std::vector<MenuBarPanels *> m_panels;
     std::vector<base::Subscription> m_panelSubscriptions;
     MenuBarIndicators *m_indicators = nullptr;

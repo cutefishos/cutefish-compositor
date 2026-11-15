@@ -168,6 +168,13 @@ protected:
         frame();
     }
 
+    void key(uint32_t code)
+    {
+        input.onKey(at(time += 20), code, true);
+        input.onKey(at(time += 20), code, false);
+        frame();
+    }
+
     void click(double x, double y, uint32_t button = BTN_LEFT)
     {
         move(x, y);
@@ -334,6 +341,62 @@ TEST_F(MenuBarViewTest, IndicatorsPickTheIcons)
     EXPECT_FALSE(bar->volumeIcon()->isVisible());
     EXPECT_FALSE(bar->networkIcon()->isVisible());
     bar->setIndicators(nullptr);
+}
+
+TEST_F(MenuBarViewTest, ARightClickOnAControlOffersToRemoveIt)
+{
+    FakePanels panels;
+    bar->addPanels(&panels);
+    FakeIndicators indicators;
+    indicators.m_audio = {true, false, 0.5};
+    indicators.m_network = {true, true, false, "", ""};
+    bar->setIndicators(&indicators);
+    frame();
+    ASSERT_TRUE(bar->networkIcon()->isVisible());
+
+    // The menu opens under the plate, and no panel does.
+    const ui::RectF network = onScreen(bar->networkIcon());
+    click(network.x + network.width / 2, 16, BTN_RIGHT);
+    ASSERT_NE(nullptr, bar->controlMenu());
+    EXPECT_TRUE(bar->controlMenu()->isOpen());
+    EXPECT_TRUE(bar->networkIcon()->isPlateShown());
+    EXPECT_FALSE(bar->panelOpen());
+    EXPECT_TRUE(panels.opened.empty());
+
+    // A right click again closes it.
+    click(network.x + network.width / 2, 16, BTN_RIGHT);
+    EXPECT_FALSE(bar->controlMenu()->isOpen());
+    EXPECT_FALSE(bar->networkIcon()->isPlateShown());
+
+    // Its one row takes the control off the bar.
+    click(network.x + network.width / 2, 16, BTN_RIGHT);
+    ASSERT_TRUE(bar->controlMenu()->isOpen());
+    key(KEY_DOWN);
+    key(KEY_ENTER);
+    EXPECT_FALSE(bar->controlMenu()->isOpen());
+    EXPECT_FALSE(bar->menuBar().isControlShown(shell::MenuBar::Control::WiFi));
+    EXPECT_FALSE(bar->networkIcon()->isVisible());
+
+    // The battery's first row turns its percentage on and off.
+    ASSERT_FALSE(bar->menuBar().battery().showPercentage());
+    bar->batteryIcon()->setVisible(true);
+    frame();
+    const ui::RectF battery = onScreen(bar->batteryIcon());
+    click(battery.x + battery.width / 2, 16, BTN_RIGHT);
+    ASSERT_TRUE(bar->controlMenu()->isOpen());
+    key(KEY_DOWN);
+    key(KEY_ENTER);
+    EXPECT_TRUE(bar->menuBar().battery().showPercentage());
+    EXPECT_TRUE(bar->menuBar().isControlShown(shell::MenuBar::Control::Battery));
+
+    // The control centre's icon has no such menu.
+    const ui::RectF control = onScreen(bar->controlIcon());
+    click(control.x + 20, 16, BTN_RIGHT);
+    EXPECT_FALSE(bar->controlMenu()->isOpen());
+    EXPECT_EQ(std::vector<Panel> {Panel::ControlCenter}, panels.opened);
+
+    bar->setIndicators(nullptr);
+    bar->removePanels(&panels);
 }
 
 TEST_F(MenuBarViewTest, AnIconTogglesItsPanelUnderItsPlate)
