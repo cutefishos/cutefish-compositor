@@ -189,16 +189,6 @@ void TileSlider::setHasDetail(bool detail)
     requestLayout();
 }
 
-ui::RectF TileSlider::detailRect() const
-{
-    if (!m_hasDetail)
-        return {};
-    // The chevron's slot, out to the tile's end and top, down to the slider.
-    const double padding = ui::Theme::current().largeSpacing;
-    const double width = padding + DetailChevron::kSize + padding / 2;
-    return {geometry().width - width, 0, width, m_slider->geometry().y};
-}
-
 // The capitals' top, not the line box, keeps the padding from the tile's edge.
 double TileSlider::heightForWidth(double) const
 {
@@ -246,9 +236,7 @@ void TileSlider::hoverChanged()
 
 void TileSlider::pointerPress(const ui::PointerEvent &event)
 {
-    const ui::RectF detail = detailRect();
-    m_detailPressed = event.button == ui::MouseButton::Left && m_hasDetail && event.position.x >= detail.x
-            && event.position.y < detail.height;
+    m_detailPressed = event.button == ui::MouseButton::Left && m_hasDetail;
 }
 
 void TileSlider::pointerRelease(const ui::PointerEvent &event)
@@ -256,9 +244,9 @@ void TileSlider::pointerRelease(const ui::PointerEvent &event)
     if (event.button != ui::MouseButton::Left || !m_detailPressed)
         return;
     m_detailPressed = false;
-    const ui::RectF detail = detailRect();
-    if (event.position.x >= detail.x && event.position.x < detail.x + detail.width && event.position.y >= 0
-        && event.position.y < detail.height && onDetail)
+    const ui::RectF rect = localRect();
+    if (event.position.x >= 0 && event.position.x < rect.width && event.position.y >= 0
+        && event.position.y < rect.height && !m_slider->geometry().contains(event.position) && onDetail)
         onDetail();
 }
 

@@ -61,7 +61,8 @@ private:
 // A toggle tile: a round plate with the glyph, a
 // title and a status line. The whole card clicks; holding it 800 ms does the
 // press-and-hold action instead. A card with a detail page shows a chevron at
-// its end while hovered, and a click there opens the page.
+// its end while hovered; there only the plate toggles, and a click anywhere
+// else on the card opens the page.
 class CardItem : public ui::View
 {
 public:
@@ -82,9 +83,8 @@ public:
     void setStatus(std::string status);
     void setHasDetail(bool detail);
     bool hasDetail() const { return m_hasDetail; }
-    // Where a click opens the detail page, in the card's coordinates: the
-    // chevron and the padding round it.
-    ui::RectF detailRect() const;
+    // The round plate's square, in the card's coordinates.
+    ui::RectF plateRect() const;
     DetailChevron *chevron() const { return m_chevron; }
 
     std::function<void()> onClicked;
@@ -103,13 +103,14 @@ protected:
 
 private:
     void updateIcon();
+    bool onPlate(const ui::PointF &point) const;
 
     std::string m_artwork;
     bool m_checked = false;
     bool m_pressed = false;
     bool m_held = false;
     bool m_hasDetail = false;
-    bool m_detailPressed = false;
+    bool m_platePressed = false;
     SvgIcon *m_svg;
     ui::Icon *m_glyph;
     DetailChevron *m_chevron;

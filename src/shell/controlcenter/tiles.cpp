@@ -162,14 +162,18 @@ void CardItem::setHasDetail(bool detail)
     requestLayout();
 }
 
-ui::RectF CardItem::detailRect() const
+ui::RectF CardItem::plateRect() const
 {
-    if (!m_hasDetail)
-        return {};
-    // The chevron's slot, out to the card's end and edges.
     const double padding = ui::Theme::current().largeSpacing;
-    const double width = padding + DetailChevron::kSize + padding / 2;
-    return {geometry().width - width, 0, width, geometry().height};
+    return {padding, (geometry().height - kPlateSize) / 2, kPlateSize, kPlateSize};
+}
+
+bool CardItem::onPlate(const ui::PointF &point) const
+{
+    const ui::RectF plate = plateRect();
+    const double dx = point.x - (plate.x + plate.width / 2);
+    const double dy = point.y - (plate.y + plate.height / 2);
+    return dx * dx + dy * dy <= plate.width * plate.width / 4;
 }
 
 void CardItem::hoverChanged()
@@ -192,7 +196,7 @@ void CardItem::layout()
     updateIcon();
     const double padding = theme.largeSpacing;
     const double height = geometry().height;
-    const ui::RectF slot {padding, (height - kPlateSize) / 2, kPlateSize, kPlateSize};
+    const ui::RectF slot = plateRect();
     const ui::RectF icon {slot.x + (kPlateSize - kIconSize) / 2, slot.y + (kPlateSize - kIconSize) / 2, kIconSize,
                           kIconSize};
     m_svg->setGeometry(icon);
@@ -225,14 +229,13 @@ void CardItem::paint(ui::Painter &painter)
     const ui::Color surface = panel::tileInkColor();
     const bool darkSurface = panel::isDark(surface);
     const ui::Color highlight = ui::Theme::current().highlight;
+    const bool pressed = m_pressed && m_platePressed;
     ui::Color plate;
     if (m_checked)
-        plate = m_pressed ? panel::shade(highlight, 0.2) : highlight;
+        plate = pressed ? panel::shade(highlight, 0.2) : highlight;
     else
-        plate = panel::on(surface, m_pressed ? (darkSurface ? 0.25 : 0.2) : (darkSurface ? 0.15 : 0.1));
-    const double padding = ui::Theme::current().largeSpacing;
-    const ui::RectF slot {padding, (geometry().height - kPlateSize) / 2, kPlateSize, kPlateSize};
-    const ui::RectF rect = panel::parityPlate(slot, kIconSize, painter.scale());
+        plate = panel::on(surface, pressed ? (darkSurface ? 0.25 : 0.2) : (darkSurface ? 0.15 : 0.1));
+    const ui::RectF rect = panel::parityPlate(plateRect(), kIconSize, painter.scale());
     painter.fillRoundedRect(rect, rect.width / 2, plate);
 }
 
@@ -240,12 +243,8 @@ void CardItem::pointerPress(const ui::PointerEvent &event)
 {
     if (event.button != ui::MouseButton::Left)
         return;
-    const ui::RectF detail = detailRect();
-    if (m_hasDetail && event.position.x >= detail.x) {
-        m_detailPressed = true;
-        return;
-    }
     m_pressed = true;
+    m_platePressed = !m_hasDetail || onPlate(event.position);
     m_held = false;
     m_holdTimer.start();
     requestPaint();
@@ -253,14 +252,6 @@ void CardItem::pointerPress(const ui::PointerEvent &event)
 
 void CardItem::pointerRelease(const ui::PointerEvent &event)
 {
-    if (event.button == ui::MouseButton::Left && m_detailPressed) {
-        m_detailPressed = false;
-        const ui::RectF detail = detailRect();
-        if (event.position.x >= detail.x && event.position.x < detail.x + detail.width && event.position.y >= 0
-            && event.position.y < detail.height && onDetail)
-            onDetail();
-        return;
-    }
     if (event.button != ui::MouseButton::Left || !m_pressed)
         return;
     m_pressed = false;
@@ -270,8 +261,14 @@ void CardItem::pointerRelease(const ui::PointerEvent &event)
     const bool inside = event.position.x >= 0 && event.position.y >= 0 && event.position.x < rect.width
             && event.position.y < rect.height;
     // A press that was held has had its action.
-    if (inside && !m_held && onClicked)
-        onClicked();
+    if (!inside || m_held)
+        return;
+    if (m_platePressed) {
+        if ((!m_hasDetail || onPlate(event.position)) && onClicked)
+            onClicked();
+    } else if (!onPlate(event.position) && onDetail) {
+        onDetail();
+    }
 }
 
 IconButton::IconButton()

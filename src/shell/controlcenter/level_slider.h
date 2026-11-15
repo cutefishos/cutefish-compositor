@@ -75,7 +75,8 @@ private:
 
 // A titled tile holding a level slider; the whole
 // tile takes the wheel. A tile with a detail page shows a chevron at the
-// title row's end while hovered, and a click there opens the page.
+// title row's end while hovered, and a click anywhere off the slider opens
+// the page.
 class TileSlider : public ui::View
 {
 public:
@@ -85,9 +86,6 @@ public:
     void setTitle(std::string title);
     void setHasDetail(bool detail);
     bool hasDetail() const { return m_hasDetail; }
-    // Where a click opens the detail page, in the tile's coordinates: the
-    // chevron and the padding round it, above the slider.
-    ui::RectF detailRect() const;
     DetailChevron *chevron() const { return m_chevron; }
     double heightForWidth(double width) const override;
     ui::SizeF sizeHint() const override;
