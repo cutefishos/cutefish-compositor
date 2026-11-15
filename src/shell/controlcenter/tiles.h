@@ -11,7 +11,6 @@
 #include <string>
 #include <vector>
 
-#include "base/timer.h"
 #include "shell/controlcenter/control_center_services.h"
 #include "ui/icon.h"
 #include "ui/view.h"
@@ -59,10 +58,9 @@ private:
 };
 
 // A toggle tile: a round plate with the glyph, a
-// title and a status line. The whole card clicks; holding it 800 ms does the
-// press-and-hold action instead. A card with a detail page shows a chevron at
-// its end while hovered; there only the plate toggles, and a click anywhere
-// else on the card opens the page.
+// title and a status line. The whole card clicks. A card with a detail page
+// shows a chevron at its end while hovered; there only the plate toggles, and
+// a click anywhere else on the card opens the page.
 class CardItem : public ui::View
 {
 public:
@@ -88,7 +86,6 @@ public:
     DetailChevron *chevron() const { return m_chevron; }
 
     std::function<void()> onClicked;
-    std::function<void()> onPressAndHold;
     std::function<void()> onDetail;
 
     ui::SizeF sizeHint() const override { return {0, kHeight}; }
@@ -108,7 +105,6 @@ private:
     std::string m_artwork;
     bool m_checked = false;
     bool m_pressed = false;
-    bool m_held = false;
     bool m_hasDetail = false;
     bool m_platePressed = false;
     SvgIcon *m_svg;
@@ -116,7 +112,6 @@ private:
     DetailChevron *m_chevron;
     ui::Label *m_title;
     ui::Label *m_status;
-    base::Timer m_holdTimer;
 };
 
 // An icon at three quarters of the button, a

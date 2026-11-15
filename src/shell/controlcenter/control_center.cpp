@@ -210,7 +210,6 @@ void ControlCenter::openPanel(Panel panel, ShellWindow *bar, const base::Rect &a
     case Panel::ControlCenter: {
         auto view = std::make_unique<ControlCenterView>(*m_services);
         open.controlCenter = view.get();
-        view->onHideRequested = [this] { close(Panel::ControlCenter); };
         view->onWirelessDetail = [this] { showDetail(Panel::Network); };
         view->onBluetoothDetail = [this] { showDetail(Panel::Bluetooth); };
         view->onSoundDetail = [this] { showDetail(Panel::Volume); };
@@ -396,7 +395,6 @@ void ControlCenter::close(Panel panel)
             network->setShownForScans(false);
     }
     if (open.controlCenter) {
-        open.controlCenter->onHideRequested = nullptr;
         open.controlCenter->onWirelessDetail = nullptr;
         open.controlCenter->onBluetoothDetail = nullptr;
         open.controlCenter->onSoundDetail = nullptr;

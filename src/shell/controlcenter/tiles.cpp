@@ -5,6 +5,7 @@
 #include "shell/controlcenter/tiles.h"
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 
 #include "base/i18n.h"
@@ -23,8 +24,6 @@ using cutefish::i18n::tr;
 
 namespace cutefish::shell {
 
-// How long a press is held before it counts as press-and-hold.
-static constexpr std::chrono::milliseconds kPressAndHold {800};
 static constexpr std::chrono::milliseconds kChevronFade {150};
 
 // The light/ artwork's ink, for glyphs drawn in its place.
@@ -97,15 +96,6 @@ CardItem::CardItem()
     m_title->setElide(ui::Label::Elide::Right);
     m_status = addChild<ui::Label>();
     m_status->setElide(ui::Label::Elide::Right);
-    m_holdTimer.setSingleShot(true);
-    m_holdTimer.setInterval(kPressAndHold);
-    m_holdTimer.onTimeout = [this] {
-        if (!m_pressed)
-            return;
-        m_held = true;
-        if (onPressAndHold)
-            onPressAndHold();
-    };
 }
 
 CardItem::~CardItem() = default;
@@ -245,8 +235,6 @@ void CardItem::pointerPress(const ui::PointerEvent &event)
         return;
     m_pressed = true;
     m_platePressed = !m_hasDetail || onPlate(event.position);
-    m_held = false;
-    m_holdTimer.start();
     requestPaint();
 }
 
@@ -255,13 +243,11 @@ void CardItem::pointerRelease(const ui::PointerEvent &event)
     if (event.button != ui::MouseButton::Left || !m_pressed)
         return;
     m_pressed = false;
-    m_holdTimer.stop();
     requestPaint();
     const ui::RectF rect = localRect();
     const bool inside = event.position.x >= 0 && event.position.y >= 0 && event.position.x < rect.width
             && event.position.y < rect.height;
-    // A press that was held has had its action.
-    if (!inside || m_held)
+    if (!inside)
         return;
     if (m_platePressed) {
         if ((!m_hasDetail || onPlate(event.position)) && onClicked)

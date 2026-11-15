@@ -351,7 +351,7 @@ TEST_F(ControlCenterTest, TheControlCentreHangsBelowTheBarWithThePanelGlass)
     EXPECT_FALSE(center->isOpen(Panel::ControlCenter));
 }
 
-TEST_F(ControlCenterTest, CardsToggleTheirServicesAndHoldingOpensSettings)
+TEST_F(ControlCenterTest, CardsToggleTheirServices)
 {
     center->openPanel(Panel::ControlCenter, bar.get(), item(178));
     frame();
@@ -385,21 +385,6 @@ TEST_F(ControlCenterTest, CardsToggleTheirServicesAndHoldingOpensSettings)
     frame();
     EXPECT_FALSE(view->wirelessCard()->isVisible());
     EXPECT_EQ(before, center->popupWindow(Panel::ControlCenter)->drawnBounds().height());
-    services->hardware = true;
-    services->changed();
-    test::runFor(std::chrono::milliseconds(5));
-    frame();
-
-    // Held 800 ms: the control centre goes and Settings opens on Wi-Fi.
-    const base::PointF point = centre(Panel::ControlCenter, view->wirelessCard());
-    press(point.x(), point.y());
-    test::runFor(std::chrono::milliseconds(900));
-    release();
-    test::runFor(std::chrono::milliseconds(20));
-    ASSERT_EQ(1u, services->settings.size());
-    EXPECT_EQ((std::vector<std::string> {"-m", "wlan"}), services->settings.front());
-    EXPECT_FALSE(center->isOpen(Panel::ControlCenter));
-    EXPECT_TRUE(services->wireless);
 }
 
 TEST_F(ControlCenterTest, TheWifiBluetoothAndSoundTilesOpenTheirPanelsAsDetailPages)

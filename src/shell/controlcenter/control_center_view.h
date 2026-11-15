@@ -51,8 +51,6 @@ public:
     TileSlider *brightnessSlider() const { return m_brightness; }
     TileSlider *soundSlider() const { return m_sound; }
 
-    // Press-and-hold on a card hides the control centre for Settings.
-    std::function<void()> onHideRequested;
     // The Wi-Fi or Bluetooth card's chevron: its detail page.
     std::function<void()> onWirelessDetail;
     std::function<void()> onBluetoothDetail;

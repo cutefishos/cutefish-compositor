@@ -30,11 +30,6 @@ ControlCenterView::ControlCenterView(ControlCenterServices &services)
     m_wireless->setGlyph("network-wireless-connected-100");
     m_wireless->setTitle(tr("Wi-Fi"));
     m_wireless->onClicked = [this] { m_services.enableWireless(!m_wireless->isChecked()); };
-    m_wireless->onPressAndHold = [this] {
-        if (onHideRequested)
-            onHideRequested();
-        m_services.openSettings({"-m", "wlan"});
-    };
     m_wireless->setHasDetail(true);
     m_wireless->onDetail = [this] {
         if (onWirelessDetail)
@@ -45,11 +40,6 @@ ControlCenterView::ControlCenterView(ControlCenterServices &services)
     m_bluetooth->setArtwork("bluetooth-symbolic");
     m_bluetooth->setTitle(tr("Bluetooth"));
     m_bluetooth->onClicked = [this] { m_services.setBluetoothEnabled(!m_services.bluetoothEnabled()); };
-    m_bluetooth->onPressAndHold = [this] {
-        if (onHideRequested)
-            onHideRequested();
-        m_services.openSettings({"-m", "bluetooth"});
-    };
     m_bluetooth->setHasDetail(true);
     m_bluetooth->onDetail = [this] {
         if (onBluetoothDetail)
