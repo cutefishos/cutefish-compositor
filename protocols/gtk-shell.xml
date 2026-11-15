@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<protocol name="gtk">
+  <description summary="version 1 of the shell extension GTK clients bind">
+    The requests, events and enums of version 1 only, in the order GTK
+    clients send and receive them, so that they talk to this compositor
+    unchanged. Later versions are not offered.
+  </description>
+
+  <interface name="gtk_shell1" version="1">
+    <description summary="desktop integration for a client's surfaces">
+      Says what the desktop shows on the client's behalf, and gives each
+      toplevel surface a gtk_surface1.
+    </description>
+
+    <enum name="capability">
+      <description summary="what the desktop shows for the client">
+        A capability is sent as the bit 1 &lt;&lt; (value - 1).
+      </description>
+      <entry name="global_app_menu" value="1" summary="the application menu"/>
+      <entry name="global_menu_bar" value="2" summary="the menu bar"/>
+      <entry name="desktop_icons" value="3" summary="icons on the desktop"/>
+    </enum>
+
+    <event name="capabilities">
+      <description summary="what the desktop shows">
+        Sent once after the bind.
+      </description>
+      <arg name="capabilities" type="uint" summary="bitmask of capability bits"/>
+    </event>
+
+    <request name="get_gtk_surface">
+      <description summary="extend a toplevel surface">
+        Version 1 gtk_surface1 objects have no destructor; they go with the
+        client.
+      </description>
+      <arg name="gtk_surface" type="new_id" interface="gtk_surface1"/>
+      <arg name="surface" type="object" interface="wl_surface"/>
+    </request>
+
+    <request name="set_startup_id">
+      <description summary="the startup notification the client finished"/>
+      <arg name="startup_id" type="string" allow-null="true"/>
+    </request>
+
+    <request name="system_bell">
+      <description summary="ring the bell for a surface, or for none"/>
+      <arg name="surface" type="object" interface="gtk_surface1" allow-null="true"/>
+    </request>
+  </interface>
+
+  <interface name="gtk_surface1" version="1">
+    <description summary="desktop integration for one toplevel surface"/>
+
+    <request name="set_dbus_properties">
+      <description summary="where the surface's menus and actions are">
+        The unique bus name of the client's session bus connection, the
+        object paths of its exported menus (org.gtk.Menus) and of the action
+        groups they activate (org.gtk.Actions): "app." actions live at the
+        application object path, "win." actions at the window object path.
+      </description>
+      <arg name="application_id" type="string" allow-null="true"/>
+      <arg name="app_menu_path" type="string" allow-null="true"/>
+      <arg name="menubar_path" type="string" allow-null="true"/>
+      <arg name="window_object_path" type="string" allow-null="true"/>
+      <arg name="application_object_path" type="string" allow-null="true"/>
+      <arg name="unique_bus_name" type="string" allow-null="true"/>
+    </request>
+
+    <request name="set_modal">
+      <description summary="the surface is a modal dialog"/>
+    </request>
+
+    <request name="unset_modal">
+      <description summary="the surface is no longer modal"/>
+    </request>
+
+    <request name="present">
+      <description summary="raise and focus the surface"/>
+      <arg name="time" type="uint"/>
+    </request>
+
+    <enum name="state">
+      <entry name="tiled" value="1"/>
+    </enum>
+
+    <event name="configure">
+      <description summary="the surface's states">
+        Never sent by this compositor.
+      </description>
+      <arg name="states" type="array"/>
+    </event>
+  </interface>
+</protocol>

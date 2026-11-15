@@ -12,6 +12,7 @@
 #include "shell/common/task_windows.h"
 #include "shell/menubar/app_menu_registrar.h"
 #include "shell/menubar/dbus_menu.h"
+#include "shell/menubar/gtk_menu.h"
 
 using cutefish::i18n::tr;
 
@@ -53,7 +54,7 @@ ApplicationMenu::ApplicationMenu(base::dbus::Connection *bus, TaskWindows &windo
     if (m_registrar) {
         m_subscriptions.push_back(m_registrar->windowRegistered.connect(
                 [this](uint32_t, const std::string &service, const std::string &path) {
-                    importFor(service, path);
+                    importFor({{}, service, path});
                     scheduleUpdate();
                 }));
         m_subscriptions.push_back(m_registrar->windowUnregistered.connect([this](uint32_t) { scheduleUpdate(); }));
@@ -66,9 +67,16 @@ ApplicationMenu::ApplicationMenu(base::dbus::Connection *bus, TaskWindows &windo
 
 ApplicationMenu::~ApplicationMenu() = default;
 
-std::string ApplicationMenu::importKey(const std::string &service, const std::string &path)
+std::string ApplicationMenu::importKey(const Address &address)
 {
-    return service + '\n' + path;
+    const compositor::GtkMenuAddress &gtk = address.gtk;
+    if (gtk.hasMenus()) {
+        return gtk.busName + '\n' + gtk.menubarPath + '\n' + gtk.appMenuPath + '\n' + gtk.applicationPath + '\n'
+                + gtk.windowPath;
+    }
+    if (address.service.empty() || address.path.empty())
+        return {};
+    return address.service + '\n' + address.path;
 }
 
 void ApplicationMenu::setDesktop(bool desktop)
@@ -85,33 +93,43 @@ void ApplicationMenu::retranslate()
         scheduleUpdate();
 }
 
-void ApplicationMenu::menuAddressOf(uint64_t window, std::string *service, std::string *path) const
+ApplicationMenu::Address ApplicationMenu::addressOf(uint64_t window) const
 {
+    Address address;
     const TaskWindow *client = m_windows.window(window);
     if (!client)
-        return;
-    *service = client->menuService;
-    *path = client->menuPath;
+        return address;
+    address.gtk = client->gtkMenu;
+    address.service = client->menuService;
+    address.path = client->menuPath;
     // Not every toolkit says which menu a window has; the registrar knows
     // the process that exported one.
-    if ((service->empty() || path->empty()) && client->pid > 0 && m_registrar) {
-        *service = m_registrar->serviceForPid(uint32_t(client->pid));
-        *path = m_registrar->pathForPid(uint32_t(client->pid));
+    if (importKey(address).empty() && client->pid > 0 && m_registrar) {
+        address.service = m_registrar->serviceForPid(uint32_t(client->pid));
+        address.path = m_registrar->pathForPid(uint32_t(client->pid));
     }
+    return address;
 }
 
-ApplicationMenu::Import *ApplicationMenu::importFor(const std::string &service, const std::string &path)
+ApplicationMenu::Import *ApplicationMenu::importFor(const Address &address)
 {
-    if (service.empty() || path.empty() || !m_bus)
+    const std::string key = importKey(address);
+    if (key.empty() || !m_bus)
         return nullptr;
 
-    const std::string key = importKey(service, path);
     if (const auto it = m_imports.find(key); it != m_imports.end())
         return &it->second;
 
     Import &import = m_imports[key];
-    import.menu = std::make_unique<DBusMenu>(m_bus, service, path);
-    DBusMenu *menu = import.menu.get();
+    std::string service;
+    if (address.gtk.hasMenus()) {
+        service = address.gtk.busName;
+        import.menu = std::make_unique<GtkMenu>(m_bus, address.gtk);
+    } else {
+        service = address.service;
+        import.menu = std::make_unique<DBusMenu>(m_bus, address.service, address.path);
+    }
+    compositor::MenuModel *menu = import.menu.get();
     import.subscriptions.push_back(menu->menuUpdated.connect([this, key](int32_t id) { onImported(key, id); }));
     import.subscriptions.push_back(menu->activationRequested.connect([this, menu](int32_t id) {
         const compositor::MenuItem *item = menu->item(id);
@@ -132,7 +150,7 @@ void ApplicationMenu::prefetch(uint64_t window)
 {
     const TaskWindow *client = m_windows.window(window);
     if (client && client->isTaskListWindow())
-        importFor(client->menuService, client->menuPath);
+        importFor({client->gtkMenu, client->menuService, client->menuPath});
 }
 
 void ApplicationMenu::onImported(const std::string &key, int32_t id)
@@ -203,11 +221,8 @@ void ApplicationMenu::pruneImports()
 {
     std::set<std::string> used;
     for (uint64_t window : m_windows.windows()) {
-        std::string service;
-        std::string path;
-        menuAddressOf(window, &service, &path);
-        if (!service.empty() && !path.empty())
-            used.insert(importKey(service, path));
+        if (const std::string key = importKey(addressOf(window)); !key.empty())
+            used.insert(key);
     }
     for (auto it = m_imports.begin(); it != m_imports.end();) {
         if (used.count(it->first) || it->second.menu.get() == m_menu || it->first == m_pendingKey) {
@@ -241,10 +256,8 @@ void ApplicationMenu::update()
         return;
     }
 
-    std::string service;
-    std::string path;
-    menuAddressOf(m_windows.activeWindow(), &service, &path);
-    Import *import = importFor(service, path);
+    const Address address = addressOf(m_windows.activeWindow());
+    Import *import = importFor(address);
     if (!import) {
         commit(title, nullptr);
         return;
@@ -256,7 +269,7 @@ void ApplicationMenu::update()
 
     // Keep the previous bar rather than show this name over its menus. A
     // wait that already ran out shows the name alone until the menu lands.
-    const std::string key = importKey(service, path);
+    const std::string key = importKey(address);
     m_pendingKey = key;
     m_pendingTitle = title;
     if (key != previousPending)

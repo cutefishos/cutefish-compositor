@@ -19,6 +19,7 @@
 #include "shell/menubar/battery.h"
 #include "shell/menubar/clock_format.h"
 #include "shell/menubar/dbus_menu.h"
+#include "shell/menubar/gtk_menu.h"
 #include "shell/menubar/mpris.h"
 #include "shell/menubar/menu_bar.h"
 #include "shell/menubar/status_notifier_watcher.h"
@@ -32,9 +33,12 @@
 
 using namespace cutefish;
 namespace dbus = base::dbus;
+using test::FakeGtkActions;
+using test::FakeGtkMenus;
 using test::FakeMenuExporter;
 using test::FakeTrayItem;
 using test::Pixmap;
+using test::gtkLink;
 using test::layout;
 using test::menuWithFileAndEdit;
 
@@ -45,7 +49,190 @@ dbus::Connection *sessionBus()
     return dbus::Connection::session(core::mainLoop());
 }
 
+// The entry of `parent` labelled `label`, separators skipped.
+const compositor::MenuItem *entryLabelled(const compositor::MenuModel &menu, int32_t parent, const std::string &label)
+{
+    const compositor::MenuItem *item = menu.item(parent);
+    if (!item)
+        return nullptr;
+    for (int32_t id : item->children) {
+        const compositor::MenuItem *child = menu.item(id);
+        if (child && !child->separator && child->label == label)
+            return child;
+    }
+    return nullptr;
+}
+
+std::vector<std::string> labelsOf(const compositor::MenuModel &menu, int32_t parent)
+{
+    std::vector<std::string> labels;
+    for (int32_t id : menu.item(parent)->children)
+        labels.push_back(menu.item(id)->separator ? "-" : menu.item(id)->label);
+    return labels;
+}
+
+dbus::VariantMap gtkItem(const std::string &label, const std::string &action = {})
+{
+    dbus::VariantMap item{{"label", dbus::Variant(label)}};
+    if (!action.empty())
+        item.emplace("action", dbus::Variant(action));
+    return item;
+}
+
+// An editor with File and View menus, an application menu, and the
+// application's and the window's actions.
+struct GtkEditor {
+    test::DBusTestClient application;
+    FakeGtkMenus menubar{application.connection.get(), "/org/example/Editor/menus/menubar"};
+    FakeGtkMenus appMenu{application.connection.get(), "/org/example/Editor/menus/appmenu"};
+    FakeGtkActions appActions{application.connection.get(), "/org/example/Editor"};
+    FakeGtkActions windowActions{application.connection.get(), "/org/example/Editor/window/1"};
+
+    GtkEditor()
+    {
+        dbus::VariantMap file = gtkItem("_File");
+        file.emplace(":submenu", gtkLink(1, 0));
+        dbus::VariantMap view = gtkItem("_View");
+        view.emplace(":submenu", gtkLink(2, 0));
+        menubar.menus.push_back({0, 0, {file, view}});
+
+        dbus::VariantMap open = gtkItem("_New", "app.new");
+        open.emplace("accel", dbus::Variant(std::string("<Primary><Shift>n")));
+        menubar.menus.push_back({1, 0, {open, {{":section", gtkLink(1, 1)}}}});
+        menubar.menus.push_back({1, 1, {gtkItem("_Quit", "app.quit")}});
+
+        dbus::VariantMap small = gtkItem("Small", "win.size");
+        small.emplace("target", dbus::Variant(std::string("small")));
+        dbus::VariantMap large = gtkItem("Large", "win.size");
+        large.emplace("target", dbus::Variant(std::string("large")));
+        dbus::VariantMap missing = gtkItem("Missing", "app.missing");
+        missing.emplace("hidden-when", dbus::Variant(std::string("action-missing")));
+        // A section that names its actions without the "win." of its own.
+        dbus::VariantMap section{{":section", gtkLink(2, 1)}, {"action-namespace", dbus::Variant(std::string("win"))}};
+        menubar.menus.push_back({2, 0, {gtkItem("Wrap", "win.wrap"), small, large, missing, section}});
+        menubar.menus.push_back({2, 1, {gtkItem("Zoom", "zoom")}});
+
+        appMenu.menus.push_back({0, 0, {gtkItem("_About", "app.about")}});
+
+        appActions.actions = {{"new", {true, {}, {}}}, {"quit", {false, {}, {}}}, {"about", {true, {}, {}}}};
+        windowActions.actions = {{"wrap", {true, {}, {dbus::Variant(true)}}},
+                                 {"size", {true, {"s"}, {dbus::Variant(std::string("large"))}}},
+                                 {"zoom", {true, {}, {}}}};
+    }
+
+    compositor::GtkMenuAddress address() const
+    {
+        compositor::GtkMenuAddress result;
+        result.busName = application.connection->uniqueName();
+        result.menubarPath = "/org/example/Editor/menus/menubar";
+        result.appMenuPath = "/org/example/Editor/menus/appmenu";
+        result.applicationPath = "/org/example/Editor";
+        result.windowPath = "/org/example/Editor/window/1";
+        return result;
+    }
+};
+
 } // namespace
+
+TEST(GtkMenuTest, ReadsTheMenusWithTheStateOfTheirActions)
+{
+    GtkEditor editor;
+    shell::GtkMenu menu(sessionBus(), editor.address());
+    ASSERT_TRUE(test::runUntil([&] { return menu.root().childrenLoaded && menu.root().children.size() == 3; }));
+    // Every linked group is subscribed at once.
+    EXPECT_TRUE(editor.menubar.called("Start 0"));
+    EXPECT_TRUE(editor.menubar.called("Start 1"));
+    EXPECT_TRUE(editor.menubar.called("Start 2"));
+
+    // The application menu opens from the name.
+    const compositor::MenuItem *application = menu.item(menu.root().children[0]);
+    EXPECT_EQ(application->role, compositor::MenuItem::Role::Application);
+    EXPECT_EQ(labelsOf(menu, application->id), (std::vector<std::string>{"_About"}));
+
+    const compositor::MenuItem *file = entryLabelled(menu, 0, "_File");
+    ASSERT_NE(file, nullptr);
+    EXPECT_TRUE(file->hasSubmenu);
+    EXPECT_TRUE(file->childrenLoaded);
+    // A section sits between separators; the popup folds the ones at the ends.
+    EXPECT_EQ(labelsOf(menu, file->id), (std::vector<std::string>{"_New", "-", "_Quit", "-"}));
+    const compositor::MenuItem *create = entryLabelled(menu, file->id, "_New");
+    EXPECT_EQ(create->shortcut, (std::vector<std::vector<std::string>>{{"Control", "Shift", "n"}}));
+    EXPECT_TRUE(create->enabled);
+    EXPECT_FALSE(entryLabelled(menu, file->id, "_Quit")->enabled);
+
+    const int32_t view = entryLabelled(menu, 0, "_View")->id;
+    const compositor::MenuItem *wrap = entryLabelled(menu, view, "Wrap");
+    EXPECT_EQ(wrap->toggle, compositor::MenuItem::Toggle::Checkmark);
+    EXPECT_EQ(wrap->toggleState, 1);
+    EXPECT_EQ(entryLabelled(menu, view, "Small")->toggle, compositor::MenuItem::Toggle::Radio);
+    EXPECT_EQ(entryLabelled(menu, view, "Small")->toggleState, 0);
+    EXPECT_EQ(entryLabelled(menu, view, "Large")->toggleState, 1);
+    EXPECT_FALSE(entryLabelled(menu, view, "Missing")->visible);
+    EXPECT_TRUE(entryLabelled(menu, view, "Zoom")->enabled);
+
+    // Items activate their actions, with their targets.
+    menu.activate(entryLabelled(menu, view, "Small")->id);
+    menu.activate(entryLabelled(menu, view, "Zoom")->id);
+    menu.activate(create->id);
+    ASSERT_TRUE(test::runUntil([&] {
+        return editor.windowActions.called("Activate size 'small'") && editor.windowActions.called("Activate zoom")
+                && editor.appActions.called("Activate new");
+    }));
+
+    // Entries change in place under their ids.
+    const int32_t quit = entryLabelled(menu, file->id, "_Quit")->id;
+    std::vector<int32_t> changed;
+    auto itemChanged = menu.itemChanged.connect([&](int32_t id) { changed.push_back(id); });
+    editor.appActions.object.emitSignal("Changed", std::vector<std::string>(),
+                                        std::map<std::string, bool>{{"quit", true}}, dbus::VariantMap(),
+                                        std::map<std::string, test::GtkActionDescription>());
+    ASSERT_TRUE(test::runUntil([&] { return menu.item(quit)->enabled; }));
+    EXPECT_NE(std::find(changed.begin(), changed.end(), quit), changed.end());
+
+    editor.menubar.object.emitSignal(
+            "Changed", std::vector<test::GtkMenuChange>{{1, 1, 0, 1, {gtkItem("E_xit", "app.quit")}}});
+    ASSERT_TRUE(test::runUntil([&] { return menu.item(quit)->label == "E_xit"; }));
+
+    // A new submenu is subscribed and shows once its group is in.
+    dbus::VariantMap help = gtkItem("_Help");
+    help.emplace(":submenu", gtkLink(3, 0));
+    editor.menubar.menus.push_back({3, 0, {gtkItem("_Contents", "app.help")}});
+    editor.menubar.object.emitSignal("Changed", std::vector<test::GtkMenuChange>{{0, 0, 2, 0, {help}}});
+    ASSERT_TRUE(test::runUntil([&] {
+        const compositor::MenuItem *entry = entryLabelled(menu, 0, "_Help");
+        return entry && entry->childrenLoaded && entry->children.size() == 1;
+    }));
+    EXPECT_FALSE(menu.item(entryLabelled(menu, 0, "_Help")->children[0])->enabled);
+}
+
+TEST(GtkMenuTest, SetsASubmenuActionWhileItsMenuIsOpen)
+{
+    test::DBusTestClient application;
+    FakeGtkMenus menubar(application.connection.get(), "/menubar");
+    FakeGtkActions actions(application.connection.get(), "/app");
+    dbus::VariantMap recent = gtkItem("Open _Recent");
+    recent.emplace(":submenu", gtkLink(1, 0));
+    recent.emplace("submenu-action", dbus::Variant(std::string("app.recent")));
+    menubar.menus.push_back({0, 0, {recent}});
+    menubar.menus.push_back({1, 0, {}});
+    actions.actions = {{"recent", {true, {}, {dbus::Variant(false)}}}};
+
+    compositor::GtkMenuAddress address;
+    address.busName = application.connection->uniqueName();
+    address.menubarPath = "/menubar";
+    address.applicationPath = "/app";
+    shell::GtkMenu menu(sessionBus(), address);
+    ASSERT_TRUE(test::runUntil([&] { return menu.root().children.size() == 1; }));
+    const int32_t id = menu.root().children[0];
+
+    bool updated = false;
+    auto menuUpdated = menu.menuUpdated.connect([&](int32_t which) { updated = updated || which == id; });
+    menu.aboutToShow(id);
+    ASSERT_TRUE(test::runUntil([&] { return actions.called("SetState recent true"); }));
+    EXPECT_TRUE(test::runUntil([&] { return updated; }));
+    menu.closed(id);
+    EXPECT_TRUE(test::runUntil([&] { return actions.called("SetState recent false"); }));
+}
 
 TEST(DBusMenuTest, FetchesOneLevelAtATimeAndFollowsUpdates)
 {
@@ -547,6 +734,34 @@ TEST(ApplicationMenuTest, ReadiesTheBarsMenusWithoutOpeningThem)
     EXPECT_EQ(std::count_if(exporter.calls.begin(), exporter.calls.end(),
                             [](const std::string &call) { return call.starts_with("Event"); }),
               0);
+}
+
+TEST(ApplicationMenuTest, PrefersTheGtkMenusOfAWindow)
+{
+    GtkEditor gtk;
+    test::DBusTestClient other;
+    FakeMenuExporter exporter(other.connection.get(), "/MenuBar");
+    exporter.layouts[0] = menuWithFileAndEdit();
+
+    test::FakeApplications applications;
+    applications.addSimple("org.example.Editor", "Editor");
+    applications.scan();
+    test::FakeTaskWindows windows;
+    shell::TaskManager tasks(windows, applications, [](int64_t) { return shell::ProcessCommand(); });
+    shell::ApplicationMenu menu(sessionBus(), windows, tasks, nullptr);
+
+    shell::TaskWindow editor;
+    editor.appId = "org.example.Editor";
+    editor.title = "Draft";
+    editor.gtkMenu = gtk.address();
+    editor.menuService = other.connection->uniqueName();
+    editor.menuPath = "/MenuBar";
+    windows.setActive(windows.add(editor));
+
+    ASSERT_TRUE(test::runUntil([&] { return menu.menu() != nullptr; }));
+    EXPECT_EQ(menu.title(), "Editor");
+    EXPECT_NE(entryLabelled(*menu.menu(), 0, "_View"), nullptr);
+    EXPECT_FALSE(exporter.called("GetLayout 0 1"));
 }
 
 TEST(ClockFormatTest, FollowsTheLocalesOrderWithoutCommas)

@@ -57,6 +57,21 @@ struct MenuItem {
     bool childrenLoaded = false;
 };
 
+// Where a window's org.gtk.Menus menus and the org.gtk.Actions groups they
+// activate are on the session bus.
+struct GtkMenuAddress {
+    std::string busName;
+    std::string menubarPath;
+    std::string appMenuPath;
+    // "app." actions.
+    std::string applicationPath;
+    // "win." actions.
+    std::string windowPath;
+
+    bool hasMenus() const { return !busName.empty() && (!menubarPath.empty() || !appMenuPath.empty()); }
+    bool operator==(const GtkMenuAddress &) const = default;
+};
+
 // The label without its mnemonic markers.
 inline std::string plainMenuLabel(const std::string &label)
 {

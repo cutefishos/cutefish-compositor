@@ -22,6 +22,7 @@
 #include <ext-idle-notify-v1-client-protocol.h>
 #include <ext-image-copy-capture-v1-client-protocol.h>
 #include <fractional-scale-v1-client-protocol.h>
+#include <gtk-shell-client-protocol.h>
 #include <idle-inhibit-unstable-v1-client-protocol.h>
 #include <input-method-unstable-v2-client-protocol.h>
 #include <keyboard-shortcuts-inhibit-unstable-v1-client-protocol.h>
@@ -78,6 +79,7 @@ inline const std::map<std::string, const wl_interface *> &knownInterfaces()
                      &cutefish_status_item_manager_v1_interface,
                      &cutefish_main_menu_manager_v1_interface,
                      &org_kde_kwin_appmenu_manager_interface,
+                     &gtk_shell1_interface,
                      &wp_fractional_scale_manager_v1_interface,
                      &zxdg_output_manager_v1_interface,
                      &wp_viewporter_interface,

@@ -1360,6 +1360,14 @@ void Surface::updateMenuAddress()
     notifyMenuChanged();
 }
 
+void Surface::setGtkMenuAddress(const GtkMenuAddress &address)
+{
+    if (address == m_gtkMenuAddress)
+        return;
+    m_gtkMenuAddress = address;
+    notifyMenuChanged();
+}
+
 void Surface::setMainMenu(std::shared_ptr<MenuModel> menu)
 {
     if (menu == m_mainMenu)

@@ -22,6 +22,7 @@
 #include "wayland/protocols/data_control.h"
 #include "wayland/protocols/idle_notify.h"
 #include "wayland/protocols/foreign_toplevel_list.h"
+#include "wayland/protocols/gtk_shell.h"
 #include "wayland/protocols/image_capture.h"
 #include "wayland/protocols/input_method.h"
 #include "wayland/protocols/primary_selection.h"
@@ -107,6 +108,7 @@ bool ProtocolGlobals::registerCoreGlobals()
             && !createXdgToplevelDragGlobal(display, m_deps.windowManager))
         || !createXdgImporterV2Global(display) || !createSurfaceBlurGlobal(display)
         || !createWindowHintsGlobal(display, m_deps.windowManager) || !createAppMenuGlobal(display)
+        || !createGtkShellGlobal(display)
         || !createMainMenuGlobal(display, m_seat.get()) || !createFractionalScaleGlobal(display)
         || !createXdgOutputManagerGlobal(display) || !createViewporterGlobal(display)
         || (m_deps.windowManager

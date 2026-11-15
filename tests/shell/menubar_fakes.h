@@ -89,6 +89,99 @@ inline dbus::Variant menuWithFileAndEdit()
                               {"children-display", dbus::Variant(std::string("submenu"))}})});
 }
 
+using GtkMenuContents = std::tuple<uint32_t, uint32_t, std::vector<dbus::VariantMap>>;
+using GtkMenuChange = std::tuple<uint32_t, uint32_t, uint32_t, uint32_t, std::vector<dbus::VariantMap>>;
+using GtkActionDescription = std::tuple<bool, dbus::Signature, std::vector<dbus::Variant>>;
+
+inline dbus::Variant gtkLink(uint32_t group, uint32_t menu)
+{
+    return dbus::Variant(std::tuple<uint32_t, uint32_t>(group, menu));
+}
+
+// An org.gtk.Menus exporter of a test's own: Start answers with the menus
+// `menus` holds for the groups asked for; every call is recorded.
+class FakeGtkMenus
+{
+public:
+    FakeGtkMenus(dbus::Connection *bus, const std::string &path)
+        : object(bus, path, "org.gtk.Menus")
+    {
+        object.addMethod("Start", "au", "a(uuaa{sv})", [this](dbus::MethodCall &call) {
+            std::vector<uint32_t> groups;
+            call.read(groups);
+            std::vector<GtkMenuContents> reply;
+            for (uint32_t group : groups) {
+                calls.push_back("Start " + std::to_string(group));
+                for (const GtkMenuContents &menu : menus) {
+                    if (std::get<0>(menu) == group)
+                        reply.push_back(menu);
+                }
+            }
+            call.replyWith({dbus::Variant(reply)});
+        });
+        object.addMethod("End", "au", "", [this](dbus::MethodCall &call) {
+            std::vector<uint32_t> groups;
+            call.read(groups);
+            for (uint32_t group : groups)
+                calls.push_back("End " + std::to_string(group));
+            call.reply();
+        });
+        object.addSignal("Changed", "a(uuuuaa{sv})");
+        EXPECT_TRUE(object.publish());
+    }
+
+    bool called(const std::string &what) const
+    {
+        return std::find(calls.begin(), calls.end(), what) != calls.end();
+    }
+
+    dbus::Object object;
+    std::vector<GtkMenuContents> menus;
+    std::vector<std::string> calls;
+};
+
+// An org.gtk.Actions group of a test's own; activations and state changes
+// are recorded as "Activate name", "Activate name 'target'" and
+// "SetState name true".
+class FakeGtkActions
+{
+public:
+    FakeGtkActions(dbus::Connection *bus, const std::string &path)
+        : object(bus, path, "org.gtk.Actions")
+    {
+        object.addMethod("DescribeAll", "", "a{s(bgav)}", [this](dbus::MethodCall &call) {
+            call.replyWith({dbus::Variant(actions)});
+        });
+        object.addMethod("Activate", "sava{sv}", "", [this](dbus::MethodCall &call) {
+            std::string name;
+            std::vector<dbus::Variant> parameter;
+            call.read(name, parameter);
+            std::string text = "Activate " + name;
+            if (!parameter.empty())
+                text += " '" + parameter.front().value<std::string>() + "'";
+            calls.push_back(text);
+            call.reply();
+        });
+        object.addMethod("SetState", "sva{sv}", "", [this](dbus::MethodCall &call) {
+            std::string name;
+            dbus::Variant state;
+            call.read(name, state);
+            calls.push_back("SetState " + name + (state.value<bool>() ? " true" : " false"));
+            call.reply();
+        });
+        object.addSignal("Changed", "asa{sb}a{sv}a{s(bgav)}");
+        EXPECT_TRUE(object.publish());
+    }
+
+    bool called(const std::string &what) const
+    {
+        return std::find(calls.begin(), calls.end(), what) != calls.end();
+    }
+
+    dbus::Object object;
+    std::map<std::string, GtkActionDescription> actions;
+    std::vector<std::string> calls;
+};
 
 // A tray item of a test's own on another connection.
 class FakeTrayItem

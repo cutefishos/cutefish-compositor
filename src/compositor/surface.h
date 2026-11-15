@@ -26,6 +26,7 @@
 #include "base/transform.h"
 
 #include "compositor/buffer.h"
+#include "compositor/menu_model.h"
 #include "render/glass.h"
 #include "render/presentation.h"
 #include "ui/path.h"
@@ -43,8 +44,6 @@ class SurfaceNode;
 } // namespace cutefish::scene
 
 namespace cutefish::compositor {
-
-class MenuModel;
 
 class Compositor;
 class SubSurface;
@@ -173,6 +172,10 @@ public:
     void removeMenuSource(uint64_t source);
 
     const MenuAddress &menuAddress() const { return m_menuAddress; }
+
+    // The org.gtk.Menus menus the surface names through gtk_shell1.
+    const GtkMenuAddress &gtkMenuAddress() const { return m_gtkMenuAddress; }
+    void setGtkMenuAddress(const GtkMenuAddress &address);
 
     // The main menu the window shows through cutefish_main_menu_v1; null for
     // none. Takes precedence over the menu address.
@@ -581,6 +584,7 @@ private:
     std::map<uint64_t, MenuAddress> m_menuSources;
     uint64_t m_nextMenuSource = 0;
     MenuAddress m_menuAddress;
+    GtkMenuAddress m_gtkMenuAddress;
     std::shared_ptr<MenuModel> m_mainMenu;
     std::shared_ptr<MenuModel> m_dockMenu;
     bool m_skipTaskbar = false;

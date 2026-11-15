@@ -12,10 +12,7 @@
 
 #include "base/geometry.h"
 #include "base/signal.h"
-
-namespace cutefish::compositor {
-class MenuModel;
-}
+#include "compositor/menu_model.h"
 
 namespace cutefish::ui {
 class Bitmap;
@@ -44,6 +41,9 @@ struct TaskWindow {
     // The dbusmenu the window's surface names through the appmenu protocol.
     std::string menuService;
     std::string menuPath;
+    // The org.gtk.Menus menus it names through gtk_shell1, which take
+    // precedence over the dbusmenu.
+    compositor::GtkMenuAddress gtkMenu;
     // The main menu it shows through cutefish_main_menu_v1, which takes
     // precedence; null for none.
     std::shared_ptr<compositor::MenuModel> mainMenu;

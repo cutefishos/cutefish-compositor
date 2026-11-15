@@ -1,7 +1,7 @@
 # The menu bar without its views: the tray (StatusNotifierWatcher and its
-# items), a dbusmenu client, the AppMenu registrar and the application menu,
-# media players, battery, Wi-Fi, brightness and power glue, the clock's format
-# and org.cutefish.MenuBar.
+# items), dbusmenu and org.gtk.Menus clients, the AppMenu registrar and the
+# application menu, media players, battery, Wi-Fi, brightness and power glue,
+# the clock's format and org.cutefish.MenuBar.
 add_library(cutefish-shell-menubar STATIC
     app_menu_registrar.cpp
     app_menu_registrar.h
@@ -15,6 +15,8 @@ add_library(cutefish-shell-menubar STATIC
     clock_format.h
     dbus_menu.cpp
     dbus_menu.h
+    gtk_menu.cpp
+    gtk_menu.h
     mpris.cpp
     mpris.h
     power_actions.cpp

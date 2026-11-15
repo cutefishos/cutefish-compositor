@@ -129,6 +129,7 @@ cutefish_wayland_protocol(wlr-data-control-unstable-v1
 cutefish_wayland_protocol(primary-selection-unstable-v1
     ${WAYLAND_PROTOCOLS_DATADIR}/unstable/primary-selection/primary-selection-unstable-v1.xml)
 cutefish_wayland_protocol(appmenu ${CMAKE_CURRENT_SOURCE_DIR}/protocols/appmenu.xml)
+cutefish_wayland_protocol(gtk-shell ${CMAKE_CURRENT_SOURCE_DIR}/protocols/gtk-shell.xml)
 cutefish_wayland_protocol(ext-image-capture-source-v1
     ${WAYLAND_PROTOCOLS_DATADIR}/staging/ext-image-capture-source/ext-image-capture-source-v1.xml)
 cutefish_wayland_protocol(ext-image-copy-capture-v1
@@ -158,6 +159,7 @@ add_library(cutefish-protocols STATIC
     ${ext-foreign-toplevel-list-v1_SOURCES}
     ${xdg-activation-v1_SOURCES}
     ${appmenu_SOURCES}
+    ${gtk-shell_SOURCES}
     ${primary-selection-unstable-v1_SOURCES}
     ${presentation-time_SOURCES}
     ${viewporter_SOURCES}
@@ -688,6 +690,10 @@ add_library(cutefish-wayland-shell STATIC
     src/wayland/protocols/xdg_activation.cpp
     src/wayland/protocols/xdg_activation.h
     src/wayland/protocols/application_menu.cpp
+    src/wayland/protocols/dbus_address.cpp
+    src/wayland/protocols/dbus_address.h
+    src/wayland/protocols/gtk_shell.cpp
+    src/wayland/protocols/gtk_shell.h
     src/wayland/protocols/main_menu.cpp
     src/wayland/protocols/main_menu.h
     src/wayland/protocols/xdg_positioner.cpp

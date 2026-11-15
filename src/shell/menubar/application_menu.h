@@ -15,15 +15,11 @@
 #include "base/dbus.h"
 #include "base/signal.h"
 #include "base/timer.h"
-
-namespace cutefish::compositor {
-class MenuModel;
-}
+#include "compositor/menu_model.h"
 
 namespace cutefish::shell {
 
 class AppMenuRegistrar;
-class DBusMenu;
 class TaskManager;
 class TaskWindows;
 
@@ -33,7 +29,8 @@ class TaskWindows;
 // application without a menu of its own role, are the view's.
 //
 // A window's main menu (cutefish_main_menu_v1) is ready as soon as it is
-// set; a com.canonical.dbusmenu export is imported.
+// set; org.gtk.Menus menus, else a com.canonical.dbusmenu export, are
+// imported.
 //
 // Menus are imported as soon as a window or its exporter appears, so that
 // focusing it later finds the menu ready and the bar switches in one step.
@@ -79,14 +76,22 @@ public:
 
 private:
     struct Import {
-        std::unique_ptr<DBusMenu> menu;
+        std::unique_ptr<compositor::MenuModel> menu;
         bool ready = false;
         std::vector<base::Subscription> subscriptions;
     };
 
-    static std::string importKey(const std::string &service, const std::string &path);
-    Import *importFor(const std::string &service, const std::string &path);
-    void menuAddressOf(uint64_t window, std::string *service, std::string *path) const;
+    // The GTK menus when there are any, else the dbusmenu.
+    struct Address {
+        compositor::GtkMenuAddress gtk;
+        std::string service;
+        std::string path;
+    };
+
+    // Starts with the service and a newline; empty for no menu.
+    static std::string importKey(const Address &address);
+    Import *importFor(const Address &address);
+    Address addressOf(uint64_t window) const;
     void prefetch(uint64_t window);
     void onImported(const std::string &key, int32_t id);
     void dropService(const std::string &service);

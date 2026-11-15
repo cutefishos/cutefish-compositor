@@ -100,6 +100,7 @@ cutefish_add_test(status_item_protocol_test cutefish-wayland-shell cutefish-wayl
     PkgConfig::WaylandClient)
 cutefish_add_test(main_menu_protocol_test cutefish-wayland-shell cutefish-wayland-input
     PkgConfig::WaylandClient)
+cutefish_add_test(gtk_shell_protocol_test cutefish-wayland-shell PkgConfig::WaylandClient)
 cutefish_add_test(protocol_binding_test cutefish-wayland-globals PkgConfig::WaylandClient)
 set_tests_properties(protocol_binding_test PROPERTIES TIMEOUT 60)
 # Seeded random request sequences against every global; with clang,
