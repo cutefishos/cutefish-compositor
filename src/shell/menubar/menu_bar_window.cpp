@@ -165,6 +165,7 @@ MenuBarWindow::MenuBarWindow(Shell *shell, std::unique_ptr<MenuBar> menuBar)
         return icon;
     };
     m_volume = statusIcon("volume", Panel::Volume);
+    m_bluetooth = statusIcon("bluetooth", Panel::Bluetooth);
     m_network = statusIcon("network", Panel::Network);
     m_battery = statusIcon("battery", Panel::Battery);
     m_battery->setIconWidth(BarContext::kIconSize + 6);
@@ -270,7 +271,7 @@ bool MenuBarWindow::lightContents() const
 bool MenuBarWindow::panelOpen() const
 {
     for (MenuBarPanels *panels : m_panels) {
-        for (Panel panel : {Panel::ControlCenter, Panel::Network, Panel::Volume, Panel::Battery,
+        for (Panel panel : {Panel::ControlCenter, Panel::Network, Panel::Bluetooth, Panel::Volume, Panel::Battery,
                             Panel::NotificationCenter}) {
             if (panels->hasPanel(panel) && panels->isOpen(panel))
                 return true;
@@ -292,7 +293,7 @@ void MenuBarWindow::updateLook()
     if (wm::StatusItems *items = m_shell->windowManager() ? m_shell->windowManager()->statusItems() : nullptr) {
         items->setAppearance(light, textColor().argb());
     }
-    for (StatusIcon *icon : {m_volume, m_network, m_battery, m_control})
+    for (StatusIcon *icon : {m_volume, m_bluetooth, m_network, m_battery, m_control})
         icon->updateLook();
     m_clock->updateLook();
     m_recording->updateLook();
@@ -383,6 +384,9 @@ void MenuBarWindow::updateIndicators()
     m_network->showNetwork(m_indicators ? m_indicators->network() : MenuBarIndicators::Network());
     if (!m_menuBar->isControlShown(MenuBar::Control::WiFi))
         m_network->setVisible(false);
+    m_bluetooth->showBluetooth(m_indicators ? m_indicators->bluetooth() : MenuBarIndicators::Bluetooth());
+    if (!m_menuBar->isControlShown(MenuBar::Control::Bluetooth))
+        m_bluetooth->setVisible(false);
 
     layoutRow();
 }
@@ -435,7 +439,7 @@ void MenuBarWindow::layoutRow()
     preferred(m_statusItems, m_statusItems->preferredWidth());
     m_tray->setVisible(m_tray->count() > 0);
     preferred(m_tray, m_tray->preferredWidth());
-    for (StatusIcon *icon : {m_volume, m_network, m_battery, m_control})
+    for (StatusIcon *icon : {m_volume, m_bluetooth, m_network, m_battery, m_control})
         preferred(icon, icon->preferredWidth());
     preferred(m_clock, m_clock->preferredWidth());
     m_root->requestLayout();
@@ -497,6 +501,8 @@ BarItem *MenuBarWindow::itemFor(Panel panel) const
         return m_control;
     case Panel::Network:
         return m_network;
+    case Panel::Bluetooth:
+        return m_bluetooth;
     case Panel::Volume:
         return m_volume;
     case Panel::Battery:
@@ -509,7 +515,7 @@ BarItem *MenuBarWindow::itemFor(Panel panel) const
 
 void MenuBarWindow::updateChecked()
 {
-    for (Panel panel : {Panel::ControlCenter, Panel::Network, Panel::Volume, Panel::Battery,
+    for (Panel panel : {Panel::ControlCenter, Panel::Network, Panel::Bluetooth, Panel::Volume, Panel::Battery,
                         Panel::NotificationCenter}) {
         MenuBarPanels *panels = panelsFor(panel);
         itemFor(panel)->setChecked(panels && panels->isOpen(panel));

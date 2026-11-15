@@ -7,6 +7,7 @@
 
 #include <functional>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -26,6 +27,7 @@ class Switch;
 namespace cutefish::shell {
 
 class LevelSlider;
+class PanelRowList;
 class SvgIcon;
 
 // The status panels' metrics.
@@ -71,6 +73,8 @@ public:
     void setBold(bool bold);
     void setBusy(bool busy);
     void setLocked(bool locked);
+    // Secondary text at the row's end (a device's battery level); none when empty.
+    void setTrailingText(std::string text);
     void setRowEnabled(bool enabled);
 
     std::function<void()> onClicked;
@@ -94,6 +98,7 @@ private:
     ui::Label *m_detail;
     ui::BusyIndicator *m_busy;
     ui::Icon *m_lock;
+    ui::Label *m_trailing;
     bool m_active = false;
     bool m_pressed = false;
     bool m_rowEnabled = true;
@@ -214,19 +219,52 @@ protected:
     double bodyInkInset() const override;
 
 private:
-    class List;
-
     double listHeight() const;
     double listLead() const;
 
     ui::Switch *m_switch;
     ui::ScrollView *m_scroll;
     ui::View *m_separator;
-    List *m_list;
+    PanelRowList *m_list;
     PanelRow *m_hotspot;
     std::vector<PanelRow *> m_rows;
     std::vector<WirelessNetwork> m_networks;
     base::Timer m_scanTimer;
+};
+
+// The Bluetooth panel: the Bluetooth switch and the paired devices, connected
+// ones first; a click connects or disconnects one. The switch keeps the
+// user's choice until BlueZ reports it, or for kRequestTimeout.
+class BluetoothPanel : public StatusPanelView
+{
+public:
+    explicit BluetoothPanel(ControlCenterServices &services);
+    ~BluetoothPanel() override;
+
+    void refresh() override;
+    void retranslate() override;
+
+    ui::Switch *bluetoothSwitch() const { return m_switch; }
+    const std::vector<PanelRow *> &rows() const { return m_rows; }
+
+protected:
+    double bodyHeight() const override;
+    void layoutBody(double top) override;
+    double bodyInkInset() const override;
+
+private:
+    double listHeight() const;
+    double listLead() const;
+    bool shownEnabled() const;
+
+    ui::Switch *m_switch;
+    ui::View *m_separator;
+    ui::ScrollView *m_scroll;
+    PanelRowList *m_list;
+    std::vector<PanelRow *> m_rows;
+    std::vector<BluetoothDevice> m_devices;
+    std::optional<bool> m_requested;
+    base::Timer m_requestTimer;
 };
 
 // The sound panel: the default sink's level and the outputs.

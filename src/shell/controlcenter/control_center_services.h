@@ -45,6 +45,21 @@ struct WirelessNetwork {
     bool operator==(const WirelessNetwork &) const = default;
 };
 
+// A paired device of the Bluetooth panel.
+struct BluetoothDevice {
+    std::string path;
+    std::string name;
+    // A theme icon name, BlueZ's; empty when it gives none.
+    std::string icon;
+    bool connected = false;
+    // Connecting or disconnecting.
+    bool busy = false;
+    // -1 when the device does not report one.
+    int batteryPercentage = -1;
+
+    bool operator==(const BluetoothDevice &) const = default;
+};
+
 // An output of the sound panel.
 struct AudioOutput {
     uint32_t id = 0;
@@ -112,6 +127,9 @@ public:
     virtual bool bluetoothAvailable() const = 0;
     virtual bool bluetoothEnabled() const = 0;
     virtual void setBluetoothEnabled(bool enabled) = 0;
+    // Paired devices, connected ones first.
+    virtual std::vector<BluetoothDevice> bluetoothDevices() const = 0;
+    virtual void setBluetoothDeviceConnected(const std::string &path, bool connected) = 0;
 
     // --- Switches ---
     virtual void setDarkMode(bool dark) = 0;

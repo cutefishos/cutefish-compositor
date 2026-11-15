@@ -20,7 +20,9 @@ namespace dbus = base::dbus;
 
 static const base::LogCategory cfMenuBar("cutefish.shell.menubar");
 
-static const char *const kControlKeys[] = {"MenuBar/ShowWiFi", "MenuBar/ShowBattery", "MenuBar/ShowSound"};
+static const char *const kControlKeys[] = {"MenuBar/ShowWiFi", "MenuBar/ShowBattery", "MenuBar/ShowSound",
+                                           "MenuBar/ShowBluetooth"};
+static constexpr bool kControlDefaults[] = {true, true, true, false};
 
 MenuBar::MenuBar(dbus::Connection *sessionBus, dbus::Connection *systemBus, TaskManager *tasks,
                  std::string settingsPath)
@@ -56,7 +58,7 @@ MenuBar::MenuBar(dbus::Connection *sessionBus, dbus::Connection *systemBus, Task
                 const base::Settings settings(path);
                 std::array<bool, kControlCount> shown {};
                 for (int i = 0; i < kControlCount; ++i)
-                    shown[i] = settings.boolValue(kControlKeys[i], true);
+                    shown[i] = settings.boolValue(kControlKeys[i], kControlDefaults[i]);
                 return shown;
             },
             [this](std::array<bool, kControlCount> shown) {
@@ -155,6 +157,8 @@ std::optional<MenuBar::Control> MenuBar::controlFromName(const std::string &name
         return Control::Battery;
     if (name == "sound")
         return Control::Sound;
+    if (name == "bluetooth")
+        return Control::Bluetooth;
     return std::nullopt;
 }
 

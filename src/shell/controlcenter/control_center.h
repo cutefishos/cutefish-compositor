@@ -29,10 +29,10 @@ class ShellWindow;
 class MenuBar;
 class StatusPanelView;
 
-// The control centre and the menu bar's Wi-Fi, Sound and
+// The control centre and the menu bar's Wi-Fi, Bluetooth, Sound and
 // Battery panels, each a popup of the bar's window with the panels' glass,
 // and the power dialog the bar's menu and org.cutefish.MenuBar ask for.
-// Also tells the bar what its volume and Wi-Fi icons show.
+// Also tells the bar what its volume, Wi-Fi and Bluetooth icons show.
 class ControlCenter : public Component, public MenuBarPanels, public MenuBarIndicators
 {
 public:
@@ -53,6 +53,7 @@ public:
     // --- MenuBarIndicators ---
     Audio audio() const override;
     Network network() const override;
+    Bluetooth bluetooth() const override;
 
     // The bar's DeviceUsage applications for the device-users tile; call
     // deviceUsersChanged() when they change.
@@ -100,9 +101,10 @@ private:
     std::unique_ptr<ControlCenterServices> m_services;
     PowerActions *m_powerActions;
     std::unique_ptr<PowerDialog> m_powerDialog;
-    std::array<Open, 4> m_open;
+    std::array<Open, 5> m_open;
     Audio m_audio;
     Network m_network;
+    Bluetooth m_bluetooth;
     std::vector<base::Subscription> m_subscriptions;
     std::shared_ptr<bool> m_alive = std::make_shared<bool>(true);
 };

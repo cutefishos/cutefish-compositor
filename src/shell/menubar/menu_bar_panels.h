@@ -22,6 +22,7 @@ public:
     enum class Panel {
         ControlCenter,
         Network,
+        Bluetooth,
         Volume,
         Battery,
         NotificationCenter,
@@ -43,7 +44,7 @@ public:
 };
 
 // What the bar's icons show, read from the clients the control centre reads
-// too: the default sink and the Wi-Fi state.
+// too: the default sink, the Wi-Fi state and Bluetooth's.
 class MenuBarIndicators
 {
 public:
@@ -68,10 +69,18 @@ public:
         bool operator==(const Network &) const = default;
     };
 
+    struct Bluetooth {
+        bool available = false;
+        bool enabled = false;
+
+        bool operator==(const Bluetooth &) const = default;
+    };
+
     virtual ~MenuBarIndicators() = default;
 
     virtual Audio audio() const = 0;
     virtual Network network() const = 0;
+    virtual Bluetooth bluetooth() const = 0;
 
     base::Signal<> changed;
 };

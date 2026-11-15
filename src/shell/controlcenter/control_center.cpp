@@ -80,12 +80,13 @@ ControlCenter::ControlCenter(Shell *shell, std::unique_ptr<ControlCenterServices
     // StatusPanel's adjustPosition on a work area change: the panel keeps
     // its place and takes the new height. Only the status panels follow it.
     m_subscriptions.push_back(m_shell->outputsChanged.connect([this] {
-        for (Panel panel : {Panel::Network, Panel::Volume, Panel::Battery})
+        for (Panel panel : {Panel::Network, Panel::Bluetooth, Panel::Volume, Panel::Battery})
             fitToWorkArea(panel);
     }));
     m_subscriptions.push_back(ui::Application::instance()->languageChanged.connect([this] { retranslate(); }));
     m_audio = audio();
     m_network = network();
+    m_bluetooth = bluetooth();
 }
 
 ControlCenter::~ControlCenter()
@@ -115,6 +116,8 @@ size_t ControlCenter::index(Panel panel)
         return 2;
     case Panel::Battery:
         return 3;
+    case Panel::Bluetooth:
+        return 4;
     case Panel::NotificationCenter:
         break;
     }
@@ -206,6 +209,9 @@ void ControlCenter::openPanel(Panel panel, ShellWindow *bar, const base::Rect &a
     }
     case Panel::Network:
         open.panel = new NetworkPanel(*m_services);
+        break;
+    case Panel::Bluetooth:
+        open.panel = new BluetoothPanel(*m_services);
         break;
     case Panel::Volume:
         open.panel = new VolumePanel(*m_services);
@@ -363,7 +369,7 @@ void ControlCenter::retranslate()
 
 void ControlCenter::closePanels()
 {
-    for (Panel panel : {Panel::ControlCenter, Panel::Network, Panel::Volume, Panel::Battery})
+    for (Panel panel : {Panel::ControlCenter, Panel::Network, Panel::Bluetooth, Panel::Volume, Panel::Battery})
         close(panel);
 }
 
@@ -377,9 +383,11 @@ void ControlCenter::refresh()
     }
     const Audio audio = this->audio();
     const Network network = this->network();
-    if (audio != m_audio || network != m_network) {
+    const Bluetooth bluetooth = this->bluetooth();
+    if (audio != m_audio || network != m_network || bluetooth != m_bluetooth) {
         m_audio = audio;
         m_network = network;
+        m_bluetooth = bluetooth;
         changed();
     }
 }
@@ -402,6 +410,14 @@ MenuBarIndicators::Network ControlCenter::network() const
     network.wirelessName = m_services->wirelessName();
     network.wirelessIcon = m_services->wirelessIcon();
     return network;
+}
+
+MenuBarIndicators::Bluetooth ControlCenter::bluetooth() const
+{
+    Bluetooth bluetooth;
+    bluetooth.available = m_services->bluetoothAvailable();
+    bluetooth.enabled = m_services->bluetoothEnabled();
+    return bluetooth;
 }
 
 void ControlCenter::setDeviceUsersSource(std::function<std::vector<DeviceUser>()> source)

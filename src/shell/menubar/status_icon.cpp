@@ -132,6 +132,12 @@ void StatusIcon::showNetwork(const MenuBarIndicators::Network &network)
                                              : "network-wireless-connected-00");
 }
 
+void StatusIcon::showBluetooth(const MenuBarIndicators::Bluetooth &bluetooth)
+{
+    setVisible(bluetooth.available);
+    setIconName(bluetooth.enabled ? "bluetooth-symbolic" : "bluetooth-disabled-symbolic");
+}
+
 void StatusIcon::updateContent()
 {
     m_text->setVisible(!m_label.empty());

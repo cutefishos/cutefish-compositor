@@ -8,6 +8,8 @@
 
 #include <chrono>
 #include <cmath>
+#include <utility>
+#include <vector>
 
 #include <linux/input-event-codes.h>
 
@@ -80,7 +82,18 @@ public:
     }
     bool bluetoothAvailable() const override { return true; }
     bool bluetoothEnabled() const override { return bluetooth; }
-    void setBluetoothEnabled(bool enabled) override { bluetooth = enabled; changed(); }
+    void setBluetoothEnabled(bool enabled) override
+    {
+        // BlueZ reports other changes before the adapter's power.
+        if (!slowBluetooth)
+            bluetooth = enabled;
+        changed();
+    }
+    std::vector<shell::BluetoothDevice> bluetoothDevices() const override { return devices; }
+    void setBluetoothDeviceConnected(const std::string &path, bool connected) override
+    {
+        connections.emplace_back(path, connected);
+    }
     void setDarkMode(bool dark) override { darkRequested = dark ? 1 : 0; }
     bool doNotDisturb() const override { return dnd; }
     void setDoNotDisturb(bool enabled) override { dnd = enabled; changed(); }
@@ -116,6 +129,7 @@ public:
     bool wireless = true;
     bool hotspot = false;
     bool bluetooth = true;
+    bool slowBluetooth = false;
     bool dnd = false;
     bool camera = false;
     bool microphone = false;
@@ -131,6 +145,8 @@ public:
     std::vector<std::string> profiles {"power-saver", "balanced"};
     std::vector<shell::WirelessNetwork> networks;
     std::vector<std::string> activated;
+    std::vector<shell::BluetoothDevice> devices;
+    std::vector<std::pair<std::string, bool>> connections;
     std::vector<shell::DeviceUser> users;
     shell::MediaState mediaState;
     std::vector<std::string> media_;
@@ -479,6 +495,52 @@ TEST_F(ControlCenterTest, TheWifiPanelListsNetworksAndJoinsThem)
     EXPECT_EQ((std::vector<std::string> {"-m", "wlan"}), services->settings.back());
 }
 
+TEST_F(ControlCenterTest, TheBluetoothPanelListsPairedDevicesAndConnectsThem)
+{
+    services->devices = {{"/dev/a", "AirPods", "audio-headphones", true, false, 72},
+                         {"/dev/b", "Mouse", "input-mouse", false, false, -1},
+                         {"/dev/c", "Keyboard", "input-keyboard", false, true, 40}};
+    center->openPanel(Panel::Bluetooth, bar.get(), item(333));
+    frame();
+    auto *panel = static_cast<shell::BluetoothPanel *>(center->statusPanel(Panel::Bluetooth));
+    ASSERT_NE(nullptr, panel);
+    EXPECT_TRUE(panel->bluetoothSwitch()->isChecked());
+    ASSERT_EQ(3u, panel->rows().size());
+    EXPECT_TRUE(panel->rows()[0]->isActive());
+    EXPECT_FALSE(panel->rows()[1]->isActive());
+    expectFooterGaps(Panel::Bluetooth, panel->rows().back());
+
+    // A click disconnects a connected device and connects another; a busy
+    // one takes no clicks.
+    clickView(Panel::Bluetooth, panel->rows()[0]);
+    clickView(Panel::Bluetooth, panel->rows()[1]);
+    clickView(Panel::Bluetooth, panel->rows()[2]);
+    EXPECT_EQ((std::vector<std::pair<std::string, bool>> {{"/dev/a", false}, {"/dev/b", true}}),
+              services->connections);
+
+    // Off, the list goes and the switch alone is left at once, while the
+    // adapter is still powering off.
+    services->slowBluetooth = true;
+    const double open = panel->contentHeight();
+    clickView(Panel::Bluetooth, panel->bluetoothSwitch());
+    test::runFor(std::chrono::milliseconds(5));
+    EXPECT_TRUE(services->bluetooth);
+    EXPECT_FALSE(panel->bluetoothSwitch()->isChecked());
+    EXPECT_LT(panel->contentHeight(), open);
+    services->changed();
+    test::runFor(std::chrono::milliseconds(5));
+    EXPECT_FALSE(panel->bluetoothSwitch()->isChecked());
+    services->bluetooth = false;
+    services->changed();
+    test::runFor(std::chrono::milliseconds(5));
+    EXPECT_FALSE(panel->bluetoothSwitch()->isChecked());
+
+    clickView(Panel::Bluetooth, panel->settingsLink());
+    test::runFor(std::chrono::milliseconds(20));
+    EXPECT_FALSE(center->isOpen(Panel::Bluetooth));
+    EXPECT_EQ((std::vector<std::string> {"-m", "bluetooth"}), services->settings.back());
+}
+
 TEST_F(ControlCenterTest, TheSoundAndBatteryPanelsPickOutputsAndModes)
 {
     center->openPanel(Panel::Volume, bar.get(), item(333));
@@ -619,8 +681,10 @@ TEST_F(ControlCenterTest, TheBarsItemsOpenEveryPanel)
     auto *menuBar = shell->addComponent(std::make_unique<shell::MenuBarWindow>(shell.get(), std::move(backend)));
     menuBar->addPanels(center);
     menuBar->setIndicators(center);
+    menuBar->menuBar().setControlShown(shell::MenuBar::Control::Bluetooth, true);
     frame();
     for (const auto &[panel, icon] : {std::pair {Panel::Volume, menuBar->volumeIcon()},
+                                      std::pair {Panel::Bluetooth, menuBar->bluetoothIcon()},
                                       std::pair {Panel::Network, menuBar->networkIcon()},
                                       std::pair {Panel::ControlCenter, menuBar->controlIcon()}}) {
         ASSERT_TRUE(icon->isVisible());

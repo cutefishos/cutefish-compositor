@@ -110,6 +110,8 @@ PanelRow::PanelRow()
     m_busy->setVisible(false);
     m_lock = addChild<ui::Icon>("lock", kGlyphSize);
     m_lock->setVisible(false);
+    m_trailing = addChild<ui::Label>();
+    m_trailing->setVisible(false);
     setTracksHover(true);
 }
 
@@ -175,6 +177,15 @@ void PanelRow::setLocked(bool locked)
     requestLayout();
 }
 
+void PanelRow::setTrailingText(std::string text)
+{
+    if (text == m_trailing->text() && m_trailing->isVisible() == !text.empty())
+        return;
+    m_trailing->setVisible(!text.empty());
+    m_trailing->setText(std::move(text));
+    requestLayout();
+}
+
 void PanelRow::setRowEnabled(bool enabled)
 {
     if (enabled == m_rowEnabled)
@@ -207,6 +218,7 @@ void PanelRow::layout()
     m_artwork->setTint(white ? kWhite : kLightArtwork);
     m_lock->setColor(panel::secondaryTextColor());
     m_detail->setColor(panel::secondaryTextColor());
+    m_trailing->setColor(panel::secondaryTextColor());
 
     // The background reaches past the row's padding to kBackgroundMargin.
     const double inset = kRowMargin - kBackgroundMargin + kRowInset;
@@ -218,6 +230,11 @@ void PanelRow::layout()
     m_artwork->setGeometry(glyph);
 
     double right = geometry().width - inset;
+    if (m_trailing->isVisible()) {
+        const ui::SizeF size = m_trailing->sizeHint();
+        m_trailing->setGeometry({right - size.width, (height - size.height) / 2, size.width, size.height});
+        right -= size.width + kRowSpacing;
+    }
     if (m_lock->isVisible()) {
         m_lock->setGeometry({right - kGlyphSize, (height - kGlyphSize) / 2, kGlyphSize, kGlyphSize});
         right -= kGlyphSize + kRowSpacing;
@@ -588,9 +605,9 @@ protected:
     void paint(ui::Painter &painter) override { painter.fillRect(localRect(), panel::textColor(0.08)); }
 };
 
-// The networks, laid out in the scroll view edge to edge so its bar sits on
+// A panel's rows, laid out in a scroll view edge to edge so its bar sits on
 // the panel's edge.
-class NetworkPanel::List final : public ui::View
+class PanelRowList final : public ui::View
 {
 public:
     double heightForWidth(double) const override
@@ -636,7 +653,7 @@ NetworkPanel::NetworkPanel(ControlCenterServices &services)
     m_separator = body()->addChild<Separator>();
     m_scroll = body()->addChild<ui::ScrollView>();
     m_scroll->setScrollDirections(false, true);
-    m_list = m_scroll->setContent<List>();
+    m_list = m_scroll->setContent<PanelRowList>();
     m_hotspot = m_list->addChild<PanelRow>();
     m_hotspot->setGlyph("network-wireless-hotspot");
     m_hotspot->setActive(true);
@@ -895,6 +912,145 @@ void VolumePanel::layoutBody(double top)
         row->setGeometry({kBackgroundMargin, y, kWidth - 2 * kBackgroundMargin, height});
         y += height + kListSpacing;
     }
+}
+
+// A device's 16 px theme icon, single-coloured as the badges' glyphs are.
+static std::string deviceArtwork(const std::string &icon)
+{
+    std::string path = icon.empty() ? std::string() : ui::themeIconPath(icon, int(kGlyphSize));
+    if (path.empty())
+        path = ui::themeIconPath("bluetooth", int(kGlyphSize));
+    return path;
+}
+
+// How long the switch shows the user's choice while BlueZ has not reported it.
+static constexpr std::chrono::milliseconds kRequestTimeout {5000};
+
+BluetoothPanel::BluetoothPanel(ControlCenterServices &services)
+    : StatusPanelView(tr("Bluetooth"), tr("Bluetooth Settings"), "bluetooth", services)
+{
+    m_switch = addChild<ui::Switch>();
+    m_switch->setPadding({0, 0, 0, 0});
+    m_switch->setLayoutHints({.preferredHeight = kHeaderHeight});
+    m_switch->onToggled = [this](bool checked) {
+        // The adapter powers on or off a moment later, and BlueZ reports
+        // other changes before that.
+        m_requested = checked;
+        m_requestTimer.start();
+        this->services().setBluetoothEnabled(checked);
+        refresh();
+    };
+    setAccessory(m_switch);
+
+    m_separator = body()->addChild<Separator>();
+    m_scroll = body()->addChild<ui::ScrollView>();
+    m_scroll->setScrollDirections(false, true);
+    m_list = m_scroll->setContent<PanelRowList>();
+
+    m_requestTimer.setSingleShot(true);
+    m_requestTimer.setInterval(kRequestTimeout);
+    m_requestTimer.onTimeout = [this] {
+        m_requested.reset();
+        refresh();
+    };
+    refresh();
+}
+
+BluetoothPanel::~BluetoothPanel() = default;
+
+void BluetoothPanel::retranslate()
+{
+    setTitles(tr("Bluetooth"), tr("Bluetooth Settings"));
+    refresh();
+}
+
+bool BluetoothPanel::shownEnabled() const
+{
+    return m_requested.value_or(services().bluetoothEnabled());
+}
+
+void BluetoothPanel::refresh()
+{
+    ControlCenterServices &services = this->services();
+    if (m_requested && *m_requested == services.bluetoothEnabled()) {
+        m_requested.reset();
+        m_requestTimer.stop();
+    }
+    m_switch->setChecked(shownEnabled());
+
+    std::vector<BluetoothDevice> devices = services.bluetoothDevices();
+    if (devices != m_devices) {
+        while (m_rows.size() > devices.size()) {
+            m_list->takeChild(m_rows.back());
+            m_rows.pop_back();
+        }
+        while (m_rows.size() < devices.size()) {
+            PanelRow *row = m_list->addChild<PanelRow>();
+            const size_t index = m_rows.size();
+            row->onClicked = [this, index] {
+                if (index < m_devices.size())
+                    this->services().setBluetoothDeviceConnected(m_devices[index].path, !m_devices[index].connected);
+            };
+            m_rows.push_back(row);
+        }
+        for (size_t i = 0; i < devices.size(); ++i) {
+            const BluetoothDevice &device = devices[i];
+            PanelRow *row = m_rows[i];
+            if (i >= m_devices.size() || device.icon != m_devices[i].icon)
+                row->setArtwork(deviceArtwork(device.icon));
+            row->setText(device.name);
+            // A connected device is marked by its accent badge alone.
+            row->setActive(device.connected);
+            row->setBold(device.connected);
+            row->setBusy(device.busy);
+            row->setRowEnabled(!device.busy);
+            row->setTrailingText(device.batteryPercentage >= 0 ? std::to_string(device.batteryPercentage) + "%"
+                                                               : std::string());
+        }
+        m_devices = std::move(devices);
+        m_list->requestLayout();
+    }
+    // The title's switch already shows that Bluetooth is off.
+    setBodyVisible(shownEnabled() && !m_devices.empty());
+    contentChanged();
+}
+
+double BluetoothPanel::listHeight() const
+{
+    return m_list->heightForWidth(kWidth);
+}
+
+// The line and the first row's badge as the Wi-Fi panel has them.
+double BluetoothPanel::listLead() const
+{
+    return kHeaderLineGap - kHorizontalPadding + 1 + kHeaderLineGap - kBadgeInset;
+}
+
+double BluetoothPanel::bodyInkInset() const
+{
+    return kBadgeInset;
+}
+
+double BluetoothPanel::bodyHeight() const
+{
+    if (m_devices.empty())
+        return 0;
+    return listLead() + std::min(listHeight(), std::max(0.0, bodyMaximumHeight() - listLead()));
+}
+
+void BluetoothPanel::layoutBody(double top)
+{
+    const bool listed = !m_devices.empty();
+    m_separator->setVisible(listed);
+    m_scroll->setVisible(listed);
+    const double baseline = top - kHorizontalPadding;
+    // On whole device pixels, or the line spreads over two rows.
+    const double lineY = snapToDevice(baseline + kHeaderLineGap, windowScale(this));
+    m_separator->setGeometry({kHorizontalPadding, lineY, kWidth - 2 * kHorizontalPadding, 1});
+    // The list keeps its final height while the panel moves, so no scroll bar
+    // shows on the way.
+    const double height = std::min(listHeight(), std::max(0.0, bodyMaximumHeight() - listLead()));
+    m_scroll->setGeometry({0, top + listLead(), kWidth, height});
 }
 
 static const char *const kProfiles[] = {"power-saver", "balanced", "performance"};

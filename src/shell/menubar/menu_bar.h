@@ -36,12 +36,14 @@ class TaskManager;
 class MenuBar
 {
 public:
-    // The controls the user can take off the bar (MenuBar/ShowWiFi,
-    // ShowBattery and ShowSound in shell.conf, all shown by default).
+    // The controls the user can put on or take off the bar (MenuBar/ShowWiFi,
+    // ShowBattery, ShowSound and ShowBluetooth in shell.conf); all but
+    // Bluetooth are shown by default.
     enum class Control {
         WiFi,
         Battery,
         Sound,
+        Bluetooth,
     };
 
     // `settingsPath` is shell.conf; `tasks` may be null.
@@ -77,13 +79,14 @@ public:
 
     bool isControlShown(Control control) const;
     void setControlShown(Control control, bool shown);
-    // "wifi", "battery" or "sound", as org.cutefish.MenuBar names them.
+    // "wifi", "battery", "sound" or "bluetooth", as org.cutefish.MenuBar
+    // names them.
     static std::optional<Control> controlFromName(const std::string &name);
 
     base::Signal<> controlsChanged;
 
 private:
-    static constexpr int kControlCount = 3;
+    static constexpr int kControlCount = 4;
 
     void reloadLanguage();
     void updateTimeFormat();
@@ -102,7 +105,7 @@ private:
     base::dbus::Match m_languageChanged;
     base::Job m_language;
     base::Job m_controlsLoad;
-    std::array<bool, kControlCount> m_controlShown {true, true, true};
+    std::array<bool, kControlCount> m_controlShown {true, true, true, false};
     // Controls set while the file was read, which keep their new state.
     std::array<bool, kControlCount> m_controlSet {};
     bool m_twentyFourTime = false;

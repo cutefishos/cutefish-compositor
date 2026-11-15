@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+  <mask id="gap" maskUnits="userSpaceOnUse" x="0" y="0" width="16" height="16">
+    <rect width="16" height="16" fill="#fff"/>
+    <path d="M3.5 3.5L12.5 12.5" fill="none" stroke="#000" stroke-width="3.6" stroke-linecap="round"/>
+  </mask>
+  <path fill="#ffffff" mask="url(#gap)" d="M 7.9981,1.0000174 V 7.1608928 L 4.7051,4.2795177 4.7031,4.281273 C 4.34735,3.9698113 3.70705,3.4096887 3.70705,3.4096887 L 3.00002,4.02834 7.54492,8.0017152 3.00002,11.97509 3.70705,12.593741 c 0,0 0.64035,-0.560079 0.99609,-0.871578 h 0.002 L 8.00004,8.8407878 V 15 h 1 l 4,-3.5 -4,-3.4999998 4,-3.5000001 L 9.00004,1 Z m 1.002,1.239 2.5859,2.2626627 -2.5859,2.2626626 z m 0,7.0000004 2.5859,2.2626632 -2.5859,2.262661 z"/>
+  <path d="M3.5 3.5L12.5 12.5" fill="none" stroke="#ffffff" stroke-width="1.6" stroke-linecap="round"/>
+</svg>

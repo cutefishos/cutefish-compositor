@@ -75,9 +75,11 @@ class FakeIndicators final : public shell::MenuBarIndicators
 public:
     Audio audio() const override { return m_audio; }
     Network network() const override { return m_network; }
+    Bluetooth bluetooth() const override { return m_bluetooth; }
 
     Audio m_audio;
     Network m_network;
+    Bluetooth m_bluetooth;
 };
 
 class FakePanels final : public shell::MenuBarPanels
@@ -311,6 +313,20 @@ TEST_F(MenuBarViewTest, IndicatorsPickTheIcons)
     bar->menuBar().setControlShown(shell::MenuBar::Control::Sound, true);
     EXPECT_TRUE(bar->volumeIcon()->isVisible());
     EXPECT_TRUE(bar->networkIcon()->isVisible());
+
+    // Bluetooth is off the bar until the user puts it there, and needs an adapter.
+    indicators.m_bluetooth = {true, false};
+    indicators.changed();
+    EXPECT_FALSE(bar->bluetoothIcon()->isVisible());
+    bar->menuBar().setControlShown(shell::MenuBar::Control::Bluetooth, true);
+    EXPECT_TRUE(bar->bluetoothIcon()->isVisible());
+    EXPECT_EQ("bluetooth-disabled-symbolic", bar->bluetoothIcon()->iconName());
+    indicators.m_bluetooth.enabled = true;
+    indicators.changed();
+    EXPECT_EQ("bluetooth-symbolic", bar->bluetoothIcon()->iconName());
+    indicators.m_bluetooth.available = false;
+    indicators.changed();
+    EXPECT_FALSE(bar->bluetoothIcon()->isVisible());
 
     indicators.m_network.wirelessHwEnabled = false;
     indicators.m_audio.hasSink = false;

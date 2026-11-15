@@ -41,6 +41,9 @@ public:
     void showBattery(const Battery &battery, bool percentage, bool powerSaver);
     // The Wi-Fi state; hidden without Wi-Fi hardware.
     void showNetwork(const MenuBarIndicators::Network &network);
+    // Bluetooth's glyph, struck through while it is off; hidden without an
+    // adapter.
+    void showBluetooth(const MenuBarIndicators::Bluetooth &bluetooth);
 
     const std::string &iconName() const { return m_iconName; }
     const std::string &glyph() const { return m_glyph; }

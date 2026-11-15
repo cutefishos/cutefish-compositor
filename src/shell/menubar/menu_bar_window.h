@@ -38,8 +38,8 @@ class Wallpaper;
 // The menu bar: a 32 px strip along the top of the primary output, reserved
 // from the work area, with no background of its own. Left to right: the menu
 // bar, the stop buttons of a recording and of an agent's control, the items
-// applications draw, the tray, the volume, Wi-Fi, battery and control centre
-// icons, and the clock. Its contents are light or dark by what the wallpaper
+// applications draw, the tray, the volume, Bluetooth, Wi-Fi, battery and
+// control centre icons, and the clock. Its contents are light or dark by what the wallpaper
 // shows behind it.
 class MenuBarWindow : public Component, public BarContext
 {
@@ -92,6 +92,7 @@ public:
     SystemTrayView *tray() const { return m_tray; }
     StatusItemsView *statusItems() const { return m_statusItems; }
     StatusIcon *volumeIcon() const { return m_volume; }
+    StatusIcon *bluetoothIcon() const { return m_bluetooth; }
     StatusIcon *networkIcon() const { return m_network; }
     StatusIcon *batteryIcon() const { return m_battery; }
     StatusIcon *controlIcon() const { return m_control; }
@@ -136,6 +137,7 @@ private:
     StatusItemsView *m_statusItems = nullptr;
     SystemTrayView *m_tray = nullptr;
     StatusIcon *m_volume = nullptr;
+    StatusIcon *m_bluetooth = nullptr;
     StatusIcon *m_network = nullptr;
     StatusIcon *m_battery = nullptr;
     StatusIcon *m_control = nullptr;

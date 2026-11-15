@@ -15,6 +15,7 @@
 #include "base/timer.h"
 #include "cutefish/audio/audio_model.h"
 #include "cutefish/audio/backend.h"
+#include "cutefish/bluez/devices_model.h"
 #include "cutefish/bluez/manager.h"
 #include "cutefish/networkmanager/client.h"
 #include "cutefish/networkmanager/handler.h"
@@ -62,6 +63,7 @@ public:
         , m_handler(&m_wireless->handler())
         , m_networks(std::make_unique<nm::NetworkModel>())
         , m_bluetooth(bluez::Manager::shared())
+        , m_pairedDevices(std::make_unique<bluez::DevicesModel>(m_bluetooth))
         , m_audio(std::make_unique<audio::AudioModel>(audio::AudioObject::Sink, audio::Backend::shared()))
         , m_appearance(shell->bus(), "org.cutefish.Services", "/org/cutefish/Services/Appearance",
                        "org.cutefish.Services.Appearance")
@@ -91,6 +93,9 @@ public:
             m_subscriptions.push_back(m_bluetooth->enabledChanged.connect(notify));
             m_subscriptions.push_back(m_bluetooth->adaptersChanged.connect(notify));
         }
+        m_pairedDevices->setFilter(bluez::DevicesModel::PairedDevices);
+        m_subscriptions.push_back(m_pairedDevices->rowsChanged.connect(notify));
+        m_subscriptions.push_back(m_pairedDevices->dataChanged.connect(notify));
         m_subscriptions.push_back(m_audio->rowsChanged.connect(notify));
         m_subscriptions.push_back(m_audio->dataChanged.connect(notify));
         m_subscriptions.push_back(m_audio->defaultNodeChanged.connect(notify));
@@ -259,6 +264,33 @@ public:
     {
         if (m_bluetooth)
             m_bluetooth->setEnabled(enabled);
+    }
+
+    std::vector<BluetoothDevice> bluetoothDevices() const override
+    {
+        std::vector<BluetoothDevice> devices;
+        for (const auto &object : m_pairedDevices->devices()) {
+            BluetoothDevice device;
+            device.path = object->path();
+            device.name = object->name();
+            device.icon = object->icon();
+            device.connected = object->connected();
+            device.busy = object->busy();
+            device.batteryPercentage = object->batteryPercentage();
+            devices.push_back(std::move(device));
+        }
+        return devices;
+    }
+
+    void setBluetoothDeviceConnected(const std::string &path, bool connected) override
+    {
+        const std::shared_ptr<bluez::BluetoothObject> device = m_bluetooth ? m_bluetooth->object(path) : nullptr;
+        if (!device || device->busy())
+            return;
+        if (connected)
+            device->connectToDevice();
+        else
+            device->disconnectFromDevice();
     }
 
     // --- Switches ---
@@ -468,6 +500,7 @@ private:
     nm::Handler *m_handler;
     std::unique_ptr<nm::NetworkModel> m_networks;
     std::shared_ptr<bluez::Manager> m_bluetooth;
+    std::unique_ptr<bluez::DevicesModel> m_pairedDevices;
     std::unique_ptr<audio::AudioModel> m_audio;
     dbus::Proxy m_appearance;
     dbus::Proxy m_privacy;
