@@ -2,7 +2,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: cutefish-compositor\n"
 "Report-Msgid-Bugs-To: https://github.com/cutefishos\n"
-"POT-Creation-Date: 2026-11-14 10:16+0800\n"
+"POT-Creation-Date: 2026-11-15 10:33+0800\n"
 "PO-Revision-Date: 2026-11-13 15:22+0800\n"
 "Last-Translator: \n"
 "Language-Team: \n"
@@ -138,7 +138,7 @@ msgid "Log out now?"
 msgstr "Jetzt abmelden?"
 
 #: src/shell/controlcenter/power_dialog.cpp
-#: src/shell/menubar/menu_bar_model.cpp
+#: src/shell/menubar/app_menus_model.cpp
 msgid "Restart"
 msgstr "Neu starten"
 
@@ -263,7 +263,7 @@ msgstr "Im Dock behalten"
 msgid "Open"
 msgstr "Öffnen"
 
-#: src/shell/dock/dock_window.cpp src/shell/menubar/menu_bar_model.cpp
+#: src/shell/dock/dock_window.cpp src/shell/menubar/app_menus_model.cpp
 msgid "Quit"
 msgstr "Beenden"
 
@@ -319,38 +319,53 @@ msgstr "Auf den Schreibtisch legen"
 msgid "Send to Dock"
 msgstr "Ins Dock legen"
 
-#: src/shell/menubar/menu_bar_model.cpp
+#: src/shell/menubar/app_menus_model.cpp
 msgid "About"
 msgstr "Über"
 
-#: src/shell/menubar/menu_bar_model.cpp
+#: src/shell/menubar/app_menus_model.cpp
 msgid "Settings"
 msgstr "Einstellungen"
 
-#: src/shell/menubar/menu_bar_model.cpp
+#: src/shell/menubar/app_menus_model.cpp
 msgid "Suspend"
 msgstr "Ruhezustand"
 
-#: src/shell/menubar/menu_bar_model.cpp
+#: src/shell/menubar/app_menus_model.cpp
 msgid "Shutdown"
 msgstr "Ausschalten"
 
-#: src/shell/menubar/menu_bar_model.cpp
+#: src/shell/menubar/app_menus_model.cpp
 msgid "Lock screen"
 msgstr "Bildschirm sperren"
 
-#: src/shell/menubar/menu_bar_model.cpp
+#: src/shell/menubar/app_menus_model.cpp
 msgid "Log out"
 msgstr "Abmelden"
 
-#: src/shell/menubar/menu_bar_model.cpp
+#: src/shell/menubar/app_menus_model.cpp
 #, python-brace-format
 msgid "Hide {name}"
 msgstr "{name} ausblenden"
 
-#: src/shell/menubar/menu_bar_model.cpp
+#: src/shell/menubar/app_menus_model.cpp
 msgid "Hide Others"
 msgstr "Andere ausblenden"
+
+#: src/shell/menubar/application_menu.cpp
+#: src/shell/screenshot/capture_toolbar.cpp
+msgid "Desktop"
+msgstr "Schreibtisch"
+
+#. TRANSLATORS: {reason} is a sentence of its own, such as "The VPN service stopped."
+#: src/shell/menubar/vpn_notifier.cpp
+#, python-brace-format
+msgid "“{name}” could not connect. {reason}"
+msgstr "„{name}“ konnte keine Verbindung herstellen. {reason}"
+
+#: src/shell/menubar/vpn_notifier.cpp
+msgid "VPN connection failed"
+msgstr "VPN-Verbindung fehlgeschlagen"
 
 #: src/shell/notification/notification_centre.cpp
 #, python-brace-format
@@ -480,11 +495,6 @@ msgstr "Videos"
 #: src/shell/screenshot/capture_toolbar.cpp
 msgid "Screenshots"
 msgstr "Bildschirmfotos"
-
-#: src/shell/screenshot/capture_toolbar.cpp
-#: src/shell/menubar/application_menu.cpp
-msgid "Desktop"
-msgstr "Schreibtisch"
 
 #: src/shell/screenshot/capture_toolbar.cpp
 msgid "Documents"
@@ -720,16 +730,6 @@ msgstr "Gruppenpasswort"
 #: src/shell/secrets/vpn_secret_fields.cpp
 msgid "One-time password"
 msgstr "Einmalpasswort"
-
-#. TRANSLATORS: {reason} is a sentence of its own, such as "The VPN service stopped."
-#: src/shell/menubar/vpn_notifier.cpp
-#, python-brace-format
-msgid "“{name}” could not connect. {reason}"
-msgstr "„{name}“ konnte keine Verbindung herstellen. {reason}"
-
-#: src/shell/menubar/vpn_notifier.cpp
-msgid "VPN connection failed"
-msgstr "VPN-Verbindung fehlgeschlagen"
 
 #. TRANSLATORS: the name of a desk that has none of its own, such as "Desk 2".
 #: src/wm/overview/overview_controller.cpp

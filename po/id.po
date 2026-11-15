@@ -2,7 +2,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: cutefish-compositor\n"
 "Report-Msgid-Bugs-To: https://github.com/cutefishos\n"
-"POT-Creation-Date: 2026-11-14 10:16+0800\n"
+"POT-Creation-Date: 2026-11-15 10:33+0800\n"
 "PO-Revision-Date: 2026-11-14 10:16+0800\n"
 "Last-Translator: \n"
 "Language-Team: \n"
@@ -137,7 +137,7 @@ msgid "Log out now?"
 msgstr "Keluar log sekarang?"
 
 #: src/shell/controlcenter/power_dialog.cpp
-#: src/shell/menubar/menu_bar_model.cpp
+#: src/shell/menubar/app_menus_model.cpp
 msgid "Restart"
 msgstr "Mulai Ulang"
 
@@ -262,7 +262,7 @@ msgstr "Simpan di Dock"
 msgid "Open"
 msgstr "Buka"
 
-#: src/shell/dock/dock_window.cpp src/shell/menubar/menu_bar_model.cpp
+#: src/shell/dock/dock_window.cpp src/shell/menubar/app_menus_model.cpp
 msgid "Quit"
 msgstr "Keluar"
 
@@ -318,38 +318,53 @@ msgstr "Kirim ke Desktop"
 msgid "Send to Dock"
 msgstr "Kirim ke Dock"
 
-#: src/shell/menubar/menu_bar_model.cpp
+#: src/shell/menubar/app_menus_model.cpp
 msgid "About"
 msgstr "Tentang"
 
-#: src/shell/menubar/menu_bar_model.cpp
+#: src/shell/menubar/app_menus_model.cpp
 msgid "Settings"
 msgstr "Pengaturan"
 
-#: src/shell/menubar/menu_bar_model.cpp
+#: src/shell/menubar/app_menus_model.cpp
 msgid "Suspend"
 msgstr "Tidur"
 
-#: src/shell/menubar/menu_bar_model.cpp
+#: src/shell/menubar/app_menus_model.cpp
 msgid "Shutdown"
 msgstr "Matikan"
 
-#: src/shell/menubar/menu_bar_model.cpp
+#: src/shell/menubar/app_menus_model.cpp
 msgid "Lock screen"
 msgstr "Kunci layar"
 
-#: src/shell/menubar/menu_bar_model.cpp
+#: src/shell/menubar/app_menus_model.cpp
 msgid "Log out"
 msgstr "Keluar log"
 
-#: src/shell/menubar/menu_bar_model.cpp
+#: src/shell/menubar/app_menus_model.cpp
 #, python-brace-format
 msgid "Hide {name}"
 msgstr "Sembunyikan {name}"
 
-#: src/shell/menubar/menu_bar_model.cpp
+#: src/shell/menubar/app_menus_model.cpp
 msgid "Hide Others"
 msgstr "Sembunyikan Lainnya"
+
+#: src/shell/menubar/application_menu.cpp
+#: src/shell/screenshot/capture_toolbar.cpp
+msgid "Desktop"
+msgstr "Desktop"
+
+#. TRANSLATORS: {reason} is a sentence of its own, such as "The VPN service stopped."
+#: src/shell/menubar/vpn_notifier.cpp
+#, python-brace-format
+msgid "“{name}” could not connect. {reason}"
+msgstr "“{name}” tidak dapat terhubung. {reason}"
+
+#: src/shell/menubar/vpn_notifier.cpp
+msgid "VPN connection failed"
+msgstr "Koneksi VPN gagal"
 
 #: src/shell/notification/notification_centre.cpp
 #, python-brace-format
@@ -475,11 +490,6 @@ msgstr "Video"
 #: src/shell/screenshot/capture_toolbar.cpp
 msgid "Screenshots"
 msgstr "Tangkapan Layar"
-
-#: src/shell/screenshot/capture_toolbar.cpp
-#: src/shell/menubar/application_menu.cpp
-msgid "Desktop"
-msgstr "Desktop"
 
 #: src/shell/screenshot/capture_toolbar.cpp
 msgid "Documents"
@@ -713,16 +723,6 @@ msgstr "Kata sandi grup"
 #: src/shell/secrets/vpn_secret_fields.cpp
 msgid "One-time password"
 msgstr "Kata sandi sekali pakai"
-
-#. TRANSLATORS: {reason} is a sentence of its own, such as "The VPN service stopped."
-#: src/shell/menubar/vpn_notifier.cpp
-#, python-brace-format
-msgid "“{name}” could not connect. {reason}"
-msgstr "“{name}” tidak dapat terhubung. {reason}"
-
-#: src/shell/menubar/vpn_notifier.cpp
-msgid "VPN connection failed"
-msgstr "Koneksi VPN gagal"
 
 #. TRANSLATORS: the name of a desk that has none of its own, such as "Desk 2".
 #: src/wm/overview/overview_controller.cpp

@@ -2,7 +2,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: cutefish-compositor\n"
 "Report-Msgid-Bugs-To: https://github.com/cutefishos\n"
-"POT-Creation-Date: 2026-11-14 10:16+0800\n"
+"POT-Creation-Date: 2026-11-15 10:33+0800\n"
 "PO-Revision-Date: 2026-11-13 15:22+0800\n"
 "Last-Translator: \n"
 "Language-Team: \n"
@@ -137,7 +137,7 @@ msgid "Log out now?"
 msgstr "今すぐログアウトしますか?"
 
 #: src/shell/controlcenter/power_dialog.cpp
-#: src/shell/menubar/menu_bar_model.cpp
+#: src/shell/menubar/app_menus_model.cpp
 msgid "Restart"
 msgstr "再起動"
 
@@ -262,7 +262,7 @@ msgstr "Dock に残す"
 msgid "Open"
 msgstr "開く"
 
-#: src/shell/dock/dock_window.cpp src/shell/menubar/menu_bar_model.cpp
+#: src/shell/dock/dock_window.cpp src/shell/menubar/app_menus_model.cpp
 msgid "Quit"
 msgstr "終了"
 
@@ -318,38 +318,53 @@ msgstr "デスクトップに送る"
 msgid "Send to Dock"
 msgstr "Dock に送る"
 
-#: src/shell/menubar/menu_bar_model.cpp
+#: src/shell/menubar/app_menus_model.cpp
 msgid "About"
 msgstr "このコンピュータについて"
 
-#: src/shell/menubar/menu_bar_model.cpp
+#: src/shell/menubar/app_menus_model.cpp
 msgid "Settings"
 msgstr "設定"
 
-#: src/shell/menubar/menu_bar_model.cpp
+#: src/shell/menubar/app_menus_model.cpp
 msgid "Suspend"
 msgstr "スリープ"
 
-#: src/shell/menubar/menu_bar_model.cpp
+#: src/shell/menubar/app_menus_model.cpp
 msgid "Shutdown"
 msgstr "システム終了"
 
-#: src/shell/menubar/menu_bar_model.cpp
+#: src/shell/menubar/app_menus_model.cpp
 msgid "Lock screen"
 msgstr "画面をロック"
 
-#: src/shell/menubar/menu_bar_model.cpp
+#: src/shell/menubar/app_menus_model.cpp
 msgid "Log out"
 msgstr "ログアウト"
 
-#: src/shell/menubar/menu_bar_model.cpp
+#: src/shell/menubar/app_menus_model.cpp
 #, python-brace-format
 msgid "Hide {name}"
 msgstr "{name} を非表示"
 
-#: src/shell/menubar/menu_bar_model.cpp
+#: src/shell/menubar/app_menus_model.cpp
 msgid "Hide Others"
 msgstr "ほかを非表示"
+
+#: src/shell/menubar/application_menu.cpp
+#: src/shell/screenshot/capture_toolbar.cpp
+msgid "Desktop"
+msgstr "デスクトップ"
+
+#. TRANSLATORS: {reason} is a sentence of its own, such as "The VPN service stopped."
+#: src/shell/menubar/vpn_notifier.cpp
+#, python-brace-format
+msgid "“{name}” could not connect. {reason}"
+msgstr "「{name}」に接続できませんでした。{reason}"
+
+#: src/shell/menubar/vpn_notifier.cpp
+msgid "VPN connection failed"
+msgstr "VPN 接続に失敗しました"
 
 #: src/shell/notification/notification_centre.cpp
 #, python-brace-format
@@ -475,11 +490,6 @@ msgstr "ビデオ"
 #: src/shell/screenshot/capture_toolbar.cpp
 msgid "Screenshots"
 msgstr "スクリーンショット"
-
-#: src/shell/screenshot/capture_toolbar.cpp
-#: src/shell/menubar/application_menu.cpp
-msgid "Desktop"
-msgstr "デスクトップ"
 
 #: src/shell/screenshot/capture_toolbar.cpp
 msgid "Documents"
@@ -713,16 +723,6 @@ msgstr "グループのパスワード"
 #: src/shell/secrets/vpn_secret_fields.cpp
 msgid "One-time password"
 msgstr "ワンタイムパスワード"
-
-#. TRANSLATORS: {reason} is a sentence of its own, such as "The VPN service stopped."
-#: src/shell/menubar/vpn_notifier.cpp
-#, python-brace-format
-msgid "“{name}” could not connect. {reason}"
-msgstr "「{name}」に接続できませんでした。{reason}"
-
-#: src/shell/menubar/vpn_notifier.cpp
-msgid "VPN connection failed"
-msgstr "VPN 接続に失敗しました"
 
 #. TRANSLATORS: the name of a desk that has none of its own, such as "Desk 2".
 #: src/wm/overview/overview_controller.cpp

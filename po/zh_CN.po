@@ -2,7 +2,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: cutefish-compositor\n"
 "Report-Msgid-Bugs-To: https://github.com/cutefishos\n"
-"POT-Creation-Date: 2026-11-14 10:16+0800\n"
+"POT-Creation-Date: 2026-11-15 10:33+0800\n"
 "PO-Revision-Date: 2026-11-13 16:33+0800\n"
 "Last-Translator: \n"
 "Language-Team: \n"
@@ -137,7 +137,7 @@ msgid "Log out now?"
 msgstr "要立即注销吗？"
 
 #: src/shell/controlcenter/power_dialog.cpp
-#: src/shell/menubar/menu_bar_model.cpp
+#: src/shell/menubar/app_menus_model.cpp
 msgid "Restart"
 msgstr "重新启动"
 
@@ -262,7 +262,7 @@ msgstr "在程序坞中保留"
 msgid "Open"
 msgstr "打开"
 
-#: src/shell/dock/dock_window.cpp src/shell/menubar/menu_bar_model.cpp
+#: src/shell/dock/dock_window.cpp src/shell/menubar/app_menus_model.cpp
 msgid "Quit"
 msgstr "退出"
 
@@ -318,38 +318,53 @@ msgstr "发送到桌面"
 msgid "Send to Dock"
 msgstr "发送到程序坞"
 
-#: src/shell/menubar/menu_bar_model.cpp
+#: src/shell/menubar/app_menus_model.cpp
 msgid "About"
 msgstr "关于"
 
-#: src/shell/menubar/menu_bar_model.cpp
+#: src/shell/menubar/app_menus_model.cpp
 msgid "Settings"
 msgstr "设置"
 
-#: src/shell/menubar/menu_bar_model.cpp
+#: src/shell/menubar/app_menus_model.cpp
 msgid "Suspend"
 msgstr "睡眠"
 
-#: src/shell/menubar/menu_bar_model.cpp
+#: src/shell/menubar/app_menus_model.cpp
 msgid "Shutdown"
 msgstr "关机"
 
-#: src/shell/menubar/menu_bar_model.cpp
+#: src/shell/menubar/app_menus_model.cpp
 msgid "Lock screen"
 msgstr "锁定屏幕"
 
-#: src/shell/menubar/menu_bar_model.cpp
+#: src/shell/menubar/app_menus_model.cpp
 msgid "Log out"
 msgstr "注销"
 
-#: src/shell/menubar/menu_bar_model.cpp
+#: src/shell/menubar/app_menus_model.cpp
 #, python-brace-format
 msgid "Hide {name}"
 msgstr "隐藏 {name}"
 
-#: src/shell/menubar/menu_bar_model.cpp
+#: src/shell/menubar/app_menus_model.cpp
 msgid "Hide Others"
 msgstr "隐藏其他"
+
+#: src/shell/menubar/application_menu.cpp
+#: src/shell/screenshot/capture_toolbar.cpp
+msgid "Desktop"
+msgstr "桌面"
+
+#. TRANSLATORS: {reason} is a sentence of its own, such as "The VPN service stopped."
+#: src/shell/menubar/vpn_notifier.cpp
+#, python-brace-format
+msgid "“{name}” could not connect. {reason}"
+msgstr "“{name}”无法连接。{reason}"
+
+#: src/shell/menubar/vpn_notifier.cpp
+msgid "VPN connection failed"
+msgstr "VPN 连接失败"
 
 #: src/shell/notification/notification_centre.cpp
 #, python-brace-format
@@ -475,11 +490,6 @@ msgstr "视频"
 #: src/shell/screenshot/capture_toolbar.cpp
 msgid "Screenshots"
 msgstr "截图"
-
-#: src/shell/screenshot/capture_toolbar.cpp
-#: src/shell/menubar/application_menu.cpp
-msgid "Desktop"
-msgstr "桌面"
 
 #: src/shell/screenshot/capture_toolbar.cpp
 msgid "Documents"
@@ -713,16 +723,6 @@ msgstr "组密码"
 #: src/shell/secrets/vpn_secret_fields.cpp
 msgid "One-time password"
 msgstr "一次性密码"
-
-#. TRANSLATORS: {reason} is a sentence of its own, such as "The VPN service stopped."
-#: src/shell/menubar/vpn_notifier.cpp
-#, python-brace-format
-msgid "“{name}” could not connect. {reason}"
-msgstr "“{name}”无法连接。{reason}"
-
-#: src/shell/menubar/vpn_notifier.cpp
-msgid "VPN connection failed"
-msgstr "VPN 连接失败"
 
 #. TRANSLATORS: the name of a desk that has none of its own, such as "Desk 2".
 #: src/wm/overview/overview_controller.cpp

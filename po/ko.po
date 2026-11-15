@@ -2,7 +2,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: cutefish-compositor\n"
 "Report-Msgid-Bugs-To: https://github.com/cutefishos\n"
-"POT-Creation-Date: 2026-11-14 10:16+0800\n"
+"POT-Creation-Date: 2026-11-15 10:33+0800\n"
 "PO-Revision-Date: 2026-11-13 15:22+0800\n"
 "Last-Translator: \n"
 "Language-Team: \n"
@@ -137,7 +137,7 @@ msgid "Log out now?"
 msgstr "지금 로그아웃하겠습니까?"
 
 #: src/shell/controlcenter/power_dialog.cpp
-#: src/shell/menubar/menu_bar_model.cpp
+#: src/shell/menubar/app_menus_model.cpp
 msgid "Restart"
 msgstr "다시 시작"
 
@@ -262,7 +262,7 @@ msgstr "Dock에 유지"
 msgid "Open"
 msgstr "열기"
 
-#: src/shell/dock/dock_window.cpp src/shell/menubar/menu_bar_model.cpp
+#: src/shell/dock/dock_window.cpp src/shell/menubar/app_menus_model.cpp
 msgid "Quit"
 msgstr "종료"
 
@@ -318,38 +318,53 @@ msgstr "데스크톱으로 보내기"
 msgid "Send to Dock"
 msgstr "Dock으로 보내기"
 
-#: src/shell/menubar/menu_bar_model.cpp
+#: src/shell/menubar/app_menus_model.cpp
 msgid "About"
 msgstr "정보"
 
-#: src/shell/menubar/menu_bar_model.cpp
+#: src/shell/menubar/app_menus_model.cpp
 msgid "Settings"
 msgstr "설정"
 
-#: src/shell/menubar/menu_bar_model.cpp
+#: src/shell/menubar/app_menus_model.cpp
 msgid "Suspend"
 msgstr "잠자기"
 
-#: src/shell/menubar/menu_bar_model.cpp
+#: src/shell/menubar/app_menus_model.cpp
 msgid "Shutdown"
 msgstr "시스템 종료"
 
-#: src/shell/menubar/menu_bar_model.cpp
+#: src/shell/menubar/app_menus_model.cpp
 msgid "Lock screen"
 msgstr "화면 잠금"
 
-#: src/shell/menubar/menu_bar_model.cpp
+#: src/shell/menubar/app_menus_model.cpp
 msgid "Log out"
 msgstr "로그아웃"
 
-#: src/shell/menubar/menu_bar_model.cpp
+#: src/shell/menubar/app_menus_model.cpp
 #, python-brace-format
 msgid "Hide {name}"
 msgstr "{name} 숨기기"
 
-#: src/shell/menubar/menu_bar_model.cpp
+#: src/shell/menubar/app_menus_model.cpp
 msgid "Hide Others"
 msgstr "기타 숨기기"
+
+#: src/shell/menubar/application_menu.cpp
+#: src/shell/screenshot/capture_toolbar.cpp
+msgid "Desktop"
+msgstr "데스크톱"
+
+#. TRANSLATORS: {reason} is a sentence of its own, such as "The VPN service stopped."
+#: src/shell/menubar/vpn_notifier.cpp
+#, python-brace-format
+msgid "“{name}” could not connect. {reason}"
+msgstr "“{name}”에 연결할 수 없습니다. {reason}"
+
+#: src/shell/menubar/vpn_notifier.cpp
+msgid "VPN connection failed"
+msgstr "VPN 연결 실패"
 
 #: src/shell/notification/notification_centre.cpp
 #, python-brace-format
@@ -475,11 +490,6 @@ msgstr "동영상"
 #: src/shell/screenshot/capture_toolbar.cpp
 msgid "Screenshots"
 msgstr "스크린샷"
-
-#: src/shell/screenshot/capture_toolbar.cpp
-#: src/shell/menubar/application_menu.cpp
-msgid "Desktop"
-msgstr "데스크톱"
 
 #: src/shell/screenshot/capture_toolbar.cpp
 msgid "Documents"
@@ -713,16 +723,6 @@ msgstr "그룹 암호"
 #: src/shell/secrets/vpn_secret_fields.cpp
 msgid "One-time password"
 msgstr "일회용 암호"
-
-#. TRANSLATORS: {reason} is a sentence of its own, such as "The VPN service stopped."
-#: src/shell/menubar/vpn_notifier.cpp
-#, python-brace-format
-msgid "“{name}” could not connect. {reason}"
-msgstr "“{name}”에 연결할 수 없습니다. {reason}"
-
-#: src/shell/menubar/vpn_notifier.cpp
-msgid "VPN connection failed"
-msgstr "VPN 연결 실패"
 
 #. TRANSLATORS: the name of a desk that has none of its own, such as "Desk 2".
 #: src/wm/overview/overview_controller.cpp
