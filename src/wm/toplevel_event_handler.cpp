@@ -91,12 +91,9 @@ bool ToplevelEventHandler::beginDrag(Window *window, ResizeEdge edge,
         return false;
 
     // A fullscreen window's bounds belong to the output, and a minimized one
-    // has nothing on screen to grab. A maximized window can only be moved, not
-    // resized: there is no free edge to pull.
+    // has nothing on screen to grab.
     WindowState *state = window->state();
     if (state->isMinimized() || state->isFullscreen())
-        return false;
-    if (edge != ResizeEdge::None && !state->isNormal() && !state->isSnapped())
         return false;
 
     // Moving a tiled window pulls it back to the size it will restore to, from
@@ -242,6 +239,16 @@ void ToplevelEventHandler::applyMotion(const base::PointF &location)
         // The rest of the drag keeps re-aiming it, so it dissolves onto a
         // window that is still moving.
         animation->setDragTarget(window->bounds());
+    }
+
+    // A maximized window resized by an edge is a normal one from the first
+    // motion: a maximized client has to keep the size it is given.
+    if (!hadMoved && m_resizer->hasMovedOrResized() && m_resizer->isResize()
+        && window->state()->isMaximized()) {
+        window->state()->clearRestoreBounds();
+        window->setRestoringFromDragInternal(true);
+        if (!m_resizer)
+            return;
     }
 
     if (!m_resizer->isResize() && m_resizer->hasMovedOrResized())

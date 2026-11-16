@@ -512,16 +512,17 @@ TEST_F(ShadowControllerTest, DraggedWindowKeepsActiveElevation)
 // Window state.
 
 // Upstream: ShadowControllerTest.ShowState.
-TEST_F(ShadowControllerTest, MaximizeAndFullscreenRemoveShadowAndRestoreBringsItBack)
+TEST_F(ShadowControllerTest, FullscreenRemovesShadowAndRestoreBringsItBack)
 {
     Window *window = makeToplevel({400, 300}, true)->window();
     ASSERT_EQ(elevationOf(window), ShadowElevation::Active);
     const base::Rect normalBounds = window->bounds();
 
+    // A maximized window keeps the floating look.
     window->maximize();
     ASSERT_EQ(window->stateType(), WindowStateType::Maximized);
-    EXPECT_EQ(elevationOf(window), ShadowElevation::None);
-    EXPECT_FALSE(shadowOf(window)->node()->isVisible());
+    EXPECT_EQ(elevationOf(window), ShadowElevation::Active);
+    EXPECT_EQ(shadowOf(window)->contentBounds(), window->bounds());
 
     window->restore();
     EXPECT_EQ(elevationOf(window), ShadowElevation::Active);
@@ -545,28 +546,24 @@ TEST_F(ShadowControllerTest, MaximizeAndFullscreenRemoveShadowAndRestoreBringsIt
     EXPECT_EQ(elevationOf(window), ShadowElevation::Inactive);
 }
 
-TEST_F(ShadowControllerTest, DraggingOutOfAMaximizedStateWaitsForTheSmallerBuffer)
+TEST_F(ShadowControllerTest, DraggingOutOfAMaximizedStateKeepsTheShadow)
 {
     auto *shell = makeToplevel({400, 300}, false);
     Window *window = shell->window();
     window->maximize();
-    ASSERT_EQ(elevationOf(window), ShadowElevation::None);
+    ASSERT_EQ(elevationOf(window), ShadowElevation::Active);
     const base::Size maximized = window->bounds().size();
     attach(shell->rootSurface(), maximized);
     shell->rootSurface()->commit();
     compositor.updateTextures(renderer);
     ASSERT_EQ(window->presentedBounds().size(), maximized);
 
-    // Past the threshold the window is presented as a restored one, but the
-    // client is still showing the maximized buffer. A shadow around that would
-    // sit at the edges of the work area, not at the edges of the window.
     ASSERT_TRUE(manager.eventHandler()->beginMove(window, base::PointF(500, 10)));
     manager.eventHandler()->onPointerMotion(base::PointF(500, 300));
     ASSERT_TRUE(window->isRestoringFromDrag());
     ASSERT_LT(window->bounds().width(), maximized.width());
-    EXPECT_EQ(elevationOf(window), ShadowElevation::None);
+    EXPECT_EQ(elevationOf(window), ShadowElevation::Active);
 
-    // The commit that carries the restored size is what brings it back.
     attach(shell->rootSurface(), window->bounds().size());
     shell->rootSurface()->commit();
     compositor.updateTextures(renderer);
@@ -591,8 +588,8 @@ TEST_F(ShadowControllerTest, DragRestoreWithClientMarginsRestoresFloatingVisuals
     ASSERT_TRUE(manager.eventHandler()->beginMove(window, base::PointF(500, 10)));
     manager.eventHandler()->onPointerMotion(base::PointF(500, 300));
     ASSERT_TRUE(window->isRestoringFromDrag());
-    EXPECT_EQ(elevationOf(window), ShadowElevation::None);
-    EXPECT_EQ(visual->state().shape.radius, 0);
+    EXPECT_EQ(elevationOf(window), ShadowElevation::Active);
+    EXPECT_EQ(visual->state().shape.radius, 14);
 
     const base::Size restored = window->contentBounds().size();
     shell->acknowledgeConfigure(recorders.back()->serials.back());

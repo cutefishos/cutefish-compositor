@@ -162,15 +162,6 @@ public:
     // Upstream: ash/public/cpp/window_properties.h kFrameRestoreLookKey.
     WindowStateType presentedStateType() const;
 
-    // What the compositor draws *around* the window follows - its shadow, its
-    // rounded corners, its outline and its frame. It lags presentedStateType()
-    // by the frame or two a drag out of a tiled state takes to reach the
-    // client: the client is told it has been restored straight away, but until
-    // its smaller buffer arrives what is on screen is still the tiled window,
-    // and exterior decoration drawn around that hugs an edge the window has
-    // already left.
-    WindowStateType decoratedStateType() const;
-
     bool isRestoringFromDrag() const { return m_restoringFromDrag; }
 
     // --- Geometry ---

@@ -222,10 +222,11 @@ input::CursorShape Decoration::cursorShapeAt(const base::PointF &location) const
 
 ResizeEdge Decoration::resizeEdgeAt(const base::Point &framePoint) const
 {
-    // A snapped window keeps its resize borders: pulling the shared edge is
-    // how its share of the screen is changed.
-    if (!m_window || !m_window->isResizable()
-        || (!m_window->state()->isNormal() && !m_window->state()->isSnapped()))
+    // Snapped and maximized windows keep their resize borders: pulling one
+    // changes a snapped window's share of the screen, and takes a maximized
+    // one back to normal.
+    if (!m_window || !m_window->isResizable() || m_window->state()->isFullscreen()
+        || m_window->state()->isMinimized())
         return ResizeEdge::None;
 
     const Metrics &metrics = m_theme->metrics();

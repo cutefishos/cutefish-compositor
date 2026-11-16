@@ -753,17 +753,6 @@ WindowStateType Window::presentedStateType() const
     return m_restoringFromDrag ? WindowStateType::Normal : m_state->stateType();
 }
 
-WindowStateType Window::decoratedStateType() const
-{
-    // Client exterior margins do not make the restored window body oversized.
-    const base::Rect presented = m_clientExteriorInsets.inset(presentedBounds());
-    if (m_restoringFromDrag
-        && (presented.width() > m_bounds.width() || presented.height() > m_bounds.height())) {
-        return m_state->stateType();
-    }
-    return presentedStateType();
-}
-
 void Window::maximize()
 {
     const WMEvent event(WMEventType::Maximize);

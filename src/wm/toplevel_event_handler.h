@@ -51,7 +51,8 @@ public:
     // minimized or fullscreen, and refuse to start while another drag is
     // running. A move also accepts a maximized or snapped window, which it
     // drags out of that state; a resize accepts a snapped one, which stays
-    // snapped as long as its bounds still look snapped.
+    // snapped as long as its bounds still look snapped, and a maximized one,
+    // which becomes normal.
     //
     // With `touchId` the drag follows that touch point, which `pointerPosition`
     // is then the location of, and ends when it is lifted. Any client that has

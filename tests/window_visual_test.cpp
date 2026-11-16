@@ -92,20 +92,17 @@ TEST(WindowVisualPolicy, OwnershipGeometryStateAndActivation)
     EXPECT_EQ(window->frameInsets().right, 0);
     EXPECT_EQ(window->frameInsets().bottom, 0);
     EXPECT_EQ(window->bounds().width(), content.width());
-    for (bool fullscreen : {false, true}) {
-        if (fullscreen)
-            window->setFullscreen(true);
-        else
-            window->maximize();
-        EXPECT_EQ(state().shape.radius, 0);
-        EXPECT_FALSE(state().drawOutline);
-        EXPECT_TRUE(state().clipContent);
-        if (fullscreen)
-            window->setFullscreen(false);
-        window->restore();
-        EXPECT_EQ(state().shape.radius, 14);
-        EXPECT_TRUE(state().drawOutline);
-    }
+    window->maximize();
+    EXPECT_EQ(state().shape.radius, 14);
+    EXPECT_TRUE(state().drawOutline);
+    window->restore();
+    window->setFullscreen(true);
+    EXPECT_EQ(state().shape.radius, 0);
+    EXPECT_FALSE(state().drawOutline);
+    EXPECT_TRUE(state().clipContent);
+    window->setFullscreen(false);
+    EXPECT_EQ(state().shape.radius, 14);
+    EXPECT_TRUE(state().drawOutline);
     window->setDecorated(false);
     EXPECT_EQ(state().mode, Mode::ServerExterior);
     window->setClientExteriorInsets({0, 0, 20, 20});

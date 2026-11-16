@@ -34,11 +34,12 @@ constexpr bool isSnappedStateType(WindowStateType type)
     return type == WindowStateType::PrimarySnapped || type == WindowStateType::SecondarySnapped;
 }
 
-// A snapped window keeps the floating look: rounded corners, outline and
-// shadow. Only maximized and fullscreen windows are square.
+// Snapped and maximized windows keep the floating look: rounded corners,
+// outline and shadow. Only fullscreen windows are square.
 constexpr bool isRoundedStateType(WindowStateType type)
 {
-    return type == WindowStateType::Normal || isSnappedStateType(type);
+    return type == WindowStateType::Normal || type == WindowStateType::Maximized
+            || isSnappedStateType(type);
 }
 
 // What a window is for. Everything but Normal is one of the compositor's shell

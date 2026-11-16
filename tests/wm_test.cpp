@@ -1510,14 +1510,39 @@ TEST_F(WmTest, ASecondDragIsRefusedWhileOneIsRunning)
     EXPECT_EQ(first, manager.eventHandler()->draggedWindow());
 }
 
-TEST_F(WmTest, AMaximizedWindowMovesButDoesNotResize)
+TEST_F(WmTest, AMaximizedWindowResizedByAnEdgeBecomesNormal)
 {
     Window *window = makeWindow(base::Rect(100, 100, 300, 200));
-
     window->maximize();
-    EXPECT_FALSE(manager.eventHandler()->beginResize(window, ResizeEdge::Right, base::PointF(999, 400)));
-    EXPECT_TRUE(manager.eventHandler()->beginMove(window, base::PointF(150, 20)));
+    const base::Rect maximized = window->bounds();
+
+    // It shrinks from the maximized bounds, not from the size it would restore to.
+    ASSERT_TRUE(manager.eventHandler()->beginResize(window, ResizeEdge::Right,
+                                                    base::PointF(maximized.right() - 1, 400)));
+    manager.eventHandler()->onPointerMotion(base::PointF(maximized.right() - 201, 400));
+    EXPECT_EQ(WindowStateType::Normal, window->presentedStateType());
+    manager.eventHandler()->onPointerButtonReleased();
+
+    EXPECT_EQ(WindowStateType::Normal, window->stateType());
+    EXPECT_EQ(maximized.adjusted(0, 0, -200, 0), window->bounds());
+    EXPECT_FALSE(window->state()->hasRestoreBounds());
+}
+
+TEST_F(WmTest, EscapeKeepsAMaximizedWindowThatWasBeingResized)
+{
+    Window *window = makeWindow(base::Rect(100, 100, 300, 200));
+    window->maximize();
+    const base::Rect maximized = window->bounds();
+
+    ASSERT_TRUE(manager.eventHandler()->beginResize(window, ResizeEdge::Bottom,
+                                                    base::PointF(400, maximized.bottom() - 1)));
+    manager.eventHandler()->onPointerMotion(base::PointF(400, maximized.bottom() - 201));
     manager.eventHandler()->completeDrag(ToplevelEventHandler::DragResult::Revert);
+
+    EXPECT_EQ(WindowStateType::Maximized, window->presentedStateType());
+    EXPECT_EQ(maximized, window->bounds());
+    window->restore();
+    EXPECT_EQ(base::Rect(100, 100, 300, 200), window->bounds());
 }
 
 TEST_F(WmTest, MinimizedAndFullscreenWindowsRefuseInteractiveDrags)

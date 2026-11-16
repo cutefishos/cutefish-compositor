@@ -1040,14 +1040,41 @@ TEST_F(ServerResizeTest, AWindowAboveCoversTheHandlesOnlyWhereItTakesInput)
 
 TEST_F(ServerResizeTest, AMaximizedWindowKeepsItsHandles)
 {
-    Window *window = makeWindow();
+    Recorder *recorder = nullptr;
+    ShellSurface *shell = makeToplevel(base::Size(400, 300), /*serverSide=*/false, &recorder);
+    shell->rootSurface()->setServerResize(true);
+    Window *window = shell->window();
     window->maximize();
+    ASSERT_TRUE(shell->acknowledgeConfigure(recorder->serials.back()));
+    attach(shell->rootSurface(), window->bounds().size());
+    shell->rootSurface()->commit();
 
     const base::Rect bounds = window->bounds();
     EXPECT_EQ(ResizeEdge::TopLeft, edgeAt(base::PointF(bounds.topLeft())));
     EXPECT_EQ(ResizeEdge::Top, edgeAt(base::PointF(wm::centerPixel(bounds).x(), bounds.top())));
 
     window->setFullscreen(true);
+    EXPECT_EQ(ResizeEdge::None, edgeAt(base::PointF(window->bounds().topLeft())));
+}
+
+TEST_F(ServerResizeTest, AMaximizedWindowGetsHandlesWithoutAsking)
+{
+    Recorder *recorder = nullptr;
+    ShellSurface *shell = makeToplevel(base::Size(400, 300), /*serverSide=*/false, &recorder);
+    Window *window = shell->window();
+    ASSERT_FALSE(shell->rootSurface()->serverResize());
+    window->maximize();
+    ASSERT_TRUE(shell->acknowledgeConfigure(recorder->serials.back()));
+    attach(shell->rootSurface(), window->bounds().size());
+    shell->rootSurface()->commit();
+
+    const base::Rect bounds = window->bounds();
+    EXPECT_EQ(ResizeEdge::BottomRight, edgeAt(base::PointF(bounds.right() - 1, bounds.bottom() - 1)));
+
+    window->restore();
+    ASSERT_TRUE(shell->acknowledgeConfigure(recorder->serials.back()));
+    attach(shell->rootSurface(), window->bounds().size());
+    shell->rootSurface()->commit();
     EXPECT_EQ(ResizeEdge::None, edgeAt(base::PointF(window->bounds().topLeft())));
 }
 

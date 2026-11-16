@@ -445,8 +445,8 @@ TEST_F(WindowVisualPixelTest, FloatingExteriorsRestoreAfterTiledStates)
                 else
                     window->snapSecondary();
                 auto state = wm::WindowVisualController::evaluate(*window);
-                if (tiled >= 2) {
-                    // Snapped keeps the floating look.
+                if (tiled != 1) {
+                    // Maximized and snapped keep the floating look.
                     EXPECT_GT(state.shape.radius, 0);
                     EXPECT_TRUE(state.drawOutline);
                     EXPECT_TRUE(state.clipContent);
@@ -948,15 +948,16 @@ TEST_F(WindowVisualPixelTest, MaximizedSsdHasNoSideOrBottomFrame)
     static_cast<scene::WindowAnimation *>(window->node())->finish();
     paint(model, window, {1, 0, 1, 1});
     const auto image = pixels();
-    for (int y = normalInsets.top; y < height; ++y) {
-        for (int x : {0, width - 1}) {
-            EXPECT_EQ(pixel(image, x, y), 0);
-            EXPECT_EQ(pixel(image, x, y, 2), 0);
-        }
+    // The content reaches the outline, which a maximized window keeps.
+    for (int x : {2, width - 3}) {
+        EXPECT_EQ(pixel(image, x, height / 2), 0);
+        EXPECT_EQ(pixel(image, x, height / 2, 2), 0);
     }
-    for (int x = 0; x < width; ++x)
-        EXPECT_EQ(pixel(image, x, height - 1), 0);
-    EXPECT_FALSE(wm::WindowVisualController::evaluate(*window).drawOutline);
+    EXPECT_EQ(pixel(image, width / 2, height - 3), 0);
+    EXPECT_EQ(0, window->frameInsets().left);
+    EXPECT_EQ(0, window->frameInsets().right);
+    EXPECT_EQ(0, window->frameInsets().bottom);
+    EXPECT_TRUE(wm::WindowVisualController::evaluate(*window).drawOutline);
     window->restore();
     EXPECT_EQ(window->frameInsets(), normalInsets);
     EXPECT_TRUE(wm::WindowVisualController::evaluate(*window).drawOutline);

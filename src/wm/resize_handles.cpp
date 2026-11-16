@@ -72,10 +72,13 @@ ResizeEdge resizeEdgeFor(const render::RoundedShape &shape, const base::Rect &fr
 ResizeEdge serverResizeEdgeAt(const Window &window, const decoration::WindowVisualStyle &style,
                               const base::PointF &location, bool touch)
 {
+    // A client drops its own resize borders once maximized, so a maximized
+    // window gets these whether or not it asked.
     const compositor::Surface *surface = window.rootSurface();
-    if (!surface || !surface->serverResize() || window.isDecorated() || window.isPopup()
+    if (!surface || (!surface->serverResize() && !window.state()->isMaximized())
+        || window.isDecorated() || window.isPopup()
         || window.role() != WindowRole::Normal || !window.isVisible() || !window.isResizable()
-        || (!window.state()->isNormal() && !window.state()->isSnapped())
+        || window.state()->isFullscreen() || window.state()->isMinimized()
         || modalTransient(&window))
         return ResizeEdge::None;
 

@@ -98,7 +98,7 @@ WindowVisualController::evaluate(const Window &window, const decoration::WindowV
                                                      -exterior.bottom);
     // Exterior pixels stay hidden even when the body has square, tiled edges.
     state.clipContent = !exterior.isNull();
-    if (isRoundedStateType(window.decoratedStateType())) {
+    if (isRoundedStateType(window.stateType())) {
         state.shape.radius = style.radiusFor(state.shape.bounds.size().toSize());
         state.clipContent = true;
         state.drawOutline = true;
