@@ -126,6 +126,7 @@ private:
     bool m_judged = false;
     BarBackdrop::Style m_style;
     base::Subscription m_outputsChanged;
+    base::Subscription m_themeChanged;
 };
 
 } // namespace cutefish::shell

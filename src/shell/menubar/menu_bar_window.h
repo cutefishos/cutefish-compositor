@@ -101,6 +101,8 @@ public:
     ui::Menu *controlMenu() const { return m_controlMenu.get(); }
     // The bar's contents are light.
     bool lightContents() const override;
+    // What the bar is filled with: nothing, but under Reduce Transparency.
+    ui::Color fill() const { return m_fill; }
     // One of the panels is open.
     bool panelOpen() const;
     void platePainted() override;
@@ -159,6 +161,7 @@ private:
     int m_clockFd = -1;
     int m_clockWatch = 0;
     bool m_lightContents = false;
+    ui::Color m_fill {0, 0, 0, 0};
     // The plate the blur is behind, in window coordinates; empty for none.
     ui::RectF m_blurPlate;
     std::vector<base::Subscription> m_subscriptions;

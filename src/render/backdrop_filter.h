@@ -139,6 +139,7 @@ private:
     static constexpr size_t kCachedSizes = 8;
     static constexpr int kScratchStep = 64;
     static constexpr uint64_t kUnusedFrames = 60;
+    static constexpr int kOpaqueSide = 8;
     std::shared_ptr<EglContext> m_context;
     GlProgram m_blurProgram;
     GlProgram m_blurMaskProgram;
@@ -148,6 +149,8 @@ private:
     std::list<Mask> m_masks;
     std::list<Kept> m_kept;
     bool m_mayHoldUnshown = false;
+    std::unique_ptr<Texture> m_opaque;
+    Color m_opaqueColor;
 };
 
 } // namespace cutefish::render

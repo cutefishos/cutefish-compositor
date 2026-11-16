@@ -16,6 +16,7 @@
 #include "core/main_loop.h"
 #include "input/drag.h"
 #include "input/seat.h"
+#include "render/renderer.h"
 #include "shell/common/application_badges.h"
 #include "shell/common/task_manager.h"
 #include "shell/common/task_windows.h"
@@ -59,6 +60,14 @@ void callLaunchpad(base::dbus::Connection *bus, const char *method)
 constexpr double kPace[] = {0.000, 0.048, 0.116, 0.174, 0.249, 0.314, 0.361,
                             0.398, 0.435, 0.469, 0.500, 0.587, 0.630, 0.666,
                             0.701, 0.739, 0.781, 0.827, 0.879, 0.931, 1.000};
+
+// Under Reduce Transparency the light dock sits a shade below the window
+// background, which alone reads too bright on the desktop.
+constexpr double kOpaqueLightShade = 1.06;
+// And it alone still blurs: widely, under a tint that leaves little of the
+// wallpaper's detail to compete with the icons.
+constexpr double kOpaqueBlurSigma = 30;
+constexpr double kOpaqueTintAlpha = 0.7;
 
 double glassAmount(double tint)
 {
@@ -192,7 +201,8 @@ protected:
     // A theme change lays every window out again.
     void layout() override
     {
-        if (m_dock->m_glassDark != ui::Theme::current().darkMode)
+        if (m_dock->m_glassDark != ui::Theme::current().darkMode
+            || m_dock->m_glassOpaque != render::opaqueBackdrop().has_value())
             m_dock->updateGlass();
     }
 
@@ -531,6 +541,29 @@ int DockWindow::edgeGap() const
 
 render::GlassParams DockWindow::glass() const
 {
+    const bool dark = ui::Theme::current().darkMode;
+    // Rounded to 16 bits a component, then wl_fixed.
+    const auto component = [](double v) {
+        return glassFixed(std::round(std::clamp(v, 0.0, 1.0) * 65535.0) / 65535.0);
+    };
+    // Under Reduce Transparency the dock is the window background over a wide
+    // blur, whatever the glass slider says, with no refraction.
+    if (render::opaqueBackdrop()) {
+        const ui::Color background = ui::Theme::current().background;
+        const double shade = dark ? 1.0 : kOpaqueLightShade;
+        render::GlassParams glass = fishuiGlass();
+        glass.ignoresOpaqueBackdrop = true;
+        glass.blurSigma = glassFixed(kOpaqueBlurSigma);
+        glass.displacement = 0;
+        glass.chroma = 0;
+        glass.saturation = 1;
+        glass.rim = glassFixed(1.0);
+        glass.tintRed = component(background.r / 255.0 / shade);
+        glass.tintGreen = component(background.g / 255.0 / shade);
+        glass.tintBlue = component(background.b / 255.0 / shade);
+        glass.tintAlpha = component(kOpaqueTintAlpha);
+        return glass;
+    }
     const double amount = glassAmount(m_dock->settings().glassTint());
     const auto blend = [amount](double clear, double middle, double tinted) {
         return glassBlend(amount, clear, middle, tinted);
@@ -544,13 +577,8 @@ render::GlassParams DockWindow::glass() const
     glass.saturation = glassFixed(blend(1.4, 1.3, 1.0));
     glass.rim = glassFixed(1.0);
     // A grey tint as premultiplied value and alpha, blended apart.
-    const bool dark = ui::Theme::current().darkMode;
     const double alpha = dark ? blend(0.12, 0.29, 0.50) : blend(0.16, 0.25, 0.53);
     const double value = (dark ? blend(0.046, 0.110, 0.190) : blend(0.060, 0.150, 0.530)) / alpha;
-    // Rounded to 16 bits a component, then wl_fixed.
-    const auto component = [](double v) {
-        return glassFixed(std::round(std::clamp(v, 0.0, 1.0) * 65535.0) / 65535.0);
-    };
     glass.tintRed = glass.tintGreen = glass.tintBlue = component(value);
     glass.tintAlpha = component(alpha);
     return glass;
@@ -1164,6 +1192,7 @@ void DockWindow::updateGlass()
     const double radius = std::min(cornerRadius(),
                                    double(std::min(m_drawnPanelRect.width(), m_drawnPanelRect.height())) / 2);
     m_glassDark = ui::Theme::current().darkMode;
+    m_glassOpaque = render::opaqueBackdrop().has_value();
     m_window->setBackgroundBlur(m_drawnPanelRect, int(std::lround(radius)), glass());
 }
 

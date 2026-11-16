@@ -32,6 +32,7 @@
 #include "input/seat.h"
 #include "input/touch.h"
 #include "input/touch_delegate.h"
+#include "render/renderer.h"
 #include "render/rounded_shape.h"
 #include "scene/node.h"
 #include "scene/scene.h"
@@ -78,6 +79,36 @@ TEST(DecorationThemeTest, DarkModeSwapsThePaletteAndTellsObservers)
     theme.setDarkMode(false);
     EXPECT_EQ(observer.changes, 1);
     EXPECT_FLOAT_EQ(theme.palette().titleBar.r, lightTitleBar);
+}
+
+TEST(DecorationThemeTest, ReduceTransparencySetsTheModesOpaqueBackdrop)
+{
+    struct Observer : decoration::ThemeObserver {
+        int changes = 0;
+        void onThemeChanged() override { ++changes; }
+    } observer;
+    decoration::Theme theme;
+    theme.addObserver(&observer);
+    EXPECT_FALSE(render::opaqueBackdrop());
+
+    theme.setReduceTransparency(true);
+    EXPECT_EQ(observer.changes, 1);
+    EXPECT_EQ(render::opaqueBackdrop(), theme.palette().opaqueBackdrop);
+    const render::Color light = theme.palette().opaqueBackdrop;
+
+    theme.setDarkMode(true);
+    EXPECT_EQ(render::opaqueBackdrop(), theme.palette().opaqueBackdrop);
+    EXPECT_LT(render::opaqueBackdrop()->r, light.r);
+
+    theme.setReduceTransparency(true);
+    EXPECT_EQ(observer.changes, 2);
+    theme.setReduceTransparency(false);
+    EXPECT_EQ(observer.changes, 3);
+    EXPECT_FALSE(render::opaqueBackdrop());
+
+    theme.setDarkMode(false);
+    EXPECT_FALSE(render::opaqueBackdrop());
+    theme.removeObserver(&observer);
 }
 
 TEST(DecorationRasterTest, WindowSilhouetteCornersAreContinuous)
@@ -1007,13 +1038,17 @@ TEST_F(ServerResizeTest, AWindowAboveCoversTheHandlesOnlyWhereItTakesInput)
     EXPECT_EQ(ResizeEdge::None, edgeAt(base::PointF(300, bounds.bottom() + 2)));
 }
 
-TEST_F(ServerResizeTest, AMaximizedWindowHasNoHandles)
+TEST_F(ServerResizeTest, AMaximizedWindowKeepsItsHandles)
 {
     Window *window = makeWindow();
     window->maximize();
 
+    const base::Rect bounds = window->bounds();
+    EXPECT_EQ(ResizeEdge::TopLeft, edgeAt(base::PointF(bounds.topLeft())));
+    EXPECT_EQ(ResizeEdge::Top, edgeAt(base::PointF(wm::centerPixel(bounds).x(), bounds.top())));
+
+    window->setFullscreen(true);
     EXPECT_EQ(ResizeEdge::None, edgeAt(base::PointF(window->bounds().topLeft())));
-    EXPECT_EQ(ResizeEdge::None, edgeAt(base::PointF(wm::centerPixel(window->bounds()).x(), 0)));
 }
 
 TEST_F(DecorationTest, TappingTheCloseButtonAsksTheClientToClose)

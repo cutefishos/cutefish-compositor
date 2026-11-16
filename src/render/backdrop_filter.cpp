@@ -45,6 +45,7 @@ bool BackdropFilter::initialize(const char *fragmentOverride)
 
 void BackdropFilter::resetTextures()
 {
+    m_opaque.reset();
     m_scratch.clear();
     m_masks.clear();
     m_kept.clear();
@@ -424,8 +425,12 @@ void BackdropFilter::draw(Renderer &renderer, const base::RectF &exactLens, int 
     coverage.moveTop(std::clamp(coverage.top(), output.top(),
                                 std::max(output.top(), output.bottom() - coverage.height())));
     coverage = coverage.intersected(output);
-    const base::Size reduced(std::max(1, int(std::ceil(coverage.width() * quality))),
-                        std::max(1, int(std::ceil(coverage.height() * quality))));
+    const std::optional<Color> opaque = glass.ignoresOpaqueBackdrop ? std::nullopt : opaqueBackdrop();
+    // Wide enough that the glass's sampling margin stays inside it.
+    const base::Size reduced = opaque
+            ? base::Size(kOpaqueSide, kOpaqueSide)
+            : base::Size(std::max(1, int(std::ceil(coverage.width() * quality))),
+                         std::max(1, int(std::ceil(coverage.height() * quality))));
     const base::Rect reducedBounds(base::Point(), reduced);
 
     GLint oldScissor[4];
@@ -440,9 +445,14 @@ void BackdropFilter::draw(Renderer &renderer, const base::RectF &exactLens, int 
     if (scissor.intersected(target.framebufferRect(bounds)).isEmpty())
         return;
 
-    const User user {scope, owner};
+    // An opaque backdrop keeps nothing, so what it hid is captured afresh once it goes.
+    const User user = opaque ? User {} : User {scope, owner};
+    if (opaque && scope && owner && m_kept.remove_if([&](const Kept &entry) {
+            return entry.scope == scope && entry.owner == owner;
+        }))
+        m_mayHoldUnshown = true;
     Kept *kept = nullptr;
-    if (scope && owner) {
+    if (user.scope && user.owner) {
         const auto found = std::find_if(m_kept.begin(), m_kept.end(), [&](const Kept &entry) {
             return entry.scope == scope && entry.owner == owner;
         });
@@ -487,11 +497,11 @@ void BackdropFilter::draw(Renderer &renderer, const base::RectF &exactLens, int 
     // A redo writes into the kept result, so it filters through textures of its size.
     if (redoing && !glass.enabled)
         textures = &scratch(user, base::Size(), kept->allocated, true);
-    else if (!reused || redoing)
+    else if (!opaque && (!reused || redoing))
         textures = glass.enabled
                 ? &scratch(user, coverage.size(), reduced)
                 : &scratch(user, base::Size(), base::Size(stepUp(reduced.width()), stepUp(reduced.height())));
-    const base::Size allocated = reused ? kept->allocated : textures->size;
+    const base::Size allocated = reused ? kept->allocated : textures ? textures->size : reduced;
     const base::Rect allocatedBounds(base::Point(), allocated);
     // The used texels, rows bottom-up, and their share of the texture.
     const base::Rect texels(0, allocated.height() - reduced.height(), reduced.width(),
@@ -506,7 +516,19 @@ void BackdropFilter::draw(Renderer &renderer, const base::RectF &exactLens, int 
         ~RestoreClips() { slot = std::move(saved); }
     } restoreClips {clips, std::exchange(clips, {})};
 
-    std::unique_ptr<Texture> &result = kept ? kept->result : textures->result;
+    std::unique_ptr<Texture> &result = opaque ? m_opaque : kept ? kept->result : textures->result;
+    if (opaque && (!m_opaque || m_opaqueColor != *opaque)) {
+        const uint8_t texel[4] = {uint8_t(std::lround(std::clamp(opaque->r, 0.0f, 1.0f) * 255)),
+                                  uint8_t(std::lround(std::clamp(opaque->g, 0.0f, 1.0f) * 255)),
+                                  uint8_t(std::lround(std::clamp(opaque->b, 0.0f, 1.0f) * 255)), 255};
+        std::vector<uint8_t> pixels(size_t(kOpaqueSide) * kOpaqueSide * 4);
+        for (size_t i = 0; i < pixels.size(); i += 4)
+            std::copy(texel, texel + 4, pixels.begin() + i);
+        m_opaque = renderer.createTexture(reduced, pixels.data());
+        if (!m_opaque)
+            return;
+        m_opaqueColor = *opaque;
+    }
     // A redo reads the captured texels the kernel reaches past what it writes,
     // across and down, the horizontal pass covering the rows the vertical reads.
     const base::Rect sampledTexels = redoing
@@ -514,7 +536,7 @@ void BackdropFilter::draw(Renderer &renderer, const base::RectF &exactLens, int 
                             kGaussianMaxReach + 1)
                       .intersected(reducedBounds)
             : base::Rect();
-    if ((!reused || redoing)
+    if (!opaque && (!reused || redoing)
         && !captureBackdrop(renderer, *textures, sources, coverage, reduced, allocatedBounds,
                             sampledTexels))
         return;
@@ -567,7 +589,7 @@ void BackdropFilter::draw(Renderer &renderer, const base::RectF &exactLens, int 
             || !filter(textures->temp.get(), result, false, redo))
             return;
         kept->coverage = coverage;
-    } else if (!reused) {
+    } else if (!opaque && !reused) {
         if (kept)
             kept->coverage = base::Rect();
         if (!filter(textures->source.get(), textures->temp, true)

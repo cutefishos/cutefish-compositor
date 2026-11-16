@@ -8,6 +8,20 @@
 
 namespace cutefish::render {
 
+namespace {
+std::optional<Color> s_opaqueBackdrop;
+}
+
+std::optional<Color> opaqueBackdrop()
+{
+    return s_opaqueBackdrop;
+}
+
+void setOpaqueBackdrop(std::optional<Color> color)
+{
+    s_opaqueBackdrop = color;
+}
+
 const Renderer::TextureSet& Renderer::cachedTextureSet(const std::string& key,
                                                        const std::function<TextureSet()>& make)
 {

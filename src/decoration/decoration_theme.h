@@ -120,6 +120,8 @@ struct Palette {
     render::Color titleBar;
     render::Color captionActive;
     render::Color captionInactive;
+    // What blurs and glass show in place of the backdrop under Reduce Transparency.
+    render::Color opaqueBackdrop;
 };
 
 // Told when the palette changes, so a frame already on screen repaints
@@ -162,6 +164,11 @@ public:
     // shape and notifies observers.
     void setContinuousCorners(bool continuous);
 
+    // Shows every blur and glass over an opaque colour of the current mode
+    // (render::setOpaqueBackdrop) and notifies observers.
+    void setReduceTransparency(bool reduce);
+    bool reduceTransparency() const { return m_reduceTransparency; }
+
     // The Appearance service's AccentColor index; only notifies observers.
     void setAccentColor(int index);
     int accentColor() const { return m_accentColor; }
@@ -185,11 +192,13 @@ public:
 
 private:
     void notifyObservers();
+    void applyOpaqueBackdrop();
 
     Metrics m_metrics;
     TextRenderer m_textRenderer;
     bool m_darkMode = false;
     int m_accentColor = 0;
+    bool m_reduceTransparency = false;
     std::vector<ThemeObserver *> m_observers;
 
     render::Renderer *m_renderer = nullptr;

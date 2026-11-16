@@ -24,6 +24,7 @@
 #include "scene/node.h"
 #include "scene/scene.h"
 #include "scene/surface_node.h"
+#include "render/renderer.h"
 #include "shell/common/app_launcher.h"
 #include "shell/common/count_badge.h"
 #include "shell/common/task_manager.h"
@@ -44,6 +45,7 @@
 #include "ui/drag.h"
 #include "ui/embedded_window.h"
 #include "ui/menu.h"
+#include "ui/theme.h"
 #include "wm/window.h"
 #include "wm/window_manager.h"
 
@@ -434,6 +436,28 @@ TEST_F(ShellComponentsTest, TheDockSitsAlongTheBottomOnItsGlassAndReservesItsStr
     EXPECT_FLOAT_EQ(shell::glassFixed(1.3), glass.saturation);
     EXPECT_NEAR(0.6, glass.tintRed, 1.0 / 256);
     EXPECT_NEAR(0.25, glass.tintAlpha, 1.0 / 256);
+    // Under Reduce Transparency it alone still blurs, widely, under the window
+    // background, whatever the slider says.
+    render::setOpaqueBackdrop(render::Color {0.9f, 0.9f, 0.9f, 1});
+    ui::Theme::setCurrent(ui::Theme::current());
+    EXPECT_TRUE(test::runUntil([this, surface] {
+        frame();
+        return surface->glass().ignoresOpaqueBackdrop;
+    }));
+    EXPECT_FLOAT_EQ(30.0f, surface->glass().blurSigma);
+    EXPECT_NEAR(0.7, surface->glass().tintAlpha, 1.0 / 256);
+    // A shade below it in light mode.
+    EXPECT_NEAR(ui::Theme::current().background.r / 255.0 / 1.06, surface->glass().tintRed, 1.0 / 256);
+    EXPECT_NEAR(ui::Theme::current().background.b / 255.0 / 1.06, surface->glass().tintBlue, 1.0 / 256);
+    EXPECT_FLOAT_EQ(0.0f, surface->glass().displacement);
+    EXPECT_FLOAT_EQ(1.0f, surface->glass().rim);
+    render::setOpaqueBackdrop(std::nullopt);
+    ui::Theme::setCurrent(ui::Theme::current());
+    EXPECT_TRUE(test::runUntil([this, surface] {
+        frame();
+        return !surface->glass().ignoresOpaqueBackdrop;
+    }));
+    EXPECT_NEAR(0.25, surface->glass().tintAlpha, 1.0 / 256);
     // Input only on the rounded panel.
     ASSERT_TRUE(surface->inputRegion());
     EXPECT_TRUE(surface->inputRegion()->contains(base::Point(panel.x() + panel.width() / 2, panel.y() + 2)));

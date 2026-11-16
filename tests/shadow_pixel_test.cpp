@@ -608,6 +608,59 @@ render::GlassParams bareGlass()
     return glass;
 }
 
+TEST_F(ShadowPixelTest, OpaqueBackdropReplacesWhatTheBlurAndGlassRead)
+{
+    const base::Rect bounds(300, 100, 300, 400);
+    const render::Color opaque {0.2f, 0.4f, 0.6f, 1};
+    render::setOpaqueBackdrop(opaque);
+    render::GlassParams plain;
+    plain.opacity = 0.5f;
+    render::GlassParams glass = bareGlass();
+    glass.tintRed = 0;
+    glass.tintGreen = 0;
+    glass.tintBlue = 0;
+    glass.tintAlpha = 0.5;
+    renderer->clear({0, 0, 0, 1});
+    renderer->fillRect({450, 0, 450, height}, {1, 1, 1, 1});
+    renderer->drawBackgroundBlur(bounds, 24, bounds);
+    renderer->drawBackgroundBlur({0, 520, 300, 100}, 24, {0, 520, 300, 100}, plain);
+    renderer->drawBackgroundBlur({600, 520, 300, 100}, 24, {600, 520, 300, 100}, glass);
+    const auto actual = pixels();
+    render::setOpaqueBackdrop(std::nullopt);
+    // Across the black and white halves alike, only the colour shows.
+    for (int x : {310, 445, 455, 590}) {
+        EXPECT_EQ(channel(actual, x, 300, 0), 51) << x;
+        EXPECT_EQ(channel(actual, x, 300, 1), 102) << x;
+        EXPECT_EQ(channel(actual, x, 300, 2), 153) << x;
+    }
+    // Still clipped to its rounded rectangle.
+    EXPECT_EQ(channel(actual, 299, 300), 0);
+    EXPECT_EQ(channel(actual, 601, 300), 255);
+    EXPECT_EQ(channel(actual, 301, 101), 0);
+    // A fading blur fades over black; glass keeps its tint.
+    EXPECT_NEAR(channel(actual, 150, 570, 2), 77, 2);
+    EXPECT_NEAR(channel(actual, 750, 570, 2), 77, 2);
+    EXPECT_NEAR(channel(actual, 750, 570, 0), 26, 2);
+
+    // A blur the shell exempts reads its backdrop all the same.
+    render::GlassParams exempt;
+    exempt.ignoresOpaqueBackdrop = true;
+    render::setOpaqueBackdrop(opaque);
+    renderer->clear({0, 0, 0, 1});
+    renderer->fillRect({450, 0, 450, height}, {1, 1, 1, 1});
+    renderer->drawBackgroundBlur(bounds, 24, bounds, exempt);
+    const auto exempted = pixels();
+    render::setOpaqueBackdrop(std::nullopt);
+    EXPECT_NEAR(channel(exempted, 450, 300), 128, 5);
+
+    // Off again, the blur reads its backdrop.
+    renderer->clear({0, 0, 0, 1});
+    renderer->fillRect({450, 0, 450, height}, {1, 1, 1, 1});
+    renderer->drawBackgroundBlur(bounds, 24, bounds);
+    const auto blurred = pixels();
+    EXPECT_NEAR(channel(blurred, 450, 300), 128, 5);
+}
+
 TEST_F(ShadowPixelTest, GlassSofteningMatchesDiscreteGaussian)
 {
     const base::Rect bounds(300, 100, 300, 400);

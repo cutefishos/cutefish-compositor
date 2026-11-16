@@ -32,6 +32,7 @@
 #include "ui/cell_layout.h"
 #include "ui/menu.h"
 #include "ui/path.h"
+#include "render/renderer.h"
 #include "ui/theme.h"
 #include "wm/status_items.h"
 #include "wm/window.h"
@@ -303,8 +304,17 @@ bool MenuBarWindow::panelOpen() const
 void MenuBarWindow::updateLook()
 {
     // What is behind the bar decides; the system's dark mode while nothing
-    // has been judged.
-    const bool light = m_backdrop->isValid() ? m_backdrop->useLightForeground() : ui::Theme::current().darkMode;
+    // has been judged. Under Reduce Transparency the bar has a fill of its
+    // own, by mode, and its contents follow the mode.
+    const bool dark = ui::Theme::current().darkMode;
+    const bool opaque = render::opaqueBackdrop().has_value();
+    bool light = m_backdrop->isValid() ? m_backdrop->useLightForeground() : dark;
+    m_fill = {0, 0, 0, 0};
+    if (opaque) {
+        m_fill = dark ? ui::Color::rgb(0x202020) : ui::Color::rgb(0xDADADA);
+        light = dark;
+    }
+    m_window->window()->setBackgroundColor(m_fill);
     m_lightContents = light;
     if (m_appMenus)
         m_appMenus->barChanged();

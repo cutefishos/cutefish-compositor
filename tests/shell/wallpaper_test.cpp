@@ -28,6 +28,7 @@
 #include "input/input_manager.h"
 #include "input/seat.h"
 #include "loop_test_util.h"
+#include "render/renderer.h"
 #include "scene/node.h"
 #include "scene/scene.h"
 #include "scene/wallpaper_node.h"
@@ -42,6 +43,7 @@
 #include "shm_test_util.h"
 #include "temporary_directory.h"
 #include "ui/bitmap.h"
+#include "ui/theme.h"
 #include "wm/window.h"
 #include "wm/window_manager.h"
 
@@ -415,6 +417,13 @@ TEST_F(WallpaperTest, ANewPictureReplacesTheOldOnceDecodedAndJudged)
     EXPECT_EQ((ui::Color {255, 255, 255, 115}), node()->gradient()->color);
     EXPECT_EQ(shell::BarBackdrop::kGradientHeight, node()->gradient()->height);
     EXPECT_TRUE(wallpaper->isReady());
+    // An opaque bar under Reduce Transparency needs no gradient.
+    render::setOpaqueBackdrop(render::Color {0.9f, 0.9f, 0.9f, 1});
+    ui::Theme::setCurrent(ui::Theme::current());
+    EXPECT_FALSE(node()->gradient());
+    render::setOpaqueBackdrop(std::nullopt);
+    ui::Theme::setCurrent(ui::Theme::current());
+    EXPECT_TRUE(node()->gradient());
 }
 
 TEST_F(WallpaperTest, AnUnreadablePictureKeepsWhatIsUp)

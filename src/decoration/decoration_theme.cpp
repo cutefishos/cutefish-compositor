@@ -4,6 +4,7 @@
 
 #include "decoration/decoration_theme.h"
 
+#include "render/renderer.h"
 #include "render/rounded_shape.h"
 
 #include <algorithm>
@@ -23,6 +24,7 @@ const Palette kLight {
     rgb(255, 255, 255), // titleBar
     rgb(56, 56, 56), // captionActive   #383838
     rgb(127, 127, 127), // captionInactive #7F7F7F
+    rgb(245, 246, 250), // opaqueBackdrop  #F5F6FA
 };
 
 // kwin-plugins: m_titleBarBgDarkColor / m_titleBarFgDarkColor /
@@ -31,6 +33,7 @@ const Palette kDark {
     rgb(44, 44, 45), // titleBar        #2C2C2D
     rgb(202, 203, 206), // captionActive   #CACBCE
     rgb(112, 112, 112), // captionInactive #707070
+    rgb(44, 44, 45), // opaqueBackdrop  #2C2C2D
 };
 
 } // namespace
@@ -61,8 +64,23 @@ void Theme::setDarkMode(bool dark)
     if (dark == m_darkMode)
         return;
     m_darkMode = dark;
+    applyOpaqueBackdrop();
     clearTextures();
     notifyObservers();
+}
+
+void Theme::setReduceTransparency(bool reduce)
+{
+    if (reduce == m_reduceTransparency)
+        return;
+    m_reduceTransparency = reduce;
+    applyOpaqueBackdrop();
+    notifyObservers();
+}
+
+void Theme::applyOpaqueBackdrop()
+{
+    render::setOpaqueBackdrop(m_reduceTransparency ? std::optional(palette().opaqueBackdrop) : std::nullopt);
 }
 
 void Theme::setCaptionPointSize(double points)

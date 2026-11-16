@@ -251,6 +251,8 @@ private:
     std::unique_ptr<MagnificationFrames> m_magnificationFrames;
     // The dark mode the glass was tinted for.
     bool m_glassDark = false;
+    // And whether it was for Reduce Transparency.
+    bool m_glassOpaque = false;
     base::RectF m_divider;
     base::RectF m_trailingDivider;
     double m_trailingOpacity = 0;

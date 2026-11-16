@@ -60,6 +60,8 @@ protected:
         if (const base::RectF field = m_ui->fieldBounds(); !field.isEmpty()) {
             render::GlassParams fade;
             fade.opacity = sample.panelOpacity * m_ui->fieldOpacity();
+            // The lock screen looks the same under Reduce Transparency.
+            fade.ignoresOpaqueBackdrop = true;
             const base::RectF blurred =
                     transform.mapRect(field.translated(base::PointF(geometry.origin())));
             renderer.drawBackgroundBlur(blurred.toEnclosingRect(),

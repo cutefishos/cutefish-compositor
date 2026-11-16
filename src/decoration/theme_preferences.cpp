@@ -37,6 +37,10 @@ ThemePreferences::ThemePreferences(Theme &theme)
                     setContinuousCorners(readBool(message));
                 }));
         m_signals.push_back(m_appearance.onSignal(
+                "reduceTransparencyChanged", [this, readBool](const base::dbus::Message &message) {
+                    setReduceTransparency(readBool(message));
+                }));
+        m_signals.push_back(m_appearance.onSignal(
                 "accentColorChanged", [this](const base::dbus::Message &message) {
                     int32_t index = 0;
                     if (message.read(index))
@@ -54,6 +58,7 @@ void ThemePreferences::reload()
     m_settings.reload();
     setDarkMode(m_settings.boolValue("Appearance/DarkMode", false));
     setContinuousCorners(m_settings.boolValue("Appearance/ContinuousCorners", true));
+    setReduceTransparency(m_settings.boolValue("Appearance/ReduceTransparency", false));
     setAccentColor(int(m_settings.intValue("Appearance/AccentColor", 0)));
     setCaptionPointSize(m_settings.doubleValue("Appearance/FontSize", 9));
 }
@@ -83,6 +88,11 @@ void ThemePreferences::setCaptionPointSize(double points)
 void ThemePreferences::setContinuousCorners(bool continuous)
 {
     m_theme.setContinuousCorners(continuous);
+}
+
+void ThemePreferences::setReduceTransparency(bool reduce)
+{
+    m_theme.setReduceTransparency(reduce);
 }
 
 void ThemePreferences::setAccentColor(int index)

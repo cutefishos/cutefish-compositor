@@ -15,6 +15,8 @@
 #include "compositor/compositor.h"
 #include "core/preferences.h"
 #include "cutefish/appearance/appearance.h"
+#include "render/renderer.h"
+#include "ui/theme.h"
 #include "scene/node.h"
 #include "scene/wallpaper_node.h"
 #include "wm/overview/overview_controller.h"
@@ -124,6 +126,7 @@ Wallpaper::Wallpaper(Shell *shell, std::string cacheDirectory, std::string servi
     , m_servicesSettings(servicesSettings.empty() ? preferencesFile("services") : std::move(servicesSettings))
 {
     m_outputsChanged = m_shell->outputsChanged.connect([this] { updateOutputs(); });
+    m_themeChanged = ui::Theme::changed().connect([this] { updateGradient(); });
     updateOutputs();
     if (m_shell->bus()) {
         m_ownAppearance = std::make_unique<appearance::Appearance>();
@@ -135,6 +138,7 @@ Wallpaper::~Wallpaper()
 {
     m_appearanceChanged.reset();
     m_outputsChanged.reset();
+    m_themeChanged.reset();
     if (wm::WindowManager *manager = m_shell->windowManager())
         manager->overview()->setWallpaperNodes({});
     for (const std::unique_ptr<Screen> &screen : m_screens) {
@@ -410,7 +414,9 @@ void Wallpaper::publish(bool judged, const BarBackdrop::Style &style)
 void Wallpaper::updateGradient()
 {
     for (const std::unique_ptr<Screen> &screen : m_screens) {
+        // An opaque bar under Reduce Transparency needs no lift.
         const bool shows = screen->output.primary && m_judged && m_style.gradientVisible
+                && !render::opaqueBackdrop()
                 && (screen->showingImage || screen->showingColor);
         screen->node->setGradient(shows ? std::optional<scene::WallpaperNode::Gradient>(
                                                   {m_style.gradientColor, BarBackdrop::kGradientHeight})

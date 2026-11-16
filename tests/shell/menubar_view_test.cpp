@@ -26,6 +26,7 @@
 #include "loop_test_util.h"
 #include "scene/node.h"
 #include "scene/scene.h"
+#include "render/renderer.h"
 #include "shell/shell.h"
 #include "shell/shell_data.h"
 #include "shell/shell_window.h"
@@ -47,6 +48,7 @@
 #include "ui/bitmap.h"
 #include "ui/embedded_window.h"
 #include "ui/menu.h"
+#include "ui/theme.h"
 #include "wm/status_items.h"
 #include "wm/window.h"
 #include "wm/window_manager.h"
@@ -504,6 +506,17 @@ TEST_F(MenuBarViewTest, ThePictureBehindTheBarPicksItsColours)
     // Nothing shown: the theme decides again.
     bar->backdrop().setUnavailable();
     EXPECT_FALSE(bar->backdrop().isValid());
+
+    // Under Reduce Transparency the bar has its own fill, and its contents
+    // follow the mode, whatever is behind it.
+    render::setOpaqueBackdrop(render::Color {0.9f, 0.9f, 0.9f, 1});
+    bar->backdrop().setColor(ui::Color::rgb(0x203040));
+    EXPECT_EQ(ui::Color::rgb(0xDADADA), bar->fill());
+    EXPECT_FALSE(bar->lightContents());
+    render::setOpaqueBackdrop(std::nullopt);
+    bar->backdrop().setColor(ui::Color::rgb(0xAAAAAA));
+    EXPECT_EQ((ui::Color {0, 0, 0, 0}), bar->fill());
+    bar->backdrop().setUnavailable();
 }
 
 TEST_F(MenuBarViewTest, TrayItemsSitRightToLeftAndTakeClicks)

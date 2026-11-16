@@ -47,6 +47,11 @@ struct ShadowLobe {
     float opacity = 0;
 };
 
+// While set, every background blur and glass shows this opaque colour in place
+// of what lies behind it; the material's fill, tint and lighting still apply.
+std::optional<Color> opaqueBackdrop();
+void setOpaqueBackdrop(std::optional<Color> color);
+
 // A blur that draws again from the result it kept. A non-empty `changed` is
 // the logical rectangle of its backdrop that changed since; the blur then
 // redoes only the part of its result that reads it.

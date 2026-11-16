@@ -78,6 +78,9 @@ struct GlassParams {
     float fillTint[4] = {0, 0, 0, 0};
     int fillMode = 0;
     float fillColor[4] = {0, 0, 0, 0};
+    // Reads its backdrop even while setOpaqueBackdrop() is set. The shell's
+    // own; the wire protocol never sets it.
+    bool ignoresOpaqueBackdrop = false;
 };
 
 // How a plain blur's fill colour blends over the tinted backdrop, as the
@@ -114,6 +117,7 @@ inline bool operator==(const GlassParams &a, const GlassParams &b)
             && a.saturation == b.saturation && a.rim == b.rim && a.tintRed == b.tintRed
             && a.tintGreen == b.tintGreen && a.tintBlue == b.tintBlue && a.tintAlpha == b.tintAlpha
             && a.opacity == b.opacity && a.plainSigma == b.plainSigma && a.fillMode == b.fillMode
+            && a.ignoresOpaqueBackdrop == b.ignoresOpaqueBackdrop
             && std::equal(a.fillTint, a.fillTint + 4, b.fillTint)
             && std::equal(a.fillColor, a.fillColor + 4, b.fillColor);
 }
