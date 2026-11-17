@@ -1011,15 +1011,16 @@ void DockWindow::layoutItems()
                       + itemGrowth,
               1, 1);
 
-    // The dividers: 48/86 of the thickness, centred across the panel, in the
-    // middle of their gap with the leading edge half a pixel before it.
+    // The dividers: 48/86 of the thickness, centred across the panel, a pixel
+    // wide rounded up to whole device pixels, centred in their gap.
     const double lineLength = std::round(drawnThickness * 48 / 86);
     const double lineAcross = std::round((drawnThickness - lineLength) / 2);
-    const double middle = (m_drawn.separatorExtent - m_drawn.iconGap) / 2 - 0.5;
+    const double lineWidth = std::ceil(pixelRatio()) / pixelRatio();
+    const double middle = (m_drawn.separatorExtent - m_drawn.iconGap - lineWidth) / 2;
     const auto lineRect = [&](double position) {
         const double start = field.isIdentity() ? origin + position : drawnAlong(origin + position);
-        return bottom ? base::RectF(start, lineAcross, 1, lineLength)
-                      : base::RectF(lineAcross, start, lineLength, 1);
+        return bottom ? base::RectF(start, lineAcross, lineWidth, lineLength)
+                      : base::RectF(lineAcross, start, lineLength, lineWidth);
     };
     m_divider = lineRect(along(m_applications->sectionPosition() + middle,
                                m_applications->targetSectionPosition() + middle));
