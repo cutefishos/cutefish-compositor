@@ -102,6 +102,15 @@ void Theme::setContinuousCorners(bool continuous)
     notifyObservers();
 }
 
+void Theme::setColoredWindowControls(bool colored)
+{
+    if (colored == m_coloredWindowControls)
+        return;
+    m_coloredWindowControls = colored;
+    m_metrics.buttonSpacing = int(colored ? ui::window_controls::kColoredSpacing : ui::window_controls::kSpacing);
+    notifyObservers();
+}
+
 void Theme::setAccentColor(int index)
 {
     if (index == m_accentColor)

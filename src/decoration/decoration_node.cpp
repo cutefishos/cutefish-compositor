@@ -171,17 +171,21 @@ void DecorationNode::paintButtons(render::Renderer& renderer, const base::Rect& 
         state.artwork = iconName(button.type(), m_decoration->isRestoreButton());
         state.dark = m_theme->darkMode();
         state.active = m_decoration->isActive();
-        state.hovered = m_decoration->isControlsHovered() || button.isHovered();
+        state.colored = m_theme->coloredWindowControls();
+        state.hovered = button.isHovered() || (state.colored && m_decoration->isControlsHovered());
         state.pressed = button.isPressed();
-        const std::string key = std::format("control:{}:{}:{}{}{}{}", scale, state.artwork, int(state.dark),
-                                            int(state.active), int(state.hovered), int(state.pressed));
+        const std::string key = std::format("control:{}:{}:{}{}{}{}{}", scale, state.artwork, int(state.dark),
+                                            int(state.active), int(state.hovered), int(state.pressed),
+                                            int(state.colored));
         render::Texture* texture = m_theme->texture(renderer, key, [&] {
             return ui::window_controls::render(state, scale, ui::Bitmap::Format::Rgba8888Premultiplied);
         });
         if (!texture)
             continue;
+        const int margin = int(ui::window_controls::kShadowMargin);
         // Mapped, so the texels land on whole physical pixels.
-        renderer.drawTextureMapped(texture, geometry, 1.0f, base::AffineTransform());
+        renderer.drawTextureMapped(texture, geometry.adjusted(-margin, -margin, margin, margin), 1.0f,
+                                   base::AffineTransform());
     }
 }
 

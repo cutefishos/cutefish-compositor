@@ -672,6 +672,18 @@ TEST_F(DecorationTest, TheButtonsCentreInTheTitleBarAtItsStart)
     }
 }
 
+TEST_F(DecorationTest, ColoredWindowControlsSitCloser)
+{
+    ShellSurface *shell = makeToplevel(base::Size(400, 300));
+    decoration::Decoration *frame = frameOf(shell->window());
+    const auto gap = [frame] { return frame->buttons()[1].geometry().left() - frame->buttons()[0].geometry().right(); };
+    EXPECT_EQ(int(ui::window_controls::kSpacing), gap());
+    theme.setColoredWindowControls(true);
+    EXPECT_EQ(int(ui::window_controls::kColoredSpacing), gap());
+    theme.setColoredWindowControls(false);
+    EXPECT_EQ(int(ui::window_controls::kSpacing), gap());
+}
+
 TEST_F(DecorationTest, TheDebugBoundsAreTheFrameInOutputCoordinates)
 {
     ShellSurface *shell = makeToplevel(base::Size(400, 300));
@@ -1264,7 +1276,8 @@ TEST_F(DecorationTest, CaptionButtonsAreDrawnOneTexelPerPixelOnTheirGeometry)
         renderer.calls.clear();
         scene.render(renderer);
 
-        const int side = base::roundToInt(theme.metrics().buttonSize * scale);
+        const int margin = int(ui::window_controls::kShadowMargin);
+        const int side = base::roundToInt((theme.metrics().buttonSize + 2 * margin) * scale);
         std::vector<testsupport::FakeRenderer::Call> controls;
         for (const auto &call : renderer.calls) {
             if (call.kind == "texture" && call.texture && call.texture->size() == base::Size(side, side))
@@ -1273,7 +1286,11 @@ TEST_F(DecorationTest, CaptionButtonsAreDrawnOneTexelPerPixelOnTheirGeometry)
 
         ASSERT_EQ(frame->buttons().size(), controls.size()) << scale;
         for (size_t i = 0; i < controls.size(); ++i) {
-            EXPECT_EQ(frame->buttons()[i].geometry().translated(window->bounds().topLeft()), controls[i].rect);
+            EXPECT_EQ(frame->buttons()[i]
+                              .geometry()
+                              .translated(window->bounds().topLeft())
+                              .adjusted(-margin, -margin, margin, margin),
+                      controls[i].rect);
             EXPECT_TRUE(controls[i].mapping.isIdentity());
         }
     }

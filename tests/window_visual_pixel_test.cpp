@@ -228,7 +228,7 @@ TEST_F(WindowVisualPixelTest, OwnershipAndOnePhysicalHairlineAtEveryScale)
                                                     << '/' << client << '/' << desktop);
                     WindowScene model;
                     auto *window =
-                            model.window(mode, {client, client, client, 1}, {160, 120}, exterior);
+                            model.window(mode, {client, client, client, 1}, {240, 120}, exterior);
                     ASSERT_NE(window, nullptr);
                     renderer->setRasterScale(scale);
                     renderer->suppressWindowOutlines = true;

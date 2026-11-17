@@ -92,7 +92,11 @@ public:
 
     // --- ThemeObserver ---
 
-    void onThemeChanged() override { scheduleRepaint(); }
+    void onThemeChanged() override
+    {
+        layout();
+        scheduleRepaint();
+    }
 
 private:
     // Frame coordinates: the outer window bounds with their origin at (0, 0).
