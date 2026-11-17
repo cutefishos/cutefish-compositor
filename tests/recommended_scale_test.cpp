@@ -45,8 +45,10 @@ TEST(RecommendedScale, InternalPanelsFollowChromiumDensities)
     EXPECT_EQ(scale(internal, {1920, 1080}, {344, 194}), 1.0);
     // 13.3" 1080p, 166 dpi.
     EXPECT_EQ(scale(internal, {1920, 1080}, {294, 165}), 1.25);
+    // 13" 2160x1440, 200 dpi: Chromium's 1.6.
+    EXPECT_EQ(scale(internal, {2160, 1440}, {275, 183}), 1.75);
     // 13.5" 2256x1504, 201 dpi: Chromium's 1.6.
-    EXPECT_EQ(scale(internal, {2256, 1504}, {285, 190}), 1.5);
+    EXPECT_EQ(scale(internal, {2256, 1504}, {285, 190}), 1.75);
     // 13.3" 2560x1600, 227 dpi: Chromium's 1.777.
     EXPECT_EQ(scale(internal, {2560, 1600}, {286, 179}), 1.75);
     // 14" 2880x1800, 242 dpi.

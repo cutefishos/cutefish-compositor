@@ -20,13 +20,13 @@ struct Threshold {
     uint32_t scale120;
 };
 
-// Chromium's kThresholdTableForLcdInternal, each factor rounded to the
-// nearest step: 2.666 and 2.4 to 2.5, 1.777 to 1.75, 1.6 to 1.5.
-constexpr std::array<Threshold, 6> kInternal {{
+// Chromium's kThresholdTableForLcdInternal, each factor rounded to a step:
+// 2.666 and 2.4 to 2.5, 1.777 to 1.75, and 1.6 up to 1.75, since 1.5 leaves
+// a 13" 3:2 panel's text too small.
+constexpr std::array<Threshold, 5> kInternal {{
         {270, 300},
         {230, 240},
-        {220, 210},
-        {180, 180},
+        {180, 210},
         {150, 150},
         {0, 120},
 }};
