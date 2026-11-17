@@ -128,7 +128,7 @@ namespace core {
 // members are constructed in declaration order and torn down in reverse, so the
 // header's ordering is the lifetime contract. "Shell" here is Ash's sense - the
 // container for the process's subsystems - not the Cutefish shell UI, which is
-// a separate process.
+// one of those subsystems (m_shell).
 class CompositorShell : private decoration::ThemeObserver, private input::SeatObserver
 {
 public:
