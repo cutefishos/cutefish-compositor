@@ -70,18 +70,22 @@ void ThemePreferences::reload()
 
 void ThemePreferences::reloadCaptionPointSize()
 {
-    const std::optional<base::dbus::Variant> points =
-            m_appearance.getProperty("systemFontPointSize").value<base::dbus::Variant>();
-    if (!points) {
-        reload();
-        return;
-    }
-    if (const std::optional<double> value = points->get<double>())
-        setCaptionPointSize(*value);
-    else if (const std::optional<int32_t> whole = points->get<int32_t>())
-        setCaptionPointSize(*whole);
-    else
-        reload();
+    // Never blocking: the services daemon makes blocking calls to the compositor.
+    m_captionPointSizeRead = m_appearance.getPropertyAsync(
+            "systemFontPointSize", [this](const base::dbus::Reply &reply) {
+                base::dbus::PendingCall done = std::move(m_captionPointSizeRead);
+                const std::optional<base::dbus::Variant> points = reply.value<base::dbus::Variant>();
+                if (!points) {
+                    reload();
+                    return;
+                }
+                if (const std::optional<double> value = points->get<double>())
+                    setCaptionPointSize(*value);
+                else if (const std::optional<int32_t> whole = points->get<int32_t>())
+                    setCaptionPointSize(*whole);
+                else
+                    reload();
+            });
 }
 
 void ThemePreferences::setCaptionPointSize(double points)

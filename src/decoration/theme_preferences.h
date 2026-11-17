@@ -40,6 +40,7 @@ private:
     base::FileWatch m_watch;
     base::dbus::Proxy m_appearance;
     std::vector<base::dbus::Match> m_signals;
+    base::dbus::PendingCall m_captionPointSizeRead;
 };
 
 } // namespace cutefish::decoration
