@@ -69,6 +69,7 @@ constexpr double kOpaqueLightShade = 1.06;
 constexpr double kOpaqueBlurSigma = 30;
 constexpr double kOpaqueTintAlpha = 0.7;
 
+constexpr double kMenuArrowWidth = 14;
 constexpr double kMenuArrowLength = 8;
 
 double glassAmount(double tint)
@@ -1583,7 +1584,7 @@ void DockWindow::popupMenu(DockIcon *icon, std::unique_ptr<ui::Menu> menu)
                              : direction == DockSettings::Right ? ui::BubbleShape::Edge::Right
                                                                 : ui::BubbleShape::Edge::Bottom,
                      centre);
-    m_menu->setArrowLength(kMenuArrowLength);
+    m_menu->setArrowSize(kMenuArrowWidth, kMenuArrowLength);
     m_menu->setContinuousCorners(true);
     if (const Shell::Output *output = m_shell->output({})) {
         base::Rect area = m_shell->workArea(*output);
