@@ -85,6 +85,7 @@ void startCaptureMode(const CommandContext &context);
 void stopScreenRecording(const CommandContext &context);
 // So does the clipboard history.
 void toggleClipboardHistory(const CommandContext &context);
+void toggleSpotlight(const CommandContext &context);
 // So does playback.
 void mediaPlayPause(const CommandContext &context);
 void mediaPause(const CommandContext &context);

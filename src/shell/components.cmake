@@ -52,7 +52,13 @@ add_library(cutefish-shell-clipboard-view STATIC
     src/shell/clipboard/clipboard_picker_view.h
 )
 target_link_libraries(cutefish-shell-clipboard-view PUBLIC cutefish-shell cutefish-shell-clipboard)
-target_link_libraries(cutefish-compositor PRIVATE cutefish-shell-clipboard-view)
+add_library(cutefish-shell-spotlight STATIC
+    src/shell/spotlight/spotlight.cpp
+    src/shell/spotlight/spotlight_view.cpp
+    src/shell/spotlight/spotlight_search.cpp
+)
+target_link_libraries(cutefish-shell-spotlight PUBLIC cutefish-shell cutefish-shell-clipboard cutefish-shell-dock)
+target_link_libraries(cutefish-compositor PRIVATE cutefish-shell-spotlight)
 
 # The sheets offering force quit for applications that stopped responding.
 add_library(cutefish-shell-notresponding STATIC
@@ -144,7 +150,6 @@ add_library(cutefish-shell-launchpad-view STATIC
 )
 target_link_libraries(cutefish-shell-launchpad-view PUBLIC cutefish-shell cutefish-shell-launchpad
     cutefish-shell-wallpaper)
-target_link_libraries(cutefish-compositor PRIVATE cutefish-shell-launchpad-view)
 # The control centre, the status panels and the power dialog.
 find_package(CutefishClients REQUIRED COMPONENTS networkmanager bluez audio)
 add_library(cutefish-shell-controlcenter STATIC

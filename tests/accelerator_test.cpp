@@ -79,6 +79,7 @@ class RecordingDelegate : public AcceleratorDelegate
 {
 public:
     void toggleAppList() override { ++appListToggles; }
+    void toggleSpotlight() override { ++spotlightToggles; }
     void takeScreenshot(bool toClipboard) override
     {
         captures.push_back(toClipboard ? "screen-clipboard" : "screen");
@@ -105,6 +106,7 @@ public:
     void keyboardBrightnessUp() override { levels.push_back("keyboard-brightness-up"); }
 
     int appListToggles = 0;
+    int spotlightToggles = 0;
     int clipboardHistoryToggles = 0;
     std::vector<std::string> captures;
     std::vector<std::string> levels;
@@ -538,7 +540,7 @@ TEST(AcceleratorConfiguration, EachConventionKeepsItsOwnOverrides)
     const auto maximize = toActionId(AcceleratorAction::ToggleMaximized);
     const auto launchpad = toActionId(AcceleratorAction::ToggleAppList);
     const Accelerator pcBinding(XKB_KEY_k, MetaDown | ControlDown);
-    const Accelerator commandBinding(XKB_KEY_space, MetaDown);
+    const Accelerator commandBinding(XKB_KEY_g, MetaDown);
 
     AcceleratorConfiguration configuration(file);
     configuration.initialize();
@@ -1057,15 +1059,12 @@ TEST_F(AcceleratorTest, UnderTheCommandConventionApplicationsGetCommandAsCtrl)
             {KEY_LEFTCTRL, true}, {KEY_C, true}, {KEY_C, false}, {KEY_LEFTCTRL, false}};
     EXPECT_EQ(expected, keyboardDelegate->keys);
 
-    // The launchpad has no default here; Command+Space is the application's.
+    // Command+Space is Spotlight, not the application list or the application's.
     keyboardDelegate->keys.clear();
     chord({KEY_LEFTALT}, KEY_SPACE);
     EXPECT_EQ(0, delegate.appListToggles);
-    const std::vector<std::pair<uint32_t, bool>> space = {{KEY_LEFTCTRL, true},
-                                                          {KEY_SPACE, true},
-                                                          {KEY_SPACE, false},
-                                                          {KEY_LEFTCTRL, false}};
-    EXPECT_EQ(space, keyboardDelegate->keys);
+    EXPECT_EQ(1, delegate.spotlightToggles);
+    EXPECT_TRUE(keyboardDelegate->keys.empty());
 
     // Command+Q, Command+H and Command+Option+H are the application menu's
     // Quit, Hide and Hide Others; the window sees none of them.
@@ -1831,19 +1830,21 @@ TEST_F(AcceleratorTest, ServiceValidatesConfirmsAndReportsConflicts)
     answer = parse(service.describeKey(KEY_1, XKB_KEY_exclam));
     EXPECT_EQ("1", answer["keyText"].toString());
 
-    // An action without a default starts empty and takes a binding like any
-    // other.
+    // The application list can take a spare binding; Super+Space is already
+    // assigned to Spotlight.
     EXPECT_EQ("success",
-              parse(service.addAccelerator("toggle-app-list", KEY_SPACE, 0,
+              parse(service.addAccelerator("toggle-app-list", KEY_G, 0,
                                            MetaDown))
                       ["result"].toString());
-    chord({KEY_LEFTMETA}, KEY_SPACE);
+    chord({KEY_LEFTMETA}, KEY_G);
     EXPECT_EQ(1, delegate.appListToggles);
     EXPECT_EQ("success",
               parse(service.restoreDefault("toggle-app-list"))
                       ["result"].toString());
-    chord({KEY_LEFTMETA}, KEY_SPACE);
+    chord({KEY_LEFTMETA}, KEY_G);
     EXPECT_EQ(1, delegate.appListToggles);
+    chord({KEY_LEFTMETA}, KEY_SPACE);
+    EXPECT_EQ(1, delegate.spotlightToggles);
 
     // The launchpad's default is Ash's lone Meta tap: it fires on release, only
     // when nothing else was pressed meanwhile, and the client still sees both
@@ -1928,7 +1929,7 @@ TEST_F(AcceleratorTest, ServiceListsActionsWithTheirDefaultsOverTheBus)
     const auto reply = proxy.call("accelerators");
     ASSERT_FALSE(reply.isError()) << reply.error().message;
     const base::json::Value actions = parse(reply.value<std::string>().value_or(""))["actions"];
-    EXPECT_EQ(51u, actions.size());
+    EXPECT_EQ(52u, actions.size());
     bool sawMaximize = false;
     bool sawOverview = false;
     for (const base::json::Value &action : actions.toArray()) {

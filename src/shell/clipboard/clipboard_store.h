@@ -76,6 +76,9 @@ public:
 
     // The index has been read.
     bool isLoaded() const { return m_loaded; }
+    bool isEnabled() const { return m_enabled; }
+    void setEnabled(bool enabled);
+    void expireBefore(int64_t timestamp);
     const std::vector<ClipboardEntry> &entries() const { return m_entries; }
     int indexOf(const std::string &key) const;
 
@@ -99,6 +102,8 @@ private:
     std::string m_directory;
     size_t m_limit;
     bool m_loaded = false;
+    bool m_enabled = true;
+    uint64_t m_generation = 0;
     std::vector<ClipboardEntry> m_entries;
     // Bodies on their way to the disk.
     std::set<std::string> m_writing;

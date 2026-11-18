@@ -200,6 +200,7 @@ bool AcceleratorController::canPerformAction(AcceleratorAction action,
     case AcceleratorAction::StartCaptureMode:
     case AcceleratorAction::StopScreenRecording:
     case AcceleratorAction::ToggleClipboardHistory:
+    case AcceleratorAction::ToggleSpotlight:
     case AcceleratorAction::MediaPlayPause:
     case AcceleratorAction::MediaPause:
     case AcceleratorAction::MediaPrevious:
@@ -318,6 +319,9 @@ void AcceleratorController::performAction(AcceleratorAction action, const Accele
         break;
     case AcceleratorAction::ToggleClipboardHistory:
         commands::toggleClipboardHistory(m_context);
+        break;
+    case AcceleratorAction::ToggleSpotlight:
+        commands::toggleSpotlight(m_context);
         break;
     case AcceleratorAction::MediaPlayPause:
         commands::mediaPlayPause(m_context);

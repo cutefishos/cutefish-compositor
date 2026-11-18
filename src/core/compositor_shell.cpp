@@ -59,7 +59,7 @@
 #include "scene/slide_out_node.h"
 #include "session/session_state.h"
 #include "shell/clipboard/clipboard_history.h"
-#include "shell/clipboard/clipboard_picker.h"
+#include "shell/clipboard/clipboard_history.h"
 #include "shell/common/task_manager.h"
 #include "shell/controlcenter/control_center.h"
 #include "shell/dock/dock.h"
@@ -67,8 +67,7 @@
 #include "shell/notresponding/not_responding_sheets.h"
 #include "shell/notification/notification_ui.h"
 #include "shell/notification/notifications.h"
-#include "shell/launchpad/launchpad.h"
-#include "shell/launchpad/launchpad_window.h"
+#include "shell/spotlight/spotlight.h"
 #include "shell/menubar/app_menus_view.h"
 #include "shell/osd/osd.h"
 #include "shell/screenshot/screen_capture.h"
@@ -808,8 +807,6 @@ void CompositorShell::initShell()
                                               preferencesFile("shell"));
     shell::Dock *dockService = dock.get();
     auto *dockWindow = m_shell->addComponent(std::make_unique<shell::DockWindow>(m_shell.get(), std::move(dock)));
-    auto *clipboard = m_shell->addComponent(std::make_unique<shell::ClipboardPicker>(
-            m_shell.get(), std::make_unique<shell::ClipboardHistory>(environment.bus, *m_seat.selection())));
     m_shell->addComponent(std::make_unique<shell::NotRespondingSheets>(m_shell.get()));
     auto *screenshot = m_shell->addComponent(std::make_unique<shell::ScreenCapture>(
             m_shell.get(), screenCaptureServices(dockWindow, wallpaper)));
@@ -817,17 +814,16 @@ void CompositorShell::initShell()
     auto *notifications = m_shell->addComponent(std::make_unique<shell::NotificationUi>(
             m_shell.get(), std::make_unique<shell::Notifications>(environment.bus, m_shell->applications(),
                                                                   &m_shell->tasks())));
-    auto launchpad = std::make_unique<shell::Launchpad>(environment.bus, m_shell->tasks(), m_shell->launcher(),
-                                                        dockService, preferencesFile("shell"));
-    shell::Launchpad *launchpadService = launchpad.get();
-    m_shell->addComponent(std::make_unique<shell::LaunchpadWindow>(m_shell.get(), std::move(launchpad),
-                                                                   dockService, wallpaper));
-    // The dock and the accelerators reach the launchpad directly.
-    dockService->applications().hideLaunchpad = [launchpadService] { launchpadService->hide(); };
-    dockService->applications().toggleLaunchpad = [launchpadService] { launchpadService->toggle(); };
-    dockService->minimizedWindows().hideLaunchpad = [launchpadService] { launchpadService->hide(); };
-    if (m_acceleratorDelegate)
-        m_acceleratorDelegate->launchpadToggle = [launchpadService] { launchpadService->toggle(); };
+    auto *spotlight = m_shell->addComponent(std::make_unique<shell::Spotlight>(m_shell.get(), dockService,
+            std::make_unique<shell::ClipboardHistory>(environment.bus, *m_seat.selection()), preferencesFile("spotlight")));
+    dockService->applications().hideLaunchpad = [spotlight] { spotlight->hide(); };
+    dockService->applications().toggleLaunchpad = [spotlight] { spotlight->toggle(shell::Spotlight::Mode::Applications); };
+    dockService->minimizedWindows().hideLaunchpad = [spotlight] { spotlight->hide(); };
+    if (m_acceleratorDelegate) {
+        m_acceleratorDelegate->launchpadToggle = [spotlight] { spotlight->toggle(shell::Spotlight::Mode::Applications); };
+        m_acceleratorDelegate->spotlightToggle = [spotlight] { spotlight->toggle(shell::Spotlight::Mode::Search); };
+        m_acceleratorDelegate->clipboardToggle = [spotlight] { spotlight->toggle(shell::Spotlight::Mode::Clipboard); };
+    }
     auto menuBar = std::make_unique<shell::MenuBar>(
             environment.bus, environment.bus ? base::dbus::Connection::system(mainLoop()) : nullptr,
             &m_shell->tasks(), preferencesFile("shell"));
@@ -868,11 +864,10 @@ void CompositorShell::initShell()
     if (!m_options.noDrm) {
         osd->registerService();
         dockService->registerService();
-        clipboard->history().registerService();
         screenshot->registerService();
         secrets->start();
         notifications->registerServices();
-        launchpadService->registerService();
+        spotlight->registerServices();
         menuBarService->registerServices();
     }
 }

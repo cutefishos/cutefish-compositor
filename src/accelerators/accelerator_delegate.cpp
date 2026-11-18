@@ -62,7 +62,20 @@ void DBusAcceleratorDelegate::stopScreenRecording()
 
 void DBusAcceleratorDelegate::toggleClipboardHistory()
 {
+    if (clipboardToggle) {
+        clipboardToggle();
+        return;
+    }
     call("org.cutefish.ClipboardHistory", "/ClipboardHistory", "toggle");
+}
+
+void DBusAcceleratorDelegate::toggleSpotlight()
+{
+    if (spotlightToggle) {
+        spotlightToggle();
+        return;
+    }
+    call("org.cutefish.Spotlight", "/Spotlight", "toggle");
 }
 
 void DBusAcceleratorDelegate::mediaPlayPause()

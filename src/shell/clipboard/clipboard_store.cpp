@@ -147,6 +147,19 @@ ClipboardStore::ClipboardStore(std::string directory, size_t limit)
                 return entries;
             },
             [this](std::vector<ClipboardEntry> entries) {
+                if (m_generation != 0) {
+                    for (const auto &entry : entries) {
+                        if (indexOf(entry.key) < 0 && !m_writing.contains(entry.key))
+                            fileThread().post([path = bodyPath(entry.key)] {
+                                std::error_code error;
+                                fs::remove(path, error);
+                            });
+                    }
+                    m_loaded = true;
+                    save();
+                    changed();
+                    return;
+                }
                 // Copies made while the index was read are newer.
                 const bool copiedMeanwhile = !m_entries.empty();
                 for (ClipboardEntry &entry : entries) {
@@ -277,6 +290,8 @@ std::string ClipboardStore::bodyPath(const std::string &key) const
 
 bool ClipboardStore::add(const ClipboardPayload &payload, std::optional<int64_t> copied)
 {
+    if (!m_enabled)
+        return false;
     int64_t size = 0;
     for (const auto &format : payload)
         size += int64_t(format.second.size());
@@ -309,8 +324,15 @@ bool ClipboardStore::add(const ClipboardPayload &payload, std::optional<int64_t>
                 // Copies hold whatever the user copied: only the user may read them.
                 return chmod(path.c_str(), 0600) == 0;
             },
-            [this, entry](bool written) {
+            [this, entry, generation = m_generation](bool written) {
                 m_writing.erase(entry.key);
+                if (generation != m_generation || !m_enabled) {
+                    fileThread().post([path = bodyPath(entry.key)] {
+                        std::error_code error;
+                        fs::remove(path, error);
+                    });
+                    return;
+                }
                 if (!written || indexOf(entry.key) >= 0)
                     return;
                 m_entries.insert(m_entries.begin(), entry);
@@ -355,6 +377,7 @@ void ClipboardStore::remove(const std::string &key)
 
 void ClipboardStore::clear()
 {
+    ++m_generation;
     if (m_entries.empty())
         return;
     std::vector<std::string> paths;
@@ -368,6 +391,26 @@ void ClipboardStore::clear()
     });
     save();
     changed();
+}
+
+void ClipboardStore::setEnabled(bool enabled)
+{
+    if (m_enabled == enabled)
+        return;
+    m_enabled = enabled;
+    if (!enabled)
+        clear();
+}
+
+void ClipboardStore::expireBefore(int64_t timestamp)
+{
+    std::vector<std::string> expired;
+    for (const auto &entry : m_entries) {
+        if (!entry.copied || *entry.copied < timestamp)
+            expired.push_back(entry.key);
+    }
+    for (const auto &key : expired)
+        remove(key);
 }
 
 void ClipboardStore::save()

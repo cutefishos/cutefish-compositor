@@ -260,6 +260,11 @@ void toggleClipboardHistory(const CommandContext &context)
     context.delegate->toggleClipboardHistory();
 }
 
+void toggleSpotlight(const CommandContext &context)
+{
+    context.delegate->toggleSpotlight();
+}
+
 void mediaPlayPause(const CommandContext &context)
 {
     context.delegate->mediaPlayPause();
