@@ -159,6 +159,47 @@ TEST_F(SleepLockTest, AnAlreadyLockedSessionSleepsAtOnce)
     EXPECT_TRUE(waitFor([&] { return lock.holdsInhibitor(); }));
 }
 
+TEST_F(SleepLockTest, ASessionThatCannotLockSleepsWithoutHoldingSleepBack)
+{
+    ASSERT_TRUE(logind.isValid());
+    scene::Node root;
+    session::SecureContainer secure(&root);
+    session::SessionController controller(&secure);
+    controller.setCanLockScreen(false);
+    controller.setOutputs({{"one", base::Rect(0, 0, 800, 600)}});
+    session::SleepLock lock(&controller, bus);
+    ASSERT_TRUE(lock.start());
+    test::runFor(std::chrono::milliseconds(50));
+    EXPECT_FALSE(lock.holdsInhibitor());
+    EXPECT_TRUE(logind.readEnds.empty());
+
+    logind.prepareForSleep(true);
+    test::runFor(std::chrono::milliseconds(50));
+    EXPECT_EQ(controller.state(), session::SessionState::Active);
+    logind.prepareForSleep(false);
+    test::runFor(std::chrono::milliseconds(50));
+    EXPECT_FALSE(lock.holdsInhibitor());
+    EXPECT_TRUE(logind.readEnds.empty());
+}
+
+TEST_F(SleepLockTest, AHeldInhibitorGoesAtOnceWhenTheSessionCannotLock)
+{
+    ASSERT_TRUE(logind.isValid());
+    scene::Node root;
+    session::SecureContainer secure(&root);
+    session::SessionController controller(&secure);
+    controller.setOutputs({{"one", base::Rect(0, 0, 800, 600)}});
+    session::SleepLock lock(&controller, bus);
+    ASSERT_TRUE(lock.start());
+    ASSERT_TRUE(waitFor([&] { return lock.holdsInhibitor(); }));
+    controller.setCanLockScreen(false);
+
+    logind.prepareForSleep(true);
+    EXPECT_TRUE(waitFor([&] { return !lock.holdsInhibitor(); }));
+    EXPECT_TRUE(waitFor([&] { return !logind.held(); }));
+    EXPECT_EQ(controller.state(), session::SessionState::Active);
+}
+
 TEST_F(SleepLockTest, LockedHintFollowsTheLock)
 {
     ASSERT_TRUE(logind.isValid());

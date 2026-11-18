@@ -682,6 +682,14 @@ TEST_F(AcceleratorTest, ALoneMetaOpensTheLaunchpadAndMetaChordsDoNot)
     EXPECT_TRUE(session.isBlocked());
 }
 
+TEST_F(AcceleratorTest, TheLockShortcutDoesNothingInASessionThatCannotLock)
+{
+    session.setCanLockScreen(false);
+    chord({KEY_LEFTMETA}, KEY_L);
+    EXPECT_FALSE(session.isBlocked());
+    EXPECT_EQ(session::SessionState::Active, session.state());
+}
+
 TEST_F(AcceleratorTest, WindowActionsApplyToTheActiveWindow)
 {
     wm::Window *window = makeWindow(base::Rect(100, 100, 300, 200));

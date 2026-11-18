@@ -70,7 +70,7 @@ bool SleepLock::start()
 
 void SleepLock::inhibit()
 {
-    if (!m_inhibiting.isNull() || m_inhibitor.isValid())
+    if (!m_session->canLockScreen() || !m_inhibiting.isNull() || m_inhibitor.isValid())
         return;
     m_inhibiting = m_manager.callAsync(
             "Inhibit",
@@ -94,6 +94,10 @@ void SleepLock::prepareForSleep(bool sleeping)
     m_sleeping = sleeping;
     if (!sleeping) {
         inhibit();
+        return;
+    }
+    if (!m_session->canLockScreen()) {
+        m_inhibitor = base::dbus::UnixFd();
         return;
     }
     // An unlock from the login screen finishes first; onSessionStateChanged

@@ -26,6 +26,7 @@
 #include "input/pointer_delegate.h"
 #include "input/seat.h"
 #include "loop_test_util.h"
+#include "scene/node.h"
 #include "scene/scene.h"
 #include "session/session_controller.h"
 #include "shm_test_util.h"
@@ -434,6 +435,26 @@ TEST_F(DisplayRuntimeTest, LastDisplayPowerOffRequestsLockBeforePowerChange)
     EXPECT_FALSE(runtime->isPoweredOff(secondId));
     EXPECT_TRUE(runtime->isSecureScanout());
     EXPECT_EQ(requests, 2);
+}
+
+TEST_F(DisplayRuntimeTest, LastDisplayPowersOffUnlockedWhenTheSessionCannotLock)
+{
+    const auto firstId = manager.applied()->physicalDisplays.front().sessionId;
+    const auto secondId = manager.applied()->physicalDisplays.back().sessionId;
+    scene::Node root;
+    session::SecureContainer secure(&root);
+    session::SessionController sessionController(&secure);
+    sessionController.setCanLockScreen(false);
+    int requests = 0;
+    runtime->lockRequested = [&] {
+        ++requests;
+        EXPECT_FALSE(sessionController.requestLock());
+    };
+    ASSERT_TRUE(runtime->setPower({}, display::NativeDisplayDelegate::PowerState::Off).succeeded);
+    EXPECT_EQ(requests, 1);
+    EXPECT_EQ(sessionController.state(), session::SessionState::Active);
+    EXPECT_TRUE(runtime->isPoweredOff(firstId));
+    EXPECT_TRUE(runtime->isPoweredOff(secondId));
 }
 
 TEST_F(DisplayRuntimeTest, GlobalPowerOffWakesOnPhysicalInputWithoutChangingLayout)

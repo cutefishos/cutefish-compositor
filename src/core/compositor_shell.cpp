@@ -11,6 +11,7 @@
 #include <cctype>
 #include <cstdarg>
 #include <cstdio>
+#include <filesystem>
 #include <utility>
 
 #include <xkbcommon/xkbcommon.h>
@@ -302,6 +303,9 @@ CompositorShell::CompositorShell(const CompositorOptions &options)
     , m_sleepLock(&m_sessionController)
     , m_compositorInstanceId(base::Uuid::generate().toString())
 {
+    // live-boot mounts the medium there; its user logs in without a password.
+    m_sessionController.setCanLockScreen(!std::filesystem::exists("/run/live/medium"));
+
     // Before any output is up: the account the login screen preselects, so its
     // wallpaper is the first one decoded.
     if (m_options.login && !auth::lastLoginUser().empty())
@@ -790,6 +794,7 @@ void CompositorShell::initShell()
         environment.createActivationToken = [activation] { return activation->createShellToken(); };
     }
     environment.theme = &m_decorationTheme;
+    environment.canLockScreen = m_sessionController.canLockScreen();
     environment.shortcutText = [this](const std::string &key, uint32_t modifiers, bool activeWindow) {
         return shortcutText(key, modifiers, activeWindow);
     };

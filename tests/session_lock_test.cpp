@@ -253,6 +253,28 @@ TEST_F(SessionLockTest, ASecondLockIsRefusedWhileBlocked)
     EXPECT_EQ(SessionState::Locked, controller.state());
 }
 
+TEST_F(SessionLockTest, ASessionThatCannotLockRefusesEveryLock)
+{
+    EXPECT_TRUE(controller.canLockScreen());
+    controller.setCanLockScreen(false);
+    EXPECT_FALSE(controller.requestLock());
+    EXPECT_EQ(SessionState::Active, controller.state());
+    EXPECT_FALSE(controller.isBlocked());
+    controller.notifyFramePresented();
+    EXPECT_EQ(SessionState::Active, controller.state());
+}
+
+TEST_F(SessionLockTest, TheLoginScreenUnlocksInASessionThatCannotLock)
+{
+    session::SessionController login {&secure, nullptr, SessionState::Login};
+    login.setCanLockScreen(false);
+    ASSERT_TRUE(login.requestUnlock());
+    login.notifyFramePresented();
+    EXPECT_EQ(SessionState::Active, login.state());
+    EXPECT_FALSE(login.requestLock());
+    EXPECT_EQ(SessionState::Active, login.state());
+}
+
 TEST_F(SessionLockTest, ALockDuringTheUnlockCancelsItAndCoversAtOnce)
 {
     lockFully();

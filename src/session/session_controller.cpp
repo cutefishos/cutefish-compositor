@@ -77,6 +77,8 @@ void SessionController::setState(SessionState state)
 
 bool SessionController::requestLock()
 {
+    if (!m_canLockScreen)
+        return false;
     // A lock asked for while an unlock is under way cancels it: the lock
     // screen comes back at once and has to be authenticated again.
     if (m_state == SessionState::Unlocking && m_unlockingFrom == SessionState::Locked) {

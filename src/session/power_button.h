@@ -13,7 +13,8 @@ namespace cutefish::session {
 class SessionController;
 
 // A tap on the power button locks the session; the lock screen then goes dark on
-// its own idle timeout. Holding it is left to the firmware's forced power-off.
+// its own idle timeout. In a session that cannot lock the tap does nothing.
+// Holding it is left to the firmware's forced power-off.
 // logind is asked to leave the key alone, or it would power the machine off.
 // Upstream: ash/system/power/power_button_controller.cc, the tablet-mode tap.
 class PowerButton : public input::EventSink

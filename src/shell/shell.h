@@ -74,6 +74,9 @@ struct ShellEnvironment {
     // The compositor's appearance: dark mode, accent and corners, which the
     // toolkit's theme follows. Null keeps the toolkit's light theme.
     decoration::Theme *theme = nullptr;
+    // SessionController::canLockScreen(); false leaves Lock screen out of the
+    // user menu.
+    bool canLockScreen = true;
     // The session's services.conf, for the icon theme and the font; empty
     // reads the user's.
     std::string servicesSettings;
@@ -114,6 +117,7 @@ public:
     wm::WindowManager *windowManager() const { return m_environment.windowManager; }
     input::Seat *seat() const { return m_environment.seat; }
     base::dbus::Connection *bus() const { return m_environment.bus; }
+    bool canLockScreen() const { return m_environment.canLockScreen; }
     // ShellEnvironment::shortcutText, empty without one.
     std::string shortcutText(const std::string &key, uint32_t modifiers, bool activeWindow) const
     {
