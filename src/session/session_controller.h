@@ -55,11 +55,6 @@ public:
 
     SecureContainer *secureContainer() const { return m_secure; }
 
-    // False for a user who has no password to unlock with, as on the live
-    // medium. Every lock request is refused then.
-    bool canLockScreen() const { return m_canLockScreen; }
-    void setCanLockScreen(bool canLock) { m_canLockScreen = canLock; }
-
     bool requestLock();
 
     void notifyOutputPresented(std::string_view outputName);
@@ -101,7 +96,6 @@ private:
     std::set<std::string, std::less<>> m_presentedOutputs;
     SessionState m_state = SessionState::Active;
     SessionState m_unlockingFrom = SessionState::Locked;
-    bool m_canLockScreen = true;
 };
 
 } // namespace cutefish::session

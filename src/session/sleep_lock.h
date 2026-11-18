@@ -15,8 +15,7 @@ class SessionController;
 // for: a menu, the lid, idle or systemctl. A logind delay inhibitor holds the
 // sleep back until the lock is on every output, so waking never shows the
 // desktop. Upstream: ash/system/power/power_event_observer.cc, which delays
-// suspend the same way until the lock screen has been composited. A session
-// that cannot lock holds nothing back and sleeps unlocked.
+// suspend the same way until the lock screen has been composited.
 //
 // It also keeps logind's LockedHint on the session in step with the lock, as
 // Ash tells session_manager that the lock screen was shown or dismissed.

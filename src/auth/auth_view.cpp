@@ -1192,6 +1192,64 @@ private:
     RaisedLabel *m_label;
 };
 
+// In the password field's place for a user who has no password to give:
+// Enter unlocks.
+class UnlockPrompt final : public ui::View
+{
+public:
+    UnlockPrompt()
+    {
+        m_label = addChild<RaisedLabel>(13, 400, kWhite, kBlack.withAlpha(0.3));
+        m_label->setElidedCentred();
+        retranslate();
+    }
+
+    std::function<void()> onAccepted;
+
+    void retranslate()
+    {
+        m_label->setText(tr("Press Enter to unlock"));
+        requestLayout();
+    }
+
+    // The widest the text may run, centred on the field: a translation
+    // longer than the field takes the panel's width less its margins.
+    void setAvailableWidth(double width)
+    {
+        if (width == m_availableWidth)
+            return;
+        m_availableWidth = width;
+        requestLayout();
+    }
+
+    // The password field's height, so the column does not move.
+    ui::SizeF sizeHint() const override { return {0, 32}; }
+
+    bool acceptsFocus() const override { return true; }
+
+protected:
+    void layout() override
+    {
+        const ui::SizeF label = m_label->sizeHint();
+        const double width = std::max(geometry().width, std::min(std::ceil(label.width), m_availableWidth));
+        m_label->setGeometry({centeredStart(geometry().width, width), centeredStart(geometry().height, label.height),
+                              width, label.height});
+    }
+
+    bool keyPress(const ui::KeyEvent &event) override
+    {
+        if ((event.key != XKB_KEY_Return && event.key != XKB_KEY_KP_Enter) || event.repeat)
+            return false;
+        if (onAccepted)
+            onAccepted();
+        return true;
+    }
+
+private:
+    RaisedLabel *m_label;
+    double m_availableWidth = 0;
+};
+
 AuthScreen::AuthScreen(ui::Window *window, AuthController *controller)
     : m_window(window)
     , m_controller(controller)
@@ -1227,6 +1285,11 @@ AuthScreen::AuthScreen(ui::Window *window, AuthController *controller)
     m_password->setName("password-field");
     m_password->setLayoutHints(centred(true));
     m_password->setPlaceholder(tr("Enter Password"));
+    m_password->setVisible(m_controller->passwordRequired());
+    m_unlock = m_pod->addChild<UnlockPrompt>();
+    m_unlock->setName("unlock-prompt");
+    m_unlock->setLayoutHints(centred(true));
+    m_unlock->setVisible(!m_controller->passwordRequired());
     m_error = m_pod->addChild<ErrorLabel>(window);
     m_error->setName("error");
     m_error->setLayoutHints(centred(true));
@@ -1264,6 +1327,7 @@ AuthScreen::AuthScreen(ui::Window *window, AuthController *controller)
     m_password->onAccepted = [this](const std::string &password) {
         m_controller->authenticate(password);
     };
+    m_unlock->onAccepted = [this] { m_controller->unlockWithoutPassword(); };
     // Any edit means the user has moved on from the rejection; the error goes
     // away without waiting for another attempt.
     m_password->onEdited = [this] {
@@ -1336,6 +1400,7 @@ void AuthScreen::retranslate()
 {
     m_userName->retranslate();
     m_password->setPlaceholder(tr("Enter Password"));
+    m_unlock->retranslate();
     tick();
 }
 
@@ -1356,6 +1421,10 @@ void AuthScreen::focusPassword()
 {
     if (m_pickerOpen)
         return;
+    if (!m_controller->passwordRequired()) {
+        m_unlock->setFocus();
+        return;
+    }
     // The keyboard is the compositor's to give; when it arrives it belongs in
     // the password field and nowhere else.
     m_password->input()->setFocus();
@@ -1469,6 +1538,7 @@ void AuthScreen::layout()
                          time.height});
 
     const double podWidth = std::min(width - 48, 240.0);
+    m_unlock->setAvailableWidth(width - 48);
     const double podHeight = m_pod->verticalExtent(podWidth).preferred;
     m_pod->setGeometry({centeredStart(width, podWidth), height - 64 - podHeight, podWidth, podHeight});
 

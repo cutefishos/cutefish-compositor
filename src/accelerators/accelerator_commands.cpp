@@ -49,8 +49,7 @@ bool canCycleMru(const CommandContext &context)
 
 bool canLock(const CommandContext &context)
 {
-    return context.session && context.session->canLockScreen()
-            && !context.session->isBlocked();
+    return context.session && !context.session->isBlocked();
 }
 
 bool canWindowSnap(const CommandContext &context)

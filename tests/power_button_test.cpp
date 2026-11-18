@@ -79,18 +79,6 @@ TEST_F(PowerButtonTest, ATapLocks)
     EXPECT_TRUE(next.keys.empty());
 }
 
-TEST_F(PowerButtonTest, ATapDoesNothingInASessionThatCannotLock)
-{
-    ASSERT_TRUE(logind.isValid());
-    controller.setCanLockScreen(false);
-    ASSERT_TRUE(button.start());
-    ASSERT_TRUE(waitFor([&] { return button.holdsInhibitor(); }));
-
-    tap();
-    EXPECT_EQ(controller.state(), session::SessionState::Active);
-    EXPECT_TRUE(next.keys.empty());
-}
-
 TEST_F(PowerButtonTest, TheKeyPassesOnUntilLogindLetsGo)
 {
     button.onKey(input::Timestamp {}, KEY_POWER, true);

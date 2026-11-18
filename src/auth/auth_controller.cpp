@@ -262,14 +262,15 @@ std::string AuthController::iconFor(const std::string &userName) const
 
 void AuthController::start()
 {
-    m_backend->start();
+    if (passwordRequired())
+        m_backend->start();
 }
 
 void AuthController::authenticate(std::string password)
 {
     Secret secret(password);
     wipeString(password);
-    if (m_state == Authenticating || m_state == Succeeded)
+    if (!passwordRequired() || m_state == Authenticating || m_state == Succeeded)
         return;
     setState(Authenticating);
     if (m_sessionIndex >= 0 && m_sessionIndex < int(m_sessions.size()))
@@ -277,10 +278,19 @@ void AuthController::authenticate(std::string password)
     m_backend->authenticate(m_userName, std::move(secret));
 }
 
+void AuthController::unlockWithoutPassword()
+{
+    if (passwordRequired() || m_accepted)
+        return;
+    m_accepted = true;
+    setState(Succeeded);
+    authenticationSucceeded();
+}
+
 void AuthController::reset()
 {
     // A success is not something the user can type their way out of.
-    if (m_state == Succeeded || m_state == Authenticating)
+    if (!passwordRequired() || m_state == Succeeded || m_state == Authenticating)
         return;
     m_backend->reset();
     setState(Idle);

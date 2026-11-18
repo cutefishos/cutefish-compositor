@@ -331,6 +331,8 @@ set_tests_properties(panel_gpu_pixel_test PROPERTIES ENVIRONMENT "LIBGL_ALWAYS_S
 cutefish_add_test(switcher_gpu_pixel_test cutefish-switcher cutefish-render)
 set_tests_properties(switcher_gpu_pixel_test PROPERTIES ENVIRONMENT "LIBGL_ALWAYS_SOFTWARE=1;EGL_PLATFORM=surfaceless")
 cutefish_add_test(auth_ui_test DBUS cutefish-auth)
+# The catalogs, for the lock screen's longest translations.
+target_compile_definitions(auth_ui_test PRIVATE CUTEFISH_PO_DIR="${PROJECT_SOURCE_DIR}/po")
 cutefish_add_test(greetd_backend_test cutefish-auth)
 cutefish_add_test(screen_saver_service_test DBUS cutefish-session)
 cutefish_add_test(applications_service_test DBUS cutefish-session)

@@ -2,7 +2,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: cutefish-compositor\n"
 "Report-Msgid-Bugs-To: https://github.com/cutefishos\n"
-"POT-Creation-Date: 2026-11-15 18:54+0800\n"
+"POT-Creation-Date: 2026-11-18 12:59+0800\n"
 "PO-Revision-Date: 2026-11-13 16:33+0800\n"
 "Last-Translator: \n"
 "Language-Team: \n"
@@ -15,6 +15,10 @@ msgstr ""
 #: src/auth/auth_view.cpp
 msgid "User name"
 msgstr "用戶名稱"
+
+#: src/auth/auth_view.cpp
+msgid "Press Enter to unlock"
+msgstr "按 Enter 鍵解鎖"
 
 #: src/auth/auth_view.cpp
 msgid "Enter Password"

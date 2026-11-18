@@ -28,9 +28,11 @@
 #include <cstdlib>
 #include <fcntl.h>
 #include <filesystem>
+#include <fstream>
 #include <linux/input-event-codes.h>
 #include <memory>
 #include <optional>
+#include <sstream>
 #include <sys/stat.h>
 #include <tuple>
 
@@ -38,6 +40,7 @@
 
 #include "ui/bitmap.h"
 #include "ui/embedded_window.h"
+#include "ui/label.h"
 #include "ui/text_field.h"
 #include "ui/view.h"
 using namespace cutefish;
@@ -123,6 +126,27 @@ const ConfigurationHome configurationHome;
 void withoutNetworkManager()
 {
     networkmanager::Client::setInstanceBus(base::dbus::Connection::session(core::mainLoop()));
+}
+
+// `msgid`'s translation in every catalog that has one.
+std::vector<std::string> translationsOf(const std::string &msgid)
+{
+    std::vector<std::string> translations;
+    const std::string key = "msgid \"" + msgid + "\"\nmsgstr \"";
+    for (const auto &entry : std::filesystem::directory_iterator(CUTEFISH_PO_DIR)) {
+        if (entry.path().extension() != ".po")
+            continue;
+        std::ifstream file(entry.path());
+        std::stringstream contents;
+        contents << file.rdbuf();
+        const std::string text = contents.str();
+        const size_t found = text.find(key);
+        if (found == std::string::npos)
+            continue;
+        const size_t start = found + key.size();
+        translations.push_back(text.substr(start, text.find('"', start) - start));
+    }
+    return translations;
 }
 
 } // namespace
@@ -414,6 +438,189 @@ TEST(AuthUiTest, SubmittedPasswordStaysUntilRejected)
     EXPECT_EQ(field->text(), std::string("b"));
     EXPECT_TRUE(!field->isEnabled());
     seat.shutdown();
+}
+
+TEST(AuthUiTest, WithoutAPasswordEnterUnlocksAndTheBackendIsNeverAsked)
+{
+    scene::Node root;
+    session::SecureContainer secure(&root);
+    session::SessionController controller(&secure);
+    controller.setOutputs({{"one", base::Rect(0, 0, 800, 600)}});
+    scene::Node applications;
+    compositor::Compositor compositor(&applications);
+    input::Seat seat(&compositor);
+    seat.setSessionGate(&controller);
+    input::InputManager input(&seat);
+    FakeBackend backend;
+    auth::AuthUi ui(&controller, seat.xkbTracker(), &backend);
+    ui.setPasswordRequired(false);
+    const auto press = [&](int key) {
+        input.onKey({}, key, true);
+        input.onKey({}, key, false);
+    };
+
+    for (int enter : {KEY_ENTER, KEY_KPENTER}) {
+        ASSERT_TRUE(controller.requestLock());
+        controller.notifyFramePresented();
+        ui.refresh();
+        ASSERT_EQ(controller.state(), session::SessionState::Locked);
+        ui::View *screen = ui.window()->contentView();
+        ui::View *prompt = findView(screen, "unlock-prompt");
+        ASSERT_TRUE(prompt);
+        EXPECT_TRUE(prompt->isVisible());
+        EXPECT_FALSE(findView(screen, "password-field")->isVisible());
+        EXPECT_EQ(ui.focusView(), prompt);
+        // No field, so no blur behind one.
+        EXPECT_TRUE(ui.fieldBounds().isEmpty());
+
+        press(KEY_A);
+        press(KEY_SPACE);
+        press(KEY_ESC);
+        press(KEY_TAB);
+        EXPECT_EQ(controller.state(), session::SessionState::Locked);
+        EXPECT_EQ(ui.focusView(), prompt);
+
+        press(enter);
+        EXPECT_EQ(controller.state(), session::SessionState::Unlocking);
+        controller.notifyFramePresented();
+        EXPECT_EQ(controller.state(), session::SessionState::Active);
+        ui.refresh();
+    }
+    EXPECT_EQ(backend.startCount, 0);
+    EXPECT_EQ(backend.authenticateCount, 0);
+    EXPECT_EQ(backend.resetCount, 0);
+    EXPECT_EQ(backend.acceptCount, 0);
+    seat.shutdown();
+}
+
+TEST(AuthUiTest, WithoutAPasswordAClickWhereTheFieldWasDoesNotUnlock)
+{
+    scene::Node root;
+    session::SecureContainer secure(&root);
+    session::SessionController controller(&secure);
+    controller.setOutputs({{"one", base::Rect(0, 0, 800, 600)}});
+    FakeBackend backend;
+    auth::AuthUi ui(&controller, nullptr, &backend);
+    ui.setPasswordRequired(false);
+    controller.requestLock();
+    controller.notifyFramePresented();
+    ui.refresh();
+    ui.window()->updateLayout();
+    ui::View *prompt = findView(ui.window()->contentView(), "unlock-prompt");
+    ASSERT_TRUE(prompt);
+    // The 480-wide panel is centred on the 800-wide output.
+    const base::PointF centre = panelRect(prompt).center() + base::PointF(160, 0);
+    ui.onPointerButton({}, centre, BTN_LEFT, true);
+    ui.onPointerButton({}, centre, BTN_LEFT, false);
+    EXPECT_EQ(controller.state(), session::SessionState::Locked);
+    EXPECT_EQ(ui.focusView(), prompt);
+    EXPECT_EQ(backend.authenticateCount, 0);
+}
+
+// The text replaces the field in its slot: the same box, and its ink centred
+// on the field's centre, wherever it runs.
+TEST(AuthUiTest, TheUnlockPromptSitsWhereThePasswordFieldWas)
+{
+    for (double scale : {1.0, 2.0}) {
+        scene::Node root;
+        session::SecureContainer secure(&root);
+        session::SessionController controller(&secure);
+        controller.setOutputs({{"one", base::Rect(0, 0, 800, 600), scale}});
+
+        FakeBackend withBackend;
+        auth::AuthUi withPassword(&controller, nullptr, &withBackend);
+        withPassword.refresh();
+        ASSERT_FALSE(withPassword.renderImage().isNull());
+        const base::RectF field = withPassword.fieldBounds();
+        ASSERT_FALSE(field.isEmpty());
+
+        FakeBackend withoutBackend;
+        auth::AuthUi withoutPassword(&controller, nullptr, &withoutBackend);
+        withoutPassword.setPasswordRequired(false);
+        withoutPassword.refresh();
+        const auto image = withoutPassword.renderImage();
+        ASSERT_FALSE(image.isNull());
+        ui::View *prompt = findView(withoutPassword.window()->contentView(), "unlock-prompt");
+        ASSERT_TRUE(prompt);
+        const base::RectF box = panelRect(prompt);
+        EXPECT_EQ(box, field);
+
+        // The white text, not its shadow: red in premultiplied ARGB.
+        double weight = 0;
+        int left = image.width(), right = -1, top = image.height(), bottom = -1;
+        for (int y = int(std::floor(field.y() * scale)); y < int(std::ceil(field.bottom() * scale)); ++y) {
+            for (int x = 0; x < image.width(); ++x) {
+                const double red = double((image.pixel(x, y) >> 16) & 0xff) / 255;
+                if (red <= 0)
+                    continue;
+                weight += red;
+                if (red > 0.5) {
+                    left = std::min(left, x);
+                    right = std::max(right, x);
+                    top = std::min(top, y);
+                    bottom = std::max(bottom, y);
+                }
+            }
+        }
+        ASSERT_GT(weight, 0);
+        const double fieldX = field.center().x() * scale;
+        const double fieldY = field.center().y() * scale;
+        const double inkX = (left + right + 1) / 2.0;
+        const double inkY = (top + bottom + 1) / 2.0;
+        EXPECT_LE(std::abs(inkX - fieldX), 0.5 * scale + 0.5);
+        EXPECT_LE(std::abs(inkY - fieldY), 0.5 * scale + 0.5);
+    }
+}
+
+TEST(AuthUiTest, TheUnlockPromptFitsInEveryLanguage)
+{
+    const std::vector<std::string> texts = translationsOf("Press Enter to unlock");
+    ASSERT_EQ(texts.size(), 16u);
+    for (double scale : {1.0, 2.0}) {
+        scene::Node root;
+        session::SecureContainer secure(&root);
+        session::SessionController controller(&secure);
+        controller.setOutputs({{"one", base::Rect(0, 0, 800, 600), scale}});
+        FakeBackend backend;
+        auth::AuthUi ui(&controller, nullptr, &backend);
+        ui.setPasswordRequired(false);
+        ui.refresh();
+        ui::View *prompt = findView(ui.window()->contentView(), "unlock-prompt");
+        ASSERT_TRUE(prompt && !prompt->children().empty());
+        auto *label = dynamic_cast<ui::Label *>(prompt->children().front().get());
+        ASSERT_TRUE(label);
+        for (const std::string &text : texts) {
+            label->setText(text);
+            ui.window()->updateLayout();
+            EXPECT_LE(label->sizeHint().width, label->geometry().width) << text << " at " << scale;
+            EXPECT_NEAR(label->geometry().x + label->geometry().width / 2, prompt->geometry().width / 2, 0.5)
+                    << text << " at " << scale;
+        }
+    }
+}
+
+TEST(AuthUiTest, TheLoginScreenAsksForAPasswordWhateverTheLockDoes)
+{
+    scene::Node root;
+    session::SecureContainer secure(&root);
+    session::SessionController controller(&secure, nullptr, session::SessionState::Login);
+    controller.setOutputs({{"one", base::Rect(0, 0, 800, 600)}});
+    FakeBackend backend;
+    auth::AuthUi ui(&controller, nullptr, &backend);
+    ui.setPasswordRequired(false);
+    ui.refresh();
+    ui::View *screen = ui.window()->contentView();
+    EXPECT_TRUE(findView(screen, "password-field")->isVisible());
+    EXPECT_FALSE(findView(screen, "unlock-prompt")->isVisible());
+    EXPECT_TRUE(focusedField(ui));
+    EXPECT_EQ(backend.startCount, 1);
+    ui.controller()->unlockWithoutPassword();
+    EXPECT_EQ(ui.controller()->state(), auth::AuthController::Idle);
+    ui.controller()->authenticate("valid");
+    EXPECT_EQ(backend.authenticateCount, 1);
+    backend.succeed();
+    EXPECT_EQ(backend.acceptCount, 1);
+    EXPECT_EQ(controller.state(), session::SessionState::Login);
 }
 
 TEST(AuthUiTest, PanelIsDrawnAtTheOutputDensity)

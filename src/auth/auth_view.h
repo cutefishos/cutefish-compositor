@@ -29,6 +29,7 @@ class ErrorLabel;
 class PasswordField;
 class RaisedLabel;
 class UserGrid;
+class UnlockPrompt;
 class UserNameField;
 class UserView;
 
@@ -48,6 +49,7 @@ public:
     // Whether the panel has the keyboard: the password field looks focused
     // and its caret blinks only then.
     void setKeyboardFocused(bool focused);
+    // The password field, or the unlock prompt where no password is asked.
     void focusPassword();
 
     // The password field in panel coordinates, for the blur behind it; it
@@ -84,6 +86,7 @@ private:
     UserView *m_user = nullptr;
     UserNameField *m_userName = nullptr;
     PasswordField *m_password = nullptr;
+    UnlockPrompt *m_unlock = nullptr;
     ErrorLabel *m_error = nullptr;
     ChoiceMenu *m_sessions = nullptr;
     UserGrid *m_picker = nullptr;

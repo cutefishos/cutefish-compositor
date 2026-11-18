@@ -73,6 +73,10 @@ public:
 
     AuthController *controller() const { return m_controller.get(); }
 
+    // Off for a user who has no password to give; the next lock screen asks
+    // for Enter instead. The login screen always asks for one.
+    void setPasswordRequired(bool required) { m_passwordRequired = required; }
+
     // Whether a refresh() is queued. Nothing queues one while the panel is idle.
     bool isRefreshPending() const { return m_refresh.isActive(); }
 
@@ -143,6 +147,7 @@ private:
     std::string m_panelOutput;
     input::CursorShape m_cursorShape = input::CursorShape::Default;
     bool m_started = false;
+    bool m_passwordRequired = true;
     std::unique_ptr<AuthBackend> m_backend;
     std::unique_ptr<AuthController> m_controller;
     std::vector<base::Subscription> m_controllerSubscriptions;

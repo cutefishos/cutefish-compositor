@@ -283,6 +283,7 @@ void AuthUi::refresh()
         m_controller = std::make_unique<AuthController>(
                 login ? AuthController::Login : AuthController::Lock,
                 m_injectedBackend ? m_injectedBackend : m_backend.get());
+        m_controller->setPasswordRequired(m_passwordRequired);
         m_controllerSubscriptions.push_back(
                 m_controller->stateChanged.connect([this] { m_repeatTimer.stop(); }));
         // The login screen shows the wallpaper of the account picked.

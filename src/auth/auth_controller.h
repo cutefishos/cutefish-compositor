@@ -55,6 +55,11 @@ public:
 
     bool canSelectUser() const { return m_mode == Login; }
 
+    // Lock only: off for a user who has no password to give, as on the live
+    // medium. Enter then unlocks, and the backend is never asked.
+    bool passwordRequired() const { return m_mode == Login || m_passwordRequired; }
+    void setPasswordRequired(bool required) { m_passwordRequired = required; }
+
     // Login only: the accounts to log in as, by display name, and which one.
     // With a single account there is nothing to pick; with none found the
     // name is typed instead.
@@ -82,6 +87,8 @@ public:
     void start();
     // Wipes the password it is given once it holds it as a Secret.
     void authenticate(std::string password);
+    // Without a password required: succeeds as an accepted password does.
+    void unlockWithoutPassword();
     // Back to Idle: clears the error. Called when the user
     // starts typing again after a rejection.
     void reset();
@@ -118,6 +125,7 @@ private:
     std::vector<std::string> m_userIconStamps;
     std::vector<LoginSession> m_sessions;
     int m_sessionIndex = -1;
+    bool m_passwordRequired = true;
     // accept() is irreversible - it unlocks the session or starts one - so it
     // is guarded rather than merely called from a single place.
     bool m_accepted = false;

@@ -257,3 +257,48 @@ TEST(AuthControllerTest, AuthenticateWhileBusyIsIgnored)
     EXPECT_EQ(backend.authenticateCount, 1);
     EXPECT_EQ(backend.lastSecret, "first");
 }
+
+// A lock for a user who has no password to give: the unlock is the
+// controller's own, once, and the backend hears nothing of it.
+TEST(AuthControllerTest, WithoutAPasswordTheLockUnlocksOnceWithoutTheBackend)
+{
+    FakeBackend backend;
+    AuthController controller(AuthController::Lock, &backend);
+    controller.setPasswordRequired(false);
+    EXPECT_FALSE(controller.passwordRequired());
+    int successes = 0;
+    auto succeeded = controller.authenticationSucceeded.connect([&] { ++successes; });
+
+    controller.start();
+    controller.authenticate("anything");
+    controller.reset();
+    EXPECT_EQ(controller.state(), AuthController::Idle);
+
+    controller.unlockWithoutPassword();
+    controller.unlockWithoutPassword();
+    EXPECT_EQ(controller.state(), AuthController::Succeeded);
+    EXPECT_EQ(successes, 1);
+    EXPECT_EQ(backend.startCount, 0);
+    EXPECT_EQ(backend.authenticateCount, 0);
+    EXPECT_EQ(backend.resetCount, 0);
+    EXPECT_EQ(backend.acceptCount, 0);
+}
+
+TEST(AuthControllerTest, APasswordStaysRequiredAtLoginAndWhereAsked)
+{
+    FakeBackend loginBackend;
+    AuthController login(AuthController::Login, &loginBackend);
+    login.setPasswordRequired(false);
+    EXPECT_TRUE(login.passwordRequired());
+    login.unlockWithoutPassword();
+    EXPECT_EQ(login.state(), AuthController::Idle);
+    login.authenticate("hunter2");
+    EXPECT_EQ(loginBackend.authenticateCount, 1);
+
+    FakeBackend lockBackend;
+    AuthController lock(AuthController::Lock, &lockBackend);
+    EXPECT_TRUE(lock.passwordRequired());
+    lock.unlockWithoutPassword();
+    EXPECT_EQ(lock.state(), AuthController::Idle);
+    EXPECT_EQ(lockBackend.acceptCount, 0);
+}

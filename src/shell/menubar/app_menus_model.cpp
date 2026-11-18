@@ -114,12 +114,10 @@ void AppMenusModel::buildUserMenu()
             power->request(PowerActions::Shutdown);
     });
     menu.addSeparator();
-    if (shell->canLockScreen()) {
-        menu.addItem(tr("Lock screen"), [power] {
-            if (power)
-                power->lockScreen();
-        });
-    }
+    menu.addItem(tr("Lock screen"), [power] {
+        if (power)
+            power->lockScreen();
+    });
     menu.addItem(tr("Log out"), [power] {
         if (power)
             power->request(PowerActions::Logout);
