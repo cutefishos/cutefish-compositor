@@ -161,6 +161,8 @@ public:
     // session filters keys while the application window keeps activation. It
     // lasts until the window is hidden or gone.
     void setKeyboardGrab(Window *window);
+    // Drop this window's grab without unmapping it (e.g. while fading out).
+    void clearKeyboardGrab(Window *window);
     Window *keyboardGrab() const { return m_keyboardGrab; }
 
     // Sends the paste shortcut to the application window holding the keyboard:

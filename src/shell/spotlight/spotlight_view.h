@@ -15,6 +15,7 @@
 #include "shell/spotlight/spotlight_search.h"
 #include "ui/bitmap.h"
 #include "ui/menu.h"
+#include "ui/scroller.h"
 #include "ui/view.h"
 
 namespace cutefish::ui {
@@ -24,7 +25,7 @@ class Path;
 
 namespace cutefish::shell {
 
-class SpotlightView : public ui::View
+class SpotlightView : public ui::View, private ui::Scroller::Target
 {
 public:
     using Mode = Spotlight::Mode;
@@ -38,6 +39,8 @@ public:
     void setMode(Mode mode);
     void reset();
     void focusSearch();
+    void setExpansion(double value);
+    void stopScrolling();
     bool idle() const;
     int preferredHeight() const;
     ui::Path glassShape(int width, int height) const;
@@ -64,6 +67,7 @@ protected:
 
 private:
     class Field;
+    class WheelAnimation;
     struct Result {
         Mode type;
         std::string title;
@@ -90,6 +94,12 @@ private:
         bool active;
         ui::RectF rect = {};
     };
+    struct ResultIcon {
+        ui::ImageView *view;
+        int result = -1;
+        std::string source;
+        std::string previewKey;
+    };
 
     bool grid() const { return m_mode == Mode::Applications && !m_list; }
     bool key(const ui::KeyEvent &event, Field *field);
@@ -112,11 +122,18 @@ private:
     int hitResult(ui::PointF point) const;
     int hitMode(ui::PointF point) const;
     double fieldWidth(double width) const;
+    ui::RectF modeButton(double width, int index) const;
+    std::string modeModifierLabel() const;
     double bodyTop() const;
-    void clampScroll();
+    ui::Scroller::Axis horizontalAxis() const override;
+    ui::Scroller::Axis verticalAxis() const override;
+    ui::PointF position() const override { return {m_chipScroll, m_scroll}; }
+    void applyPosition(ui::PointF position) override;
+    ui::PointF boundedPosition(ui::PointF position) const;
+    void fadeBody();
     void rememberApp(const std::string &id);
     void openTarget(const std::string &target);
-    void updateClipboardPreview(const Result &result, ui::ImageView *view, ui::RectF box);
+    bool updateClipboardPreview(const Result &result, ResultIcon &icon);
 
     Shell &m_shell;
     Dock *m_dock;
@@ -128,7 +145,7 @@ private:
     Field *m_subject;
     Field *m_message;
     ui::View *m_icons;
-    std::vector<ui::ImageView *> m_images;
+    std::vector<ResultIcon> m_images;
     std::vector<Result> m_results;
     std::vector<Tile> m_tiles;
     std::vector<Section> m_sections;
@@ -136,6 +153,10 @@ private:
     std::vector<spotlight::File> m_files;
     std::vector<std::string> m_recent;
     std::vector<base::Subscription> m_subscriptions;
+    std::unique_ptr<ui::Scroller> m_scroller;
+    std::unique_ptr<WheelAnimation> m_wheel;
+    std::unique_ptr<ui::Animation> m_bodyFade;
+    ui::PointF m_wheelTarget;
     base::Job m_indexJob;
     base::Timer m_queryTimer;
     std::chrono::steady_clock::time_point m_indexed;
@@ -152,6 +173,10 @@ private:
     std::string m_dragIcon;
     ui::PointF m_press;
     double m_bodyHeight = 0;
+    double m_tilesWidth = 0;
+    double m_chipsWidth = 0;
+    double m_expansion = 0;
+    double m_bodyOpacity = 1;
     double m_scroll = 0;
     double m_chipScroll = 0;
     bool m_list = false;

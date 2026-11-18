@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <cmath>
 
+#include "compositor/surface.h"
 #include "core/main_loop.h"
 #include "input/seat.h"
 #include "shell/clipboard/clipboard_history.h"
@@ -28,15 +29,20 @@ Spotlight::Spotlight(Shell *shell, Dock *dock, std::unique_ptr<ClipboardHistory>
     m_view->onPaint = [this] { applyGlass(); };
     m_window->setContentView(std::move(view));
     m_window->window()->setBackgroundColor(ui::Color{0, 0, 0, 0});
+    m_motion = std::make_unique<ui::Animation>(m_window->window());
+    m_motion->onFinished = [this] {
+        if (m_closing)
+            finishHide();
+    };
     m_window->onCloseRequested = [this] { hide(); };
     m_window->onKeyboardFocusChanged = [this](bool focused) {
         if (focused) {
             m_hadKeyboard = true;
-        } else if (m_hadKeyboard && m_window->isShown()) {
+        } else if (m_hadKeyboard && !m_closing && m_window->isShown()) {
             // A popup takes the keyboard from its parent, too. Let it map first.
             std::weak_ptr<bool> alive = m_alive;
             core::mainLoop()->post([this, alive] {
-                if (!alive.expired() && m_hadKeyboard && m_window->isShown() && !m_view->menuOpen() && !m_view->dragging()
+                if (!alive.expired() && m_hadKeyboard && !m_closing && m_window->isShown() && !m_view->menuOpen() && !m_view->dragging()
                     && m_shell->seat() && m_shell->seat()->focusedSurface() != m_window->surface())
                     hide();
             });
@@ -45,7 +51,6 @@ Spotlight::Spotlight(Shell *shell, Dock *dock, std::unique_ptr<ClipboardHistory>
     m_clipboard->togglePicker = [this] { toggle(Mode::Clipboard); };
     m_clipboard->closePicker = [this] { hide(); };
     m_clipboard->sendPaste = [this] { m_shell->windowManager()->sendPaste(); };
-    m_motion.onTimeout = [this] { place(); };
     m_retention.onTimeout = [this] {
         constexpr auto retention = std::chrono::hours(8);
         const auto cutoff = std::chrono::system_clock::now() - retention;
@@ -59,7 +64,7 @@ Spotlight::Spotlight(Shell *shell, Dock *dock, std::unique_ptr<ClipboardHistory>
         }
     }));
     m_subscriptions.push_back(shell->outputsChanged.connect([this] {
-        if (m_window->isShown())
+        if (m_window->isShown() && !m_closing)
             fit();
     }));
 }
@@ -73,6 +78,7 @@ Spotlight::~Spotlight()
     if (m_legacy)
         m_shell->bus()->releaseName("org.cutefish.Launchpad");
     m_window->onKeyboardFocusChanged = nullptr;
+    m_motion.reset();
     m_window.reset();
 }
 
@@ -99,23 +105,36 @@ void Spotlight::registerServices()
 
 void Spotlight::show(Mode mode)
 {
+    if (!m_shell->windowManager()->allowsActivation())
+        return;
     const bool opening = !m_window->isShown();
+    const bool reopening = m_closing;
+    m_closing = false;
     if (opening) {
         const Shell::Output *output = m_shell->seat()
                 ? m_shell->outputAt(m_shell->seat()->cursorPosition().toPoint()) : nullptr;
         m_output = output ? output->name : std::string();
         m_hadKeyboard = false;
     }
-    m_view->setMode(mode);
+    m_preparing = true;
+    if (!reopening || mode != m_view->mode())
+        m_view->setMode(mode);
+    m_preparing = false;
     fit();
-    if (opening && !m_target.isEmpty()) {
-        m_initialHeight = std::min(m_target.height(), SpotlightView::kHeader + 46);
-        m_initialYOffset = -8;
-        m_motionStart = std::chrono::steady_clock::now();
-        m_motion.start(std::chrono::milliseconds(16));
-        place();
+    if (m_target.isEmpty())
+        return;
+    if (opening) {
+        auto entry = m_target.translated(0, -7);
+        entry.setHeight(std::min(entry.height(), SpotlightView::kHeader + 36));
+        place(entry, 0, m_expanded);
+        m_window->setInputRegion(m_view->inputRegion(entry.width(), entry.height()));
+        m_window->show();
+        animateTo(m_target, 1, m_expanded);
+    } else if (reopening) {
+        const auto size = m_window->size();
+        m_window->setInputRegion(m_view->inputRegion(size.width(), size.height()));
+        animateTo(m_target, 1, m_view->idle() ? 0 : 1);
     }
-    m_window->show();
     m_window->activate();
     m_view->focusSearch();
 }
@@ -124,16 +143,35 @@ void Spotlight::hide()
 {
     if (!m_window->isShown())
         return;
+    if (!m_shell->windowManager()->allowsActivation()) {
+        finishHide();
+        return;
+    }
+    if (m_closing)
+        return;
+    m_closing = true;
     m_hadKeyboard = false;
-    m_motion.stop();
     m_view->closeMenu();
+    m_view->stopScrolling();
+    m_window->setInputRegion(base::Region());
+    m_shell->windowManager()->clearKeyboardGrab(m_window->wmWindow());
+    // Do not resize the focused content on dismissal. Leave the same glass
+    // silhouette in place as it lifts and fades, without intercepting input.
+    animateTo(m_window->geometry().translated(0, -6), 0, m_expanded, true);
+}
+
+void Spotlight::finishHide()
+{
+    m_hadKeyboard = false;
+    m_motion->stop();
     m_window->hide();
+    m_closing = false;
     m_view->reset();
 }
 
 void Spotlight::toggle(Mode mode)
 {
-    if (m_window->isShown() && (mode == Mode::Search || mode == m_view->mode()))
+    if (m_window->isShown() && !m_closing && (mode == Mode::Search || mode == m_view->mode()))
         hide();
     else
         show(mode);
@@ -141,6 +179,8 @@ void Spotlight::toggle(Mode mode)
 
 void Spotlight::fit()
 {
+    if (m_preparing || m_closing)
+        return;
     const Shell::Output *output = m_shell->output(m_output);
     if (!output)
         output = m_shell->output({});
@@ -152,53 +192,64 @@ void Spotlight::fit()
     const int height = std::min(m_view->preferredHeight(), std::max(SpotlightView::kHeader, area.height() - top - 18));
     m_window->setOutput(output->name);
     const base::Rect target(area.x() + (area.width() - width) / 2, area.y() + top, width, height);
-    if (target != m_target && m_window->isShown() && target.topLeft() == m_target.topLeft()
-        && target.width() == m_target.width() && !m_view->idle()) {
-        m_initialHeight = m_window->size().height();
-        m_initialYOffset = m_window->geometry().y() - target.y();
-        m_motionStart = std::chrono::steady_clock::now();
-        m_motion.start(std::chrono::milliseconds(16));
-    } else if (target != m_target) {
-        m_motion.stop();
+    const bool moved = m_target.topLeft() != target.topLeft() || m_target.width() != target.width();
+    const double expanded = m_view->idle() ? 0 : 1;
+    if (!m_window->isShown() || moved) {
+        m_motion->stop();
+        place(target, 1, expanded);
+    } else if (target != m_target || expanded != m_targetExpanded) {
+        animateTo(target, 1, expanded);
     }
     m_target = target;
-    place();
+    m_targetExpanded = expanded;
 }
 
-void Spotlight::place()
+void Spotlight::animateTo(base::Rect bounds, double opacity, double expanded, bool closing)
 {
-    if (m_target.isEmpty())
-        return;
-    base::Rect geometry = m_target;
-    if (m_motion.isActive()) {
-        const double elapsed = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - m_motionStart).count();
-        const double remaining = std::pow(std::max(0.0, 1 - elapsed / 160.0), 3);
-        geometry.setHeight(int(std::lround(geometry.height() + (m_initialHeight - geometry.height()) * remaining)));
-        geometry.translate(0, int(std::lround(m_initialYOffset * remaining)));
-        if (remaining == 0)
-            m_motion.stop();
-    }
-    m_window->setGeometry(geometry);
+    using namespace std::chrono_literals;
+    const auto from = m_window->geometry();
+    m_motion->setDuration(closing ? 120ms : 205ms);
+    m_motion->setEasing(closing ? ui::Animation::Easing::InOutQuad : ui::Animation::Easing::OutCubic);
+    m_motion->onUpdate = [this, from, bounds, fromOpacity = m_opacity, opacity,
+                          fromExpanded = m_expanded, expanded](double t) {
+        auto frame = bounds;
+        frame.moveTop(int(std::lround(std::lerp(from.y(), bounds.y(), t))));
+        frame.setHeight(int(std::lround(std::lerp(from.height(), bounds.height(), t))));
+        place(frame, std::lerp(fromOpacity, opacity, t), std::lerp(fromExpanded, expanded, t));
+    };
+    m_motion->start();
+}
+
+void Spotlight::place(base::Rect bounds, double opacity, double expanded)
+{
+    m_opacity = opacity;
+    m_expanded = expanded;
+    m_window->setGeometry(bounds);
+    m_window->surface()->setOpacity(float(opacity));
+    m_view->setExpansion(expanded);
     applyGlass();
 }
 
 void Spotlight::applyGlass()
 {
     const bool dark = ui::Theme::current().darkMode;
-    const bool idle = m_view->idle();
     const base::Size size = m_window->size();
-    if (size.isEmpty() || (size == m_glassSize && idle == m_glassIdle && dark == m_glassDark))
+    const bool shapeChanged = size != m_glassSize || m_expanded != m_glassExpanded;
+    if (size.isEmpty() || (!shapeChanged && m_opacity == m_glassOpacity && dark == m_glassDark))
         return;
     m_glassSize = size;
-    m_glassIdle = idle;
+    m_glassExpanded = m_expanded;
+    m_glassOpacity = m_opacity;
     m_glassDark = dark;
     const ui::Path shape = m_view->glassShape(size.width(), size.height());
     const base::Rect bounds(0, 0, size.width(), size.height());
-    m_window->setInputRegion(m_view->inputRegion(size.width(), size.height()));
+    if (!m_closing && shapeChanged)
+        m_window->setInputRegion(m_view->inputRegion(size.width(), size.height()));
     // FishUI PopupGlass. Neutral tint; the hue of the backdrop is not baked into the panel.
     auto glass = dark ? popupGlass(0.10, 0.10, 0.10, 0.70) : popupGlass(1, 1, 1, 0.66);
     glass.blurSigma = glassFixed(8);
-    m_window->setBackgroundBlur(bounds, idle ? SpotlightView::kHeader / 2 : 24, glass, shape);
+    glass.opacity = float(m_opacity);
+    m_window->setBackgroundBlur(bounds, 24, glass, shape);
 }
 
 } // namespace cutefish::shell

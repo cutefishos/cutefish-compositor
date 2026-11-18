@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <chrono>
+#include <cmath>
 
 #include <linux/input-event-codes.h>
 #include <gtest/gtest.h>
@@ -15,7 +16,11 @@
 #include "shell/spotlight/spotlight.h"
 #include "shell/spotlight/spotlight_search.h"
 #include "shell/shell_test_util.h"
+#include "shell/shell_window.h"
 #include "temporary_directory.h"
+#include "ui/embedded_window.h"
+#include "ui/scroller.h"
+#include "ui/view.h"
 #include "wm/window.h"
 #include "wm/window_manager.h"
 
@@ -56,6 +61,8 @@ TEST(SpotlightSearch, FiltersTypesAndFolderWithoutFollowingLinks)
 
 namespace {
 
+double frameClock = 10'000;
+
 class SpotlightWindowTest : public testing::Test
 {
 protected:
@@ -73,6 +80,8 @@ protected:
 
     void SetUp() override
     {
+        frameClock = 10'000;
+        ui::Scroller::setClock([] { return frameClock; });
         const base::Rect bounds(0, 0, 1440, 960);
         scene.setSize(bounds.size());
         wm.setOutputBounds(bounds);
@@ -82,7 +91,7 @@ protected:
         env.servicesSettings = dir.filePath("services.conf");
         desktop = std::make_unique<shell::Shell>(env);
         auto apps = std::make_unique<test::FakeApplications>();
-        for (int i = 0; i < 24; ++i)
+        for (int i = 0; i < 60; ++i)
             apps->addSimple("app" + std::to_string(i), "Application " + std::to_string(i), "application-x-executable");
         apps->scan();
         desktop->setApplications(std::move(apps));
@@ -97,9 +106,23 @@ protected:
     {
         desktop.reset();
         seat.shutdown();
+        ui::Scroller::setClock(nullptr);
     }
 
-    void render() { compositor.updateTextures(renderer); }
+    void render(double step = 16)
+    {
+        frameClock += step;
+        renderer.frameTime = frameClock;
+        compositor.updateTextures(renderer);
+    }
+
+    void settle()
+    {
+        render();
+        render(230);
+    }
+
+    input::Timestamp time() const { return input::Timestamp(std::chrono::milliseconds(int64_t(frameClock))); }
 
     wm::Window *picker() const
     {
@@ -123,6 +146,20 @@ protected:
         input.onPointerButton(input::Timestamp(std::chrono::milliseconds(clock++)), BTN_LEFT, true);
         input.onPointerButton(input::Timestamp(std::chrono::milliseconds(clock++)), BTN_LEFT, false);
     }
+
+    double firstIconY() const
+    {
+        for (auto *shellWindow : desktop->windows()) {
+            if (shellWindow->role() != wm::WindowRole::Picker)
+                continue;
+            for (const auto &view : shellWindow->window()->contentView()->children()) {
+                if (view->name() == "spotlight-result-icons" && !view->children().empty())
+                    return view->children().front()->geometry().y;
+            }
+        }
+        ADD_FAILURE() << "No visible result icons";
+        return 0;
+    }
 };
 
 } // namespace
@@ -136,21 +173,25 @@ TEST_F(SpotlightWindowTest, IsFloatingAndSwitchesModesWithKeysAndMouse)
     EXPECT_EQ(picker()->bounds().width(), 620);
     EXPECT_EQ(picker()->bounds().height(), 54);
     EXPECT_EQ(picker()->rootSurface(), seat.focusedSurface());
-    ASSERT_TRUE(test::runUntil([this] { return picker()->bounds().y() == 211; }));
+    render(230);
+    ASSERT_EQ(picker()->bounds().y(), 211);
     const auto collapsed = picker()->bounds();
     click(collapsed.right() - 212, collapsed.y() + 26);
-    ASSERT_TRUE(test::runUntil([this] { return picker() && picker()->bounds().height() > 300; }));
-    render();
+    settle();
+    ASSERT_GT(picker()->bounds().height(), 300);
     EXPECT_EQ(picker()->bounds().x(), collapsed.x());
     key(KEY_LEFTMETA, true);
     tap(KEY_4);
     key(KEY_LEFTMETA, false);
-    ASSERT_TRUE(test::runUntil([this] { return picker() && picker()->bounds().height() == 114; }));
-    render();
+    settle();
+    ASSERT_EQ(picker()->bounds().height(), 114);
     EXPECT_EQ(picker()->rootSurface(), seat.focusedSurface());
     tap(KEY_ESC);
-    EXPECT_EQ(picker(), nullptr);
+    ASSERT_NE(picker(), nullptr);
     EXPECT_EQ(seat.focusedSurface(), nullptr);
+    EXPECT_TRUE(picker()->rootSurface()->inputRegion()->isEmpty());
+    settle();
+    EXPECT_EQ(picker(), nullptr);
 }
 
 TEST_F(SpotlightWindowTest, ClipboardDiscardAndDisableDoesNotResurrectPendingCopy)
@@ -170,8 +211,8 @@ TEST_F(SpotlightWindowTest, ClipboardDiscardAndDisableDoesNotResurrectPendingCop
 TEST_F(SpotlightWindowTest, MenuKeepsPickerOpenAndOutsideClickDismissesIt)
 {
     spotlight->show(shell::Spotlight::Mode::Applications);
-    ASSERT_TRUE(test::runUntil([this] { return picker() && picker()->bounds().height() > 450; }));
-    render();
+    settle();
+    ASSERT_TRUE(picker() && picker()->bounds().height() > 450);
     const auto bounds = picker()->bounds();
     click(bounds.right() - 28, bounds.y() + 26);
     render();
@@ -185,7 +226,10 @@ TEST_F(SpotlightWindowTest, MenuKeepsPickerOpenAndOutsideClickDismissesIt)
     EXPECT_TRUE(test::runUntil([&] { return !menuVisible(); }));
     ASSERT_NE(picker(), nullptr);
     click(20, 20);
-    EXPECT_TRUE(test::runUntil([this] { return !picker(); }));
+    EXPECT_TRUE(test::runUntil([this] { return !seat.focusedSurface(); }));
+    test::runFor(std::chrono::milliseconds(10)); // process the posted focus-loss dismissal
+    settle();
+    EXPECT_EQ(picker(), nullptr);
 }
 
 TEST_F(SpotlightWindowTest, CommandConventionSwitchesModeWithoutSendingDigitsToSearch)
@@ -196,8 +240,105 @@ TEST_F(SpotlightWindowTest, CommandConventionSwitchesModeWithoutSendingDigitsToS
     key(KEY_LEFTALT, true); // The physical key next to Space is Command.
     tap(KEY_4);
     key(KEY_LEFTALT, false);
-    ASSERT_TRUE(test::runUntil([this] { return picker() && picker()->bounds().height() == 114; }));
+    settle();
+    ASSERT_TRUE(picker() && picker()->bounds().height() == 114);
     // Toggling Clipboard closes it only if the chord actually took us there.
     spotlight->toggle(shell::Spotlight::Mode::Clipboard);
+    settle();
     EXPECT_EQ(picker(), nullptr);
+}
+
+TEST_F(SpotlightWindowTest, PanelFadesResizesAndCanReopenWhileClosing)
+{
+    using Mode = shell::Spotlight::Mode;
+    spotlight->show(Mode::Search);
+    ASSERT_NE(picker(), nullptr);
+    EXPECT_LT(picker()->rootSurface()->opacity(), 1);
+    settle();
+    auto *surface = picker()->rootSurface();
+    EXPECT_FLOAT_EQ(surface->opacity(), 1);
+    EXPECT_FALSE(surface->inputRegion()->contains(base::Point(375, 27)));
+    EXPECT_EQ(picker()->bounds().height(), 54);
+
+    spotlight->show(Mode::Applications);
+    render();
+    render(48);
+    EXPECT_GT(picker()->bounds().height(), 54);
+    EXPECT_LT(picker()->bounds().height(), 508);
+    render(230);
+    EXPECT_EQ(picker()->bounds().height(), 508);
+    EXPECT_TRUE(surface->inputRegion()->contains(base::Point(375, 27)));
+
+    spotlight->show(Mode::Search);
+    render();
+    render(48);
+    EXPECT_GT(picker()->bounds().height(), 54);
+    EXPECT_LT(picker()->bounds().height(), 508);
+    render(230);
+    EXPECT_EQ(picker()->bounds().height(), 54);
+
+    spotlight->hide();
+    EXPECT_NE(seat.focusedSurface(), surface);
+    EXPECT_TRUE(surface->inputRegion()->isEmpty());
+    render();
+    render(48);
+    EXPECT_GT(surface->opacity(), 0);
+    EXPECT_LT(surface->opacity(), 1);
+    spotlight->toggle(Mode::Search);
+    EXPECT_EQ(seat.focusedSurface(), surface);
+    EXPECT_FALSE(surface->inputRegion()->isEmpty());
+    settle();
+    ASSERT_NE(picker(), nullptr);
+    EXPECT_EQ(picker()->rootSurface(), surface);
+    EXPECT_FLOAT_EQ(surface->opacity(), 1);
+    spotlight->hide();
+    settle();
+    EXPECT_EQ(picker(), nullptr);
+    spotlight->show(Mode::Search);
+    settle();
+    ASSERT_NE(picker(), nullptr);
+    EXPECT_TRUE(surface->inputRegion()->contains(base::Point(28, 27)));
+}
+
+TEST_F(SpotlightWindowTest, WheelEasesThroughAccumulatedSteps)
+{
+    spotlight->show(shell::Spotlight::Mode::Applications);
+    settle();
+    ASSERT_NE(picker(), nullptr);
+    const auto bounds = picker()->bounds();
+    input.onPointerMotionAbsolute(time(), {double(bounds.x() + 200), double(bounds.y() + 150)});
+    const double start = firstIconY();
+    input.onPointerAxis(time(), {0, 10}, true);
+    input.onPointerAxis(time(), {0, 10}, true);
+    EXPECT_DOUBLE_EQ(firstIconY(), start);
+    render();
+    render(35);
+    EXPECT_LT(firstIconY(), start);
+    EXPECT_GT(firstIconY(), start - 90);
+    render(155);
+    EXPECT_NEAR(firstIconY(), start - 90, .01);
+}
+
+TEST_F(SpotlightWindowTest, TouchpadCoastsAndStopsOnNewInput)
+{
+    spotlight->show(shell::Spotlight::Mode::Applications);
+    settle();
+    ASSERT_NE(picker(), nullptr);
+    const auto bounds = picker()->bounds();
+    input.onPointerMotionAbsolute(time(), {double(bounds.x() + 200), double(bounds.y() + 150)});
+    const double start = firstIconY();
+    for (int i = 0; i < 3; ++i) {
+        input.onPointerAxis(time(), {0, 9}, false);
+        render(10);
+    }
+    EXPECT_LT(firstIconY(), start);
+    input.onPointerAxisStop(time());
+    const double release = firstIconY();
+    render(35);
+    EXPECT_LT(firstIconY(), release - 6);
+    const double coast = firstIconY();
+    tap(KEY_LEFTSHIFT);
+    render(35);
+    render(35);
+    EXPECT_NEAR(firstIconY(), coast, .01);
 }

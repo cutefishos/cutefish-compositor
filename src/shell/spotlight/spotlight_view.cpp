@@ -8,6 +8,7 @@
 
 #include "base/i18n.h"
 #include "base/paths.h"
+#include "base/transform.h"
 #include "base/url.h"
 #include "input/seat.h"
 #include "shell/clipboard/clipboard_history.h"
@@ -15,6 +16,7 @@
 #include "shell/common/task_manager.h"
 #include "shell/common/text_match.h"
 #include "shell/dock/dock.h"
+#include "shell/shell_data.h"
 #include "ui/drag.h"
 #include "ui/image_view.h"
 #include "ui/icon.h"
@@ -38,6 +40,7 @@ constexpr int kChipBand = 34;
 constexpr int kRadius = 24;
 constexpr int kGap = 8;
 constexpr int kColumns = 5;
+constexpr double kBodyInset = 7;
 
 std::string nameFor(Mode mode)
 {
@@ -101,39 +104,73 @@ void text(ui::Painter &p, const std::string &value, ui::RectF box, double size, 
     p.restore();
 }
 
-// Small monochrome symbols drawn in the same ink as the search field.
-void glyph(ui::Painter &p, int kind, ui::PointF centre, ui::Color ink)
+enum class Symbol { Search, Applications, Files, Actions, Clipboard, More };
+
+// A single optical grid, with rounded strokes and no doubled edges at overlaps.
+// These use logical coordinates and the current theme ink at any output scale.
+void glyph(ui::Painter &p, Symbol symbol, ui::PointF centre, ui::Color ink, double size = 24)
 {
-    const double x = centre.x - 11, y = centre.y - 11;
-    auto line = [&](double a, double b, double c, double d) { p.drawLine({x+a, y+b}, {x+c, y+d}, ink, 1.6); };
-    const auto frame = [&](ui::RectF box, double radius) {
-        p.drawRoundedRect(box, {radius, 0, ui::Corners::Circular}, ink.withAlpha(0), 1.55, ink);
-    };
-    switch (kind) {
-    case 0:
-        frame({x+2,y+2,14,14}, 7);
-        line(14,14,20,20);
+    if (size <= 0)
+        return;
+    ui::Path path;
+    switch (symbol) {
+    case Symbol::Search:
+        path.addEllipse({2.6, 2.6, 14.8, 14.8});
+        path.moveTo(15.6, 15.6); path.lineTo(21.4, 21.4);
         break;
-    case 1:
-        line(4,19,13,3); line(10,3,18,19); line(2,14,20,14);
+    case Symbol::Applications:
+        path.moveTo(5.7, 20.3); path.lineTo(6.4, 19);
+        path.moveTo(8, 16.1); path.lineTo(14.8, 3.9);
+        path.moveTo(9.1, 3.9); path.lineTo(10.6, 6.6);
+        path.moveTo(13.3, 11.3); path.lineTo(18.3, 20.3);
+        path.moveTo(2.8, 16.1); path.lineTo(12.4, 16.1);
+        path.moveTo(16, 16.1); path.lineTo(21.2, 16.1);
         break;
-    case 2:
-        frame({x+2,y+6,18,13}, 2.5); line(3,5,9,5); line(9,5,11,7); line(3,10,19,10);
+    case Symbol::Files:
+        path.moveTo(2.1, 18.6); path.lineTo(2.1, 6.6); path.quadTo(2.1, 4.7, 4.1, 4.7);
+        path.lineTo(8.2, 4.7); path.quadTo(9.1, 4.7, 9.8, 5.5);
+        path.lineTo(11.1, 6.9); path.lineTo(19.9, 6.9); path.quadTo(21.9, 6.9, 21.9, 8.9);
+        path.lineTo(21.9, 18.6); path.quadTo(21.9, 20.6, 19.9, 20.6);
+        path.lineTo(4.1, 20.6); path.quadTo(2.1, 20.6, 2.1, 18.6); path.close();
+        path.moveTo(5.2, 9.9); path.lineTo(18.8, 9.9);
         break;
-    case 3:
-        line(2,8,11,2); line(11,2,20,8); line(20,8,11,14); line(11,14,2,8);
-        line(2,14,11,20); line(11,20,20,14); line(2,14,6,11); line(16,11,20,14);
+    case Symbol::Actions:
+        path.moveTo(10.3, 2.9); path.quadTo(12, 1.8, 13.7, 2.9);
+        path.lineTo(20.3, 7.4); path.quadTo(22.4, 8.8, 20.3, 10.2);
+        path.lineTo(13.7, 14.7); path.quadTo(12, 15.8, 10.3, 14.7);
+        path.lineTo(3.7, 10.2); path.quadTo(1.6, 8.8, 3.7, 7.4); path.close();
+        path.moveTo(6.5, 12.1); path.lineTo(3.7, 14); path.quadTo(1.6, 15.4, 3.7, 16.8);
+        path.lineTo(10.3, 21.3); path.quadTo(12, 22.4, 13.7, 21.3);
+        path.lineTo(20.3, 16.8); path.quadTo(22.4, 15.4, 20.3, 14); path.lineTo(17.5, 12.1);
         break;
-    case 4:
-        frame({x+7,y+2,12,14}, 2); frame({x+3,y+7,12,13}, 2);
-        line(6,12,11,12); line(6,15,11,15);
+    case Symbol::Clipboard:
+        path.moveTo(7.5, 7); path.lineTo(7.5, 3.8); path.quadTo(7.5, 2, 9.4, 2);
+        path.lineTo(14.8, 2); path.lineTo(20.2, 7.4); path.lineTo(20.2, 15.1);
+        path.quadTo(20.2, 17, 18.3, 17); path.lineTo(16.3, 17);
+        path.moveTo(14.8, 2.4); path.lineTo(14.8, 6.1); path.quadTo(14.8, 7.4, 16.1, 7.4); path.lineTo(19.8, 7.4);
+        path.moveTo(3.8, 20.1); path.lineTo(3.8, 8.9); path.quadTo(3.8, 7, 5.7, 7);
+        path.lineTo(11.1, 7); path.lineTo(16.3, 12.4); path.lineTo(16.3, 20.1);
+        path.quadTo(16.3, 22, 14.4, 22); path.lineTo(5.7, 22); path.quadTo(3.8, 22, 3.8, 20.1); path.close();
+        path.moveTo(11.1, 7.4); path.lineTo(11.1, 11.1); path.quadTo(11.1, 12.4, 12.4, 12.4); path.lineTo(15.9, 12.4);
         break;
-    default:
-        frame({x+2,y+2,18,18}, 9);
-        for (int i = 7; i <= 15; i += 4)
-            plate(p, {x+i-1,y+10,2,2}, 1, ink);
+    case Symbol::More:
+        path.addEllipse({3.2, 3.2, 17.6, 17.6});
         break;
     }
+    p.save();
+    p.translate({centre.x - size / 2, centre.y - size / 2});
+    const double scale = size / 24;
+    if (scale != 1) {
+        base::AffineTransform transform;
+        transform.scale(scale, scale);
+        path = path.transformed(transform);
+    }
+    p.strokePath(path, ink, (symbol == Symbol::Applications ? 2.05 : 1.8) * scale);
+    if (symbol == Symbol::More) {
+        for (double x : {7.8, 12.0, 16.2})
+            plate(p, {(x - 1) * scale, 11 * scale, 2 * scale, 2 * scale}, scale, ink);
+    }
+    p.restore();
 }
 
 } // namespace
@@ -149,6 +186,14 @@ protected:
     }
 private:
     SpotlightView *m_owner;
+};
+
+class SpotlightView::WheelAnimation final : public ui::Animation
+{
+public:
+    using Animation::Animation;
+private:
+    void interrupt(Interruption) override { stop(); }
 };
 
 SpotlightView::SpotlightView(Shell &shell, Dock *dock, ClipboardHistory &clipboard, std::string settingsPath)
@@ -171,12 +216,14 @@ SpotlightView::SpotlightView(Shell &shell, Dock *dock, ClipboardHistory &clipboa
         input->setMaximumLength(2048);
     }
     m_icons->setClipsChildren(true);
+    m_icons->setName("spotlight-result-icons");
     setTracksHover(true);
     m_queryTimer.setSingleShot(true);
     m_queryTimer.onTimeout = [this] { refreshResults(); };
     m_field->onTextChanged = [this] {
         if (m_updating)
             return;
+        stopScrolling();
         m_scroll = 0;
         m_selected = -1;
         if (m_mode == Mode::Files || (m_mode == Mode::Search && !idle())) {
@@ -209,6 +256,8 @@ void SpotlightView::reset()
 void SpotlightView::setMode(Mode mode)
 {
     m_menu.close();
+    stopScrolling();
+    const bool changed = m_mode != mode;
     m_mode = mode;
     m_action.reset();
     m_confirmClear = false;
@@ -228,6 +277,8 @@ void SpotlightView::setMode(Mode mode)
     if (mode == Mode::Files)
         requestFiles();
     refreshResults();
+    if (changed)
+        fadeBody();
     m_field->setVisible(true);
     focusSearch();
 }
@@ -245,32 +296,52 @@ bool SpotlightView::idle() const
 
 double SpotlightView::fieldWidth(double width) const
 {
-    return idle() ? width - 4 * (std::min<double>(kHeader, std::floor(width / 10)) + kGap) : width;
+    return width - 4 * (std::min<double>(kHeader, std::floor(width / 10)) + kGap) * (1 - m_expansion);
+}
+
+ui::RectF SpotlightView::modeButton(double width, int index) const
+{
+    const double field = fieldWidth(width);
+    const double gap = kGap * (1 - m_expansion);
+    const double diameter = (width - field) / 4 - gap;
+    return {field + gap + index * (diameter + gap), (kHeader - diameter) / 2, diameter, diameter};
+}
+
+void SpotlightView::setExpansion(double value)
+{
+    if (m_expansion == value)
+        return;
+    m_expansion = value;
+    requestLayout();
+    requestPaint();
 }
 
 ui::Path SpotlightView::glassShape(int width, int height) const
 {
     ui::Path shape;
-    if (!idle())
+    if (m_expansion == 1)
         return shape; // Standard FishUI rounded rectangle.
-    const double field = fieldWidth(width);
-    const double button = (width - field) / 4 - kGap;
-    const double r = button / 2;
-    shape.addRoundedRect({0, 0, field, double(height)}, height / 2.0, height / 2.0);
-    for (int i = 0; i < 4; ++i)
-        shape.addRoundedRect({field + kGap + i * (button + kGap), (height - button) / 2, button, button}, r, r);
+    const double radius = std::lerp(kHeader / 2.0, double(kRadius), m_expansion);
+    shape.addRoundedRect({0, 0, fieldWidth(width), double(height)}, radius, radius);
+    for (int i = 0; i < 4; ++i) {
+        const auto button = modeButton(width, i);
+        if (button.width >= 1)
+            shape.addEllipse(button);
+    }
     return shape;
 }
 
 base::Region SpotlightView::inputRegion(int width, int height) const
 {
-    if (!idle())
+    if (m_expansion == 1)
         return base::Region({0, 0, width, height});
-    const int field = int(fieldWidth(width));
-    const int button = (width - field) / 4 - kGap;
-    base::Region region({0, 0, field, height});
-    for (int i = 0; i < 4; ++i)
-        region |= base::Region({field + kGap + i * (button + kGap), (height - button) / 2, button, button});
+    base::Region region({0, 0, int(std::lround(fieldWidth(width))), height});
+    for (int i = 0; i < 4; ++i) {
+        const auto button = modeButton(width, i);
+        if (button.width >= 1)
+            region |= base::Region({int(std::lround(button.x)), int(std::lround(button.y)),
+                                    int(std::lround(button.width)), int(std::lround(button.height))});
+    }
     return region;
 }
 
@@ -466,6 +537,7 @@ void SpotlightView::refreshResults()
 
 void SpotlightView::refreshLayout()
 {
+    stopScrolling();
     buildTiles(grid(), geometry().width > 0 ? geometry().width : kWidth);
     if (onResize)
         onResize();
@@ -475,6 +547,7 @@ void SpotlightView::refreshLayout()
 
 void SpotlightView::buildTiles(bool grid, double width)
 {
+    m_tilesWidth = width;
     constexpr double inset = 10;
     const double cell = (width - 2 * inset) / kColumns;
     const double rowHeight = grid ? 100 : 52;
@@ -508,9 +581,62 @@ void SpotlightView::buildTiles(bool grid, double width)
     m_bodyHeight = y + (column ? rowHeight : 0);
 }
 
-void SpotlightView::clampScroll()
+ui::Scroller::Axis SpotlightView::horizontalAxis() const
 {
-    m_scroll = std::clamp(m_scroll, 0.0, std::max(0.0, m_bodyHeight - (geometry().height - bodyTop() - 5)));
+    const double width = geometry().width;
+    const double maximum = m_chips.empty() ? 0 : std::max(0.0, m_chipsWidth - width);
+    return {0, maximum, std::max(0.0, width - 28), maximum > 0};
+}
+
+ui::Scroller::Axis SpotlightView::verticalAxis() const
+{
+    const double viewport = std::max(0.0, geometry().height - bodyTop() - kBodyInset);
+    const double maximum = viewport > 0 && !idle() && !m_action && !m_confirmClear
+        ? std::max(0.0, m_bodyHeight - viewport) : 0;
+    return {0, maximum, viewport, maximum > 0};
+}
+
+ui::PointF SpotlightView::boundedPosition(ui::PointF pos) const
+{
+    return {std::clamp(pos.x, 0.0, horizontalAxis().maximum), std::clamp(pos.y, 0.0, verticalAxis().maximum)};
+}
+
+void SpotlightView::applyPosition(ui::PointF pos)
+{
+    pos = boundedPosition(pos);
+    if (pos == position())
+        return;
+    m_chipScroll = pos.x;
+    m_scroll = pos.y;
+    m_hot = -1;
+    requestLayout();
+    requestPaint();
+}
+
+void SpotlightView::stopScrolling()
+{
+    if (m_wheel)
+        m_wheel->stop();
+    if (m_scroller)
+        m_scroller->cancel(false);
+}
+
+void SpotlightView::fadeBody()
+{
+    if (!window())
+        return;
+    if (!m_bodyFade) {
+        m_bodyFade = std::make_unique<ui::Animation>(window());
+        m_bodyFade->setDuration(std::chrono::milliseconds(150));
+        m_bodyFade->setEasing(ui::Animation::Easing::OutCubic);
+        m_bodyFade->onUpdate = [this](double t) {
+            m_bodyOpacity = std::lerp(.30, 1.0, t);
+            requestLayout();
+            requestPaint();
+        };
+    }
+    m_bodyOpacity = .30;
+    m_bodyFade->start();
 }
 
 void SpotlightView::layout()
@@ -518,7 +644,8 @@ void SpotlightView::layout()
     const double w = geometry().width;
     const double header = fieldWidth(w);
     const bool offersOpen = m_mode == Mode::Search && m_selected >= 0 && header >= 360;
-    const double reserve = idle() ? (m_hoverMode > 0 && header > 280 ? 70 : 9) : offersOpen ? 114 : 50;
+    const double reserve = std::lerp(m_hoverMode > 0 && header > 280 ? 70.0 : 9.0,
+                                     offersOpen ? 114.0 : 50.0, m_expansion);
     m_field->setGeometry({54, 0, std::max(0.0, header - 54 - reserve), kHeader});
     m_field->setVisible(!m_action);
     const bool email = m_action && !m_savingQuick && m_action->key == "email";
@@ -529,48 +656,81 @@ void SpotlightView::layout()
     m_subject->setVisible(email);
     m_message->setVisible(email);
 
-    double x = 17 - m_chipScroll;
+    double x = 17;
+    const ui::FontMetrics chipMetrics(font(12));
     for (auto &chip : m_chips) {
-        const double chipWidth = std::ceil(ui::FontMetrics(font(12)).horizontalAdvanceF(chip.label)) + 14;
+        const double chipWidth = std::ceil(chipMetrics.horizontalAdvanceF(chip.label)) + 14;
         chip.rect = {x, kHeader + 7, chipWidth, 21};
         x += chipWidth + 7;
     }
-    buildTiles(grid(), w);
-    clampScroll();
-    const double body = std::max(0.0, geometry().height - bodyTop() - 7);
-    m_icons->setGeometry({0, bodyTop(), w, body});
+    m_chipsWidth = x + 10;
+    if (m_tilesWidth != w)
+        buildTiles(grid(), w);
+    const auto pos = boundedPosition(position());
+    m_chipScroll = pos.x;
+    m_scroll = pos.y;
+    for (auto &chip : m_chips)
+        chip.rect.x -= m_chipScroll;
+    const double body = verticalAxis().viewport;
+    m_icons->setGeometry({0, bodyTop(), header, body});
+    m_icons->setOpacity(m_bodyOpacity * m_expansion);
     const double iconSize = grid() ? std::min(60.0, std::max(26.0, (w - 20) / kColumns * 0.72)) : 30;
-    size_t visible = 0;
-    for (const auto &tile : m_tiles) {
-        if (m_confirmClear)
-            break;
-        const double y = tile.rect.y - m_scroll;
-        if (y + tile.rect.height <= 0 || y >= body)
-            continue;
-        if (visible == m_images.size()) {
-            auto *icon = m_icons->addChild<ui::ImageView>();
-            icon->setFillMode(ui::ImageView::FillMode::PreserveAspectFit);
-            m_images.push_back(icon);
+    const double scale = window() ? window()->scale() : 1;
+    const auto first = std::partition_point(m_tiles.begin(), m_tiles.end(), [this](const Tile &t) {
+        return t.rect.bottom() <= m_scroll;
+    });
+    const auto end = m_confirmClear || body <= 0 ? first : std::partition_point(first, m_tiles.end(), [this, body](const Tile &t) {
+        return t.rect.y < m_scroll + body;
+    });
+    const int firstResult = int(first - m_tiles.begin());
+    const int endResult = int(end - m_tiles.begin());
+    for (auto &slot : m_images) {
+        if (slot.result < firstResult || slot.result >= endResult) {
+            slot.result = -1;
+            slot.view->setVisible(false);
         }
-        auto *icon = m_images[visible++];
+    }
+    for (auto it = first; it != end; ++it) {
+        const auto &tile = *it;
+        const double y = tile.rect.y - m_scroll;
+        // Keep a visible row's ImageView as it moves. When a row leaves the
+        // viewport, only its slot is recycled; the other icons stay decoded.
+        auto slotIt = std::ranges::find(m_images, tile.result, &ResultIcon::result);
+        if (slotIt == m_images.end()) {
+            slotIt = std::ranges::find(m_images, -1, &ResultIcon::result);
+            if (slotIt == m_images.end()) {
+                auto *icon = m_icons->addChild<ui::ImageView>();
+                icon->setFillMode(ui::ImageView::FillMode::PreserveAspectFit);
+                m_images.push_back({icon, -1, {}, {}});
+                slotIt = std::prev(m_images.end());
+            }
+        }
+        auto &slot = *slotIt;
+        slot.result = tile.result;
+        auto *icon = slot.view;
         const auto &result = m_results[tile.result];
-        auto path = ui::themeIconPath(result.icon, 96, window() ? window()->scale() : 1);
-        if (path.empty())
-            path = ui::themeIconPath(result.type == Mode::Applications ? "application-x-executable" : "text-x-generic", 96);
         icon->setSourceSize({iconSize, iconSize});
-        icon->setSource(path);
         icon->setVisible(true);
         const ui::RectF box{grid() ? tile.rect.x + (tile.rect.width - iconSize) / 2 : tile.rect.x + 12,
                             y + (grid() ? 8 : 11), iconSize, iconSize};
         icon->setGeometry(box);
-        if (result.type == Mode::Clipboard && result.icon == "image-x-generic")
-            updateClipboardPreview(result, icon, box);
+        if (result.type == Mode::Clipboard && result.icon == "image-x-generic" && updateClipboardPreview(result, slot))
+            continue;
+        auto path = ui::themeIconPath(result.icon, int(std::ceil(iconSize)), scale);
+        if (path.empty())
+            path = ui::themeIconPath(result.type == Mode::Applications ? "application-x-executable" : "text-x-generic",
+                                     int(std::ceil(iconSize)), scale);
+        if (path.empty())
+            path = shellDataFile("application-missing.svg");
+        if (slot.source != path || !slot.previewKey.empty()) {
+            slot.previewKey.clear();
+            slot.source = path;
+            icon->setSource(std::move(path));
+        }
     }
-    for (size_t i = visible; i < m_images.size(); ++i)
-        m_images[i]->setVisible(false);
 }
 
-void SpotlightView::updateClipboardPreview(const Result &result, ui::ImageView *view, ui::RectF box)
+bool SpotlightView::updateClipboardPreview(const Result &result, ResultIcon &icon)
 {
     const auto [it, added] = m_thumbnails.try_emplace(result.key);
     if (added) {
@@ -592,13 +752,15 @@ void SpotlightView::updateClipboardPreview(const Result &result, ui::ImageView *
             requestLayout();
         }).detach();
     } else if (it->second && !it->second->isNull()) {
+        if (icon.previewKey == result.key)
+            return true;
         const ui::Bitmap &bitmap = *it->second;
-        const auto fitted = ui::scaledSize(bitmap.size(), {int(box.width), int(box.height)}, ui::Bitmap::Scaling::Fit);
-        view->setGeometry({box.x + (box.width - fitted.width()) / 2, box.y + (box.height - fitted.height()) / 2,
-                           double(fitted.width()), double(fitted.height())});
-        view->setPixels(bitmap.width(), bitmap.height(), reinterpret_cast<const uint32_t *>(bitmap.constBits()),
-                        bitmap.stride(), true);
+        icon.previewKey = result.key;
+        icon.view->setPixels(bitmap.width(), bitmap.height(), reinterpret_cast<const uint32_t *>(bitmap.constBits()),
+                             bitmap.stride(), true);
+        return true;
     }
+    return false;
 }
 
 void SpotlightView::paint(ui::Painter &p)
@@ -613,30 +775,41 @@ void SpotlightView::paint(ui::Painter &p)
     const auto selected = theme.highlight.withAlpha(theme.darkMode ? .30 : .22);
     const double w = geometry().width, h = geometry().height;
     const auto over = [w, h](double y, double height) { return ui::RectF{0, y, w, std::max(0.0, std::min(height, h-y))}; };
-    if (idle()) {
-        const auto field = fieldWidth(w);
-        const auto r = (w - field) / 4 - kGap;
-        glyph(p, 0, {28, kHeader / 2.0}, ink);
+    const auto field = fieldWidth(w);
+    if (m_expansion < 1) {
+        p.save();
+        p.multiplyOpacity(1 - m_expansion);
+        glyph(p, Symbol::Search, {28, kHeader / 2.0}, ink);
         for (int i = 0; i < 4; ++i) {
-            const double x = field + kGap + i * (r + kGap);
-            if (m_hoverMode == i + 1)
-                plate(p, {x, (kHeader - r) / 2, r, r}, r / 2, selected);
-            glyph(p, i + 1, {x + r / 2, kHeader / 2.0}, ink);
+            const auto button = modeButton(w, i);
+            if (idle() && m_hoverMode == i + 1)
+                plate(p, button, button.width / 2, selected);
+            glyph(p, Symbol(i + 1), {button.x + button.width / 2, kHeader / 2.0}, ink, std::min(24.0, button.width * .67));
         }
-        if (m_hoverMode >= 1 && field > 280)
-            text(p, "Super " + std::to_string(m_hoverMode), {field - 67, 0, 55, kHeader}, 10, secondary, true);
-        return;
+        if (idle() && m_hoverMode >= 1 && field > 280) {
+            const ui::RectF modifier{field - 65, 18, 36, 18};
+            const ui::RectF key{field - 25, 18, 18, 18};
+            plate(p, modifier, 5, subtle);
+            plate(p, key, 5, subtle);
+            text(p, modeModifierLabel(), modifier, 11, secondary, true);
+            text(p, std::to_string(m_hoverMode), key, 11, secondary, true);
+        }
+        p.restore();
     }
+    if (m_expansion == 0 || idle())
+        return;
     p.save();
-    p.clipRoundedRect(localRect(), kRadius);
-    glyph(p, int(m_mode), {28, kHeader / 2.0}, ink);
-    glyph(p, 5, {w - 28, kHeader / 2.0}, ink);
+    p.clipRoundedRect({0, 0, field, h}, kRadius);
+    p.multiplyOpacity(m_expansion);
+    glyph(p, Symbol(m_mode), {28, kHeader / 2.0}, ink);
+    glyph(p, Symbol::More, {field - 28, kHeader / 2.0}, ink, 22);
     if (m_mode == Mode::Search && m_selected >= 0 && w >= 360) {
-        const ui::RectF open{w - 110, 15, 61, 24};
+        const ui::RectF open{field - 110, 15, 61, 24};
         plate(p, open, 9, subtle);
         text(p, tr("Open"), open, 12, ink, true);
     }
-    p.drawHorizontalLine(17, kHeader, w - 34, hairline);
+    p.drawHorizontalLine(17, kHeader, field - 34, hairline);
+    p.multiplyOpacity(m_bodyOpacity);
     if (m_action || m_confirmClear) {
         if (m_action)
             text(p, m_savingQuick ? std::string(tr("Add quick keys")) + " — " + m_action->title : m_action->title,
@@ -665,7 +838,8 @@ void SpotlightView::paint(ui::Painter &p)
         p.drawHorizontalLine(17, bodyTop(), w - 34, hairline);
     }
     const double top = bodyTop();
-    p.clip(over(top + 1, h - top - 5));
+    const double shown = verticalAxis().viewport;
+    p.clip(over(top, shown));
     if (m_results.empty()) {
         std::string message = tr("No results found.");
         if (m_mode == Mode::Clipboard && !m_clipboard.store().isEnabled())
@@ -699,37 +873,45 @@ void SpotlightView::paint(ui::Painter &p)
         }
         const bool copy = result.type == Mode::Clipboard;
         const bool quick = result.type == Mode::Actions && m_mode == Mode::Actions;
-        const double right = copy ? 64 : quick ? 133 : 10;
+        const double right = copy ? 46 : quick ? 133 : 10;
         const double titleY = r.y + (result.detail.empty() ? 0 : 6);
         text(p, result.title, {r.x+56, titleY, r.width-56-right, result.detail.empty() ? r.height : 21}, 15, ink);
         text(p, result.detail, {r.x+56, r.y+28, r.width-56-right, 17}, 12, secondary);
         if (copy || quick) {
-            const ui::RectF button{r.right()-right, r.y+14, right-10, 24};
-            plate(p, button, 9, subtle);
-            text(p, copy ? tr("Copy") : (result.quick.empty() ? tr("Add quick keys") : result.quick), button, 11, secondary, true);
+            const ui::RectF button{copy ? r.right()-34 : r.right()-right, r.y+14, copy ? 24.0 : right-10, 24};
+            plate(p, button, copy ? 12 : 9, subtle);
+            if (copy)
+                glyph(p, Symbol::Clipboard, {button.x + 12, button.y + 12}, secondary, 17);
+            else
+                text(p, result.quick.empty() ? tr("Add quick keys") : result.quick, button, 11, secondary, true);
         }
     }
-    const double shown = h - top - 7;
-    if (m_bodyHeight > shown && shown > 0) {
-        const auto thumb = std::max(16.0, shown * shown / m_bodyHeight);
-        plate(p, {w - 5, top + 2 + m_scroll / (m_bodyHeight - shown) * (shown - thumb), 3, thumb}, 1.5, hairline);
+    if (verticalAxis().enabled) {
+        const auto thumb = std::min(shown, std::max(16.0, shown * shown / m_bodyHeight));
+        plate(p, {field - 5, top + m_scroll / verticalAxis().maximum * (shown - thumb), 3, thumb}, 1.5, hairline);
     }
     p.restore();
 }
 
 int SpotlightView::hitMode(ui::PointF point) const
 {
-    if (!idle() || point.y >= kHeader || point.x < fieldWidth(geometry().width) + kGap)
-        return -1;
-    const double dx = point.x - fieldWidth(geometry().width) - kGap;
-    const int span = int((geometry().width - fieldWidth(geometry().width)) / 4);
-    const int button = int(dx) / span;
-    return button < 4 && int(dx) % span < span - kGap ? button + 1 : -1;
+    if (idle()) {
+        for (int i = 0; i < 4; ++i) {
+            if (modeButton(geometry().width, i).contains(point))
+                return i + 1;
+        }
+    }
+    return -1;
+}
+
+std::string SpotlightView::modeModifierLabel() const
+{
+    return m_shell.seat() && m_shell.seat()->shortcutConvention() == input::ShortcutConvention::Command ? "⌘" : "Super";
 }
 
 int SpotlightView::hitResult(ui::PointF point) const
 {
-    if (point.y <= bodyTop() || point.y >= geometry().height - 4 || m_action || m_confirmClear)
+    if (idle() || point.y <= bodyTop() || point.y >= geometry().height - kBodyInset || m_action || m_confirmClear)
         return -1;
     point.y += m_scroll - bodyTop();
     for (const auto &tile : m_tiles) {
@@ -801,7 +983,7 @@ void SpotlightView::pointerRelease(const ui::PointerEvent &event)
     if (event.button != ui::MouseButton::Left)
         return;
     const auto pos = event.position;
-    const auto w = geometry().width, h = geometry().height;
+    const auto w = fieldWidth(geometry().width), h = geometry().height;
     if (m_confirmClear) {
         if (pos.y >= h - 48 && pos.x >= w - 115)
             m_clipboard.clear();
@@ -840,25 +1022,54 @@ void SpotlightView::pointerRelease(const ui::PointerEvent &event)
     const int row = hitResult(pos);
     if (row >= 0) {
         const Mode type = m_results[row].type;
-        activate(row, (type == Mode::Clipboard && pos.x > w - 77)
+        const auto &tile = m_tiles[row].rect;
+        const ui::RectF copy{tile.right() - 34, bodyTop() + tile.y - m_scroll + 14, 24, 24};
+        activate(row, (type == Mode::Clipboard && copy.contains(pos))
                  || (type == Mode::Actions && m_mode == Mode::Actions && pos.x > w - 150));
     }
 }
 
 bool SpotlightView::scroll(const ui::ScrollEvent &event)
 {
-    if (idle() || m_action)
+    if (idle() || m_action || m_confirmClear || !window())
         return false;
-    if (!m_chips.empty() && (event.deltaX != 0 || (event.modifiers & ui::ShiftModifier))) {
-        const double edge = m_chips.back().rect.right() + m_chipScroll + 17;
-        m_chipScroll = std::clamp(m_chipScroll + (event.deltaX != 0 ? event.deltaX : event.deltaY), 0.0,
-                                  std::max(0.0, edge - geometry().width));
-    } else {
-        m_scroll += event.deltaY;
-        clampScroll();
+    auto delta = event;
+    if (!m_chips.empty() && (event.modifiers & ui::ShiftModifier) && event.deltaX == 0 && event.value120X == 0) {
+        delta.deltaX = std::exchange(delta.deltaY, 0);
+        delta.value120X = std::exchange(delta.value120Y, 0);
     }
-    requestLayout();
-    requestPaint();
+    if (event.precise) {
+        if (m_wheel)
+            m_wheel->stop();
+        if (!m_scroller) {
+            m_scroller = std::make_unique<ui::Scroller>(window(), static_cast<ui::Scroller::Target *>(this));
+            m_scroller->setElastic(false);
+        }
+        return m_scroller->handleScroll(delta);
+    }
+
+    if (m_scroller)
+        m_scroller->cancel(false);
+    if (!m_wheel) {
+        m_wheel = std::make_unique<WheelAnimation>(window());
+        m_wheel->setDuration(std::chrono::milliseconds(155));
+        m_wheel->setEasing(ui::Animation::Easing::OutCubic);
+    }
+    // Match the toolkit's 45px per detent, but ease towards the accumulated
+    // destination, so quick successive ticks do not drop distance.
+    const ui::PointF step{delta.value120X ? delta.value120X * 45.0 / 120 : delta.deltaX * 4.5,
+                          delta.value120Y ? delta.value120Y * 45.0 / 120 : delta.deltaY * 4.5};
+    const auto from = position();
+    const auto target = boundedPosition((m_wheel->isRunning() ? m_wheelTarget : from) + step);
+    if (target == from) {
+        m_wheel->stop();
+        return false;
+    }
+    if (m_wheel->isRunning() && target == m_wheelTarget)
+        return true;
+    m_wheelTarget = target;
+    m_wheel->onUpdate = [this, from, target](double t) { applyPosition(from + (target - from) * t); };
+    m_wheel->start();
     return true;
 }
 
@@ -889,11 +1100,11 @@ void SpotlightView::select(int row)
 {
     if (m_tiles.empty())
         return;
+    stopScrolling();
     m_selected = std::clamp(row, 0, int(m_tiles.size()) - 1);
     const auto &tile = m_tiles[m_selected].rect;
-    const double lowest = std::clamp(tile.bottom() - (geometry().height - bodyTop() - 6), 0.0, tile.y);
-    m_scroll = std::clamp(m_scroll, lowest, tile.y);
-    clampScroll();
+    const double lowest = std::clamp(tile.bottom() - verticalAxis().viewport, 0.0, tile.y);
+    applyPosition({m_chipScroll, std::clamp(m_scroll, lowest, tile.y)});
     requestLayout();
     requestPaint();
 }
@@ -1076,19 +1287,20 @@ void SpotlightView::openMenu(ui::PointF point, int row)
                     }
                 }
             };
-            m_menu.addItem(tr("Paste"), [select] { select(false); });
-            m_menu.addItem(tr("Copy"), [select] { select(true); });
+            m_menu.setItemIcon(m_menu.addItem(tr("Paste"), [select] { select(false); }), "edit-paste");
+            m_menu.setItemIcon(m_menu.addItem(tr("Copy"), [select] { select(true); }), "edit-copy");
             for (int i = 0; i < model.count(); ++i) {
                 if (model.keyAt(i) != result.key)
                     continue;
                 const auto &entry = model.entry(i);
                 const std::string target = entry.files.size() == 1 ? entry.files.front() : webLink(entry.text) ? entry.text : "";
                 if (!target.empty())
-                    m_menu.addItem(tr("Open"), [this, target] { openTarget(target); });
+                    m_menu.setItemIcon(m_menu.addItem(tr("Open"), [this, target] { openTarget(target); }), "document-open");
                 break;
             }
             m_menu.addSeparator();
-            m_menu.addItem(tr("Delete Item"), [this, k = result.key] { m_clipboard.store().remove(k); });
+            m_menu.setItemIcon(m_menu.addItem(tr("Delete Item"), [this, k = result.key] { m_clipboard.store().remove(k); }),
+                               "edit-delete");
             break;
         }
         default: break;
@@ -1097,11 +1309,14 @@ void SpotlightView::openMenu(ui::PointF point, int row)
         if (m_mode == Mode::Applications) {
             auto *view = m_menu.addSubmenu(tr("View content as"));
             const auto as = [this](bool list) {
+                if (m_list == list)
+                    return;
                 m_list = list;
                 m_scroll = 0;
                 m_settings.setValue("Applications/List", list);
                 m_settings.sync();
                 refreshLayout();
+                fadeBody();
             };
             view->setItemChecked(view->addItem(tr("Grid"), [as] { as(false); }), !m_list);
             view->setItemChecked(view->addItem(tr("List"), [as] { as(true); }), m_list);
@@ -1122,7 +1337,7 @@ void SpotlightView::openMenu(ui::PointF point, int row)
         }
         for (int i = 0; i <= 4; ++i) {
             if (Mode(i) != m_mode)
-                m_menu.addItem(nameFor(Mode(i)), [this, i] { setMode(Mode(i)); }, i ? "Super+" + std::to_string(i) : "");
+                m_menu.addItem(nameFor(Mode(i)), [this, i] { setMode(Mode(i)); }, i ? modeModifierLabel() + "+" + std::to_string(i) : "");
         }
     }
     const auto size = m_menu.implicitSize(window());
@@ -1143,6 +1358,7 @@ void SpotlightView::showAction(const Result &result, bool quick)
     m_message->clear();
     m_message->setPlaceholder(tr("Message"));
     refreshResults();
+    fadeBody();
     m_parameter->setVisible(true);
     m_parameter->setFocus();
     m_parameter->selectAll();
@@ -1153,6 +1369,7 @@ void SpotlightView::exitAction()
     m_action.reset();
     m_status.clear();
     refreshResults();
+    fadeBody();
     m_field->setVisible(true);
     focusSearch();
 }

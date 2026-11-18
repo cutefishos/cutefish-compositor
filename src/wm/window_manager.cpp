@@ -1120,6 +1120,12 @@ void WindowManager::setKeyboardGrab(Window *window)
         m_seat->setFocusedSurface(window->rootSurface(), true);
 }
 
+void WindowManager::clearKeyboardGrab(Window *window)
+{
+    if (window && m_keyboardGrab == window)
+        releaseKeyboardGrab();
+}
+
 void WindowManager::runLater(std::chrono::milliseconds delay, std::function<void()> task)
 {
     auto guarded = [manager = weakPtr(), task = std::move(task)] {
