@@ -874,6 +874,25 @@ public:
     std::optional<std::string> received;
 };
 
+// Takes a copy or a move of plain text, a copy when no key picks.
+class ChoosingDropView : public DropView
+{
+public:
+    uint32_t dragUpdate(const ui::DragEvent &event) override
+    {
+        DropView::dragUpdate(event);
+        return ui::dropActions(ui::CopyAction | ui::MoveAction, ui::CopyAction);
+    }
+    uint32_t drop(const ui::DragEvent &event) override
+    {
+        DropView::drop(event);
+        picked = event.offer->action();
+        return ui::takenDropAction(ui::dropActions(ui::CopyAction | ui::MoveAction, ui::CopyAction), picked);
+    }
+
+    uint32_t picked = ui::NoAction;
+};
+
 } // namespace
 
 TEST_F(TextInputShellTest, AFocusedTextFieldIsOnTheInputMethodRelay)
@@ -970,6 +989,54 @@ TEST_F(ShellTest, ADragFromOneShellWindowDropsOnAnother)
     input.onPointerButton(at(9), BTN_LEFT, false);
     ASSERT_TRUE(test::runUntil([&] { return dragger->finished.size() == 2; }));
     EXPECT_EQ(ui::NoAction, dragger->finished.back());
+}
+
+TEST_F(ShellTest, AShellWindowTakingSeveralActionsGetsTheOneTheKeysPick)
+{
+    shell::ShellWindow source(shell.get(), wm::WindowRole::Panel);
+    auto dragView = std::make_unique<DragView>();
+    DragView *dragger = dragView.get();
+    source.setContentView(std::move(dragView));
+    source.setGeometry(base::Rect(0, 0, 400, 40));
+    source.show();
+    shell::ShellWindow target(shell.get(), wm::WindowRole::Dock);
+    auto dropView = std::make_unique<ChoosingDropView>();
+    ChoosingDropView *dropper = dropView.get();
+    target.setContentView(std::move(dropView));
+    target.setGeometry(base::Rect(300, 700, 400, 60));
+    target.show();
+    frame();
+
+    move(1, 50, 20);
+    input.onPointerButton(at(2), BTN_LEFT, true);
+    ASSERT_TRUE(dragger->started);
+    test::processPendingEvents();
+    input::DragController *drag = seat.drag();
+    ASSERT_TRUE(drag->active());
+    move(3, 400, 720);
+    move(4, 420, 730);
+    EXPECT_TRUE(drag->targetAcceptsDrop());
+
+    input.onKey(at(5), KEY_LEFTSHIFT, true);
+    input.onPointerButton(at(6), BTN_LEFT, false);
+    input.onKey(at(7), KEY_LEFTSHIFT, false);
+    EXPECT_TRUE(dropper->saw("drop"));
+    EXPECT_EQ(uint32_t(ui::MoveAction), dropper->picked);
+    ASSERT_TRUE(test::runUntil([&] { return !dragger->finished.empty(); }));
+    EXPECT_EQ(ui::MoveAction, dragger->finished.front());
+
+    // No key: the view's own preference.
+    move(8, 50, 20);
+    dragger->started = false;
+    input.onPointerButton(at(9), BTN_LEFT, true);
+    test::processPendingEvents();
+    ASSERT_TRUE(drag->active());
+    move(10, 400, 720);
+    move(11, 420, 730);
+    input.onPointerButton(at(12), BTN_LEFT, false);
+    EXPECT_EQ(uint32_t(ui::CopyAction), dropper->picked);
+    ASSERT_TRUE(test::runUntil([&] { return dragger->finished.size() == 2; }));
+    EXPECT_EQ(ui::CopyAction, dragger->finished.back());
 }
 
 TEST_F(ShellTest, AGestureGoesToTheWindowUnderThePointer)

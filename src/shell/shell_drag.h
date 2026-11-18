@@ -61,7 +61,7 @@ private:
     void motion(const base::PointF &location);
     void leave();
     void dropped(input::DragOffer *offer);
-    void apply(uint32_t action);
+    void apply(uint32_t answer);
 
     Shell *m_shell;
     // The icon of the drag this shell started, until it ends. A surface only

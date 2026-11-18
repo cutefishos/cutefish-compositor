@@ -252,6 +252,50 @@ TEST(DndProtocol, AskResolvesAfterDropAndModifiersSelectAmongSharedActions)
     EXPECT_EQ(0u, a.cancelled);
 }
 
+TEST(DndProtocol, ModifiersPickAmongTheDestinationsActionsUnderBothConventions)
+{
+    for (const auto convention : {input::ShortcutConvention::Pc, input::ShortcutConvention::Command}) {
+        const bool command = convention == input::ShortcutConvention::Command;
+        const uint32_t copyKey = command ? KEY_LEFTALT : KEY_LEFTCTRL;
+        const uint32_t moveKey = command ? KEY_LEFTMETA : KEY_LEFTSHIFT;
+        Harness h;
+        h.seat.setShortcutConvention(convention);
+        auto &a = h.addClient();
+        auto &b = h.addClient();
+        map(h, a, 0);
+        map(h, b, 150);
+        start(h, a, 7);
+        h.seat.onPointerMotion({}, {160, 10});
+        h.sync(b);
+
+        accept(h, b, 3, 1);
+        EXPECT_EQ(1u, b.dragAction);
+        h.seat.onKey({}, moveKey, true);
+        h.sync(b);
+        EXPECT_EQ(2u, b.dragAction);
+        h.seat.onKey({}, moveKey, false);
+        h.sync(b);
+        EXPECT_EQ(1u, b.dragAction);
+
+        accept(h, b, 3, 2);
+        EXPECT_EQ(2u, b.dragAction);
+        h.seat.onKey({}, copyKey, true);
+        h.sync(b);
+        EXPECT_EQ(1u, b.dragAction);
+        h.sync(a);
+        EXPECT_EQ(1u, a.sourceAction);
+
+        // A key for an action the destination does not take leaves its own.
+        accept(h, b, 2, 2);
+        EXPECT_EQ(2u, b.dragAction);
+        h.seat.onKey({}, copyKey, false);
+        h.seat.onKey({}, KEY_ESC, true);
+        h.seat.onKey({}, KEY_ESC, false);
+        h.sync(a);
+        EXPECT_EQ(1u, a.cancelled);
+    }
+}
+
 TEST(DndProtocol, SourceOriginAndDestinationDeviceDestructionUnwindTransfers)
 {
     for (int kind = 0; kind < 4; ++kind) {

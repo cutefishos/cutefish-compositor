@@ -191,6 +191,7 @@ public:
 
     const std::vector<std::string> &mimeTypes() const override { return offer->formats(); }
     uint32_t sourceActions() const override { return offer->sourceActions(); }
+    uint32_t action() const override { return offer->action(); }
 
     void read(const std::string &mimeType, std::function<void(std::string data)> done) override
     {
@@ -396,14 +397,16 @@ void ShellDrag::dropped(input::DragOffer *dropped)
     offer->finishIfDone();
 }
 
-void ShellDrag::apply(uint32_t action)
+void ShellDrag::apply(uint32_t answer)
 {
     input::DragOffer *offer = m_offer ? m_offer->offer.get() : nullptr;
     if (!offer)
         return;
-    const uint32_t chosen = lowestAction(action & offer->sourceActions());
-    offer->setActions(chosen, chosen);
-    offer->accept(chosen && !offer->formats().empty() ? offer->formats().front().c_str() : nullptr);
+    const uint32_t allowed = offer->sourceActions();
+    const uint32_t preferred = lowestAction(ui::preferredDropAction(answer) & allowed);
+    const uint32_t accepted = (ui::acceptedDropActions(answer) & allowed) | preferred;
+    offer->setActions(accepted, preferred);
+    offer->accept(accepted && !offer->formats().empty() ? offer->formats().front().c_str() : nullptr);
 }
 
 } // namespace cutefish::shell
