@@ -1366,6 +1366,40 @@ TEST_F(WmTest, MovingAWindowUnderTheDockKeepsItsStripAboveTheDock)
     manager.clearExclusiveZone(this);
 }
 
+TEST_F(WmTest, AWindowAskingToStayAboveTheDockStacksOverItAndMayReachOverItsStrip)
+{
+    manager.setExclusiveZone(this, ScreenEdge::Bottom, 80);
+    Window *dock = makeWindow(base::Rect(0, kOutput.height() - 80, kOutput.width(), 80));
+    dock->setRole(WindowRole::Dock);
+    Window *floating = makeWindow(base::Rect(0, 0, 200, 100));
+    floating->rootSurface()->setLevel(compositor::WindowLevel::Floating);
+    compositor::Surface *surface = makeSurface(base::Size(300, 200));
+    surface->setLevel(compositor::WindowLevel::AboveDock);
+    Window *panel = manager.createWindow(surface, {.requestedSize = {300, 200}});
+    auto index = [&](Window *window) {
+        const auto order = manager.windows();
+        return std::find(order.begin(), order.end(), window) - order.begin();
+    };
+
+    floating->activate();
+    EXPECT_EQ(layerFor(panel), StackingLayer::AboveDock);
+    EXPECT_EQ(layerFor(floating), StackingLayer::AlwaysOnTop);
+    EXPECT_LT(index(floating), index(dock));
+    EXPECT_LT(index(dock), index(panel));
+
+    // Its size is the client's down to the output's edge, not the work area's.
+    panel->requestBounds(base::Rect(100, 30, 300, kOutput.height() - 40));
+    EXPECT_EQ(base::Rect(100, 30, 300, kOutput.height() - 40), panel->bounds());
+    floating->requestBounds(base::Rect(100, 30, 300, kOutput.height() - 40));
+    EXPECT_EQ(kOutput.height() - 80, floating->bounds().height());
+
+    surface->setLevel(compositor::WindowLevel::Normal);
+    EXPECT_EQ(layerFor(panel), StackingLayer::Normal);
+    EXPECT_LT(index(panel), index(dock));
+
+    manager.clearExclusiveZone(this);
+}
+
 TEST_F(WmTest, ARequestedSizeIsNoTallerThanTheWorkArea)
 {
     manager.setExclusiveZone(this, ScreenEdge::Bottom, 80);

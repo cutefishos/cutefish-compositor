@@ -1286,9 +1286,14 @@ void Surface::setSkipTaskbar(bool skip)
 
 void Surface::setAlwaysOnTop(bool alwaysOnTop)
 {
-    if (m_alwaysOnTop == alwaysOnTop)
+    setLevel(alwaysOnTop ? WindowLevel::Floating : WindowLevel::Normal);
+}
+
+void Surface::setLevel(WindowLevel level)
+{
+    if (m_level == level)
         return;
-    m_alwaysOnTop = alwaysOnTop;
+    m_level = level;
     notifyWindowHintsChanged();
 }
 

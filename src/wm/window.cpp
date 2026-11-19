@@ -111,6 +111,7 @@ Window::Window(WindowManager *manager, compositor::Surface *rootSurface, const s
         m_rootSurface->addSurfaceObserver(this);
         // Hints are usually set before the first commit, so before this window exists.
         m_surfaceAlwaysOnTop = m_rootSurface->alwaysOnTop();
+        m_surfaceAboveDock = m_rootSurface->level() == compositor::WindowLevel::AboveDock;
         m_surfaceOpacity = m_rootSurface->opacity();
         if (isPopup())
             m_rootSurface->setHidden(false);
@@ -212,11 +213,14 @@ void Window::onSurfaceWindowHintsChanged(compositor::Surface *surface)
     }
     // Every hint lands here; restacking for the others would raise the window
     // within its layer.
-    if (surface->alwaysOnTop() == m_surfaceAlwaysOnTop)
+    const bool aboveDock = surface->level() == compositor::WindowLevel::AboveDock;
+    if (surface->alwaysOnTop() == m_surfaceAlwaysOnTop && aboveDock == m_surfaceAboveDock)
         return;
     const bool wasAlwaysOnTop = isAlwaysOnTop();
+    const bool wasAboveDock = m_surfaceAboveDock;
     m_surfaceAlwaysOnTop = surface->alwaysOnTop();
-    if (isAlwaysOnTop() != wasAlwaysOnTop && m_manager)
+    m_surfaceAboveDock = aboveDock;
+    if ((isAlwaysOnTop() != wasAlwaysOnTop || aboveDock != wasAboveDock) && m_manager)
         m_manager->onWindowStackingChanged(this);
 }
 

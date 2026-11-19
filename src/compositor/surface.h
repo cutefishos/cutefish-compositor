@@ -61,6 +61,14 @@ enum class Transform {
     FlippedRotate270,
 };
 
+// Where a client asks its window to stack: among ordinary windows, above
+// them, or above the dock as well.
+enum class WindowLevel {
+    Normal,
+    Floating,
+    AboveDock,
+};
+
 // The point of a window that a client-initiated resize keeps in place.
 enum class ResizeAnchor {
     TopLeft,
@@ -117,8 +125,10 @@ public:
 
     bool skipTaskbar() const { return m_skipTaskbar; }
     void setSkipTaskbar(bool skip);
-    bool alwaysOnTop() const { return m_alwaysOnTop; }
+    bool alwaysOnTop() const { return m_level != WindowLevel::Normal; }
     void setAlwaysOnTop(bool alwaysOnTop);
+    WindowLevel level() const { return m_level; }
+    void setLevel(WindowLevel level);
     // Read when the client resizes its window; no observer needs to know.
     ResizeAnchor resizeAnchor() const { return m_resizeAnchor; }
     void setResizeAnchor(ResizeAnchor anchor) { m_resizeAnchor = anchor; }
@@ -588,7 +598,7 @@ private:
     std::shared_ptr<MenuModel> m_mainMenu;
     std::shared_ptr<MenuModel> m_dockMenu;
     bool m_skipTaskbar = false;
-    bool m_alwaysOnTop = false;
+    WindowLevel m_level = WindowLevel::Normal;
     bool m_castsShadow = true;
     float m_opacity = 1;
     bool m_hasFullscreenBars = false;

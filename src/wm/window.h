@@ -425,6 +425,10 @@ public:
 
     void setAlwaysOnTop(bool alwaysOnTop);
 
+    // The client asked through cutefish_window_hints_v1 to stack above the
+    // dock; the window is then not confined to the work area either.
+    bool isAboveDock() const { return m_surfaceAboveDock; }
+
     // --- Observers ---
 
     // compositor::SurfaceObserver: the client destroyed the surface, so the
@@ -514,6 +518,7 @@ private:
     int m_edgeReach = 0;
     bool m_alwaysOnTop = false;
     bool m_surfaceAlwaysOnTop = false;
+    bool m_surfaceAboveDock = false;
     float m_opacity = 1;
     float m_surfaceOpacity = 1;
 

@@ -360,15 +360,15 @@ base::Rect WindowManager::workAreaFor(const Window *window, const base::Rect &bo
                 ? m_displayManager->displayForRect(bounds)
                 : m_displayManager->primaryDisplay();
         if (logical)
-            return window && window->isShellWindow()
+            return window && (window->isShellWindow() || window->isAboveDock())
                     ? logical->bounds
                     : zonedWorkArea(logical->workArea, logical->bounds, logical->waylandName,
                                     logical->primary);
     }
     // A shell window places itself and is expected to cover the area it
     // reserved; confining it to the work area would move the dock off its own
-    // strip.
-    if (window && window->isShellWindow())
+    // strip. A window kept above the dock may reach over that strip too.
+    if (window && (window->isShellWindow() || window->isAboveDock()))
         return m_outputBounds;
     return m_workArea;
 }

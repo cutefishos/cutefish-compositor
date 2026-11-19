@@ -161,6 +161,29 @@ TEST_F(WindowHintsProtocolTest, InvalidAlwaysOnTopIsAProtocolError)
     wl_surface_destroy(surface);
 }
 
+TEST_F(WindowHintsProtocolTest, LevelIsImmediateAndTheLaterOfItAndAlwaysOnTopApplies)
+{
+    auto *surface = wl_compositor_create_surface(clientCompositor);
+    ASSERT_GE(roundtrip(), 0);
+    auto *model = compositor.surfaces().front();
+    EXPECT_EQ(model->level(), compositor::WindowLevel::Normal);
+    cutefish_window_hints_v1_set_level(hints, surface, CUTEFISH_WINDOW_HINTS_V1_LEVEL_ABOVE_DOCK);
+    ASSERT_GE(roundtrip(), 0);
+    EXPECT_EQ(model->level(), compositor::WindowLevel::AboveDock);
+    EXPECT_TRUE(model->alwaysOnTop());
+    cutefish_window_hints_v1_set_always_on_top(hints, surface, 1);
+    ASSERT_GE(roundtrip(), 0);
+    EXPECT_EQ(model->level(), compositor::WindowLevel::Floating);
+    cutefish_window_hints_v1_set_level(hints, surface, CUTEFISH_WINDOW_HINTS_V1_LEVEL_NORMAL);
+    ASSERT_GE(roundtrip(), 0);
+    EXPECT_FALSE(model->alwaysOnTop());
+    cutefish_window_hints_v1_set_level(hints, surface, 3);
+    EXPECT_LT(roundtrip(), 0);
+    EXPECT_EQ(wl_display_get_protocol_error(client, nullptr, nullptr),
+              CUTEFISH_WINDOW_HINTS_V1_ERROR_INVALID_VALUE);
+    wl_surface_destroy(surface);
+}
+
 TEST_F(WindowHintsProtocolTest, ResizeAnchorIsImmediateAndPersistsUntilTheSurfaceDies)
 {
     auto *surface = wl_compositor_create_surface(clientCompositor);

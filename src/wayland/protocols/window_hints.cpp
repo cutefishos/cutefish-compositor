@@ -226,11 +226,31 @@ void hideApplication(wl_client *, wl_resource *resource, wl_resource *surface)
             manager->windows->windowForSurface(getUserDataAs<compositor::Surface>(surface)));
 }
 
+void setLevel(wl_client *, wl_resource *resource, wl_resource *surface, uint32_t level)
+{
+    compositor::WindowLevel value;
+    switch (level) {
+    case CUTEFISH_WINDOW_HINTS_V1_LEVEL_NORMAL:
+        value = compositor::WindowLevel::Normal;
+        break;
+    case CUTEFISH_WINDOW_HINTS_V1_LEVEL_FLOATING:
+        value = compositor::WindowLevel::Floating;
+        break;
+    case CUTEFISH_WINDOW_HINTS_V1_LEVEL_ABOVE_DOCK:
+        value = compositor::WindowLevel::AboveDock;
+        break;
+    default:
+        wl_resource_post_error(resource, CUTEFISH_WINDOW_HINTS_V1_ERROR_INVALID_VALUE, "unknown level");
+        return;
+    }
+    getUserDataAs<compositor::Surface>(surface)->setLevel(value);
+}
+
 const struct cutefish_window_hints_v1_interface implementation = {
         destroy, setSkipTaskbar, setAlwaysOnTop, setResizeAnchor,
         setServerResize, setRestoreId, setRestoreSize, setPlacementAnchor,
         unsetPlacementAnchor, setBodyShape, unsetBodyShape, setShadow,
-        setOpacity, hideApplication, setFullscreenBars};
+        setOpacity, hideApplication, setFullscreenBars, setLevel};
 
 void unbind(wl_resource *resource)
 {

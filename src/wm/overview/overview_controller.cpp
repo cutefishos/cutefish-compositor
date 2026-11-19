@@ -146,7 +146,8 @@ void OverviewController::advance(double timeMs)
     std::set<Window *> faded;
     if (shown > 0) {
         for (Window *window : m_manager->windows()) {
-            if (layerFor(window) == StackingLayer::AlwaysOnTop)
+            if (layerFor(window) == StackingLayer::AlwaysOnTop
+                || layerFor(window) == StackingLayer::AboveDock)
                 faded.insert(window);
         }
     }
@@ -747,7 +748,8 @@ OverviewController::Hit OverviewController::hitTest(const base::PointF &location
     // server-side frames too, which windowAt() does not see. Floating windows
     // fade away instead.
     const auto aboveDesk = [](const Window *window) {
-        return window && layerFor(window) > StackingLayer::AlwaysOnTop;
+        return window && layerFor(window) > StackingLayer::AlwaysOnTop
+                && layerFor(window) != StackingLayer::AboveDock;
     };
     if (aboveDesk(m_manager->windowAt(location)) || aboveDesk(m_manager->frameAt(location))) {
         hit.type = Hit::Type::Panel;

@@ -17,7 +17,10 @@ class Window;
 //
 // Bottom to top:
 //
-//   Desktop < Normal applications < AlwaysOnTop < DesktopPopup < Panel < Launchpad < Dock < Notification < Osd < Capture
+//   Desktop < Normal applications < AlwaysOnTop < DesktopPopup < Panel < Launchpad < Dock < AboveDock < Notification < Osd < Capture
+//
+// AboveDock holds application windows the client asked to keep above the
+// dock, such as a status item's panel.
 //
 // Osd is the level a volume or brightness key shows, which must not hide
 // behind a banner that happens to be up.
@@ -35,10 +38,11 @@ enum class StackingLayer {
     Panel = 4,
     Launchpad = 5,
     Dock = 6,
-    Notification = 7,
-    Osd = 8,
-    Picker = 9,
-    Capture = 10,
+    AboveDock = 7,
+    Notification = 8,
+    Osd = 9,
+    Picker = 10,
+    Capture = 11,
 };
 
 // A panel whose behavior is WindowsCanCover drops into the normal layer.
