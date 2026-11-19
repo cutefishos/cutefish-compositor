@@ -222,7 +222,7 @@ protected:
                                      rect.height()},
                                     {0, 0, ui::Corners::Circular}, color);
         };
-        draw(m_dock->divider(), 0.18);
+        draw(m_dock->divider(), 0.8);
         draw(m_dock->trailingDivider(), m_dock->m_trailingOpacity);
     }
 
@@ -1014,21 +1014,20 @@ void DockWindow::layoutItems()
                       + itemGrowth,
               1, 1);
 
-    // The dividers: 48/86 of the thickness, centred across the panel, a pixel
-    // wide rounded up to whole device pixels, centred in their gap.
+    // The dividers: 48/86 of the thickness, centred across the panel, in the
+    // middle of their gap with the leading edge half a pixel before it.
     const double lineLength = std::round(drawnThickness * 48 / 86);
     const double lineAcross = std::round((drawnThickness - lineLength) / 2);
-    const double lineWidth = std::ceil(pixelRatio()) / pixelRatio();
-    const double middle = (m_drawn.separatorExtent - m_drawn.iconGap - lineWidth) / 2;
+    const double middle = (m_drawn.separatorExtent - m_drawn.iconGap) / 2 - 0.5;
     const auto lineRect = [&](double position) {
         const double start = field.isIdentity() ? origin + position : drawnAlong(origin + position);
-        return bottom ? base::RectF(start, lineAcross, lineWidth, lineLength)
-                      : base::RectF(lineAcross, start, lineLength, lineWidth);
+        return bottom ? base::RectF(start, lineAcross, 1, lineLength)
+                      : base::RectF(lineAcross, start, lineLength, 1);
     };
     m_divider = lineRect(along(m_applications->sectionPosition() + middle,
                                m_applications->targetSectionPosition() + middle));
     const double extent = m_applications->trailingExtent();
-    m_trailingOpacity = 0.18 * std::clamp((extent - 2) / (m_drawn.separatorExtent - 2), 0.0, 1.0);
+    m_trailingOpacity = 0.8 * std::clamp((extent - 2) / (m_drawn.separatorExtent - 2), 0.0, 1.0);
     m_trailingDivider = m_trailingOpacity > 0
             ? lineRect(along(m_applications->length() + middle * extent / m_drawn.separatorExtent,
                              m_applications->targetLength()
