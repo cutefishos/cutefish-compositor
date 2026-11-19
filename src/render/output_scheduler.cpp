@@ -205,7 +205,8 @@ bool OutputScheduler::complete(uint64_t frame, std::optional<Time> presented)
     if (presented && *presented <= now) {
         // Frames drawn to a stamped flip are begun a budget before the vblank;
         // a late one moves them earlier, down to the vblank itself, and on-time
-        // ones win the time back slowly so a steady load does not stutter. One
+        // ones win the time back over about twenty frames, as every commit waits
+        // for the draw point meanwhile. One
         // begun past its draw point, as late demand is, says nothing about it,
         // nor does one that took longer than it was given: drawn() has already
         // moved the draw point early enough for it, and doubling on top kept
@@ -215,7 +216,7 @@ bool OutputScheduler::complete(uint64_t frame, std::optional<Time> presented)
         if (missed && front.punctual && !overran)
             m_lateBudget = std::min(m_period, drawBudget() * 2);
         else if (m_lateBudget > m_period / 3)
-            m_lateBudget = std::max(m_period / 3, m_lateBudget - m_period / 300);
+            m_lateBudget = std::max(m_period / 3, m_lateBudget - m_period / 30);
         // Lay the slots on the display's own vblank, as viz feeds presentation
         // feedback back into its DelayBasedTimeSource timebase.
         m_vblank = *presented;

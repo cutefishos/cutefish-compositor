@@ -583,9 +583,10 @@ TEST_F(SchedulerTest, LateStampedFlipsBeginFramesEarlierThenWinTheTimeBack)
     pending = 0;
     // Then from just after the vblank.
     scheduler.request(Reason::Scene);
-    EXPECT_EQ(*scheduler.deadline(), now + OutputScheduler::Duration(10ms) / 300);
-    // On time again, it creeps back to a third of the period.
-    for (int i = 0; i < 400; ++i) {
+    EXPECT_EQ(*scheduler.deadline(), now + OutputScheduler::Duration(10ms) / 30);
+    // On time again, it is back to a third of the period after about twenty
+    // frames.
+    for (int i = 0; i < 20; ++i) {
         now = *scheduler.deadline();
         submit();
         now = scheduler.frameTime() + 10ms;
