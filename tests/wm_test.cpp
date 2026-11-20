@@ -669,6 +669,9 @@ TEST_F(WmTest, RestoreUsesLatestDockGeometryOrOutputFallback)
             return true;
         }
     } snapshotRenderer;
+    // One frame time: on the wall clock a slow run's restore moves on
+    // between the samples of a single frame.
+    snapshotRenderer.frameTime = 1000;
 
     const base::Rect bounds(100, 100, 300, 200);
     Window *window = makeWindow(bounds);
