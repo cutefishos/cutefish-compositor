@@ -153,6 +153,32 @@ TEST(KeyboardSettings, TheShortcutConventionIsSavedAndStartsAsCommand)
     EXPECT_FALSE(stored.contains("Keyboard/shortcutConvention"));
 }
 
+TEST(KeyboardSettings, TheCommandKeyIsSavedAndStartsAsAuto)
+{
+    TemporaryDirectory directory;
+    ASSERT_TRUE(directory.isValid());
+    const std::string file = directory.filePath("compositor.conf");
+    {
+        KeyboardSettings settings(file);
+        EXPECT_EQ(settings.commandKey(), cutefish::input::CommandKey::Auto);
+        EXPECT_EQ(settings.commandKeyName(), "auto");
+        int changes = 0;
+        auto changesCounter = settings.commandKeyChanged.connect([&changes] { ++changes; });
+        EXPECT_FALSE(settings.setCommandKey("super"));
+        EXPECT_TRUE(settings.setCommandKey("meta"));
+        EXPECT_TRUE(settings.setCommandKey("meta"));
+        EXPECT_EQ(changes, 1);
+    }
+    {
+        KeyboardSettings restored(file);
+        EXPECT_EQ(restored.commandKey(), cutefish::input::CommandKey::Meta);
+        EXPECT_EQ(restored.commandKeyName(), "meta");
+        EXPECT_TRUE(restored.setCommandKey("auto"));
+    }
+    Settings stored(file);
+    EXPECT_FALSE(stored.contains("Keyboard/commandKey"));
+}
+
 TEST(KeyboardSettings, DBusPropertiesAndMethods)
 {
     EventLoop loop;

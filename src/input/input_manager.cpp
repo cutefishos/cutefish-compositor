@@ -513,23 +513,38 @@ void InputManager::onPointerGestureEnd(Timestamp timestamp, GestureType type, bo
 uint32_t InputManager::positionalKey(uint32_t evdevCode, KeyboardModifierLayout layout) const
 {
     // The PC convention is plain Linux: every keyboard as it reports itself.
-    if (m_seat->shortcutConvention() != ShortcutConvention::Command
-        || layout == KeyboardModifierLayout::Apple)
+    if (m_seat->shortcutConvention() != ShortcutConvention::Command)
         return evdevCode;
-    switch (evdevCode) {
-    case KEY_LEFTALT:
-        return KEY_LEFTMETA;
-    case KEY_LEFTMETA:
-        return KEY_LEFTALT;
-    case KEY_RIGHTALT:
-    case KEY_RIGHTMETA:
-        // Right Alt stays where it is while the layout types with it (AltGr).
-        if (m_seat->xkbTracker()->baseKeysym(KEY_RIGHTALT) == XKB_KEY_ISO_Level3_Shift)
+    // Downstream, Command is Meta, Option is Alt and Control is Ctrl; the
+    // chosen key trades places with Meta so that it arrives as Command.
+    const auto swapped = [evdevCode](uint32_t a, uint32_t b) {
+        return evdevCode == a ? b : evdevCode == b ? a : evdevCode;
+    };
+    switch (m_seat->commandKey()) {
+    case CommandKey::Auto:
+        // By position: an Apple keyboard has Command next to the space bar
+        // already; a PC keyboard's Alt and Meta trade places.
+        if (layout == KeyboardModifierLayout::Apple)
             return evdevCode;
-        return evdevCode == KEY_RIGHTALT ? KEY_RIGHTMETA : KEY_RIGHTALT;
-    default:
+        [[fallthrough]];
+    case CommandKey::Alt:
+        if (evdevCode == KEY_RIGHTALT || evdevCode == KEY_RIGHTMETA) {
+            // Right Alt stays where it is while the layout types with it (AltGr).
+            if (m_seat->xkbTracker()->baseKeysym(KEY_RIGHTALT) == XKB_KEY_ISO_Level3_Shift)
+                return evdevCode;
+            return swapped(KEY_RIGHTALT, KEY_RIGHTMETA);
+        }
+        return swapped(KEY_LEFTALT, KEY_LEFTMETA);
+    case CommandKey::Meta:
+        // Meta is Command as it is; Alt stays Option and Ctrl Control.
         return evdevCode;
+    case CommandKey::Ctrl:
+        // Ctrl is Command and Meta takes its place as Control; Alt stays Option.
+        if (evdevCode == KEY_RIGHTCTRL || evdevCode == KEY_RIGHTMETA)
+            return swapped(KEY_RIGHTCTRL, KEY_RIGHTMETA);
+        return swapped(KEY_LEFTCTRL, KEY_LEFTMETA);
     }
+    return evdevCode;
 }
 
 void InputManager::onKey(Timestamp timestamp, uint32_t physicalCode, bool pressed,
