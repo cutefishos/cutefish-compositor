@@ -1378,6 +1378,56 @@ TEST_F(ShellComponentsTest, TheLaunchpadsDragPinsWhereItIsDropped)
     EXPECT_EQ(dockIds(dock).size(), 4u);
 }
 
+TEST_F(ShellComponentsTest, AFullDockMakesRoomForTheGapBeforeTheDrop)
+{
+    applications->addSimple("editor", "Editor", "accessories-text-editor");
+    applications->scan();
+    auto *dock = openDock("[Dock]\nIconSize=200\nPinned=files, terminal\n");
+    DragSourceView *view = nullptr;
+    auto launchpad = sourceWindow(shell::DockWindow::kDesktopMime, "editor", &view);
+    shell::DockPresentation *presentation = dock->applicationPresentation();
+    const auto settledHeight = [&] {
+        EXPECT_TRUE(test::runUntil([&] {
+            frame();
+            return !presentation->isRunning();
+        }));
+        return dock->panelRect().height();
+    };
+    const int full = settledHeight();
+    const base::Rect announced = dock->dock().primaryGeometry();
+    const base::Rect workArea = manager.workAreaFor(nullptr);
+    const base::PointF terminal = centreOf(dock, dock->applicationIcon("terminal"));
+
+    beginDrag(1, {50, 10}, {terminal.x(), terminal.y() - 400});
+    move(10, terminal.x() - 20, terminal.y());
+    ASSERT_TRUE(test::runUntil([&] {
+        move(11, terminal.x() - 21, terminal.y());
+        move(12, terminal.x() - 20, terminal.y());
+        return presentation->placeholder() >= 0;
+    }));
+    const int gapped = settledHeight();
+    EXPECT_LT(gapped, full);
+    // Nothing around the dock moves for a gap that may close again.
+    EXPECT_EQ(announced, dock->dock().primaryGeometry());
+    EXPECT_EQ(workArea, manager.workAreaFor(nullptr));
+
+    move(20, terminal.x(), terminal.y() - 400);
+    ASSERT_TRUE(test::runUntil([&] { return presentation->placeholder() < 0; }));
+    EXPECT_EQ(full, settledHeight());
+
+    move(30, terminal.x() - 20, terminal.y());
+    ASSERT_TRUE(test::runUntil([&] {
+        move(31, terminal.x() - 21, terminal.y());
+        move(32, terminal.x() - 20, terminal.y());
+        return presentation->placeholder() >= 0;
+    }));
+    release(33);
+    ASSERT_TRUE(test::runUntil([&] { return dockIds(dock).size() == 4; }));
+    EXPECT_EQ(gapped, settledHeight());
+    EXPECT_EQ(dock->primaryGeometry(), dock->dock().primaryGeometry());
+    EXPECT_LT(workArea.height(), manager.workAreaFor(nullptr).height());
+}
+
 TEST_F(ShellComponentsTest, AShellDragShowsItsIcon)
 {
     scene::Node *icons = scene.root()->addChild(std::make_unique<scene::Node>("drag-icons"));

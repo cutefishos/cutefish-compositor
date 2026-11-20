@@ -135,6 +135,8 @@ private:
         bool sourcePinned = false;
         int slot = -1;
         bool pinned = false;
+        // A slot held open for an icon the dock does not have yet.
+        bool gap = false;
         DockIcon *hovered = nullptr;
     };
 
@@ -188,6 +190,8 @@ private:
     void enterApplicationArea();
     void anchorApplicationArea();
     void updateDropSlot();
+    void updateDropGap();
+    void announceGeometry();
     DockIcon *iconAt(const ui::PointF &position) const;
     void reorderMinimized();
     void retire(DockIcon *icon);
@@ -241,6 +245,7 @@ private:
     // copy goes once that frame is out.
     bool m_releaseReturn = false;
     DropTarget m_drop;
+    base::Rect m_announcedGeometry;
     base::Timer m_raiseTimer;
     base::Timer m_reorderTimer;
 

@@ -317,7 +317,7 @@ DockWindow::DockWindow(Shell *shell, std::unique_ptr<Dock> dock)
             icon->bounce();
     };
     m_dock->minimizedWindows().hideLaunchpad = [bus] { callLaunchpad(bus, "hide"); };
-    m_dock->primaryGeometry = [this] { return primaryGeometry(); };
+    m_dock->primaryGeometry = [this] { return m_announcedGeometry; };
 
     const auto changed = [this] {
         rebuild();
@@ -654,7 +654,7 @@ void DockWindow::updateMetrics(bool animate)
     const DockModel &applications = m_dock->applications();
     const Shell::Output *output = m_shell->output({});
     const bool bottom = settings.direction() == DockSettings::Bottom;
-    const int itemCount = applications.count() + 1 + m_dock->minimizedWindows().count();
+    const int itemCount = applications.count() + (m_drop.gap ? 1 : 0) + 1 + m_dock->minimizedWindows().count();
     const int bound = output ? (bottom ? output->bounds.width() : m_shell->workArea(*output).height()) : 0;
     const int separatorCount = applications.count() > applications.pinnedCount() ? 2 : 1;
     const auto fits = [&](const DockMetrics &metrics) {
@@ -702,7 +702,8 @@ void DockWindow::resize(bool animate)
     prepareMagnification();
     layoutItems();
     updateInputRegion();
-    updateStrut();
+    if (!m_drop.gap)
+        updateStrut();
     updateMinimizeTargets();
 }
 
@@ -998,6 +999,16 @@ void DockWindow::retire(DockIcon *icon)
     }
 }
 
+void DockWindow::announceGeometry()
+{
+    // The size taken for a drop gap lasts only as long as the drag, and what
+    // lays itself out around the dock may be the drag's source.
+    if (m_drop.gap || m_announcedGeometry == primaryGeometry())
+        return;
+    m_announcedGeometry = primaryGeometry();
+    m_dock->notifyPrimaryGeometryChanged();
+}
+
 void DockWindow::updatePanelRects(const base::Rect &rest, const base::Rect &drawn)
 {
     const bool moved = rest != m_restPanelRect;
@@ -1006,10 +1017,10 @@ void DockWindow::updatePanelRects(const base::Rect &rest, const base::Rect &draw
         m_drawnPanelRect = drawn;
         updateGlass();
     }
+    announceGeometry();
     if (!moved)
         return;
     updateInputRegion();
-    m_dock->notifyPrimaryGeometryChanged();
 }
 
 base::Region DockWindow::inputBand(bool tracking) const
@@ -1661,6 +1672,7 @@ void DockWindow::onDragEnded()
     } else if (!m_drag && m_applications->isDragging()) {
         m_applications->endDrag();
     }
+    updateDropGap();
     resetDropTarget();
     if (!m_drag) {
         m_magnifier.setSuppressed(false);
@@ -1716,6 +1728,7 @@ void DockWindow::dropEnter(ui::DropOffer *offer, const ui::PointF &position)
             if (m_drop.inArea) {
                 enterApplicationArea();
                 updateDropSlot();
+                updateDropGap();
             }
         });
     };
@@ -1772,6 +1785,7 @@ uint32_t DockWindow::dropMove(const ui::PointF &position)
         }
         if (m_drop.inArea)
             updateDropSlot();
+        updateDropGap();
     }
     setDropHovered(iconAt(position));
     DockIcon *opener = fileDropApplication();
@@ -1797,6 +1811,7 @@ void DockWindow::dropLeave()
         m_applications->setDropSlot(-1, false);
         m_drop.slot = -1;
         m_drop.hasLastAlong = false;
+        updateDropGap();
     }
     m_drop.offer = nullptr;
 }
@@ -1808,6 +1823,9 @@ uint32_t DockWindow::dropAt(const ui::PointF &position)
     if (m_drop.inArea && m_drop.entered) {
         m_drop.hasLastAlong = false;
         updateDropSlot();
+        // The dropped icon takes the gap's place in the count.
+        const bool hadGap = m_drop.gap;
+        m_drop.gap = false;
         if (m_drop.slot >= 0) {
             DockModel &model = m_dock->applications();
             const int row = m_applications->sourceRowForSlot(m_drop.slot);
@@ -1832,6 +1850,10 @@ uint32_t DockWindow::dropAt(const ui::PointF &position)
         m_drop.entered = false;
         m_drop.anchored = false;
         m_drop.slot = -1;
+        if (hadGap) {
+            resize(true);
+            announceGeometry();
+        }
     } else if (DockIcon *opener = fileDropApplication()) {
         if (m_dock->applications().openFiles(opener->key(), m_drop.paths))
             action = ui::CopyAction;
@@ -2007,6 +2029,21 @@ void DockWindow::updateDropSlot()
     m_drop.slot = m_drop.pinned ? std::max(model.firstMovableRow(), std::min(pins, row))
                                 : std::max(pins, std::min(remaining, row));
     m_applications->setDropSlot(m_drop.slot, m_drop.pinned);
+}
+
+void DockWindow::updateDropGap()
+{
+    const bool gap = m_applications->placeholder() >= 0 && m_applications->removedRow() < 0;
+    if (gap == m_drop.gap)
+        return;
+    m_drop.gap = gap;
+    resize(true);
+    announceGeometry();
+    if (!m_drop.anchored)
+        return;
+    m_drop.referenceOrigin = (m_surfaceLength - m_restingLength) / 2 + m_toBias + m_metrics.lengthPadding
+            + (gap ? m_metrics.pitch() / 2.0 : 0);
+    m_drop.hasLastAlong = false;
 }
 
 } // namespace cutefish::shell
