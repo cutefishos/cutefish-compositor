@@ -85,6 +85,7 @@ private:
     bool passthrough() const;
     bool isModifier(uint32_t code) const;
     bool isHeldBack(uint32_t code) const;
+    bool deliveredAtOnce(uint32_t code) const;
     uint32_t deliveredModifier(uint32_t code, bool passthrough) const;
     uint32_t heldRoles() const;
     std::set<uint32_t> wantedModifiers(bool passthrough, bool immediateOnly) const;

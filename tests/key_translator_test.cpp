@@ -328,6 +328,28 @@ TEST_F(KeyTranslatorTest, AClientThatBindsCommandGetsControlAsMeta)
               take());
 }
 
+TEST_F(KeyTranslatorTest, AClientThatBindsCommandGetsCommandAndOptionAsTheyGoDown)
+{
+    bindsCommand = true;
+    press(KEY_LEFTMETA);
+    EXPECT_EQ(std::vector<Delivered>({down(KEY_LEFTCTRL)}), take());
+    tap(KEY_C);
+    release(KEY_LEFTMETA);
+    tap(KEY_LEFTALT);
+    EXPECT_EQ(std::vector<Delivered>({down(KEY_C), up(KEY_C), up(KEY_LEFTCTRL), down(KEY_LEFTALT),
+                                      up(KEY_LEFTALT)}),
+              take());
+
+    // Control waits: with a click it is a secondary click.
+    press(KEY_LEFTCTRL);
+    EXPECT_TRUE(take().empty());
+    EXPECT_EQ(uint32_t(BTN_RIGHT), translator.translateButton(BTN_LEFT, true));
+    translator.flushModifiers(at(++time));
+    EXPECT_EQ(uint32_t(BTN_RIGHT), translator.translateButton(BTN_LEFT, false));
+    release(KEY_LEFTCTRL);
+    EXPECT_TRUE(take().empty());
+}
+
 TEST_F(KeyTranslatorTest, PassthroughSendsCommandAsMetaAtOnce)
 {
     passthrough = true;

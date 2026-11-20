@@ -228,6 +228,14 @@ bool KeyTranslator::isHeldBack(uint32_t code) const
     }
 }
 
+// A client that binds Command follows Command and Option as they go down,
+// as a link under the pointer shows while Command is held; Control still
+// waits, as it may make the next click a secondary one.
+bool KeyTranslator::deliveredAtOnce(uint32_t code) const
+{
+    return m_bindsCommand && m_bindsCommand() && code != KEY_LEFTCTRL && code != KEY_RIGHTCTRL;
+}
+
 uint32_t KeyTranslator::deliveredModifier(uint32_t code, bool passthrough) const
 {
     if (passthrough)
@@ -413,7 +421,7 @@ void KeyTranslator::onKey(Timestamp timestamp, uint32_t evdevCode, bool pressed)
             m_heldModifiers.push_back(evdevCode);
             if (passthrough || (m_pointerButtonsHeld && m_pointerButtonsHeld())) {
                 syncModifiers(timestamp, wantedModifiers(passthrough, false));
-            } else if (!isHeldBack(evdevCode)) {
+            } else if (!isHeldBack(evdevCode) || deliveredAtOnce(evdevCode)) {
                 std::set<uint32_t> target = m_deliveredModifiers;
                 target.insert(deliveredModifier(evdevCode, passthrough));
                 syncModifiers(timestamp, target);
