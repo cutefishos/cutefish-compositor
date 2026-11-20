@@ -11,6 +11,7 @@
 #include "base/i18n.h"
 #include "core/main_loop.h"
 #include "shell/common/application_badges.h"
+#include "shell/common/file_theme_icon.h"
 #include "shell/launchpad/launchpad.h"
 #include "shell/launchpad/launchpad_cell.h"
 #include "shell/launchpad/launchpad_folder_view.h"
@@ -1357,7 +1358,7 @@ void LaunchpadView::preloadIcons()
     m_preloadedNames = names;
     m_preloadedKey = key;
     std::weak_ptr<bool> alive = m_alive;
-    ui::preloadThemeIcons(std::move(names), metrics.iconSize, window->scale(), [this, alive] {
+    FileThemeIcon::preload(std::move(names), metrics.iconSize, window->scale(), [this, alive] {
         if (!alive.expired())
             requestPaint();
     });

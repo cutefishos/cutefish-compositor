@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "shell/common/count_badge.h"
+#include "shell/common/file_theme_icon.h"
 #include "shell/launchpad/launchpad_view.h"
 #include "ui/icon.h"
 #include "ui/label.h"
@@ -42,7 +43,7 @@ static ui::Color inkOn(ui::Color background, double alpha)
 }
 
 // FishUI.IconItem, the only part of the cell that takes the pointer.
-class LaunchpadCell::Icon final : public ui::ThemeIcon
+class LaunchpadCell::Icon final : public FileThemeIcon
 {
 public:
     explicit Icon(LaunchpadCell *cell)
@@ -57,7 +58,7 @@ protected:
     {
         // A folder's preview draws in its place.
         if (!m_cell->isFolder())
-            ui::ThemeIcon::paint(painter);
+            FileThemeIcon::paint(painter);
     }
     void pointerPress(const ui::PointerEvent &event) override { m_cell->iconPressed(event); }
     void pointerMove(const ui::PointerEvent &event) override { m_cell->iconMoved(event); }
@@ -88,7 +89,7 @@ public:
             m_icons.pop_back();
         }
         while (m_icons.size() < count)
-            m_icons.push_back(addChild<ui::ThemeIcon>());
+            m_icons.push_back(addChild<FileThemeIcon>());
         for (size_t i = 0; i < count; ++i) {
             const std::string &name = children[i].iconName;
             m_icons[i]->setIconName(name.empty() ? "application-x-desktop" : name);
@@ -271,7 +272,7 @@ void LaunchpadCell::updateMask()
     // Made on the first press, then only hidden: rasterising it for every
     // icon would cost each icon twice.
     if (isPressDimmed() && !m_mask) {
-        m_mask = addChild<ui::ThemeIcon>(m_icon->iconName(), m_metrics.iconSize);
+        m_mask = addChild<FileThemeIcon>(m_icon->iconName(), m_metrics.iconSize);
         m_mask->setColor(ui::Color {0, 0, 0, 255});
         m_mask->setOpacity(0.4);
         m_mask->setGeometry(iconRect());
@@ -333,9 +334,12 @@ void LaunchpadCell::playFolderAnimation(bool created)
 
 ui::Bitmap LaunchpadCell::dragImage(double scale)
 {
-    if (!m_preview)
-        return ui::themeIconBitmap(m_iconName.empty() ? "application-x-desktop" : m_iconName,
-                                   m_metrics.iconSize, scale);
+    if (!m_preview) {
+        const std::string name = m_iconName.empty() ? "application-x-desktop" : m_iconName;
+        if (!FileThemeIcon::isReady(name, m_metrics.iconSize, scale, {}))
+            return {};
+        return ui::themeIconBitmap(name, m_metrics.iconSize, scale);
+    }
     // Not dimmed by the press the drag starts from.
     const bool pressed = std::exchange(m_pressed, false);
     m_preview->updatePressed();

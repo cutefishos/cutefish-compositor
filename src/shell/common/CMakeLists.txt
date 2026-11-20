@@ -9,6 +9,8 @@ add_library(cutefish-shell-common STATIC
     applications.h
     count_badge.cpp
     count_badge.h
+    file_theme_icon.cpp
+    file_theme_icon.h
     file_thread.cpp
     file_thread.h
     list_model.h

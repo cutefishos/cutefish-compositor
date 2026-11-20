@@ -10,6 +10,7 @@
 
 #include "core/main_loop.h"
 #include "shell/common/count_badge.h"
+#include "shell/common/file_theme_icon.h"
 #include "shell/dock/dock.h"
 #include "shell/dock/dock_metrics.h"
 #include "shell/dock/dock_presentation.h"
@@ -168,7 +169,7 @@ class DockIcon::ThumbnailMask final : public ui::View
 public:
     ThumbnailMask()
     {
-        m_badge = addChild<ui::ThemeIcon>(std::string(), 16);
+        m_badge = addChild<FileThemeIcon>(std::string(), 16);
         m_badge->setColor(ui::Color {0, 0, 0, 255});
         setOpacity(0.5);
         setLayered(true);
@@ -264,7 +265,7 @@ void DockIcon::updateFace()
         if (m_svgFace)
             m_svgFace->setVisible(false);
         if (!m_themeFace)
-            m_themeFace = addChild<ui::ThemeIcon>(m_iconName, m_iconRect.width);
+            m_themeFace = addChild<FileThemeIcon>(m_iconName, m_iconRect.width);
         m_themeFace->setVisible(m_thumbnail.isNull() && !m_dragHidden);
         m_themeFace->setIconName(m_iconName);
     }
@@ -293,7 +294,7 @@ void DockIcon::updateMask()
         m_svgMask->setTint(ui::Color {0, 0, 0, 255});
         setIconRect(m_iconRect);
     } else if (dimmed && !m_iconIsFile && !m_themeMask) {
-        m_themeMask = addChild<ui::ThemeIcon>(m_iconName, m_iconRect.width);
+        m_themeMask = addChild<FileThemeIcon>(m_iconName, m_iconRect.width);
         m_themeMask->setColor(ui::Color {0, 0, 0, 255});
         setIconRect(m_iconRect);
     }
@@ -345,7 +346,7 @@ void DockIcon::setThumbnail(const ui::Bitmap *thumbnail, double aspect)
     if (!m_thumbnail.isNull() && !m_thumbnailFace)
         m_thumbnailFace = addChild<ThumbnailFace>(this);
     if (!m_thumbnail.isNull() && !m_badge)
-        m_badge = addChild<ui::ThemeIcon>(m_iconName, 16);
+        m_badge = addChild<FileThemeIcon>(m_iconName, 16);
     if (m_thumbnailFace)
         m_thumbnailFace->requestPaint();
     updateFace();
@@ -508,9 +509,9 @@ void DockIcon::prepareMagnifiedSize(int size)
         return;
     if (!m_iconIsFile) {
         // The pressed look tints the same raster.
-        ui::preloadThemeIcons({m_iconName}, size, scale);
+        FileThemeIcon::preload({m_iconName}, size, scale);
         if (m_kind == Kind::Minimized)
-            ui::preloadThemeIcons({m_iconName}, int(std::round(size * 0.42)), scale);
+            FileThemeIcon::preload({m_iconName}, int(std::round(size * 0.42)), scale);
         return;
     }
     // Drawing the artwork once at that size caches its raster.

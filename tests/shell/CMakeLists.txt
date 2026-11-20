@@ -13,7 +13,7 @@ function(cutefish_add_shell_test name)
     endif()
 endfunction()
 
-cutefish_add_shell_test(shell_common_test DBUS cutefish-shell-common)
+cutefish_add_shell_test(shell_common_test DBUS cutefish-shell-common cutefish-toolkit-host)
 cutefish_add_shell_test(notification_service_test DBUS cutefish-shell-notification)
 cutefish_add_shell_test(menubar_test DBUS cutefish-shell-menubar)
 cutefish_add_shell_test(dock_test DBUS cutefish-shell-dock)
