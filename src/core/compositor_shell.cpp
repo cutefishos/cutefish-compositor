@@ -779,8 +779,9 @@ void CompositorShell::initShell()
             m_shell.get(), screenCaptureServices(dockWindow, wallpaper)));
     auto *secrets = m_shell->addComponent(shell::SecretPrompts::create(m_shell.get()));
     auto *notifications = m_shell->addComponent(std::make_unique<shell::NotificationUi>(
-            m_shell.get(), std::make_unique<shell::Notifications>(environment.bus, m_shell->applications(),
-                                                                  &m_shell->tasks())));
+            m_shell.get(), std::make_unique<shell::Notifications>(
+                                    environment.bus, m_shell->applications(), &m_shell->tasks(),
+                                    shell::Notifications::Files::defaults(), &m_shell->launcher())));
     auto launchpad = std::make_unique<shell::Launchpad>(environment.bus, m_shell->tasks(), m_shell->launcher(),
                                                         dockService, preferencesFile("shell"));
     shell::Launchpad *launchpadService = launchpad.get();

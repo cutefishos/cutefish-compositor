@@ -6,9 +6,9 @@
 #define CUTEFISH_SHELL_NOTIFICATION_NOTIFICATION_SERVER_H_
 
 #include <deque>
+#include <map>
 #include <memory>
 #include <optional>
-#include <set>
 #include <string>
 
 #include "base/dbus.h"
@@ -21,6 +21,7 @@
 
 namespace cutefish::shell {
 
+class ApplicationLauncher;
 class NotificationSettings;
 class TaskManager;
 
@@ -36,9 +37,15 @@ public:
         Revoked = 3,
     };
 
-    // `tasks` may be null.
+    // Sent back to a sender's application started for an action, as
+    // "<scheme>:<id>?action=<key>", both percent-encoded.
+    static constexpr const char *kRelaunchHint = "x-cutefish-relaunch-id";
+    static constexpr const char *kRelaunchScheme = "cutefish-notification";
+
+    // `tasks` and `launcher` may be null.
     NotificationServer(base::dbus::Connection *bus, NotificationSettings &settings, Applications &applications,
-                       TaskManager *tasks, std::string imageDirectory = notification_images::defaultDirectory());
+                       TaskManager *tasks, std::string imageDirectory = notification_images::defaultDirectory(),
+                       ApplicationLauncher *launcher = nullptr);
     ~NotificationServer();
 
     NotificationServer(const NotificationServer &) = delete;
@@ -63,13 +70,21 @@ private:
         std::optional<ImageHint> imageData;
         std::string imagePath;
         DesktopEntryPtr entry;
+        std::string relaunchId;
         bool resolved = false;
         bool off = false;
         bool closeRequested = false;
         base::Job imageJob;
     };
 
+    struct Sender {
+        std::string service;
+        DesktopEntryPtr entry;
+        std::string relaunchId;
+    };
+
     void notify(base::dbus::MethodCall &call);
+    void relaunchIfGone(const Sender &sender, uint32_t id, const std::string &actionKey);
     void closeFromBus(base::dbus::MethodCall &call);
     void lookUpSender(Pending *pending);
     void decide(Pending *pending);
@@ -85,11 +100,12 @@ private:
     Applications &m_applications;
     TaskManager *m_tasks;
     std::string m_imageDirectory;
+    ApplicationLauncher *m_launcher;
     std::unique_ptr<base::dbus::Object> m_object;
     PendingCalls m_calls;
     uint32_t m_nextId = 1;
     Notification m_last;
-    std::set<uint32_t> m_open;
+    std::map<uint32_t, Sender> m_open;
     std::deque<std::unique_ptr<Pending>> m_pending;
     std::deque<Pending *> m_undecided;
     base::Subscription m_settingsReady;

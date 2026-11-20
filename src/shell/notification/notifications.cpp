@@ -19,10 +19,11 @@ Notifications::Files Notifications::Files::defaults()
     return {preferencesFile("shell"), NotificationHistory::defaultPath(), notification_images::defaultDirectory()};
 }
 
-Notifications::Notifications(dbus::Connection *bus, Applications &applications, TaskManager *tasks, Files files)
+Notifications::Notifications(dbus::Connection *bus, Applications &applications, TaskManager *tasks, Files files,
+                             ApplicationLauncher *launcher)
     : m_bus(bus)
     , m_settings(applications, files.settings)
-    , m_server(bus, m_settings, applications, tasks, files.images)
+    , m_server(bus, m_settings, applications, tasks, files.images, launcher)
     , m_history(files.history, files.images)
     , m_banners(m_server, m_settings, m_history)
 {

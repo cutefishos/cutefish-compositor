@@ -16,6 +16,7 @@
 
 namespace cutefish::shell {
 
+class ApplicationLauncher;
 class Applications;
 class TaskManager;
 
@@ -32,8 +33,10 @@ public:
         static Files defaults();
     };
 
+    // `launcher` starts a sender that has quit for an action on its
+    // notification; may be null.
     Notifications(base::dbus::Connection *bus, Applications &applications, TaskManager *tasks,
-                  Files files = Files::defaults());
+                  Files files = Files::defaults(), ApplicationLauncher *launcher = nullptr);
     ~Notifications();
 
     Notifications(const Notifications &) = delete;

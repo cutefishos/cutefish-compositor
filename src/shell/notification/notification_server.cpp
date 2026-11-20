@@ -10,6 +10,7 @@
 #include "base/logging.h"
 #include "base/strings.h"
 #include "base/url.h"
+#include "shell/common/app_launcher.h"
 #include "shell/common/file_thread.h"
 #include "shell/common/task_manager.h"
 #include "shell/notification/notification_settings.h"
@@ -78,12 +79,13 @@ static std::string stringHint(const dbus::VariantMap &hints, const char *key)
 
 NotificationServer::NotificationServer(dbus::Connection *bus, NotificationSettings &settings,
                                        Applications &applications, TaskManager *tasks,
-                                       std::string imageDirectory)
+                                       std::string imageDirectory, ApplicationLauncher *launcher)
     : m_bus(bus)
     , m_settings(settings)
     , m_applications(applications)
     , m_tasks(tasks)
     , m_imageDirectory(std::move(imageDirectory))
+    , m_launcher(launcher)
 {
     m_settingsReady = m_settings.ready.connect([this] {
         const std::deque<Pending *> undecided = std::exchange(m_undecided, {});
@@ -193,6 +195,7 @@ void NotificationServer::notify(dbus::MethodCall &call)
     notification.desktopEntry = stringHint(hints, "desktop-entry");
     notification.urgency = intHint(hints, "urgency", 1);
     notification.value = intHint(hints, "value", -1);
+    pending->relaunchId = stringHint(hints, kRelaunchHint);
 
     if (!wasReplaced && isOpen(m_last.id) && m_last.appName == notification.appName
         && m_last.summary == notification.summary && m_last.body == notification.body
@@ -358,7 +361,7 @@ void NotificationServer::flush()
         Notification &notification = pending->notification;
         const uint32_t id = notification.id;
         const bool replaced = pending->wasReplaced && m_open.count(id);
-        m_open.insert(id);
+        m_open[id] = Sender{notification.service, pending->entry, pending->relaunchId};
         if (replaced) {
             notification.updated = nowMs();
             notificationReplaced(id, notification);
@@ -393,6 +396,33 @@ void NotificationServer::invokeAction(uint32_t id, const std::string &actionKey)
 {
     if (m_object)
         m_object->emitSignal("ActionInvoked", id, actionKey);
+    const auto it = m_open.find(id);
+    if (it != m_open.end())
+        relaunchIfGone(it->second, id, actionKey);
+}
+
+// A sender that asked for it and has left the bus gets its application
+// started with the action, as nothing else would hear it.
+void NotificationServer::relaunchIfGone(const Sender &sender, uint32_t id, const std::string &actionKey)
+{
+    if (!m_bus || !m_launcher || !sender.entry || sender.relaunchId.empty() || sender.service.empty())
+        return;
+
+    const std::string argument = std::string(kRelaunchScheme) + ":" + base::url::percentEncoded(sender.relaunchId)
+                                 + "?action=" + base::url::percentEncoded(actionKey);
+    const dbus::Proxy bus(m_bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus");
+    m_calls.track([&](std::function<void()> finished) {
+        return bus.callAsync(
+                "NameHasOwner",
+                [this, entry = sender.entry, argument, id, finished](const dbus::Reply &reply) {
+                    if (!reply.value<bool>().value_or(true)) {
+                        CF_INFO(cfNotifications) << "Starting" << entry->id << "for an action on notification" << id;
+                        m_launcher->launch(*entry, {argument});
+                    }
+                    finished();
+                },
+                sender.service);
+    });
 }
 
 void NotificationServer::closeNotification(uint32_t id, CloseReason reason)

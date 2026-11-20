@@ -16,6 +16,7 @@
 #include "base/settings.h"
 #include "dbus_test_client.h"
 #include "loop_test_util.h"
+#include "shell/common/app_launcher.h"
 #include "shell/common/file_thread.h"
 #include "shell/common/task_manager.h"
 #include "shell/notification/notifications.h"
@@ -57,7 +58,8 @@ protected:
         notifications = std::make_unique<shell::Notifications>(
                 dbus::Connection::session(core::mainLoop()), applications, tasks.get(),
                 shell::Notifications::Files{directory.filePath("shell.conf"), directory.filePath("history"),
-                                            directory.filePath("images")});
+                                            directory.filePath("images")},
+                &launcher);
         ASSERT_TRUE(notifications->registerServices());
         ASSERT_TRUE(test::runUntil([this] {
             return notifications->settings().isReady() && notifications->history().isLoaded();
@@ -86,8 +88,28 @@ protected:
     test::FakeTaskWindows windows;
     std::map<int64_t, shell::ProcessCommand> commands;
     std::unique_ptr<shell::TaskManager> tasks;
+    shell::ApplicationLauncher launcher{dbus::Connection::session(core::mainLoop())};
     std::unique_ptr<shell::Notifications> notifications;
     test::DBusTestClient client;
+};
+
+class FakeAppRuntime
+{
+public:
+    explicit FakeAppRuntime(dbus::Connection *bus)
+        : object(bus, "/AppRuntime", "org.cutefish.AppRuntime")
+    {
+        object.addMethod("launchApplication", [this](const std::string &id, const std::vector<std::string> &files,
+                                                     const std::string &) {
+            launched.push_back({id, files});
+            return uint32_t(1);
+        });
+        EXPECT_TRUE(object.publish());
+        EXPECT_TRUE(bus->requestName("org.cutefish.AppRuntime"));
+    }
+
+    dbus::Object object;
+    std::vector<std::pair<std::string, std::vector<std::string>>> launched;
 };
 
 } // namespace
@@ -142,6 +164,44 @@ TEST_F(NotificationServiceTest, ShowsANotificationAsTheSendersApplication)
     EXPECT_EQ(list->front().at("key").value<std::string>(), "org.example.Chat");
     EXPECT_EQ(list->front().at("name").value<std::string>(), "Chat");
     EXPECT_EQ(list->front().at("mode").value<int32_t>(), 0);
+}
+
+TEST_F(NotificationServiceTest, StartsASenderThatQuitForAnAction)
+{
+    test::DBusTestClient runtimeClient;
+    FakeAppRuntime runtime(runtimeClient.connection.get());
+    start();
+
+    auto sender = std::make_unique<test::DBusTestClient>();
+    const dbus::VariantMap hints{{"x-cutefish-relaunch-id", dbus::Variant(std::string("a b"))}};
+    const std::vector<std::string> actions{"default", "", "show", "Show"};
+    const uint32_t id = sender->call(kService, kPath, kService, "Notify", std::string("chat"), uint32_t(0),
+                                     std::string(), std::string("Done"), std::string(), actions, hints, int32_t(-1))
+                                .value<uint32_t>()
+                                .value_or(0);
+    const uint32_t plain = notify("Plain", 0, {}, actions);
+    settle();
+    ASSERT_EQ(notifications->banners().count(), 2);
+
+    // Still on the bus: the signal is enough.
+    notifications->banners().invokeAction(id, "show");
+    settle();
+    EXPECT_TRUE(runtime.launched.empty());
+
+    sender.reset();
+    settle();
+    notifications->banners().invokeAction(id, "show");
+    ASSERT_TRUE(test::runUntil([&] { return !runtime.launched.empty(); }));
+    EXPECT_EQ(runtime.launched.front().first, "org.example.Chat");
+    EXPECT_EQ(runtime.launched.front().second,
+              std::vector<std::string>{"cutefish-notification:a%20b?action=show"});
+
+    // A sender that gave no id to come back with is not started.
+    client.connection.reset();
+    settle();
+    notifications->banners().invokeAction(plain, "show");
+    settle();
+    EXPECT_EQ(runtime.launched.size(), 1u);
 }
 
 TEST_F(NotificationServiceTest, ReplacesInPlaceAndFoldsRepeats)
