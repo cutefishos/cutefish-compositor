@@ -554,6 +554,8 @@ TEST(DamagePixels, AWindowSnapshotNeverBlursWhatAPartialRepaintLeftBehind)
     auto target = std::make_unique<render::EglRenderTarget>(renderer->eglDisplay(), surface,
                                                             nullptr, size);
     const render::OutputRenderContext context {"test", base::Rect(base::Point(), size), size, 1};
+    // On the wall clock, a frame slower than the minimize lands it and sends the landing snapshot.
+    const double now = 0;
     const auto snapshot = [&](bool partial) {
         scene::Scene scene;
         scene.setSize(size);
@@ -561,7 +563,9 @@ TEST(DamagePixels, AWindowSnapshotNeverBlursWhatAPartialRepaintLeftBehind)
                 std::make_unique<scene::ColorNode>(render::Color {1, 1, 1, 1}));
         strip->setGeometry({170, 60, 20, 240});
         auto *window = static_cast<scene::WindowAnimation *>(
-                scene.root()->addChild(std::make_unique<scene::WindowAnimation>()));
+                scene.root()->addChild(std::make_unique<scene::WindowAnimation>([&] {
+                    return now;
+                })));
         window->setGeometry({120, 120, 120, 120});
         window->finish();
         auto *content = static_cast<scene::SurfaceNode *>(
