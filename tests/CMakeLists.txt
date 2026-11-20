@@ -3,24 +3,17 @@ if(NOT GTest_FOUND)
     message(FATAL_ERROR "BUILD_TESTING=ON needs GoogleTest (Debian: libgtest-dev)")
 endif()
 pkg_check_modules(WaylandClient REQUIRED IMPORTED_TARGET wayland-client)
-find_program(DBUS_RUN_SESSION dbus-run-session REQUIRED)
 
 add_library(cutefish-test-loop STATIC loop_test_util.cpp)
 target_link_libraries(cutefish-test-loop PUBLIC cutefish-core)
 
-# cutefish_add_test(name [DBUS] libraries...)
-# DBUS runs it on a private session bus.
+# cutefish_add_test(name libraries...)
 function(cutefish_add_test name)
-    cmake_parse_arguments(PARSE_ARGV 1 arg "DBUS" "" "")
     add_executable(${name} ${name}.cpp gtest_toolkit_main.cpp)
     target_include_directories(${name} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(${name} PRIVATE GTest::gtest cutefish-core cutefish-test-loop
-        ${arg_UNPARSED_ARGUMENTS})
-    if(arg_DBUS)
-        add_test(NAME ${name} COMMAND ${DBUS_RUN_SESSION} -- $<TARGET_FILE:${name}>)
-    else()
-        add_test(NAME ${name} COMMAND ${name})
-    endif()
+        ${ARGN})
+    add_test(NAME ${name} COMMAND ${name})
 endfunction()
 
 cutefish_add_test(main_loop_test cutefish-toolkit-host)
@@ -55,19 +48,19 @@ endforeach()
 add_executable(mouse_settings_test mouse_settings_test.cpp)
 target_include_directories(mouse_settings_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(mouse_settings_test PRIVATE cutefish-mouse-settings GTest::gtest_main)
-add_test(NAME mouse_settings_test COMMAND ${DBUS_RUN_SESSION} -- $<TARGET_FILE:mouse_settings_test>)
+add_test(NAME mouse_settings_test COMMAND mouse_settings_test)
 add_executable(touchpad_settings_test touchpad_settings_test.cpp)
 target_include_directories(touchpad_settings_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(touchpad_settings_test PRIVATE cutefish-mouse-settings GTest::gtest_main)
-add_test(NAME touchpad_settings_test COMMAND ${DBUS_RUN_SESSION} -- $<TARGET_FILE:touchpad_settings_test>)
+add_test(NAME touchpad_settings_test COMMAND touchpad_settings_test)
 add_executable(touchscreen_settings_test touchscreen_settings_test.cpp)
 target_include_directories(touchscreen_settings_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(touchscreen_settings_test PRIVATE cutefish-mouse-settings GTest::gtest_main)
-add_test(NAME touchscreen_settings_test COMMAND ${DBUS_RUN_SESSION} -- $<TARGET_FILE:touchscreen_settings_test>)
+add_test(NAME touchscreen_settings_test COMMAND touchscreen_settings_test)
 add_executable(keyboard_settings_test keyboard_settings_test.cpp)
 target_include_directories(keyboard_settings_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(keyboard_settings_test PRIVATE cutefish-keyboard-settings GTest::gtest_main)
-add_test(NAME keyboard_settings_test COMMAND ${DBUS_RUN_SESSION} -- $<TARGET_FILE:keyboard_settings_test>)
+add_test(NAME keyboard_settings_test COMMAND keyboard_settings_test)
 cutefish_add_test(drm_selection_test cutefish-backend)
 cutefish_add_test(drm_properties_test cutefish-backend)
 cutefish_add_test(drm_configuration_planner_test cutefish-fake-drm)
@@ -121,7 +114,7 @@ cutefish_add_test(private_shell_protocol_test cutefish-wayland-private-shell
 cutefish_add_test(work_area_test cutefish-wm)
 cutefish_add_test(dock_layout_test cutefish-wm)
 cutefish_add_test(session_lock_test cutefish-session cutefish-wm cutefish-scene cutefish-decoration)
-cutefish_add_test(accelerator_test DBUS cutefish-accelerators cutefish-session cutefish-wm
+cutefish_add_test(accelerator_test cutefish-accelerators cutefish-session cutefish-wm
     cutefish-scene)
 cutefish_add_test(xdg_decoration_protocol_test cutefish-wayland-shell cutefish-wayland-input
     cutefish-decoration PkgConfig::WaylandClient)
@@ -230,7 +223,7 @@ cutefish_add_test(display_configuration_controller_test cutefish-display)
 target_sources(display_configuration_controller_test PRIVATE
     fake_native_display_delegate.cpp fake_native_display_delegate.h)
 cutefish_add_test(night_light_test cutefish-display)
-cutefish_add_test(display_config_service_test DBUS cutefish-display-ipc)
+cutefish_add_test(display_config_service_test cutefish-display-ipc)
 target_sources(display_config_service_test PRIVATE
     fake_native_display_delegate.cpp fake_native_display_delegate.h)
 
@@ -249,7 +242,7 @@ set_tests_properties(window_visual_pixel_test PROPERTIES ENVIRONMENT "LIBGL_ALWA
 add_executable(toolkit-resize-client visuals/toolkit_client.cpp)
 target_link_libraries(toolkit-resize-client PRIVATE Cutefish::Toolkit)
 # The GTK clients activate portal and gvfs services on the session bus.
-cutefish_add_test(window_visual_toolkit_test DBUS cutefish-wayland-input cutefish-wayland-shell
+cutefish_add_test(window_visual_toolkit_test cutefish-wayland-input cutefish-wayland-shell
     cutefish-decoration cutefish-render PkgConfig::WaylandClient)
 target_compile_definitions(window_visual_toolkit_test PRIVATE
     TOOLKIT_RESIZE_CLIENT="$<TARGET_FILE:toolkit-resize-client>"
@@ -312,17 +305,17 @@ target_include_directories(panel_gpu_pixel_test PRIVATE ${CMAKE_CURRENT_SOURCE_D
 set_tests_properties(panel_gpu_pixel_test PROPERTIES ENVIRONMENT "LIBGL_ALWAYS_SOFTWARE=1;EGL_PLATFORM=surfaceless")
 cutefish_add_test(switcher_gpu_pixel_test cutefish-switcher cutefish-render)
 set_tests_properties(switcher_gpu_pixel_test PROPERTIES ENVIRONMENT "LIBGL_ALWAYS_SOFTWARE=1;EGL_PLATFORM=surfaceless")
-cutefish_add_test(auth_ui_test DBUS cutefish-auth)
+cutefish_add_test(auth_ui_test cutefish-auth)
 target_compile_definitions(auth_ui_test PRIVATE CUTEFISH_PO_DIR="${PROJECT_SOURCE_DIR}/po")
 cutefish_add_test(greetd_backend_test cutefish-auth)
-cutefish_add_test(screen_saver_service_test DBUS cutefish-session)
-cutefish_add_test(applications_service_test DBUS cutefish-session)
+cutefish_add_test(screen_saver_service_test cutefish-session)
+cutefish_add_test(applications_service_test cutefish-session)
 
-cutefish_add_test(window_debug_service_test DBUS cutefish-session)
+cutefish_add_test(window_debug_service_test cutefish-session)
 
-cutefish_add_test(sleep_lock_test DBUS cutefish-session)
+cutefish_add_test(sleep_lock_test cutefish-session)
 
-cutefish_add_test(power_button_test DBUS cutefish-session)
+cutefish_add_test(power_button_test cutefish-session)
 
 cutefish_add_test(input_method_protocol_test cutefish-wayland-input PkgConfig::WaylandClient)
 set_tests_properties(input_method_protocol_test PROPERTIES TIMEOUT 45)
@@ -331,12 +324,11 @@ add_executable(input_method_settings_test input_method_settings_test.cpp)
 target_include_directories(input_method_settings_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(input_method_settings_test PRIVATE cutefish-input-method-settings
     GTest::gtest_main)
-add_test(NAME input_method_settings_test
-    COMMAND ${DBUS_RUN_SESSION} -- $<TARGET_FILE:input_method_settings_test>)
+add_test(NAME input_method_settings_test COMMAND input_method_settings_test)
 
 add_executable(input_method_launched_client input_method/launched_client.cpp)
 target_link_libraries(input_method_launched_client PRIVATE PkgConfig::WaylandClient)
-cutefish_add_test(input_method_launcher_test DBUS cutefish-wayland-input
+cutefish_add_test(input_method_launcher_test cutefish-wayland-input
     cutefish-wayland-private-shell PkgConfig::WaylandClient)
 target_compile_definitions(input_method_launcher_test PRIVATE
     CUTEFISH_LAUNCHED_CLIENT="$<TARGET_FILE:input_method_launched_client>")
@@ -357,3 +349,19 @@ if(NOT CUTEFISH_TEST_TIMEOUT_SCALE EQUAL 1)
 endif()
 
 add_subdirectory(shell)
+
+# The last test fails when a test left a process behind or ran outside the
+# launcher; ctest runs it after every other test, also when only some are
+# chosen.
+add_test(NAME isolation-start COMMAND ${CUTEFISH_PYTHON} ${CMAKE_CURRENT_SOURCE_DIR}/isolate.py
+    --start ${CUTEFISH_TEST_RECORD})
+add_test(NAME isolation-check
+    COMMAND ${CUTEFISH_PYTHON} ${CMAKE_CURRENT_SOURCE_DIR}/isolate.py --check ${CUTEFISH_TEST_RECORD}/writes.log
+        --since ${CUTEFISH_TEST_RECORD}/since --ctest ${CMAKE_CTEST_COMMAND} ${CMAKE_BINARY_DIR})
+set_tests_properties(isolation-start PROPERTIES FIXTURES_SETUP isolation)
+set_tests_properties(isolation-check PROPERTIES FIXTURES_CLEANUP isolation)
+foreach(directory ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/shell)
+    get_property(tests DIRECTORY ${directory} PROPERTY TESTS)
+    list(REMOVE_ITEM tests isolation-start isolation-check)
+    set_property(TEST ${tests} DIRECTORY ${directory} APPEND PROPERTY FIXTURES_REQUIRED isolation)
+endforeach()

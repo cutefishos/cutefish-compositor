@@ -22,6 +22,7 @@
 #include <filesystem>
 #include <gtest/gtest.h>
 #include <optional>
+#include <sys/stat.h>
 
 using namespace cutefish;
 namespace dbus = base::dbus;
@@ -169,6 +170,11 @@ TEST_F(WindowDebugServiceTest, FeedsInputOnlyWhenGivenOne)
 
 TEST_F(WindowDebugServiceTest, OnARealSessionTakesInputOnlyWithRootsFile)
 {
+    // The test's user namespace maps only its own account, so root's files
+    // show another owner there.
+    struct stat passwd = {};
+    if (lstat("/etc/passwd", &passwd) != 0 || passwd.st_uid != 0)
+        GTEST_SKIP() << "no file is owned by root in this user namespace";
     Desktop desktop;
     session::WindowDebugService service(&desktop.manager);
     ASSERT_TRUE(service.registerService());

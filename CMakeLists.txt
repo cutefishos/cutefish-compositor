@@ -17,6 +17,17 @@ endif()
 include(GNUInstallDirs)
 option(BUILD_TESTING "Build the test suite" OFF)
 include(CTest)
+# Each test runs apart from the running desktop (tests/isolate.py): its own
+# session bus, runtime directory and home, with the account's home out of
+# reach.
+if(BUILD_TESTING)
+    find_program(CUTEFISH_PYTHON python3 REQUIRED)
+    find_program(CUTEFISH_DBUS_RUN_SESSION dbus-run-session REQUIRED)
+    set(CUTEFISH_TEST_RECORD ${CMAKE_BINARY_DIR}/Testing/isolation)
+    set(CMAKE_TEST_LAUNCHER ${CUTEFISH_PYTHON} ${PROJECT_SOURCE_DIR}/tests/isolate.py
+        --keep ${PROJECT_SOURCE_DIR} --keep ${CMAKE_BINARY_DIR}
+        --record ${CUTEFISH_TEST_RECORD}/writes.log -- ${CUTEFISH_DBUS_RUN_SESSION} --)
+endif()
 
 find_package(PkgConfig REQUIRED)
 find_package(CutefishToolkit REQUIRED)
