@@ -25,8 +25,7 @@
 namespace cutefish::wayland {
 namespace {
 
-// Runs a wl_display connection on its own thread so that the server can keep
-// dispatching on the main thread's event loop.
+// Runs the client on its own thread; the server dispatches on the main thread.
 class TestClient
 {
 public:
@@ -68,8 +67,6 @@ private:
         wl_registry* registry = wl_display_get_registry(display);
         wl_registry_add_listener(registry, &listener, &m_globalCount);
 
-        // Blocks until the server answers, which only happens if the loop
-        // integration is dispatching and flushing.
         const bool ok = wl_display_roundtrip(display) >= 0;
         m_roundtripDone = ok;
 
@@ -103,8 +100,6 @@ protected:
 
     void TearDown() override { m_server.reset(); }
 
-    // Spins the event loop, which is what drives the server, until
-    // `predicate` holds.
     template<class Predicate>
     bool waitFor(Predicate predicate, int timeoutMs = 5000)
     {
@@ -151,13 +146,11 @@ TEST_F(WaylandServerTest, ClientConnectsAndSeesAnEmptyRegistry)
     ASSERT_TRUE(waitFor([&] { return client.roundtripDone(); }));
     EXPECT_TRUE(client.connected());
     EXPECT_EQ(1, m_server->trackedClientCount());
-    // A bare server registers no globals.
     EXPECT_EQ(0, client.globalCount());
 
     client.requestDisconnect();
     ASSERT_TRUE(waitFor([&] { return client.finished(); }));
 
-    // The server notices the disconnect once it dispatches again.
     ASSERT_TRUE(waitFor([&] { return m_server->trackedClientCount() == 0; }));
     client.join();
 }
@@ -172,7 +165,6 @@ TEST_F(WaylandServerTest, ServerShutsDownWithAClientStillConnected)
     ASSERT_TRUE(waitFor([&] { return client.roundtripDone(); }));
     EXPECT_EQ(1, m_server->trackedClientCount());
 
-    // Destroying the server tears the client down from the server side.
     m_server.reset();
 
     client.requestDisconnect();
@@ -202,7 +194,6 @@ TEST_F(WaylandServerTest, DispatchWithoutTheEventLoopAcceptsAClient)
     wl_list_remove(&created.listener.link);
     ASSERT_TRUE(created.notified);
 
-    // The roundtrip needs the server to dispatch and flush by hand too.
     while (!client.roundtripDone() && !hasExpired()) {
         m_server->dispatch(std::chrono::milliseconds(10));
         m_server->flush();
@@ -226,8 +217,6 @@ TEST_F(WaylandServerTest, FlushWithoutClients)
     m_server->flush();
 }
 
-// Regression test for crbug.com/1508130: a resource destructor that flushes
-// while its client is being destroyed, with events still queued for it.
 TEST_F(WaylandServerTest, FlushDoesNotCrashDuringClientDisconnect)
 {
     ASSERT_TRUE(m_server->addSocket());
@@ -266,8 +255,6 @@ TEST_F(WaylandServerTest, FlushDoesNotCrashDuringClientDisconnect)
 } // namespace
 } // namespace cutefish::wayland
 
-// Found by protocol_fuzzer: a region built from INT_MAX-sized arguments
-// overflowed the rectangle's right edge.
 TEST(ClientRect, EdgesStayWithinRangeAndNegativeSizesAreEmpty)
 {
     using cutefish::base::Rect;

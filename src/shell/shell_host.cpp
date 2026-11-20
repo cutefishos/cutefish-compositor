@@ -125,8 +125,6 @@ void ShellHost::blurChanged(ui::EmbeddedWindow *window)
     const ui::RectF rect = window->blurRect();
     const int left = int(std::lround(rect.x));
     const int top = int(std::lround(rect.y));
-    // FishUI's popups (menus, drop-downs) sit on PopupGlass, outlined and
-    // masked by their bubble.
     const bool dark = ui::Theme::current().darkMode;
     m_glassDark[window] = dark;
     shellWindow->setBackgroundBlur(base::Rect(left, top, int(std::lround(rect.x + rect.width)) - left,

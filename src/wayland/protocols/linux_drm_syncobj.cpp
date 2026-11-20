@@ -4,9 +4,6 @@
 //
 // Upstream: chromium/src/components/exo/buffer.cc
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: maps Exo's release dependency lifecycle onto explicit
-// Wayland DRM syncobj timeline points.
 
 #include "wayland/protocols/linux_drm_syncobj.h"
 
@@ -29,9 +26,6 @@ namespace cutefish::wayland {
 
 namespace {
 
-////////////////////////////////////////////////////////////////////////////////
-// wp_linux_drm_syncobj_timeline_v1:
-
 struct Timeline {
     std::shared_ptr<render::DrmSyncobj> syncobj;
 };
@@ -45,13 +39,7 @@ const struct wp_linux_drm_syncobj_timeline_v1_interface timeline_implementation 
     timeline_destroy,
 };
 
-////////////////////////////////////////////////////////////////////////////////
-// wp_linux_drm_syncobj_surface_v1:
-
 // One release point the compositor owes a client.
-//
-// Upstream: chromium/src/components/exo/buffer.cc, whose release callback plays
-// the same role for gpu::SyncToken.
 class TimelineRelease final : public compositor::BufferRelease
 {
 public:
@@ -88,9 +76,7 @@ private:
     bool m_signaled = false;
 };
 
-// The per-surface half of the protocol. It observes the surface so that a
-// destroyed wl_surface turns later requests into the no_surface error rather
-// than a use-after-free, exactly as the protocol requires.
+// Observes the surface so a destroyed wl_surface turns later requests into the no_surface error.
 class SyncobjSurface final : public compositor::SurfaceObserver
 {
 public:
@@ -118,7 +104,6 @@ public:
 
     compositor::Surface* surface() const { return m_surface; }
 
-    // Leaves the side table that answers surface_exists.
     void unregister();
 
     void setAcquirePoint(const std::shared_ptr<render::DrmSyncobj>& syncobj, uint64_t point)
@@ -242,10 +227,7 @@ const struct wp_linux_drm_syncobj_surface_v1_interface syncobj_surface_implement
     syncobj_surface_set_release_point,
 };
 
-// Surfaces that already carry a syncobj extension, so a second get_surface can
-// raise surface_exists rather than silently replacing the first. A side table
-// for the same reason wl_compositor keeps one: the association belongs to the
-// protocol layer, not to the compositor model.
+// Surfaces that already carry a syncobj extension, so a second get_surface can raise surface_exists.
 std::vector<compositor::Surface*>& syncobjSurfaces()
 {
     static std::vector<compositor::Surface*> surfaces;
@@ -278,9 +260,6 @@ void SyncobjSurface::unregister()
     surfaces.erase(std::remove(surfaces.begin(), surfaces.end(), m_registered), surfaces.end());
     m_registered = nullptr;
 }
-
-////////////////////////////////////////////////////////////////////////////////
-// wp_linux_drm_syncobj_manager_v1:
 
 void syncobj_manager_destroy(wl_client*, wl_resource* resource)
 {

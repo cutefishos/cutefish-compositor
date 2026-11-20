@@ -15,10 +15,6 @@ namespace cutefish::wm {
 
 class Window;
 
-// The policy half of ShadowController. Upstream carries only the veto
-// (ShouldShowShadowForWindow) because the elevation lives in a window property
-// that ash writes; Cutefish has no property bag, so the delegate answers both
-// questions.
 class ShadowControllerDelegate
 {
 public:
@@ -27,8 +23,7 @@ public:
     // False means the compositor draws no shadow at all for this window.
     virtual bool shouldShowShadowForWindow(const Window* window) = 0;
 
-    // Only asked when shouldShowShadowForWindow said yes. Returning None is
-    // allowed and means the same thing.
+    // Only asked when shouldShowShadowForWindow said yes; returning None is allowed.
     virtual ShadowElevation elevationForWindow(const Window* window) = 0;
 };
 

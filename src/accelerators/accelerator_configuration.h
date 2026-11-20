@@ -5,11 +5,6 @@
 // Upstream: chromium/src/ash/accelerators/ash_accelerator_configuration.h and
 //           chromium/src/ash/public/cpp/accelerator_configuration.h
 // Revision: 8abbac30b9cf2fe976422c58c000c94685648b65
-//
-// Adapted for Cutefish: the pref dictionary becomes a group of the compositor's
-// settings file keyed by action name; deprecated accelerators and the enterprise policy gate are
-// dropped; the update callback and the observer list collapse into one
-// signal.
 
 #ifndef CUTEFISH_ACCELERATORS_ACCELERATOR_CONFIGURATION_H_
 #define CUTEFISH_ACCELERATORS_ACCELERATOR_CONFIGURATION_H_
@@ -30,7 +25,6 @@
 
 namespace cutefish::accelerators {
 
-// ash::mojom::AcceleratorConfigResult.
 enum class AcceleratorConfigResult {
     Success,
     Conflict,
@@ -49,23 +43,19 @@ const char *toString(AcceleratorConfigResult result);
 
 using ActionIdToAcceleratorsMap = std::map<AcceleratorActionId, std::vector<Accelerator>>;
 
-// Owns the current action <-> accelerator mappings, the system defaults they
-// started from and the user's overrides on top of them.
 class AcceleratorConfiguration
 {
 public:
-    // `settingsFile` overrides the compositor's settings file, for tests.
+    // `settingsFile` overrides the compositor's settings file.
     explicit AcceleratorConfiguration(const std::string &settingsFile = {});
     ~AcceleratorConfiguration();
 
-    // Loads the convention's defaults and applies the persisted overrides.
     void initialize();
     void initialize(std::span<const AcceleratorData> accelerators);
 
     input::ShortcutConvention convention() const { return m_convention; }
 
-    // Each convention has its own defaults and its own saved overrides; a
-    // change reloads both.
+    // Each convention has its own defaults and saved overrides; a change reloads both.
     void setConvention(input::ShortcutConvention convention);
 
     const std::vector<Accelerator> &allAccelerators() const { return m_accelerators; }
@@ -76,7 +66,6 @@ public:
 
     const AcceleratorAction *findAcceleratorAction(const Accelerator &accelerator) const;
 
-    // The action `accelerator` is a system default for, if any.
     std::optional<AcceleratorAction> idForDefaultAccelerator(const Accelerator &accelerator) const;
     std::vector<Accelerator> defaultAcceleratorsForId(AcceleratorActionId id) const;
 
@@ -98,7 +87,6 @@ public:
     void setUsePositionalLookup(bool use);
     bool usesPositionalLookup() const { return m_acceleratorToId.usePositionalLookup(); }
 
-    // What an override entry records about one combination.
     enum class ModificationAction {
         Add,
         Remove,
@@ -138,8 +126,7 @@ private:
     base::Settings m_settings;
     input::ShortcutConvention m_convention = input::ShortcutConvention::Pc;
 
-    // A local copy of the persisted overrides: action name -> list of
-    // {key, modifiers, state, action} objects.
+    // Action name -> list of {key, modifiers, state, action} objects.
     std::map<std::string, base::json::Value::Array> m_overrides;
 
     std::vector<Accelerator> m_accelerators;
@@ -147,7 +134,7 @@ private:
     ActionIdToAcceleratorsMap m_idToAccelerators;
     AcceleratorActionMap m_acceleratorToId;
 
-    // The system defaults, never modified after initialize().
+    // Never modified after initialize().
     ActionIdToAcceleratorsMap m_defaultIdToAccelerators;
     AcceleratorActionMap m_defaultAcceleratorsToId;
 };

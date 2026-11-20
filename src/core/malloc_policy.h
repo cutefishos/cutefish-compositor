@@ -9,10 +9,8 @@
 
 namespace cutefish::core {
 
-// Before any thread starts. glibc otherwise raises its mmap threshold to the
-// largest block freed (a decoded wallpaper or icon sheet), so later large
-// blocks come from the heap and stay resident once freed, and it gives every
-// worker thread an arena of its own that keeps what the thread freed.
+// Before any thread starts. Keeps glibc from raising its mmap threshold to the
+// largest block freed and from giving each thread an arena that keeps its frees.
 inline void applyMallocPolicy()
 {
     mallopt(M_MMAP_THRESHOLD, 128 * 1024);

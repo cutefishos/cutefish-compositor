@@ -18,17 +18,13 @@ class TextField;
 
 namespace cutefish::shell {
 
-// A Wi-Fi, 802.1X or private key
-// password for the agent's request, whichever application started the
-// connection. Connect stays off until the field holds a valid WEP key or WPA
-// passphrase; what can never become one is not typed at all.
+// Connect stays off until the field holds a valid WEP key or WPA passphrase.
 class WirelessPasswordDialog final : public SecretDialog
 {
 public:
     WirelessPasswordDialog(Shell *shell, NetworkSecretAgent *agent);
 
-    // The next request, or another network picked meanwhile, reuses the
-    // window: an empty field, the password hidden again.
+    // Reuses the window: an empty field, the password hidden again.
     void requestChanged();
 
     static std::string title(NetworkSecretAgent::Kind kind);
@@ -36,7 +32,6 @@ public:
     // WEP: 5 or 13 characters or 10 or 26 hex digits; WPA: 8 to 63
     // characters or 64 hex digits; anything else: not empty.
     static bool acceptable(NetworkSecretAgent::Kind kind, const std::string &text);
-    // Whether more typing could still make `text` acceptable.
     static bool intermediate(NetworkSecretAgent::Kind kind, const std::string &text);
 
     ui::TextField *field() const { return m_field; }
@@ -55,14 +50,11 @@ private:
     ui::CheckBox *m_show = nullptr;
 };
 
-// One field per secret the VPN's plugin
-// needs, such as a password and a one-time code; Connect once all are filled.
 class VpnPasswordDialog final : public SecretDialog
 {
 public:
     VpnPasswordDialog(Shell *shell, NetworkSecretAgent *agent);
 
-    // The next request reuses the window with its own fields.
     void requestChanged();
 
     static std::string text(const NetworkSecretAgent &agent);

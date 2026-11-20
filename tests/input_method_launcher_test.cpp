@@ -113,7 +113,6 @@ TEST(InputMethodLauncher, RestartsALostConnectionWithALimit)
     EXPECT_EQ(6u, lines(h.log).size());
     EXPECT_FALSE(h.launcher.isRunning());
 
-    // Selecting the same method again restarts one that gave up.
     h.launcher.setCommand(h.command("stay"));
     ASSERT_TRUE(h.until([&] {
         return lines(h.log).size() == 7;
@@ -123,7 +122,6 @@ TEST(InputMethodLauncher, RestartsALostConnectionWithALimit)
 
 TEST(InputMethodLauncher, RestartTakesTheCurrentEnvironment)
 {
-    // How the input method learns an X11 display Xwayland only opened later.
     LauncherHarness h;
     std::vector<std::string> environment;
     for (char **entry = environ; *entry; ++entry) {

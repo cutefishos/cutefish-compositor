@@ -55,10 +55,8 @@ void WindowRenderer::produceContent(render::Renderer &renderer)
 {
     if (m_scheduled.empty())
         return;
-    // Every scheduled window, whichever output's frame this is: the outputs
-    // share the textures, and a window spanning two is drawn once. A render
-    // that asks for the window's next frame, as an animation does, schedules
-    // it for the next pass.
+    // Every scheduled window renders, whichever output's frame this is: the
+    // outputs share the textures.
     m_pass.swap(m_scheduled);
     m_lastPass.clear();
     const uint64_t frameTimeNs = renderer.frameTime >= 0 ? uint64_t(renderer.frameTime * 1e6) : 0;
@@ -69,9 +67,8 @@ void WindowRenderer::produceContent(render::Renderer &renderer)
         m_pass.erase(m_pass.begin());
         m_lastPass.push_back(window);
         window->produceFrame(renderer, frameTimeNs);
-        // A window this render changed, such as a popup an animation moved,
-        // is drawn in this pass too, or the frame shows the state it
-        // committed at once without the pixels drawn for it.
+        // A window this render changed is drawn in this pass too, or the frame
+        // shows its new state without its pixels.
         for (auto it = m_scheduled.begin(); it != m_scheduled.end();) {
             if (std::find(m_lastPass.begin(), m_lastPass.end(), *it) != m_lastPass.end()) {
                 ++it;

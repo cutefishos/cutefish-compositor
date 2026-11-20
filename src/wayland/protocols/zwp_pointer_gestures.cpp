@@ -4,11 +4,6 @@
 //
 // Upstream: chromium/src/components/exo/wayland/zwp_pointer_gestures.cc
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: Exo implements pinch alone, at version 1, with a
-// scale and no translation or rotation. libinput has all of them, so swipe,
-// pinch and hold are served at version 3, with serials from the seat's
-// tracker and motion in the client's units.
 
 #include "wayland/protocols/zwp_pointer_gestures.h"
 

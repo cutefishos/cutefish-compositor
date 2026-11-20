@@ -140,7 +140,6 @@ void ScreenTransitionNode::finish() const
     m_paintIncoming = {};
     m_ready = {};
     m_animationStarted = -1;
-    // Every output repaints without the layers, not only the one that ended them.
     notifyChanged();
 }
 
@@ -173,7 +172,6 @@ void ScreenTransitionNode::render(render::Renderer &renderer) const
         const auto &output = layers.output;
         const RotationSample sample = sampleRotation(output.degrees, progress);
         const base::PointF center = base::RectF(viewport).center();
-        // The mask hides the live content around a turned copy.
         if (!isAnimating() || layers.incoming)
             renderer.fillRect(viewport, {0, 0, 0, 1});
         if (layers.incoming) {

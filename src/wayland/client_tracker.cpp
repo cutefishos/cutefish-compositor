@@ -4,9 +4,6 @@
 //
 // Upstream: chromium/src/components/exo/wayland/client_tracker.cc
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: integrates the upstream behavior with native
-// compositor types and ownership.
 
 #include "client_tracker.h"
 
@@ -26,7 +23,6 @@ ClientTracker::~ClientTracker()
         wl_list_remove(&it->second->listener.link);
         m_clientDestroyedListeners.erase(it);
     }
-    // Remove the listener from the display's client-created signal.
     wl_list_remove(&m_clientCreatedListener.listener.link);
 }
 
@@ -62,7 +58,6 @@ void ClientTracker::onClientDestroyed(wl_listener* listener, void* data)
 
 void ClientTracker::handleClientCreated(wl_client* client)
 {
-    // Set up the destruction listener for the newly created client.
     auto [it, inserted] = m_clientDestroyedListeners.emplace(
         client, std::make_unique<ClientListener>(this, &ClientTracker::onClientDestroyed));
     wl_client_add_destroy_listener(client, &it->second->listener);
@@ -74,7 +69,6 @@ void ClientTracker::handleClientDestroyed(wl_client* client)
     if (it == m_clientDestroyedListeners.end())
         return;
 
-    // Remove the listener from the client's destroy signal.
     wl_list_remove(&it->second->listener.link);
     m_clientDestroyedListeners.erase(it);
 }

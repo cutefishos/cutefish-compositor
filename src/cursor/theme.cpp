@@ -179,7 +179,6 @@ std::vector<std::string> themePaths()
     return unique;
 }
 
-// Up to 64 MiB of the file; nothing when it cannot be read.
 static std::optional<std::string> readCursorFile(const std::string &path)
 {
     struct stat info;
@@ -260,7 +259,6 @@ std::vector<Frame> load(input::CursorShape shape, int size, const std::string &t
         frames = find({"default", "left_ptr"});
     if (!frames.empty())
         return frames;
-    // Keep the pointer visible even when no usable cursor theme is installed.
     const int pixels = std::clamp(size, 16, 256);
     if (nominal)
         *nominal = pixels;

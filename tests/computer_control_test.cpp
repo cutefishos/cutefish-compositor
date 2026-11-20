@@ -31,7 +31,6 @@ using namespace std::chrono_literals;
 
 namespace {
 
-// Everything that reaches the window manager, in order.
 class RecordingSink : public input::EventSink
 {
 public:
@@ -72,7 +71,6 @@ public:
     int granteds = 0;
     std::vector<RevokeReason> revokes;
     std::vector<Rejection> rejections;
-    // Handle and title of each window event since the last windows_done.
     std::vector<std::pair<uint32_t, std::string>> windows;
     int windowsDones = 0;
     std::vector<base::PointF> pointers;
@@ -271,7 +269,6 @@ TEST_F(ComputerControlTest, OneControlAtATime)
     EXPECT_EQ(std::vector<RevokeReason> {RevokeReason::Busy}, second.revokes);
     EXPECT_EQ(1, questions);
 
-    // A withdrawn request frees the seat for the next one.
     control.reset();
     EXPECT_EQ(1, withdrawals);
     FakeClient third;
@@ -298,7 +295,6 @@ TEST_F(ComputerControlTest, ABlockedSessionEndsControl)
     FakeClient client;
     auto granted = grant(client);
     granted->key(KEY_LEFTSHIFT, true);
-    // A lock the controller has not heard of yet ends it before the next event.
     blocked = true;
     granted->key(KEY_A, true);
     EXPECT_EQ(std::vector<RevokeReason> {RevokeReason::Locked}, client.revokes);
@@ -322,7 +318,6 @@ TEST_F(ComputerControlTest, StoppingReleasesWhatTheAgentHolds)
     EXPECT_TRUE(seat.pressedKeys().empty());
     EXPECT_EQ((std::vector<bool> {true, false}), activeChanges);
 
-    // Releases after the end are no-ops, presses are refused.
     sink.events.clear();
     control->key(KEY_LEFTCTRL, false);
     control->key(KEY_A, true);
@@ -359,7 +354,6 @@ TEST_F(ComputerControlTest, RealInputPausesTheAgentAndReleasesWhatItHolds)
     control->key(KEY_A, false);
     EXPECT_EQ(3u, client.rejections.size());
     EXPECT_EQ((std::vector<std::string> {key(KEY_A, true), key(KEY_A, false)}), sink.events);
-    // Still in control: a pause is not a revocation.
     EXPECT_TRUE(client.revokes.empty());
 }
 
@@ -396,7 +390,6 @@ TEST_F(ComputerControlTest, SystemDialogsAreTheUsersToAnswer)
     control->key(KEY_ENTER, true);
     control->typeText("a");
     EXPECT_EQ(std::vector<Rejection>(4, Rejection::Protected), client.rejections);
-    // Moving is allowed, and so is letting go of what was pressed before.
     control->key(KEY_TAB, false);
     EXPECT_EQ((std::vector<std::string> {key(KEY_TAB, true), "motion 30,30", key(KEY_TAB, false)}),
               sink.events);
@@ -464,7 +457,6 @@ TEST_F(ComputerControlTest, AKeysymPressesTheKeyOfTheLayout)
     ASSERT_TRUE(seat.setKeyboardLayout("de"));
     control->key(KEY_LEFTCTRL, true);
     control->keysym(XKB_KEY_z, true);
-    // Released as pressed, whatever the layout is by then.
     ASSERT_TRUE(seat.setKeyboardLayout("us"));
     control->keysym(XKB_KEY_z, false);
     control->key(KEY_LEFTCTRL, false);
@@ -474,7 +466,6 @@ TEST_F(ComputerControlTest, AKeysymPressesTheKeyOfTheLayout)
               }),
               sink.events);
 
-    // The level's own modifier is the caller's to press.
     sink.events.clear();
     control->keysym(XKB_KEY_exclam, true);
     control->keysym(XKB_KEY_exclam, false);
@@ -493,20 +484,17 @@ TEST_F(ComputerControlTest, TextBeyondTheKeymapIsCommitted)
     EXPECT_EQ(std::vector<Rejection> {Rejection::Untypable}, client.rejections);
     EXPECT_TRUE(sink.events.empty());
 
-    // All of it, since a commit would overtake keys sent before it.
     textInputFocused = true;
     control->typeText("aéü b");
     EXPECT_EQ((std::vector<std::string> {"aéü b"}), commits);
     EXPECT_TRUE(sink.events.empty());
 
-    // The text-input refuses what it cannot send, such as invalid UTF-8.
     commitAccepted = false;
     control->typeText("é");
     EXPECT_EQ((std::vector<Rejection> {Rejection::Untypable, Rejection::Untypable}),
               client.rejections);
     commitAccepted = true;
 
-    // A line break cannot be committed, so the caller sends the parts apart.
     client.rejections.clear();
     commits.clear();
     control->typeText("é\nb");
@@ -514,7 +502,6 @@ TEST_F(ComputerControlTest, TextBeyondTheKeymapIsCommitted)
     EXPECT_TRUE(commits.empty());
     EXPECT_TRUE(sink.events.empty());
 
-    // Keys would feed a composing input method, so everything is committed.
     composing = true;
     client.rejections.clear();
     control->typeText("ab");
@@ -589,7 +576,6 @@ TEST_F(ComputerControlTest, WindowsAreListedWhileGranted)
               client.windows);
     EXPECT_EQ(1, client.windowsDones);
 
-    // A window keeps its handle in a later list, in whatever order.
     windows = {windows[1], {9, std::string(), "New", base::Rect(), 0}, windows[0]};
     client.windows.clear();
     control->listWindows();
@@ -609,7 +595,6 @@ TEST_F(ComputerControlTest, AWindowIsActivatedByItsHandle)
     FakeClient client;
     auto control = grant(client);
 
-    // Only handles this control listed name a window.
     control->activateWindow(1);
     EXPECT_EQ(std::vector<Rejection> {Rejection::NoWindow}, client.rejections);
 
@@ -624,7 +609,6 @@ TEST_F(ComputerControlTest, AWindowIsActivatedByItsHandle)
                                        Rejection::NoWindow}),
               client.rejections);
 
-    // Activation changes what the user's keys reach, so it waits for them too.
     input.onPointerMotion(clock, base::PointF(1, 0));
     control->activateWindow(1);
     EXPECT_EQ(Rejection::Paused, client.rejections.back());
@@ -642,7 +626,6 @@ TEST_F(ComputerControlTest, TheClipboardIsSetOnlyWhileGrantedAndNotPaused)
     control->setClipboard("line one\nline two");
     EXPECT_EQ(std::vector<std::string> {"line one\nline two"}, clipboards);
 
-    // It replaces what the user copied, so it waits for the user too.
     input.onPointerMotion(clock, base::PointF(1, 0));
     control->setClipboard("while typing");
     EXPECT_EQ(Rejection::Paused, client.rejections.back());
@@ -667,8 +650,6 @@ TEST_F(ComputerControlTest, AWindowIsClosedAndPlacedByItsHandle)
     using Frames = std::vector<std::pair<uint64_t, base::Rect>>;
     EXPECT_EQ((Frames {{7, base::Rect(10, 20, 300, 200)}}), frames);
 
-    // The dialogs that answer for the user are left alone, though bringing
-    // one forward is harmless.
     control->closeWindow(2);
     control->setWindowFrame(2, base::Rect(0, 0, 100, 100));
     EXPECT_EQ((std::vector<Rejection> {Rejection::NoWindow, Rejection::Protected,
@@ -768,7 +749,6 @@ TEST_F(ComputerControlTest, ASettleEndsWithItsControl)
     controller->checkSettles();
     EXPECT_EQ(0, answers);
 
-    // Without a controller there is nothing to wait for.
     FakeClient other;
     auto orphan = grant(other);
     controller.reset();

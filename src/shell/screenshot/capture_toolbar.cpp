@@ -36,7 +36,6 @@ using cutefish::i18n::trNoop;
 
 namespace cutefish::shell {
 
-// FishUI's bigRadius * 1.5, the toolbar's corners and its buttons' plates.
 static constexpr double kRadius = 18;
 static constexpr double kButtonWidth = 40;
 static constexpr double kButtonHeight = 36;
@@ -45,14 +44,12 @@ static constexpr double kSeparatorHeight = 20;
 static constexpr double kChevronSize = 12;
 static constexpr double kChevronSpacing = 4;
 
-// What the row gives a separator of a device pixel: whole logical pixels,
-// as the row snaps its cells.
+// Whole logical pixels, as the row snaps its cells.
 static double separatorCell(double scale)
 {
     return std::ceil(1 / scale);
 }
 
-// A centred item on a whole pixel.
 static double centred(double outer, double inner)
 {
     return std::round((outer - inner) / 2);
@@ -71,8 +68,6 @@ static const struct {
         {"record-window.svg", trNoop("Record Selected Window"), ScreenCapture::Video, ScreenCapture::Window},
         {"record-selection.svg", trNoop("Record Selected Portion"), ScreenCapture::Video, ScreenCapture::Region},
 };
-
-// --- ToolbarButton ---
 
 ToolbarButton::ToolbarButton(std::string icon, int iconSize, std::string tip)
     : m_icon(std::move(icon))
@@ -204,8 +199,6 @@ void ToolbarButton::layout()
                               label.height});
         return;
     }
-    // A label and a chevron in a Row, centred together; each centred
-    // vertically in the row.
     const double row = label.width + kChevronSpacing + kChevronSize;
     const double rowHeight = std::max(label.height, kChevronSize);
     const double x = centred(rect.width, row);
@@ -225,8 +218,6 @@ void ToolbarButton::paint(ui::Painter &painter)
     const ui::Theme &theme = ui::Theme::current();
     if (!isEnabled())
         painter.multiplyOpacity(0.35);
-    // The highlight is the toolbar's corner drawn its padding inside it, so
-    // every highlight is concentric with the toolbar's ends.
     ui::Color plate = contentColor();
     double opacity = m_pressed ? 0.2 : m_checked ? 0.16 : m_hovered ? 0.08 : 0;
     if (m_accent) {
@@ -244,8 +235,6 @@ void ToolbarButton::paint(ui::Painter &painter)
                         contentColor());
     }
 }
-
-// --- CaptureToolbar ---
 
 CaptureToolbar::CaptureToolbar(CaptureOverlay *overlay, ScreenCapture *capture, Shell *shell)
     : m_overlay(overlay)
@@ -342,7 +331,6 @@ ui::SizeF CaptureToolbar::implicitSize() const
         width += button->sizeHint().width;
         ++items;
     }
-    // Three separators, a device pixel wide with a small spacing each side.
     width += 3 * (separatorCell(scale) + 2 * padding);
     items += 3;
     width += kSpacing * (items - 1);
@@ -360,7 +348,6 @@ std::vector<double> CaptureToolbar::separatorPositions() const
         if (!button->isVisible())
             continue;
         x += button->sizeHint().width + kSpacing;
-        // After Close, the pictures and the recordings.
         if (i == 0 || i == 3 || i == 6) {
             positions.push_back(x + padding);
             x += separatorCell(scale) + 2 * padding + kSpacing;
@@ -452,7 +439,6 @@ void CaptureToolbar::visibilityChanged()
 
 void CaptureToolbar::buttonStateChanged(ToolbarButton *button)
 {
-    // Up as soon as the pointer is on the button, like the dock's tooltips.
     if (button->tip().empty())
         return;
     if (button->isPressed())
@@ -488,7 +474,6 @@ void CaptureToolbar::pointerMove(const ui::PointerEvent &event)
         m_dragActive = true;
         m_tooltip->draggingChanged();
     }
-    // Bounded to the overlay, as the DragHandler's axes are.
     const ui::RectF parentRect = parent() ? parent()->localRect() : ui::RectF {};
     const double x = std::clamp(m_pressPosition.x + dx, 0.0, std::max(0.0, parentRect.width - rect.width));
     const double y = std::clamp(m_pressPosition.y + dy, 0.0, std::max(0.0, parentRect.height - rect.height));
@@ -572,7 +557,6 @@ void CaptureToolbar::buildMenu()
             const std::string description = source->description();
             const size_t index = choice(description.empty() ? node : description, settings.microphone() == node,
                                         [&settings, node] { settings.setMicrophone(node); });
-            // A long device name is elided instead of widening the options.
             menu.setItemMaximumWidth(index, 320);
         }
     }
@@ -600,8 +584,6 @@ void CaptureToolbar::openOptions()
     const double start = toolbar.x + button.x;
     const double centre = start + button.width / 2;
 
-    // Above the toolbar with its arrow on the Options button, or below it
-    // when the toolbar is dragged to the top of the screen.
     menu.setArrow(ui::BubbleShape::Edge::Bottom, {centre, toolbar.y});
     menu.setContinuousCorners(true);
     const ui::RectF screen = parent() ? parent()->localRect() : ui::RectF {};
@@ -613,8 +595,6 @@ void CaptureToolbar::openOptions()
         size = menu.implicitSize(window);
     }
     const double y = below ? toolbar.y + toolbar.height + gap : toolbar.y - gap - size.height;
-    // Starts at the button's leading side, pulled back only as far as the
-    // arrow needs to still reach its centre.
     const double x = std::min(start, centre - menu.minimumEdgeLength() / 2);
     menu.onClosed = [this] {
         m_menuOpen = false;
@@ -631,8 +611,6 @@ void CaptureToolbar::openOptions()
     if (onOptionsChanged)
         onOptionsChanged();
 }
-
-// --- CaptureTooltip ---
 
 CaptureTooltip::CaptureTooltip(CaptureToolbar *toolbar, CaptureOverlay *overlay, Shell *shell)
     : m_toolbar(toolbar)
@@ -667,8 +645,6 @@ void CaptureTooltip::showFor(ToolbarButton *button)
     apply();
 }
 
-// Leaving a button only hides the tooltip if no other button takes it over
-// first, so sliding along the toolbar moves one tooltip instead of reopening it.
 void CaptureTooltip::leave(ToolbarButton *button)
 {
     if (m_hovered == button)
@@ -684,8 +660,6 @@ void CaptureTooltip::hideNow()
     apply();
 }
 
-// A tooltip up when a drag begins goes at once; it would point where the
-// button no longer is. The button the drag ends on gets one.
 void CaptureTooltip::draggingChanged()
 {
     if (m_toolbar->isDragging())
@@ -724,8 +698,7 @@ void CaptureTooltip::apply()
     bubble.radius = theme.mediumRadius;
     bubble.continuousCorners = true;
 
-    // The label's size decides the bubble's, before any window is made,
-    // measured as the popup will lay it out: at its parent's scale and hinting.
+    // Measured as the popup will lay it out: at its parent's scale and hinting.
     ui::Label measure(m_text);
     measure.setElide(ui::Label::Elide::None);
     measure.setTextLayoutMode(m_overlay->window()->window()->textLayoutMode());
@@ -733,15 +706,13 @@ void CaptureTooltip::apply()
     const double width = std::ceil(std::max(textSize.width + theme.largeSpacing * 1.5, bubble.minimumEdgeLength()));
     const double height = std::ceil(textSize.height + theme.largeSpacing + bubble.arrowLength);
 
-    // In the overlay's coordinates. Above the toolbar, or below it when the
-    // toolbar is dragged to the top of the screen.
+    // In the overlay's coordinates.
     const ui::RectF toolbar = m_toolbar->geometry();
     const double gap = theme.smallSpacing;
     const bool below = toolbar.y - gap - height < 0;
     const double overlayWidth = m_overlay->bounds().width();
     const double top = below ? toolbar.y + toolbar.height + gap : toolbar.y - gap - height;
 
-    // Where the arrow points: the middle of the button's edge facing the tooltip.
     const ui::RectF button = m_target->geometry();
     const double targetX = toolbar.x + button.x + button.width / 2;
     const double x = std::floor(std::max(0.0, std::min(overlayWidth - width, targetX - width / 2)) + 0.5);
@@ -782,8 +753,6 @@ void CaptureTooltip::apply()
         return;
     // Transparent for input: drags on the overlay go on under it.
     popup->setInputRegion(base::Region());
-    // The glass is the body; the arrow outside it continues the glass, and
-    // the outline follows the whole bubble.
     const render::GlassParams glass = theme.darkMode ? popupGlass(0.17, 0.17, 0.19, 0.6)
                                                      : popupGlass(1, 1, 1, 0.6);
     const base::Rect region(int(std::floor(body.x)), int(std::floor(body.y)), int(std::ceil(body.width)),

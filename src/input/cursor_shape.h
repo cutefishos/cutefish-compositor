@@ -2,12 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Cursor shapes used by the compositor and window manager.
 #pragma once
 
 namespace cutefish::input {
 
-// Standard cursor-shape names. Hidden is internal, never a protocol shape.
+// Hidden is internal, never a protocol shape.
 enum class CursorShape {
     Hidden = 0,
     Default,

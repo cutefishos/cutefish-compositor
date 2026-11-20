@@ -54,8 +54,7 @@ ScanoutController::ScanoutController(DrmDeviceApi *device, Config config)
     : m_device(device)
     , m_config(std::move(config))
 {
-    // Planes are kept in enumeration order, which is ascending id, because the
-    // assignment pass relies on that to preserve z ordering.
+    // Ascending id: the assignment pass relies on it for z order.
     for (const DrmPlane &plane : m_config.planes) {
         if (!plane.canUseForCrtc(m_config.crtcIndex))
             continue;
@@ -98,7 +97,7 @@ bool ScanoutController::setColorTransform(const render::ColorTransform &transfor
             created = m_device->createPropertyBlob(&ctm, sizeof(ctm), &color.ctmBlob);
         } else {
             // The gains apply to encoded values, so each channel's curve is a
-            // straight line: exactly what the diagonal CTM would do.
+            // straight line.
             const size_t size = properties.value("GAMMA_LUT_SIZE");
             std::vector<drm_color_lut> lut(size);
             for (size_t i = 0; i < size; ++i) {
@@ -144,8 +143,8 @@ const DrmPlane *ScanoutController::planeById(uint32_t id) const
 uint32_t ScanoutController::framebufferFor(render::ScanoutBuffer &buffer, uint32_t *format,
                                            uint64_t *modifier)
 {
-    // A buffer this device already failed to import is not retried: the failure
-    // is a property of the buffer, and retrying it costs an ioctl per frame.
+    // An import failure is a property of the buffer, so it is not retried every
+    // frame.
     if (buffer.scanoutImportFailed(m_device))
         return 0;
 
@@ -177,8 +176,6 @@ std::vector<PlaneContent> ScanoutController::validate(const scene::OverlayPlan &
     if (!m_primaryPlane || plan.isEmpty())
         return fallback;
 
-    // Resolve every candidate to a framebuffer first. A candidate this device
-    // cannot import is simply not promoted.
     std::vector<PlaneContent> contents;
 
     const auto resolve = [&](const scene::OverlayCandidate &candidate) {
@@ -227,8 +224,6 @@ std::vector<PlaneContent> ScanoutController::validate(const scene::OverlayPlan &
     for (const scene::OverlayCandidate &candidate : plan.overlays)
         resolve(candidate);
 
-    // Then ask the hardware, shrinking the configuration until it agrees.
-    // Upstream drops the last plane and retests; the same loop here.
     while (contents.size() > 1 || (contents.size() == 1 && contents.front().isDirectScanout())) {
         std::vector<PlaneRequest> requests;
         requests.reserve(contents.size());
@@ -267,10 +262,8 @@ std::vector<PlaneContent> ScanoutController::validate(const scene::OverlayPlan &
             ++m_testFailures;
         }
 
-        // The topmost plane is the one to give up on: dropping a lower one
-        // would leave content composited underneath something on a plane.
-        // Direct scanout on its own is the last configuration tried, and when
-        // that fails too the list empties and everything is composited.
+        // The topmost plane goes first: dropping a lower one would leave
+        // composited content under a plane.
         contents.pop_back();
     }
 
@@ -323,10 +316,8 @@ AtomicRequest ScanoutController::buildRequest(const std::vector<PlaneContent> &p
         request.add(m_config.crtcId, m_config.crtcProperties.id("MODE_ID"), off ? 0 : modeBlobId);
         request.add(m_config.crtcId, m_config.crtcProperties.id("ACTIVE"), off ? 0 : 1);
     }
-    // A modeset replaces whatever colour pipeline a previous DRM master left,
-    // its night light for instance; a flip carries ours only when it changed.
-    // Ozone commits all three with the CRTC, zero meaning unset
-    // (AddAllPendingCrtcProperties).
+    // A modeset replaces the colour pipeline a previous DRM master left; a flip
+    // carries ours only when it changed.
     if (!off && (modeset || m_colorPending)) {
         request.add(m_config.crtcId, m_config.crtcProperties.id("CTM"), m_color.ctmBlob);
         request.add(m_config.crtcId, m_config.crtcProperties.id("GAMMA_LUT"), m_color.gammaBlob);
@@ -343,11 +334,8 @@ AtomicRequest ScanoutController::buildRequest(const std::vector<PlaneContent> &p
         used.push_back(plane->id);
     }
 
-    // A plane that was showing something last frame and is not in this
-    // configuration has to be switched off explicitly, or it keeps scanning out
-    // a buffer nothing owns any more. A secure commit does not trust that list
-    // and disables every plane it is not programming, and neither does a
-    // modeset: a previous DRM master may have left any of them showing its own.
+    // A plane no longer in use must be switched off, or it keeps scanning out;
+    // secure commits and modesets clear every plane not programmed.
     if (secure || (modeset && !off)) {
         std::vector<const DrmPlane *> planes = allPlanes();
         if (!m_hardwareCursor)
@@ -402,8 +390,8 @@ bool ScanoutController::commit(const std::vector<PlaneContent> &planes, bool mod
     };
 
     if (!attempt()) {
-        // A driver that lists a colour property can still refuse a value for
-        // it. Losing the tint beats losing every frame from here on.
+        // A driver can still refuse a value for a colour property it lists;
+        // losing the tint beats losing every frame.
         if (!(modeset || m_colorPending) || m_color.transform.isIdentity())
             return false;
         const ColorPipeline color = std::exchange(m_color, ColorPipeline());

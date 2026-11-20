@@ -4,9 +4,6 @@
 //
 // Upstream: chromium/src/ash/display/display_prefs.h
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: confirmed monitor properties and topology profiles
-// are atomically stored in one bounded per-user JSON file.
 
 #pragma once
 

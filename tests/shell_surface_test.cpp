@@ -5,13 +5,6 @@
 // Upstream: chromium/src/components/exo/shell_surface_unittest.cc
 //           chromium/src/components/exo/xdg_shell_surface_unittest.cc
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: exercises the corresponding behavior with native
-// compositor test doubles and APIs.
-//
-// Adapted: no views::Widget and no Ash, so the assertions are about the
-// Cutefish Window and about what the configure callback was handed. The cases
-// that only exercise ChromeOS state (snap, pip, float, desks) are dropped.
 
 #include <gtest/gtest.h>
 #include <linux/input-event-codes.h>
@@ -60,7 +53,6 @@ input::Timestamp at(int ms)
     return input::Timestamp(std::chrono::milliseconds(ms));
 }
 
-// Everything a client would have seen.
 struct Recorder {
     std::vector<ShellSurface::ConfigureState> configures;
     std::vector<uint32_t> serials;
@@ -71,8 +63,6 @@ struct Recorder {
     ShellSurface::ConfigureState last() const { return configures.back(); }
 };
 
-// Offscreen passes succeed, so a closing window plays its animation from a
-// snapshot as it does on a GPU.
 class SnapshotRenderer final : public testsupport::FakeRenderer
 {
 public:
@@ -121,8 +111,6 @@ protected:
         seat.shutdown();
     }
 
-    // Removes a shell surface from the fixture without destroying it, so the
-    // destruction can run outside the container it was in.
     std::unique_ptr<ShellSurface> takeShell(ShellSurface *shell)
     {
         auto it = std::find_if(shells.begin(), shells.end(),
@@ -134,7 +122,6 @@ protected:
         return owned;
     }
 
-    // The same for a surface.
     std::unique_ptr<compositor::Surface> takeSurface(compositor::Surface *surface)
     {
         auto it = std::find_if(surfaces.begin(), surfaces.end(),
@@ -146,9 +133,7 @@ protected:
         return owned;
     }
 
-    // Where a client's buffer actually lands on screen. A toplevel's surface
-    // node hangs under its window's node, so its own position is relative to
-    // the window; a popup's is not.
+    // A toplevel's surface node is relative to its window's node; a popup's is not.
     static base::Point surfacePosition(ShellSurface *shell)
     {
         return shell->rootSurface()->node()->absolutePosition();
@@ -168,7 +153,6 @@ protected:
         surface->damage(base::Rect(base::Point(), size));
     }
 
-    // An xdg_surface with the recorder wired to its configure callbacks.
     ShellSurface *makeShell(Recorder **recorderOut = nullptr)
     {
         recorders.push_back(std::make_unique<Recorder>());
@@ -195,8 +179,6 @@ protected:
         return shell;
     }
 
-    // Drives the whole xdg-shell handshake: role, initial configure, ack, first
-    // buffer.
     ShellSurface *makeMappedToplevel(const base::Size &size, Recorder **recorderOut = nullptr)
     {
         Recorder *recorder = nullptr;
@@ -214,9 +196,6 @@ protected:
     }
 };
 
-////////////////////////////////////////////////////////////////////////////////
-// Initial configure and mapping
-
 TEST_F(ShellSurfaceTest, TheFirstCommitWithoutABufferAsksForTheInitialConfigure)
 {
     Recorder *recorder = nullptr;
@@ -227,7 +206,6 @@ TEST_F(ShellSurfaceTest, TheFirstCommitWithoutABufferAsksForTheInitialConfigure)
     shell->rootSurface()->commit();
 
     ASSERT_EQ(1u, recorder->configures.size());
-    // Nothing is mapped yet, and the compositor has no opinion on the size.
     EXPECT_EQ(nullptr, shell->window());
     EXPECT_EQ(base::Size(0, 0), recorder->last().size);
     EXPECT_EQ(WindowStateType::Normal, recorder->last().stateType);
@@ -283,7 +261,6 @@ TEST_F(ShellSurfaceTest, ABufferAfterTheAckMapsAWindow)
     EXPECT_EQ(base::Size(300, 200), window->bounds().size());
     EXPECT_TRUE(window->isVisible());
     EXPECT_TRUE(window->isActive());
-    // Activation is a state change, so the client is told about it.
     EXPECT_TRUE(recorder->last().activated);
 }
 
@@ -377,10 +354,8 @@ TEST_F(ShellSurfaceTest, AWindowMappedMaximizedWithoutARestoreSizeChoosesItsOwnO
     shell->rootSurface()->attach(chosenBuffer, {});
     shell->rootSurface()->commit();
 
-    // Placed as if it had mapped normal at that size.
     EXPECT_EQ(base::Rect(350, 300, 300, 200), shell->window()->bounds());
 
-    // From then on it has normal bounds of its own to come back to.
     shell->maximize();
     ASSERT_TRUE(shell->acknowledgeConfigure(recorder->serials.back()));
     auto maximizedBuffer = pool->createBuffer(kOutput.size(), 0, kOutput.width() * 4,
@@ -393,9 +368,6 @@ TEST_F(ShellSurfaceTest, AWindowMappedMaximizedWithoutARestoreSizeChoosesItsOwnO
     EXPECT_EQ(base::Size(300, 200), recorder->last().size);
 }
 
-// The cross-fade starts toward bounds the window manager has before the client
-// picks a size; landing there would show the window at one size, then jump it to
-// the one placed.
 TEST_F(ShellSurfaceTest, TheRestoreCrossFadeLandsWhereTheChosenSizeIsPlaced)
 {
     Recorder *recorder = nullptr;
@@ -511,7 +483,6 @@ TEST_F(ShellSurfaceTest, AWindowKeepingItsSizeOnRestoreIsTakenToHaveChosenIt)
 
     shell->unmaximize();
     ASSERT_TRUE(shell->acknowledgeConfigure(recorder->serials.back()));
-    // The size it had: its choice, or a frame drawn before the configure.
     auto keptBuffer = pool->createBuffer(kOutput.size(), 0, kOutput.width() * 4,
                                          render::PixelFormat::Bgrx8888, nullptr);
     shell->rootSurface()->attach(keptBuffer, {});
@@ -554,17 +525,12 @@ TEST_F(ShellSurfaceTest, AFrameDrawnBeforeTheRestoreConfigureIsNotTheSizeChosen)
     EXPECT_EQ(base::Rect(350, 300, 300, 200), shell->window()->bounds());
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// Configure serials and acknowledgement
-
 TEST_F(ShellSurfaceTest, ConfiguresAreCoalescedIntoOnePerCommit)
 {
     Recorder *recorder = nullptr;
     ShellSurface *shell = makeMappedToplevel(base::Size(300, 200), &recorder);
     const size_t before = recorder->configures.size();
 
-    // Maximizing moves the bounds and the state type; the client sees one
-    // configure, not one per change.
     shell->maximize();
 
     EXPECT_EQ(before + 1, recorder->configures.size());
@@ -595,7 +561,6 @@ TEST_F(ShellSurfaceTest, AnAlreadySupersededAcknowledgementIsRejected)
     const uint32_t newest = recorder->serials.back();
 
     EXPECT_TRUE(shell->acknowledgeConfigure(newest));
-    // The older serial went with it and can no longer be acknowledged.
     EXPECT_FALSE(shell->acknowledgeConfigure(oldest));
 }
 
@@ -617,9 +582,6 @@ TEST_F(ShellSurfaceTest, AcknowledgingTheSameSerialTwiceIsRejected)
     EXPECT_TRUE(shell->acknowledgeConfigure(serial));
     EXPECT_FALSE(shell->acknowledgeConfigure(serial));
 }
-
-////////////////////////////////////////////////////////////////////////////////
-// Metadata and size constraints
 
 TEST_F(ShellSurfaceTest, TitleAndApplicationIdReachTheWindow)
 {
@@ -652,7 +614,6 @@ TEST_F(ShellSurfaceTest, MinimumAndMaximumSizeApplyAtTheNextCommit)
 
     shell->setMinimumSize(base::Size(120, 90));
     shell->setMaximumSize(base::Size(500, 400));
-    // Pending until the commit, exactly like the window geometry.
     EXPECT_EQ(base::Size(1, 1), shell->window()->minimumSize());
 
     shell->rootSurface()->commit();
@@ -671,13 +632,9 @@ TEST_F(ShellSurfaceTest, EqualMinimumAndMaximumSizeMakesTheWindowUnresizable)
     shell->rootSurface()->commit();
 
     EXPECT_FALSE(shell->window()->isResizable());
-    // And an unresizable window will not maximize.
     shell->maximize();
     EXPECT_EQ(WindowStateType::Normal, shell->window()->stateType());
 }
-
-////////////////////////////////////////////////////////////////////////////////
-// State changes
 
 TEST_F(ShellSurfaceTest, MaximizeConfiguresTheWorkAreaSize)
 {
@@ -712,8 +669,6 @@ TEST_F(ShellSurfaceTest, FullscreenRestoresIntoTheMaximizedStateItCameFrom)
     shell->setFullscreen(true);
 
     EXPECT_EQ(WindowStateType::Fullscreen, recorder->last().stateType);
-    // What a restore would land in, which the protocol layer turns into a
-    // maximized state alongside the fullscreen one.
     EXPECT_EQ(WindowStateType::Maximized, recorder->last().restoreStateType);
 
     shell->setFullscreen(false);
@@ -761,9 +716,6 @@ TEST_F(ShellSurfaceTest, TheResizingStateIsConfiguredForTheDurationOfADrag)
     EXPECT_FALSE(recorder->last().resizing);
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// Window geometry
-
 TEST_F(ShellSurfaceTest, WindowGeometryDecidesTheWindowSize)
 {
     Recorder *recorder = nullptr;
@@ -772,15 +724,12 @@ TEST_F(ShellSurfaceTest, WindowGeometryDecidesTheWindowSize)
     shell->rootSurface()->commit();
     ASSERT_TRUE(shell->acknowledgeConfigure(recorder->serials.back()));
 
-    // A CSD client whose buffer carries a 10px shadow all round.
     shell->setGeometry(base::Rect(10, 10, 300, 200));
     attach(shell->rootSurface(), base::Size(320, 220));
     shell->rootSurface()->commit();
 
     ASSERT_NE(nullptr, shell->window());
     EXPECT_EQ(base::Size(300, 200), shell->window()->bounds().size());
-    // The shadow hangs outside the window, so the buffer starts above and left
-    // of the window origin.
     EXPECT_EQ(base::Point(-10, -10), shell->window()->surfaceOrigin());
     EXPECT_EQ(shell->window()->bounds().topLeft() + base::Point(-10, -10), surfacePosition(shell));
 }
@@ -802,8 +751,6 @@ TEST_F(ShellSurfaceTest, AClientResizeMovesTheWindowSizeWithIt)
 {
     Recorder *recorder = nullptr;
     ShellSurface *shell = makeMappedToplevel(base::Size(300, 200), &recorder);
-    // Nothing is outstanding, so the client's own size is not second-guessing
-    // a configure the compositor already sent.
     ASSERT_TRUE(shell->acknowledgeConfigure(recorder->serials.back()));
     const base::Point origin = shell->window()->bounds().topLeft();
 
@@ -829,7 +776,6 @@ TEST_F(ShellSurfaceTest, AClientGrowingPastTheWorkAreaIsToldTheSizeItKeeps)
     ASSERT_GT(recorder->configures.size(), configures);
     EXPECT_EQ(base::Size(300, workArea.height()), recorder->last().size);
 
-    // Already at the work area's height, a second try is answered again.
     ASSERT_TRUE(shell->acknowledgeConfigure(recorder->serials.back()));
     attach(shell->rootSurface(), base::Size(300, workArea.height() + 50));
     shell->rootSurface()->commit();
@@ -845,7 +791,6 @@ TEST_F(ShellSurfaceTest, AFixedSizeClientGrowingPastTheWorkAreaIsLimitedToo)
     const base::Rect workArea = manager.workAreaFor(shell->window());
     shell->window()->setBounds(base::Rect(100, workArea.top() + 40, 300, 200));
 
-    // A window that cannot be resized states its new size as both limits.
     const base::Size grown(300, workArea.height() + 100);
     shell->setMinimumSize(grown);
     shell->setMaximumSize(grown);
@@ -854,7 +799,6 @@ TEST_F(ShellSurfaceTest, AFixedSizeClientGrowingPastTheWorkAreaIsLimitedToo)
     attach(shell->rootSurface(), grown);
     shell->rootSurface()->commit();
 
-    // Only the size is limited; the position stays where the window was.
     EXPECT_EQ(base::Rect(100, workArea.top() + 40, 300, workArea.height()), shell->window()->bounds());
     EXPECT_EQ(base::Size(300, workArea.height()), recorder->last().size);
 }
@@ -872,7 +816,6 @@ TEST_F(ShellSurfaceTest, ACentreAnchoredClientResizeKeepsTheWindowCentre)
     EXPECT_EQ(base::Rect(250, 170, 401, 261), shell->window()->bounds());
     EXPECT_EQ(base::Point(250, 170), surfacePosition(shell));
 
-    // Back to the old size lands exactly where it started.
     attach(shell->rootSurface(), base::Size(300, 200));
     shell->rootSurface()->commit();
     EXPECT_EQ(base::Rect(300, 200, 300, 200), shell->window()->bounds());
@@ -903,13 +846,10 @@ TEST_F(ShellSurfaceTest, AResizeFromTheLeftKeepsTheContentsInPlaceUntilTheClient
     ASSERT_EQ(base::Point(400, 100), surfacePosition(shell));
 
     ASSERT_TRUE(manager.eventHandler()->beginResize(window, ResizeEdge::Left, base::PointF(400, 200)));
-    // Drag the left edge 50px to the left: the window grows and its origin
-    // moves, but the client is still painting 300x200.
     manager.eventHandler()->onPointerMotion(base::PointF(350, 200));
     EXPECT_EQ(base::Rect(350, 100, 350, 200), window->bounds());
     EXPECT_EQ(base::Point(400, 100), surfacePosition(shell));
 
-    // The client acknowledges and commits the new size.
     ASSERT_TRUE(shell->acknowledgeConfigure(recorder->serials.back()));
     attach(shell->rootSurface(), base::Size(350, 200));
     shell->rootSurface()->commit();
@@ -928,7 +868,6 @@ TEST_F(ShellSurfaceTest, ResizeAnchorsCommittedPixelsWhenGeometryRunsAhead)
     ASSERT_TRUE(manager.eventHandler()->beginResize(window, ResizeEdge::TopLeft, {400, 100}));
 
     for (const base::Size target : {base::Size(350, 250), base::Size(280, 180)}) {
-        // A resize takes one step per frame.
         manager.compositor()->frameStarted(0);
         manager.eventHandler()->onPointerMotion(
                 base::PointF(700 - target.width(), 300 - target.height()));
@@ -958,9 +897,6 @@ TEST_F(ShellSurfaceTest, AResizeFromTheRightLeavesTheOriginAlone)
     EXPECT_EQ(base::Rect(400, 100, 350, 200), window->bounds());
     EXPECT_EQ(base::Point(400, 100), surfacePosition(shell));
 }
-
-////////////////////////////////////////////////////////////////////////////////
-// Transients
 
 TEST_F(ShellSurfaceTest, SetParentMapsOntoTheTransientRelationship)
 {
@@ -1000,9 +936,6 @@ TEST_F(ShellSurfaceTest, SetParentRefusesACycle)
     EXPECT_FALSE(a->setTransientParent(b));
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// Unmap, remap and destruction
-
 TEST_F(ShellSurfaceTest, CommittingANullBufferUnmapsTheWindow)
 {
     ShellSurface *shell = makeMappedToplevel(base::Size(300, 200));
@@ -1023,7 +956,6 @@ TEST_F(ShellSurfaceTest, ARemapStartsTheConfigureSequenceOver)
     shell->rootSurface()->commit();
     const size_t afterUnmap = recorder->configures.size();
 
-    // An empty commit asks for a fresh initial configure.
     shell->rootSurface()->commit();
     ASSERT_EQ(afterUnmap + 1, recorder->configures.size());
     EXPECT_FALSE(recorder->last().activated);
@@ -1071,7 +1003,6 @@ TEST_F(ShellSurfaceTest, AClosedWindowLeavesTheSceneWhenItsCloseAnimationEnds)
         ASSERT_TRUE(manager.windows().empty());
     }
 
-    // The closes play from their snapshots, so the window nodes outlive the windows.
     scene.render(snapshots);
     EXPECT_EQ(3u, surfaceContainer->children().size());
 
@@ -1102,8 +1033,6 @@ TEST_F(ShellSurfaceTest, ANewToplevelCanBeCreatedWhileAnotherIsBeingDestroyed)
     ShellSurface *victim = makeMappedToplevel(base::Size(300, 200));
     ShellSurface *survivor = makeMappedToplevel(base::Size(200, 100));
 
-    // Creating a window from inside the removal notification is the shape a
-    // client hits when one toplevel closes and another opens at once.
     bool created = false;
     base::Subscription connection = manager.windowRemoved.connect([&](Window *) {
         if (created)
@@ -1124,8 +1053,6 @@ TEST_F(ShellSurfaceTest, TheShellSurfaceMayBeDestroyedFromInsideAConfigureCallba
 {
     ShellSurface *shell = makeMappedToplevel(base::Size(300, 200));
 
-    // A configure callback writes to the client and flushes, which in the
-    // protocol layer can take the resource that owns the shell surface with it.
     std::unique_ptr<ShellSurface> owned;
     shell->setConfigureCallback([&](const ShellSurface::ConfigureState &) -> uint32_t {
         owned = takeShell(shell);
@@ -1150,15 +1077,10 @@ TEST_F(ShellSurfaceTest, TheShellSurfaceMayBeDestroyedFromInsideAnActivationConf
         return 0;
     });
 
-    // Activating it configures it, and the configure destroys it from under the
-    // activation walk.
     manager.activation()->activate(first->window());
 
     EXPECT_EQ(1u, manager.windows().size());
 }
-
-////////////////////////////////////////////////////////////////////////////////
-// Popups
 
 TEST_F(ShellSurfaceTest, APopupIsPlacedRelativeToItsParentWindowGeometry)
 {
@@ -1275,8 +1197,6 @@ TEST_F(ShellSurfaceTest, RepositionMovesThePopupAndConfiguresItAgain)
 
     ASSERT_EQ(1u, recorder->popupConfigures.size());
     EXPECT_EQ(base::Rect(50, 60, 100, 80), recorder->popupConfigures.back());
-    // xdg_popup.reposition: nothing moves until the client acknowledges the
-    // configure and commits.
     EXPECT_EQ(before, surfacePosition(popup));
     ASSERT_TRUE(popup->acknowledgeConfigure(recorder->serials.back()));
     EXPECT_EQ(before, surfacePosition(popup));
@@ -1298,11 +1218,9 @@ TEST_F(ShellSurfaceTest, APressOutsideAGrabbingPopupDismissesTheChainAndIsNotDel
     compositor.updateTextures(renderer);
     ASSERT_EQ(1u, manager.popupGrabs().size());
 
-    // Inside the menu: delivered, and the grab stands.
     EXPECT_FALSE(manager.onPointerButton(at(1), base::PointF(50, 60), BTN_LEFT, true));
     EXPECT_EQ(0, menuRecorder->closes);
 
-    // Outside it: consumed, and the menu is told to go away.
     EXPECT_TRUE(manager.onPointerButton(at(2), base::PointF(300, 250), BTN_LEFT, true));
     EXPECT_EQ(1, menuRecorder->closes);
     EXPECT_TRUE(manager.popupGrabs().empty());
@@ -1351,7 +1269,6 @@ TEST_F(ShellSurfaceTest, APressOnTheCaptureInterfaceLeavesAGrabbingPopupOpen)
     capture->window()->setBounds(base::Rect(0, 0, 400, 300));
     compositor.updateTextures(renderer);
 
-    // The menu stays up for the picture, and the press is the capture's.
     EXPECT_FALSE(manager.onPointerButton(at(1), base::PointF(300, 250), BTN_LEFT, true));
     EXPECT_EQ(0, menuRecorder->closes);
     EXPECT_EQ(1u, manager.popupGrabs().size());
@@ -1366,13 +1283,11 @@ TEST_F(ShellSurfaceTest, DestroyingAPopupParentLeavesTheChainSafeToTearDown)
     attach(menu->rootSurface(), base::Size(100, 80));
     menu->rootSurface()->commit();
 
-    // The parent's surface goes first, as it does when a client exits.
     compositor::Surface *parentSurface = parent->rootSurface();
     takeSurface(parentSurface).reset();
 
     EXPECT_EQ(nullptr, menu->ownerWindow());
     EXPECT_TRUE(manager.windows().empty());
-    // Tearing the popup down afterwards must not touch the dead parent.
     shells.clear();
 }
 
@@ -1395,7 +1310,6 @@ TEST_F(ShellSurfaceTest, DismissingAGrabChainSurvivesTheWholeChainBeingDestroyed
     compositor.updateTextures(renderer);
     ASSERT_EQ(2u, manager.popupGrabs().size());
 
-    // A real toolkit tears its whole menu chain down on the first popup_done.
     std::unique_ptr<ShellSurface> ownedMenu;
     std::unique_ptr<ShellSurface> ownedSubmenu;
     submenu->setCloseCallback([&] {
@@ -1510,7 +1424,7 @@ TEST_F(ShellSurfaceTest, BoundsAnimationWaitsForCommitAfterLatestConfigureAcknow
     animation->render(snapshots);
     EXPECT_EQ(snapshots.captures, captures);
     const base::Rect restoredBounds = shell->window()->bounds();
-    shell->rootSurface()->commit(); // State-only commit, still the maximized buffer.
+    shell->rootSurface()->commit();
     animation->render(snapshots);
     EXPECT_EQ(snapshots.captures, captures);
     EXPECT_EQ(shell->window()->bounds(), restoredBounds);
@@ -1525,11 +1439,6 @@ TEST_F(ShellSurfaceTest, BoundsAnimationWaitsForCommitAfterLatestConfigureAcknow
     EXPECT_TRUE(original.rect.contains(snapshots.calls.back().rect));
 }
 
-// Dragging a maximized window out by its title bar changes its bounds in one
-// step, which is a cross-fade like any other state change: nothing may be drawn
-// at a size the client has not reached, or the frame or two before it catches
-// up flashes - a stale buffer stretched into the new bounds, with the exterior
-// decoration of a restored window around it.
 TEST_F(ShellSurfaceTest, DraggingOutOfMaximizedHoldsTheCrossFadeUntilTheClientRedraws)
 {
     Recorder *recorder = nullptr;
@@ -1552,14 +1461,11 @@ TEST_F(ShellSurfaceTest, DraggingOutOfMaximizedHoldsTheCrossFadeUntilTheClientRe
     ASSERT_LT(window->bounds().width(), kOutput.width());
     EXPECT_TRUE(animation->isWaitingForBoundsContent());
 
-    // Another frame of the maximized buffer, and another pointer motion, do not
-    // release it: the client has acknowledged nothing yet.
     shell->rootSurface()->attach(maximizedBuffer, {});
     shell->rootSurface()->commit();
     manager.eventHandler()->onPointerMotion(base::PointF(kOutput.width() / 2 + 40, 320));
     EXPECT_TRUE(animation->isWaitingForBoundsContent());
 
-    // The commit that carries the restored size is what starts the cross-fade.
     ASSERT_TRUE(shell->acknowledgeConfigure(recorder->serials.back()));
     shell->setGeometry({0, 0, 400, 300});
     auto restoredBuffer =
@@ -1625,8 +1531,6 @@ TEST_F(ShellSurfaceTest, ACrossFadeWaitsForAMovedDesynchronizedSubsurfaceToRedra
 
     shell->maximize();
     ASSERT_TRUE(shell->acknowledgeConfigure(recorder->serials.back()));
-    // The content moves with the frame's commit, and is drawn for the new
-    // size only afterwards.
     sub->setPosition({0, 0});
     auto maximizedBuffer = pool->createBuffer(kOutput.size(), 0, kOutput.width() * 4,
                                               render::PixelFormat::Bgrx8888, nullptr);
@@ -1635,7 +1539,6 @@ TEST_F(ShellSurfaceTest, ACrossFadeWaitsForAMovedDesynchronizedSubsurfaceToRedra
     EXPECT_TRUE(content->isMovedAheadOfContent());
     EXPECT_TRUE(animation->isWaitingForBoundsContent());
 
-    // A commit without a buffer is not the redraw.
     content->commit();
     EXPECT_TRUE(animation->isWaitingForBoundsContent());
 
@@ -1778,7 +1681,6 @@ TEST_F(ShellSurfaceTest, AGlassBodyInsideTheSurfaceCastsTheShadow)
     const base::Rect whole = shadow->shadowBounds();
     ASSERT_FALSE(whole.isEmpty());
 
-    // Room kept around the body for something overhanging its corner.
     surface->setBackgroundBlur(base::Rect(8, 8, 380, 100), 18);
     surface->commit();
     EXPECT_EQ(whole.adjusted(8, 8, -8, -8), shadow->shadowBounds());
@@ -1854,7 +1756,6 @@ TEST_F(ShellSurfaceTest, MinimizePassesOverTheDockOnlyWithItsMinimizedArea)
 
     shell->window()->setMinimizedGeometry(base::Rect(500, 750, 40, 30));
 
-    // Into a dock icon: under the dock.
     manager.setDockTransitionsAbovePanels(false);
     shell->minimize();
     auto *animation = dynamic_cast<scene::WindowAnimation *>(shell->window()->node());
@@ -1895,9 +1796,6 @@ TEST_F(ShellSurfaceTest, PopupClientShadowSuppressesTheSharedCompositorShadow)
     EXPECT_EQ(nullptr, popup->window());
     takeShell(popup).reset();
 }
-
-////////////////////////////////////////////////////////////////////////////////
-// Transient parent lifetime
 
 namespace {
 
@@ -1976,7 +1874,6 @@ TEST_F(ShellSurfaceTest, DestroyingTheRoleOrTheShellLeavesNoDanglingParent)
 
     parent->clearRole();
     EXPECT_EQ(nullptr, pending->transientParent());
-    // Mapping afterwards finds no parent to reach through.
     pending->rootSurface()->commit();
     ASSERT_TRUE(pending->acknowledgeConfigure(pendingRecorder->serials.back()));
     attach(pending->rootSurface(), base::Size(200, 100));
@@ -1991,7 +1888,6 @@ TEST_F(ShellSurfaceTest, DestroyingTheRoleOrTheShellLeavesNoDanglingParent)
     EXPECT_EQ(nullptr, child->transientParent());
     EXPECT_EQ(nullptr, child->window()->transientParent());
 
-    // A child that goes first leaves nothing behind in its parent.
     ShellSurface *survivor = makeMappedToplevel(base::Size(300, 200));
     ShellSurface *doomedChild = makeMappedToplevel(base::Size(200, 100));
     ASSERT_TRUE(doomedChild->setTransientParent(survivor));
@@ -1999,9 +1895,6 @@ TEST_F(ShellSurfaceTest, DestroyingTheRoleOrTheShellLeavesNoDanglingParent)
     unmap(survivor);
     survivor->clearRole();
 }
-
-////////////////////////////////////////////////////////////////////////////////
-// Output for new windows
 
 namespace {
 
@@ -2101,7 +1994,6 @@ TEST_F(MultiDisplayShellSurfaceTest, TheActiveApplicationWindowDecidesTheOutput)
     ASSERT_TRUE(files->window()->isActive());
     ASSERT_EQ(kSecondaryWorkArea, files->window()->bounds());
 
-    // The initial maximized size comes from the same output as placement.
     Recorder *recorder = nullptr;
     ShellSurface *shell = makeShell(&recorder);
     shell->setToplevel();
@@ -2236,7 +2128,6 @@ TEST_F(MultiDisplayShellSurfaceTest, ARemovedDisplaysWindowsMoveToThePrimaryInPr
     EXPECT_EQ(base::Rect(500, 400, 400, 300), normal->window()->bounds());
     EXPECT_EQ(kPrimaryWorkArea, maximized->window()->bounds());
 
-    // Past the right edge in proportion, so fitted back inside.
     maximized->window()->restore();
     EXPECT_EQ(base::Rect(600, 200, 400, 300), maximized->window()->bounds());
 }

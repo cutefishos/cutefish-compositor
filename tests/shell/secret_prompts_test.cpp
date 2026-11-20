@@ -2,10 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// The session's secret agents and their prompts on a private bus, which
-// stands in for the system bus too: a fake NetworkManager, Secret Service and
-// BlueZ, each on a connection of its own.
-
 #include <map>
 #include <memory>
 #include <optional>
@@ -89,8 +85,7 @@ Settings vpnConnection(const std::map<std::string, std::string> &data)
 
 const std::map<std::string, std::string> kPasswordData {{"connection-type", "password"}, {"password-flags", "1"}};
 
-// A service on a connection of its own, answering every method below `root`
-// through `handle`, which replies or returns false for an unknown method.
+// `handle` replies, or returns false for an unknown method.
 class FakeService
 {
 public:
@@ -147,7 +142,6 @@ private:
     sd_bus_slot *m_slot = nullptr;
 };
 
-// NetworkManager: its objects, the agent manager, and AddAndActivate.
 class FakeNetworkManager final : public FakeService
 {
 public:
@@ -167,7 +161,6 @@ public:
             {"Connections", Variant(std::vector<ObjectPath>())}};
     }
 
-    // A Wi-Fi device listing one WEP access point.
     void addWirelessDevice()
     {
         objects[kAccessPoint]["org.freedesktop.NetworkManager.AccessPoint"] = {
@@ -222,7 +215,6 @@ protected:
     }
 };
 
-// The Secret Service: items in one collection, never locked.
 class FakeSecretService final : public FakeService
 {
 public:
@@ -323,7 +315,6 @@ private:
 const std::string kAdapter = "/org/bluez/hci0";
 const std::string kBluetoothDevice = kAdapter + "/dev_AA_BB_CC_DD_EE_FF";
 
-// BlueZ: one adapter, one device, the agent manager.
 class FakeBluez final : public FakeService
 {
 public:
@@ -387,7 +378,6 @@ protected:
 
     std::unique_ptr<FakeNetworkManager> networkManager;
     std::unique_ptr<FakeSecretService> secrets;
-    // The agent's "system" bus, private like the rest.
     std::unique_ptr<base::dbus::Connection> systemBus;
     networkmanager::Client *client = nullptr;
     shell::SecretPrompts *prompts = nullptr;
@@ -438,7 +428,6 @@ protected:
 
     void frame() { compositor.updateTextures(renderer); }
 
-    // NetworkManager asks the agent, from its own connection.
     base::dbus::PendingCall getSecrets(const Settings &connection, const std::string &setting, uint32_t flags,
                                        std::optional<base::dbus::Reply> *reply,
                                        const std::vector<std::string> &hints = {},
@@ -531,7 +520,6 @@ TEST_F(SecretPromptsTest, RegistersAsTheSessionsAgent)
     EXPECT_EQ("org.cutefish.network", networkManager->agentIdentifier);
     EXPECT_EQ(1u, networkManager->last("RegisterWithCapabilities")->argument<uint32_t>(1).value_or(0));
 
-    // A NetworkManager that starts again is registered with again.
     networkManager->stop();
     ASSERT_TRUE(test::runUntil([this] { return !client->ready(); }));
     ASSERT_TRUE(networkManager->serve());
@@ -556,7 +544,6 @@ TEST_F(SecretPromptsTest, AsksWhenNothingIsStoredAndKeepsWhatWasTyped)
     EXPECT_EQ(shell::NetworkSecretAgent::Kind::WpaPassword, agent->kind());
     EXPECT_FALSE(agent->retry());
 
-    // The dialog is up, above applications, and Connect waits for a valid passphrase.
     shell::WirelessPasswordDialog *dialog = prompts->wirelessDialog();
     ASSERT_TRUE(dialog->isOpen());
     frame();
@@ -579,7 +566,6 @@ TEST_F(SecretPromptsTest, AsksWhenNothingIsStoredAndKeepsWhatWasTyped)
     EXPECT_FALSE(agent->pending());
     EXPECT_FALSE(dialog->isOpen());
 
-    // NetworkManager gives typed secrets back to no agent: the agent kept it.
     ASSERT_TRUE(test::runUntil([this] { return secrets->items.size() == 1; }));
     const auto &item = secrets->items.begin()->second;
     EXPECT_EQ("hunter22", item.value);
@@ -626,7 +612,6 @@ TEST_F(SecretPromptsTest, ARejectedPasswordIsAskedForAgainAndClosingCancels)
     EXPECT_EQ("The password for “Cafe” was not accepted. Try again.",
               shell::WirelessPasswordDialog::text(*agent));
 
-    // Escape closes the dialog, which declines.
     frame();
     input.onKey(input::Timestamp(std::chrono::milliseconds(10)), KEY_ESC, true);
     input.onKey(input::Timestamp(std::chrono::milliseconds(11)), KEY_ESC, false);
@@ -644,7 +629,6 @@ TEST_F(SecretPromptsTest, WithoutInteractionThereIsNothingToOffer)
     ASSERT_TRUE(test::runUntil([&reply] { return reply.has_value(); }));
     EXPECT_EQ("org.freedesktop.NetworkManager.SecretAgent.NoSecrets", reply->error().name);
 
-    // Settings.Connection.GetSecrets reads expect an answer, not an error.
     std::optional<base::dbus::Reply> read;
     auto reading = getSecrets(wpaConnection(1), kWirelessSecurity, kNoErrors, &read);
     ASSERT_TRUE(test::runUntil([&read] { return read.has_value(); }));
@@ -718,7 +702,6 @@ TEST_F(SecretPromptsTest, AsksBeforeANetworkIsAddedAndAnotherNetworkTakesOver)
     ASSERT_TRUE(dialog->isOpen());
     EXPECT_EQ("Enter the WEP key for “Old router”.", shell::WirelessPasswordDialog::text(*agent));
 
-    // A NetworkManager request for Wi-Fi meanwhile is given up when another network is picked.
     std::optional<base::dbus::Reply> leaving;
     auto pending = getSecrets(wpaConnection(1), kWirelessSecurity, kAllowInteraction, &leaving);
     test::runFor(std::chrono::milliseconds(50));
@@ -727,12 +710,10 @@ TEST_F(SecretPromptsTest, AsksBeforeANetworkIsAddedAndAnotherNetworkTakesOver)
     ASSERT_TRUE(test::runUntil([&leaving] { return leaving.has_value(); }));
     EXPECT_EQ("org.freedesktop.NetworkManager.SecretAgent.UserCanceled", leaving->error().name);
     EXPECT_EQ("Cafe", agent->connectionName());
-    // The window stays and starts over.
     EXPECT_TRUE(dialog->isOpen());
     EXPECT_TRUE(dialog->field()->text().empty());
     agent->cancel();
 
-    // The password, once given, creates and activates the profile.
     agent->connectWireless(kDevice, kAccessPoint, "Old router", true);
     dialog->field()->setText("abcde");
     dialog->primaryButton()->onClicked();
@@ -775,14 +756,12 @@ TEST_F(SecretPromptsTest, VpnSecretsAreAskedForInTheirOwnWindowAndKept)
     EXPECT_EQ("vpn", secrets->items.begin()->second.attributes.at("setting-name"));
     EXPECT_EQ("password", secrets->items.begin()->second.attributes.at("setting-key"));
 
-    // Next time the keyring answers.
     std::optional<base::dbus::Reply> again;
     auto pendingAgain = getSecrets(vpnConnection(kPasswordData), "vpn", kAllowInteraction, &again);
     ASSERT_TRUE(test::runUntil([&again] { return again.has_value(); }));
     EXPECT_EQ("s3cret", vpnSecretsOf(*again)["password"]);
     EXPECT_FALSE(agent->pending());
 
-    // Without interaction an answer with no secrets has NetworkManager ask again with it.
     secrets->items.clear();
     std::optional<base::dbus::Reply> quiet;
     auto pendingQuiet = getSecrets(vpnConnection(kPasswordData), "vpn", 0, &quiet);
@@ -833,12 +812,9 @@ TEST_F(SecretPromptsTest, ReturnInAVpnFieldMovesOnToTheNextRequest)
     std::optional<base::dbus::Reply> second;
     auto pendingSecond = getSecrets(vpnConnection(kPasswordData), "vpn", kAllowInteraction, &second, {},
                                     "/org/freedesktop/NetworkManager/Settings/8");
-    // Nothing stored: both are asked for, the second after the first.
     ASSERT_TRUE(test::runUntil([this] { return secrets->count("Close") == 2; }));
     test::runFor(std::chrono::milliseconds(50));
 
-    // The next request rebuilds the fields while the first request's field
-    // still handles the key.
     shell::VpnPasswordDialog *dialog = prompts->vpnDialog();
     ASSERT_TRUE(dialog->isOpen());
     ASSERT_EQ(1u, dialog->fields().size());
@@ -873,7 +849,6 @@ TEST_F(SecretPromptsTest, ALockedKeyringIsUnlockedThroughItsPrompt)
     EXPECT_EQ(1, secrets->count("Prompt"));
     ASSERT_EQ(1u, secrets->items.size());
     EXPECT_EQ("hunter22", secrets->items.begin()->second.value);
-    // What the prompt held goes on the next turn.
     test::runFor(std::chrono::milliseconds(10));
 }
 
@@ -903,7 +878,6 @@ TEST_F(SecretPromptsTest, BluetoothPairingIsConfirmedInTheDialog)
     EXPECT_FALSE(reply->isError());
     EXPECT_FALSE(dialog->isOpen());
 
-    // A passkey with letters is refused; the error shows in the open dialog.
     std::optional<base::dbus::Reply> passkey;
     auto pendingPasskey = bluez.ask("RequestPasskey", &passkey, ObjectPath {kBluetoothDevice});
     ASSERT_TRUE(test::runUntil([dialog] { return dialog->isOpen(); }));
@@ -917,7 +891,6 @@ TEST_F(SecretPromptsTest, BluetoothPairingIsConfirmedInTheDialog)
     EXPECT_GT(dialog->window()->size().height(), before);
     EXPECT_FALSE(passkey.has_value());
 
-    // Dismissing declines.
     dialog->cancelButton()->onClicked();
     ASSERT_TRUE(test::runUntil([&passkey] { return passkey.has_value(); }));
     EXPECT_TRUE(passkey->isError());

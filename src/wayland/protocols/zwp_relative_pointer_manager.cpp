@@ -4,9 +4,6 @@
 //
 // Upstream: chromium/src/components/exo/wayland/zwp_relative_pointer_manager.cc
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: the timestamp is sent in microseconds, as the protocol
-// asks, where Exo sends milliseconds; and the motion is in the client's units.
 
 #include "wayland/protocols/zwp_relative_pointer_manager.h"
 

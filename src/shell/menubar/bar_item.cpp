@@ -23,8 +23,6 @@ ui::Color BarContext::menuTextColor() const
     return lightContents() ? ui::Color::rgb(0xFFFFFF) : ui::Color::rgb(0x000000);
 }
 
-// The centre of a centred item aligned to whole pixels: an odd whole width
-// puts the centre on the pixel after the middle.
 static double anchorCentre(double length)
 {
     const int whole = int(length);
@@ -77,8 +75,6 @@ ui::RectF BarItem::centred(const ui::SizeF &size) const
 
 double BarItem::plateWidth(double scale) const
 {
-    // The plate takes the glyph's device-pixel parity, so both snap alike
-    // and the glyph stays centred.
     double pixels = std::round((geometry().width - m_leftInset - m_rightInset) * scale);
     if (m_glyphWidth > 0 && std::fmod(pixels - std::round(m_glyphWidth * scale), 2.0) != 0)
         pixels -= 1;
@@ -103,7 +99,6 @@ ui::RectF BarItem::plateRect() const
 
 ui::Color BarItem::plateColor() const
 {
-    // The verdict on what is behind the bar, as the contents' colour.
     return m_bar->lightContents() ? ui::Color {255, 255, 255, 51} : ui::Color {0, 0, 0, 26};
 }
 
@@ -161,7 +156,6 @@ void BarItem::pointerRelease(const ui::PointerEvent &event)
     }
 }
 
-// The shadow's box: the content plus 16 each way, centred, 1 down.
 static ui::RectF shadowBox(const ui::RectF &content)
 {
     return {anchorCentre(content.width) - anchorCentre(content.width + 16),
@@ -169,7 +163,6 @@ static ui::RectF shadowBox(const ui::RectF &content)
             content.height + 16};
 }
 
-// What the holder centres inside itself.
 class ShadowContent final : public ui::View
 {
 protected:
@@ -187,8 +180,6 @@ public:
     ui::SizeF m_size;
 };
 
-// The icon itself: a file drawn on whole device pixels as IconItem puts
-// its pixmap, or a FishUI glyph.
 class BarIcon::Face final : public ui::View
 {
 public:
@@ -226,7 +217,6 @@ protected:
         const double scale = painter.scale();
         const ui::PointF offset = painter.offset();
         painter.save();
-        // Artwork drawn in its own colours takes the contents' alpha.
         if (!m_tinted)
             painter.multiplyOpacity(m_color.a / 255.0);
         painter.drawSvg(m_file,
@@ -259,7 +249,6 @@ void BarIcon::update()
     m_face->set(m_file, m_monochrome || !m_glyph.empty(), m_glyph, m_color);
     m_shadow->setVisible(m_dropShadow);
     if (m_dropShadow) {
-        // The copy is black wherever the icon has coverage.
         m_shadowFace->set(m_file, true, m_glyph, ui::Color {0, 0, 0, 255});
         m_shadow->contentChanged();
     }
@@ -364,7 +353,6 @@ void BarLabel::setFontFeatures(const std::vector<std::pair<std::string, int>> &f
 
 void BarLabel::setDropShadow(bool shadow)
 {
-    // The faint edge hides the glyphs' subpixel fringes on the wallpaper.
     m_label->setStyle(shadow ? ui::StyledLabel::Style::Raised : ui::StyledLabel::Style::Normal,
                       ui::Color {0, 0, 0, 36});
     m_shadow->setVisible(shadow);

@@ -2,8 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// The shell's view of the window manager's application windows.
-
 #include <algorithm>
 #include <string>
 #include <vector>
@@ -84,7 +82,6 @@ TEST_F(WmTaskWindowsTest, AnnouncesApplicationWindowsOnly)
     auto subscription = windows.windowAdded.connect([&](uint64_t id) { added.push_back(id); });
     wm::Window *editor = open("org.example.Editor", "Draft", 42);
 
-    // A shell surface is no application window.
     compositor::Surface *dockSurface = makeSurface();
     wm::ShellWindowMetadata metadata;
     metadata.role = wm::WindowRole::Dock;
@@ -128,7 +125,6 @@ TEST_F(WmTaskWindowsTest, ReportsChangesAndTheActiveApplicationWindow)
         return change.first == viewer->id() && (change.second & shell::kStateChange);
     }));
 
-    // Activating restores it.
     windows.activate(viewer->id());
     EXPECT_FALSE(windows.window(viewer->id())->minimized);
     EXPECT_EQ(windows.activeWindow(), viewer->id());
@@ -157,7 +153,6 @@ TEST_F(WmTaskWindowsTest, KeepsTheApplicationAWindowOffTheTaskListIsInFrontOf)
     manager.activation()->activate(dialog);
     EXPECT_EQ(windows.activeWindow(), editor->id());
 
-    // Leaving the task list while active gives the bar back as well.
     manager.activation()->activate(editor);
     wm::Window *viewer = open("org.example.Viewer", "Picture");
     manager.activation()->activate(viewer);

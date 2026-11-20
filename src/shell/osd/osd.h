@@ -21,9 +21,7 @@ namespace cutefish::shell {
 class LevelTrack;
 class ShellWindow;
 
-// What the on-screen display shows the levels of and sets: the default sink
-// and source, the backlight and the keyboard backlight. Setters answer
-// asynchronously; changed() follows what the services report.
+// Setters answer asynchronously; changed() follows what the services report.
 class OsdLevels
 {
 public:
@@ -56,12 +54,8 @@ public:
     base::Signal<> keyboardChangedByFirmware;
 };
 
-// The session's: PipeWire, org.cutefish.Services.Brightness and UPower.
 std::unique_ptr<OsdLevels> createSessionOsdLevels(base::dbus::Connection *sessionBus);
 
-// The on-screen display: the level a volume,
-// microphone or brightness key set, a glass panel with the control centre's
-// track, top centre below the menu bar, gone 1.5 s after the last key.
 // Serves org.cutefish.Osd at /Osd, which the compositor's media keys call.
 class Osd : public Component
 {
@@ -77,9 +71,7 @@ public:
     static constexpr int kTrackHeight = 22;
     static constexpr int kPadding = 16;
     static constexpr int kHeight = kTrackHeight + 2 * kPadding;
-    // PanelStyle.popupMargin: the gap below the menu bar.
     static constexpr int kTopMargin = 6;
-    // FishUI's bigRadius * 1.5.
     static constexpr double kRadius = 18;
     static constexpr std::chrono::milliseconds kHideDelay {1500};
     // How long a requested value stands for the reported one.
@@ -103,7 +95,6 @@ public:
     ShellWindow *window() const { return m_window.get(); }
     LevelTrack *track() const { return m_track; }
     bool isShown() const;
-    // Where the OSD goes on the primary output's work area.
     base::Rect geometry() const;
 
 private:
@@ -129,7 +120,7 @@ private:
     std::unique_ptr<ShellWindow> m_window;
     LevelTrack *m_track = nullptr;
     Kind m_kind = Kind::Volume;
-    // Requested and not reported yet; negative for none.
+    // Negative for none.
     double m_pendingVolume = -1;
     int m_pendingMuted = -1;
     int m_pendingMicrophoneMuted = -1;

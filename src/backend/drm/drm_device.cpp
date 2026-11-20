@@ -24,8 +24,6 @@ namespace cutefish::backend {
 
 namespace {
 
-// Ozone caps the cursor at 256x256 regardless of what the driver reports: a
-// larger cursor buys nothing and costs a much bigger dumb buffer.
 constexpr uint64_t kMaxCursorSize = 256;
 
 } // namespace
@@ -43,10 +41,8 @@ DrmDevice::DrmDevice(int fd, gbm_device *gbm)
     m_maxCursorSize = base::Size(static_cast<int>(std::min(width, kMaxCursorSize)),
                             static_cast<int>(std::min(height, kMaxCursorSize)));
 
-    // This driver's atomic commit ignores legacy_cursor_update: every blocking
-    // commit, a cursor-only one too, waits for the CRTC's flip queue to drain.
-    // It counts no vblanks by default, yet sends each flip event from its
-    // flip-occurred handler, stamped then.
+    // This driver's cursor commits wait for pending flips, and its flip events
+    // carry no vblank count but are stamped on flip.
     if (drmVersion *version = drmGetVersion(m_fd)) {
         const std::string_view name(version->name ? version->name : "",
                                     version->name ? size_t(std::max(version->name_len, 0)) : 0);

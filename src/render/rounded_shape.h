@@ -11,29 +11,24 @@
 
 namespace cutefish::render {
 
-// The session's corner style. Every window silhouette follows it, so it is
-// one flag consulted where shapes are drawn or hit rather than a field on
-// each shape; decoration::ThemePreferences keeps it in step with the
-// Appearance setting.
+// decoration::ThemePreferences keeps it in step with the Appearance setting.
 bool continuousCorners();
 void setContinuousCorners(bool continuous);
 
 // Cubic superellipse corners meet straight edges with zero curvature.
-// The 1.5 extent preserves roughly the circular radius's diagonal inset.
 inline double continuousCornerExtent(double radius, double halfSize)
 {
     // Keep the extent and exponent in sync with shaders/rounded_clip.glsl.
     return std::clamp(radius * 1.5, double(0), std::max(halfSize, double(0)));
 }
 
-// The corner's reach along one axis in the session's style.
 inline double cornerExtent(double radius, double halfSize)
 {
     return continuousCorners() ? continuousCornerExtent(radius, halfSize)
                                : std::clamp(radius, double(0), std::max(halfSize, double(0)));
 }
 
-// One output-coordinate shape shared by every surface in a window tree.
+// In output coordinates.
 struct RoundedShape {
     base::RectF bounds;
     double radius = 0;

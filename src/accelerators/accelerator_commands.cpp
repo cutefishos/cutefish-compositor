@@ -5,9 +5,6 @@
 // Upstream: chromium/src/ash/accelerators/accelerator_commands.cc and
 //           chromium/src/ash/display/display_move_window_util.cc
 // Revision: 8abbac30b9cf2fe976422c58c000c94685648b65
-//
-// Adapted for Cutefish: integrates the upstream behavior with native
-// compositor types and ownership.
 
 #include "accelerators/accelerator_commands.h"
 
@@ -36,9 +33,7 @@ namespace cutefish::accelerators::commands {
 wm::Window *targetWindow(const CommandContext &context)
 {
     wm::Window *window = context.windowManager->activation()->activeWindow();
-    // Upstream picks from the application windows of the cycle list; the
-    // desktop, which takes the keyboard once no application does, is never
-    // one to minimize, snap or close.
+    // The desktop takes the keyboard once no application does, and is never a target.
     return window && window->isVisible() && !window->isShellWindow() ? window : nullptr;
 }
 
@@ -108,8 +103,6 @@ void windowMinimize(const CommandContext &context)
 
 void quitApplication(const CommandContext &context)
 {
-    // Command+Q acts a moment after the keys, on the window that was active
-    // when they went down.
     constexpr std::chrono::milliseconds kQuitDelay {100};
     const wm::Window *window = targetWindow(context);
     if (!window)
@@ -144,9 +137,6 @@ void windowSnap(const CommandContext &context, AcceleratorAction action)
     wm::Window *window = targetWindow(context);
     if (!window)
         return;
-    // ash::BaseState::CycleSnap: snap unless already snapped to that side, in
-    // which case restore. Rotated displays are not distinguished; Cutefish
-    // snaps in logical coordinates.
     const wm::WindowStateType desired = action == AcceleratorAction::WindowCycleSnapLeft
             ? wm::WindowStateType::PrimarySnapped
             : wm::WindowStateType::SecondarySnapped;
@@ -187,9 +177,7 @@ void moveActiveWindowBetweenDisplays(const CommandContext &context)
     if (logical.size() < 2)
         return;
 
-    // ash::display_move_window_util: the window goes to the next display in
-    // the list, keeping its position relative to the display's origin, then
-    // is fitted into that display's work area.
+    // Keeps the position relative to the display's origin, then fits the work area.
     const base::Rect current = context.windowManager->outputBoundsFor(window);
     int index = 0;
     for (int i = 0; i < logical.size(); ++i) {
@@ -363,7 +351,6 @@ void newDesk(const CommandContext &context)
     wm::DesksController *desks = context.windowManager->desks();
     if (!desks->canCreateDesks() || desks->areDesksBeingModified())
         return;
-    // Add a desk and switch to it.
     if (wm::Desk *desk = desks->newDesk(wm::DesksCreationRemovalSource::Keyboard))
         desks->activateDesk(desk, wm::DesksSwitchSource::NewDeskShortcut);
 }

@@ -386,7 +386,6 @@ TEST_F(WindowHintsProtocolTest, InteractiveResizeReachesTheSurfacesClient)
     EXPECT_EQ(events[0].active, 1u);
     EXPECT_EQ(events[1].active, 0u);
 
-    // A destroyed manager hears nothing more.
     cutefish_window_hints_v1_destroy(hints);
     hints = nullptr;
     ASSERT_GE(roundtrip(), 0);

@@ -65,7 +65,6 @@ void BluetoothPairingDialog::build(ui::View *frame)
             primaryButton()->setEnabled(!inputRequired() || !m_field->text().empty());
     };
     m_field->onAccepted = [this] { accept(); };
-    // Input method hints that allow completion.
     m_field->setInputHints(ui::CompletionHint);
     m_error = frame->addChild<ui::Label>();
     m_error->setWrap(true);

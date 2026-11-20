@@ -5,9 +5,6 @@
 // Upstream: chromium/src/components/exo/wayland/wayland_display_output_unittest.cc
 //           chromium/src/components/exo/sub_surface_unittest.cc
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: exercises the corresponding behavior with a real
-// libwayland client and Cutefish compositor objects.
 
 #include <algorithm>
 #include <atomic>
@@ -230,8 +227,6 @@ TEST_F(SubsurfaceOutputProtocolTest, SyncDesyncPositionStackingAndInertResources
     });
 }
 
-// Exercise the exact hardware-demo binary without a DRM dependency. This is
-// protocol/render-path coverage, not a substitute for the real-VT acceptance.
 TEST_F(SubsurfaceOutputProtocolTest, DemoRunsAgainstPresentationDrivenFakeOutput)
 {
     ASSERT_TRUE(wayland::createCompositorGlobal(server.display(), &compositor));
@@ -394,7 +389,6 @@ TEST_P(OutputProtocolTest, FakeOutputMetricsAndVersionGates)
                 static_cast<Metrics*>(data)->description = description;
             },
         };
-        // Multiple resources per client must each receive a complete snapshot.
         for (int i = 0; i < 2; ++i) {
             metrics = {};
             auto* out = static_cast<wl_output*>(wl_registry_bind(
@@ -429,7 +423,6 @@ TEST_F(SubsurfaceOutputProtocolTest, BindingAWithdrawnOutputKeepsTheClientConnec
         check([&] {
             wayland::removeOutputGlobal(outputGlobal);
         });
-        // The withdrawal is still unread when the client binds the global.
         auto* out = static_cast<wl_output*>(
             wl_registry_bind(c.registry, globalName, &wl_output_interface, 4));
         c.sync();

@@ -50,39 +50,29 @@ class CaptureSettings;
 class ScreenGrabber;
 class ScreenRecording;
 
-// The dock as the capture interface sees it: the toolbar sits above it, and
-// a window pick may take it.
 struct CaptureDock {
     wm::Window *window = nullptr;
-    // The panel on the screen, and its corner radius.
     base::Rect geometry;
     double radius = 0;
     bool bottom = true;
 };
 
-// What the capture interface runs on, besides the shell.
 struct ScreenCaptureServices {
     std::unique_ptr<ScreenGrabber> grabber;
     clipboard::SelectionController *selection = nullptr;
     // shell.conf.
     std::string settingsPath;
-    // cutefish-screenrecorder, the environment it runs with, and the capture
-    // connection each run gets; unset, it finds the compositor on its own.
+    // Unset, it finds the compositor on its own.
     std::string recorder;
     std::vector<std::string> recorderEnvironment;
     std::function<int()> recorderConnection;
     std::function<std::optional<CaptureDock>()> dock;
-    // The desktop of an output as it is picked: its wallpaper with the
-    // desktop window over it. Unset or null captures the window alone.
+    // Unset or null captures the window alone.
     std::function<std::shared_ptr<compositor::CaptureSource>(wm::Window *desktop, const std::string &output)>
             desktop;
 };
 
-// The screen capture interface: the toolbar with its modes, the selection,
-// window picking, the timer, pictures to a file or the clipboard, and
-// recordings through cutefish-screenrecorder; org.cutefish.Screenshot at
-// /Screenshot, which the compositor's shortcuts call. One Capture window per
-// output, never in what is captured.
+// One Capture window per output, never in what is captured.
 class ScreenCapture : public Component
 {
 public:
@@ -97,7 +87,6 @@ public:
         Region,
     };
 
-    // What window picking points at.
     enum class PickedKind {
         None,
         Window,
@@ -106,14 +95,12 @@ public:
         Dock,
     };
 
-    // Between the toolbar and the dock, or the bottom of the screen.
     static constexpr int kToolbarGap = 12;
     static constexpr int kToolbarScreenMargin = 32;
     static constexpr std::chrono::milliseconds kPointerSettle {150};
     // The compositor's rounded window corners.
     static constexpr double kWindowRadius = 14;
-    // How long the overlays stay after a capture ends, so captures in a row
-    // reuse them; then they go, as before the first capture.
+    // Captures in a row reuse the overlays.
     static constexpr std::chrono::seconds kOverlayExpiry {60};
 
     ScreenCapture(Shell *shell, ScreenCaptureServices services);
@@ -121,25 +108,17 @@ public:
 
     bool registerService();
 
-    // --- org.cutefish.Screenshot ---
-
     void takeScreenshot(bool toClipboard);
     void takePartialScreenshot(bool toClipboard);
     void startCaptureMode();
     void stopRecording();
     bool isRecording() const;
-    // A picture of one output as PNG for a program that saves it itself, as
-    // cutefish-screenshot does: taken at once, with the shutter and a
-    // notification, so no capture goes unseen. An empty name means the only
-    // output. `done` gets the PNG, or nothing and why.
+    // Taken at once, with the shutter and a notification, so no capture goes unseen.
+    // An empty name means the only output.
     using PictureDone = std::function<void(std::optional<std::string> png, const std::string &error)>;
     void captureOutput(const std::string &output, bool cursor, PictureDone done);
 
-    // --- What the interface shows ---
-
     bool isActive() const { return m_active; }
-    // The toolbar, and a selection that stays until it is captured; the
-    // crosshair otherwise.
     bool isToolbarStyle() const { return m_active && m_toolbar; }
     int type() const { return m_type; }
     int source() const { return m_source; }
@@ -147,8 +126,6 @@ public:
     base::Rect selection() const { return m_selection; }
     base::Rect hoveredWindow() const { return m_picked.geometry; }
     double hoveredWindowRadius() const { return m_picked.radius; }
-    // The output the toolbar is on, and where on it the toolbar goes when it
-    // was never moved.
     std::string toolbarOutput() const;
     base::Rect toolbarArea() const;
     int countdown() const { return m_countdown; }
@@ -158,29 +135,20 @@ public:
     const std::vector<std::unique_ptr<CaptureOverlay>> &overlays() const { return m_overlays; }
     CaptureOverlay *overlay(const std::string &output) const;
 
-    // --- What the interface does ---
-
     void setMode(int type, int source);
     void cancel();
-    // Space while selecting a portion: pick a window instead, and back.
     void toggleWindowSelection();
     void pointerMoved(const base::Point &position);
     void setSelection(const base::Rect &selection);
-    // The crosshair's selection is released.
     void finishSelection(const base::Rect &selection, bool toClipboard);
-    // A click on a screen or a window in the modes that pick one.
     void clickAt(const base::Point &position, const std::string &output, bool toClipboard);
-    // The toolbar's Capture or Record button, or Return.
     void perform(bool toClipboard);
-    // Options > Other Location.
     void chooseFolder();
 
     base::Signal<> recordingChanged;
-    // Tests: where a saved picture went, or why it did not.
     std::function<void(const std::vector<std::string> &paths)> onSaved;
 
-    // Names saves and recordings are writing, so two captures in one second
-    // pick two; shared with the workers that pick them.
+    // Shared with the workers that pick them.
     struct SavingNames;
 
 private:
@@ -191,16 +159,12 @@ private:
         Selection,
     };
 
-    // What one capture takes.
     struct Target {
         std::vector<std::string> outputs;
         uint64_t window = 0;
         // Global logical coordinates, within outputs.front().
         base::Rect region;
-        // The dock as it is shown, glass and shadow included.
         bool dock = false;
-        // The desktop window of outputs.front() alone, without the windows
-        // over it.
         uint64_t desktop = 0;
     };
 
@@ -258,7 +222,7 @@ private:
     bool m_clipboardShortcut = false;
     base::Rect m_selection;
     Picked m_picked;
-    // Where the pointer was last seen over the interface, globally.
+    // In global coordinates.
     std::optional<base::Point> m_pointer;
 
     int m_countdown = 0;

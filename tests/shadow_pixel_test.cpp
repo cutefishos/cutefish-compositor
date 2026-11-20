@@ -86,7 +86,7 @@ protected:
         return image[((height - 1 - y) * width + x) * 4 + c];
     }
 
-    // `texture` read back top-down at `size`, one texel to a pixel.
+    // Read back top-down, one texel to a pixel.
     ui::Bitmap readBack(render::Texture *texture, const base::Size &size)
     {
         return renderer->renderToImage(size, [&] {
@@ -94,7 +94,6 @@ protected:
         });
     }
 
-    // The nine-patch source `geometry` renders.
     ui::Bitmap shadowImage(const ShadowGeometry &geometry)
     {
         const auto texture = geometry.render(*renderer);
@@ -102,7 +101,6 @@ protected:
     }
 };
 
-// A tall popup with an arrow under its bottom edge.
 ui::Path arrowedPopup(const base::Size &size)
 {
     const double body = size.height() - 9;
@@ -133,9 +131,6 @@ TEST_F(ShadowPixelTest, SlicesSampleTheRenderedSourceAtBothScalesAndTinySizes)
             const base::Point origin(100, 100);
             paintShadow(*renderer, geometry, origin);
             const auto actual = pixels();
-            // Explicit pixel comparison includes every seam, empty middle and
-            // each edge/corner. Integer downsampling averages physical texels;
-            // past a stretched cut the neighbouring slice matches to a level.
             for (int i = 0; i < 9; ++i) {
                 const base::Rect destination = geometry.targets()[i];
                 const base::Rect source = geometry.sources()[i];
@@ -187,7 +182,6 @@ TEST_F(ShadowPixelTest, AShadowStretchedFromANearbySizeStaysCloseToTheExactOne)
             renderer->clear({0, 0, 0, 0});
             paintShadow(*renderer, exact, origin);
             const auto expected = pixels();
-            // Over its own size it is the plain draw.
             renderer->clear({0, 0, 0, 0});
             paintStretchedShadow(*renderer, exact, base::Rect(origin, size));
             EXPECT_EQ(pixels(), expected);
@@ -196,7 +190,6 @@ TEST_F(ShadowPixelTest, AShadowStretchedFromANearbySizeStaysCloseToTheExactOne)
             const ShadowGeometry nearby(near, 10, metrics.shadow(true), scale);
             paintStretchedShadow(*renderer, nearby, base::Rect(origin, size));
             const auto actual = pixels();
-            // The window covers what lies under it.
             int worst = 0;
             for (int y = 0; y < height; ++y) {
                 for (int x = 0; x < width; ++x) {
@@ -241,7 +234,7 @@ TEST_F(ShadowPixelTest, ActualWindowSceneClearsOldCoverageAndPreservesTranslucen
     const auto active = pixels();
     EXPECT_LT(channel(active, 250, 341), 250);
     EXPECT_EQ(channel(active, 250, 200), 255);
-    EXPECT_NEAR(channel(active, 250, 200, 1), 127, 1); // No black under client.
+    EXPECT_NEAR(channel(active, 250, 200, 1), 127, 1);
     window->setBounds(window->bounds().translated(400, 0));
     for (auto *node : compositor.surfaceContainer()->children()) {
         if (auto *animation = dynamic_cast<scene::WindowAnimation *>(node))
@@ -352,9 +345,9 @@ TEST_F(ShadowPixelTest, ActiveInactiveAndTransientOverlapUseWindowStacking)
     }
     scene.render(*renderer);
     auto image = pixels();
-    EXPECT_LT(channel(image, 390, 421), 250); // Upper shadow darkens lower content.
-    EXPECT_EQ(channel(image, 390, 280, 2), 255); // Upper interior has no shadow fill.
-    EXPECT_NEAR(channel(image, 150, 280), 255, 1); // Lower interior away from upper shadow.
+    EXPECT_LT(channel(image, 390, 421), 250);
+    EXPECT_EQ(channel(image, 390, 280, 2), 255);
+    EXPECT_NEAR(channel(image, 150, 280), 255, 1);
     lower->activate();
     for (auto *node : compositor.surfaceContainer()->children()) {
         if (auto *animation = dynamic_cast<scene::WindowAnimation *>(node))
@@ -362,7 +355,6 @@ TEST_F(ShadowPixelTest, ActiveInactiveAndTransientOverlapUseWindowStacking)
     }
     scene.render(*renderer);
     const auto parentRaised = pixels();
-    // Transient windows and their shadows stay above an activated parent.
     EXPECT_EQ(manager.windows().back(), upper);
     EXPECT_EQ(channel(parentRaised, 390, 280, 2), 255);
     EXPECT_LT(channel(parentRaised, 390, 421), 250);
@@ -375,7 +367,7 @@ TEST_F(ShadowPixelTest, ActiveInactiveAndTransientOverlapUseWindowStacking)
     EXPECT_EQ(manager.windows().back(), lower);
     EXPECT_NEAR(channel(unrelatedParentRaised, 390, 280, 2), 224, 1);
     EXPECT_EQ(channel(unrelatedParentRaised, 390, 421), 255);
-    manager.raise(upper); // Change order without changing the activation state.
+    manager.raise(upper);
     for (auto *node : compositor.surfaceContainer()->children()) {
         if (auto *animation = dynamic_cast<scene::WindowAnimation *>(node))
             animation->finish();
@@ -485,7 +477,6 @@ TEST_F(ShadowPixelTest, MinimizeLandingMatchesTheExportedThumbnailPixels)
                                       int(std::ceil(slot.height() * scale))));
         ASSERT_TRUE(animation.isHolding());
 
-        // Model the dock's unmodified image upload and linear sampling, including alpha edges.
         const ui::Bitmap rgba = image.converted(ui::Bitmap::Format::Rgba8888Premultiplied);
         auto thumbnail = renderer->createTexture(rgba.size(), rgba.constBits(), int(rgba.stride()),
                                                  render::PixelFormat::Rgba8888);
@@ -564,7 +555,7 @@ TEST_F(ShadowPixelTest, RestoreStateOnlyCommitDoesNotPaintWhiteIntoDockArea)
     }
     EXPECT_EQ(shell.window()->bounds(), base::Rect(200, 150, 400, 300));
     shell.setGeometry({0, 0, 400, 300});
-    commitBuffer({width, height - 100}); // Render thread's old-size frame after ack.
+    commitBuffer({width, height - 100});
     scene.render(*renderer);
     const auto stale = pixels();
     EXPECT_EQ(channel(stale, width / 2, height - 20, 0), 0);
@@ -592,8 +583,6 @@ TEST_F(ShadowPixelTest, BackgroundBlurMatchesGaussianAndLeavesOutsideUntouched)
     EXPECT_EQ(channel(actual, 450, 99), 255);
 }
 
-// Bare optics: no softening, no tint, no lighting, so the only thing under test
-// is where the lens reads the backdrop from.
 render::GlassParams bareGlass()
 {
     render::GlassParams glass;
@@ -627,22 +616,18 @@ TEST_F(ShadowPixelTest, OpaqueBackdropReplacesWhatTheBlurAndGlassRead)
     renderer->drawBackgroundBlur({600, 520, 300, 100}, 24, {600, 520, 300, 100}, glass);
     const auto actual = pixels();
     render::setOpaqueBackdrop(std::nullopt);
-    // Across the black and white halves alike, only the colour shows.
     for (int x : {310, 445, 455, 590}) {
         EXPECT_EQ(channel(actual, x, 300, 0), 51) << x;
         EXPECT_EQ(channel(actual, x, 300, 1), 102) << x;
         EXPECT_EQ(channel(actual, x, 300, 2), 153) << x;
     }
-    // Still clipped to its rounded rectangle.
     EXPECT_EQ(channel(actual, 299, 300), 0);
     EXPECT_EQ(channel(actual, 601, 300), 255);
     EXPECT_EQ(channel(actual, 301, 101), 0);
-    // A fading blur fades over black; glass keeps its tint.
     EXPECT_NEAR(channel(actual, 150, 570, 2), 77, 2);
     EXPECT_NEAR(channel(actual, 750, 570, 2), 77, 2);
     EXPECT_NEAR(channel(actual, 750, 570, 0), 26, 2);
 
-    // A blur the shell exempts reads its backdrop all the same.
     render::GlassParams exempt;
     exempt.ignoresOpaqueBackdrop = true;
     render::setOpaqueBackdrop(opaque);
@@ -653,7 +638,6 @@ TEST_F(ShadowPixelTest, OpaqueBackdropReplacesWhatTheBlurAndGlassRead)
     render::setOpaqueBackdrop(std::nullopt);
     EXPECT_NEAR(channel(exempted, 450, 300), 128, 5);
 
-    // Off again, the blur reads its backdrop.
     renderer->clear({0, 0, 0, 1});
     renderer->fillRect({450, 0, 450, height}, {1, 1, 1, 1});
     renderer->drawBackgroundBlur(bounds, 24, bounds);
@@ -685,7 +669,6 @@ TEST_F(ShadowPixelTest, GlassSofteningMatchesDiscreteGaussian)
             for (int offset = -32; offset <= 32; ++offset) {
                 double expected = 0;
                 for (int i = -30; i <= 30; ++i) {
-                    // The glass shader also averages a subpixel footprint in its flat center.
                     const int position = offset + i;
                     const double coverage = position < -1 ? 0
                             : position == -1              ? 0.09375
@@ -693,8 +676,6 @@ TEST_F(ShadowPixelTest, GlassSofteningMatchesDiscreteGaussian)
                                                           : 1;
                     expected += weights[i + 30] * coverage;
                 }
-                // Past a sigma of 4 the blur runs at a reduced resolution,
-                // whose bilinear resampling widens it slightly.
                 EXPECT_NEAR(channel(actual, horizontal ? 450 + offset : 450,
                                     horizontal ? 300 : 300 + offset),
                             255 * expected / total, sigma > 4 ? 3 : 2)
@@ -708,15 +689,13 @@ TEST_F(ShadowPixelTest, GlassSofteningMatchesDiscreteGaussian)
 TEST_F(ShadowPixelTest, GlassRefractionReadsTheBackdropFromFurtherInside)
 {
     const base::Rect bounds(300, 100, 300, 400);
-    // A radius of half the width makes the whole lens a roll-off band.
     const int radius = 150;
     const auto backdrop = [&] {
         renderer->clear({0, 0, 0, 1});
         renderer->fillRect({450, 0, 450, height}, {1, 1, 1, 1});
     };
     render::GlassParams glass = bareGlass();
-    // Zero falls back to the corner radius, making the whole lens a roll-off
-    // band.
+    // Zero falls back to the corner radius.
     glass.bevel = 0;
     glass.depth = 200;
     glass.displacement = 0;
@@ -730,14 +709,10 @@ TEST_F(ShadowPixelTest, GlassRefractionReadsTheBackdropFromFurtherInside)
     backdrop();
     renderer->drawBackgroundBlur(bounds, radius, bounds, glass);
     const auto refracted = pixels();
-    // Each half of the lens bends towards the centre, so both sides sample
-    // across the edge of the white half and swap brightness.
     EXPECT_EQ(channel(refracted, 445, 300), 255);
     EXPECT_EQ(channel(refracted, 455, 300), 0);
     EXPECT_EQ(channel(refracted, 299, 300), 0);
 
-    // A surface barely raised off its back face is flat: no bend, whatever the
-    // ray length.
     glass.depth = 0.05;
     backdrop();
     renderer->drawBackgroundBlur(bounds, radius, bounds, glass);
@@ -757,13 +732,10 @@ TEST_F(ShadowPixelTest, GlassTintsTheBodyAndLeavesTheEdgeToTheOutline)
     glass.tintAlpha = 0.5;
     renderer->drawBackgroundBlur(bounds, 24, bounds, glass);
     const auto tinted = pixels();
-    // Half a black tint over a mid grey backdrop, and no edge treatment of its
-    // own: the hairline around the body is the window outline's job.
     EXPECT_NEAR(channel(tinted, 450, 300), 64, 2);
     EXPECT_EQ(channel(tinted, 450, 101), channel(tinted, 450, 300));
     EXPECT_EQ(channel(tinted, 450, 99), 128);
 
-    // Ambient occlusion is the one inside-the-edge effect, and it is opt-in.
     glass.ambientOcclusion = 0.5;
     glass.ambientOcclusionRadius = 6;
     renderer->clear({0.5, 0.5, 0.5, 1});
@@ -783,16 +755,12 @@ TEST_F(ShadowPixelTest, GlassRimWrapsTheEdgeInADarkLineAndLightsTheTopInsideIt)
     const auto rimmed = pixels();
     const int body = channel(rimmed, 450, 300);
     EXPECT_NEAR(body, 128, 1);
-    // The dark hairline runs all the way round, lightest along the top and
-    // bottom; on the sides it is a gain and a lift below the backdrop.
     EXPECT_LT(channel(rimmed, 450, 100), body - 5);
     EXPECT_LT(channel(rimmed, 450, 499), body - 5);
     EXPECT_NEAR(channel(rimmed, 300, 300), 102, 3);
     EXPECT_NEAR(channel(rimmed, 599, 300), 102, 3);
-    // Just inside it, lit from above, so the bottom catches about a third as much.
     EXPECT_GT(channel(rimmed, 450, 101), 185);
     EXPECT_NEAR(channel(rimmed, 450, 498), 153, 4);
-    // A short glow inside the lit edges only.
     EXPECT_GT(channel(rimmed, 450, 102), body);
     EXPECT_LT(channel(rimmed, 450, 102), 160);
     EXPECT_EQ(channel(rimmed, 450, 120), body);
@@ -809,8 +777,6 @@ TEST_F(ShadowPixelTest, GlassRimCornerPutsTheLitHairlineInsideTheDarkOne)
     renderer->drawBackgroundBlur(bounds, 24, bounds, glass);
     const auto rimmed = pixels();
     const int body = channel(rimmed, 450, 300);
-    // On the diagonal of the top left corner, the outermost pixel is darkened
-    // and the next one in is lit.
     EXPECT_LT(channel(rimmed, 307, 107), body - 3);
     EXPECT_GT(channel(rimmed, 308, 108), body + 15);
 }
@@ -827,8 +793,6 @@ TEST_F(ShadowPixelTest, GlassRimFadesOverANearlyWhiteBody)
     const auto rimmed = pixels();
     const int body = channel(rimmed, 450, 300);
     EXPECT_NEAR(body, 245, 1);
-    // The glow inside the hairline would clip at white; it steps down to the
-    // body right away.
     EXPECT_LE(channel(rimmed, 450, 102), body + 5);
     EXPECT_LE(channel(rimmed, 450, 104), body + 2);
 }
@@ -905,10 +869,6 @@ TEST_F(ShadowPixelTest, BlurClampsAtOutputEdgesAndRestoresScissorAndFramebuffer)
     EXPECT_EQ(channel(pixels(), 705, 505, 1), 255);
 }
 
-// A frameless Cutefish window is one rounded rectangle, so its shadow has to be
-// cut around a rounded bottom. Cutting a square one out instead leaves the
-// bottom corners with a hard, completely unshadowed wedge between the client's
-// arc and the cut-out.
 TEST_F(ShadowPixelTest, BottomCornersAreShadowedOnlyWhenTheSilhouetteIsRounded)
 {
     Metrics metrics;
@@ -921,29 +881,22 @@ TEST_F(ShadowPixelTest, BottomCornersAreShadowedOnlyWhenTheSilhouetteIsRounded)
         const ui::Bitmap image = shadowImage(geometry);
         const base::Point box(geometry.margins().left(),
                          geometry.margins().top() + geometry.canonicalSize().height() - 1);
-        // Inside the corner's bounding box but outside its arc, so a rounded
-        // silhouette leaves it to the shadow and a square one claims it.
         int total = 0;
         for (int i = 1; i <= 2; ++i)
             total += image.alpha(box.x() + i, box.y() - i);
         return total;
     };
 
-    // FishUI's window corner radius. The compositor cannot ask a client for
-    // its radius, so the two have to be kept the same number here.
+    // Clients round their windows by 14 too; the compositor cannot ask them for it.
     EXPECT_EQ(metrics.cornerRadius, 14);
     EXPECT_EQ(WindowVisualStyle::radiusFor(kWindow), metrics.cornerRadius);
 
     EXPECT_GT(bottomLeftWedge(Corners::all()), 0);
-    // A deliberately square silhouette remains available to callers.
     EXPECT_EQ(bottomLeftWedge(Corners::top()), 0);
-    // Two silhouettes of the same window are two different cached images.
     EXPECT_NE(ShadowGeometry(kWindow, radius, metrics.shadow(true), 1, Corners::all()).key(),
               ShadowGeometry(kWindow, radius, metrics.shadow(true), 1, Corners::top()).key());
 }
 
-// The cut-out is the window clip's own coverage, so wherever the window covers a
-// pixel whole none of its shadow shows through a translucent client.
 TEST_F(ShadowPixelTest, AllCornerShapeAndTransparentInterior)
 {
     Metrics metrics;
@@ -960,14 +913,13 @@ TEST_F(ShadowPixelTest, AllCornerShapeAndTransparentInterior)
         renderer->fillRect(box, {1, 1, 1, 1});
         renderer->popRoundedClip();
     });
-    EXPECT_GT(image.alpha(box.x(), box.y()), 0); // Outside rounded top.
-    EXPECT_GT(image.alpha(box.x(), box.bottom() - 1), 0); // Outside rounded bottom.
+    EXPECT_GT(image.alpha(box.x(), box.y()), 0);
+    EXPECT_GT(image.alpha(box.x(), box.bottom() - 1), 0);
     for (int y = 0; y < image.height(); ++y) {
         for (int x = 0; x < image.width(); ++x) {
             const uint32_t pixel = image.pixel(x, y);
             if (shape.alpha(x, y) == 255)
                 ASSERT_EQ(pixel >> 24, 0u) << x << ',' << y;
-            // Black, premultiplied.
             ASSERT_EQ(pixel & 0xffffff, 0u) << x << ',' << y;
         }
     }
@@ -995,9 +947,6 @@ TEST_F(ShadowPixelTest, ApertureCutsAreConstantForLinearFiltering)
     }
 }
 
-// Wide lobes are blurred on a halved copy; across a straight edge they have to
-// stay within a few levels of the real Gaussian, and come out symmetric but for
-// the rounding of the 8-bit passes, at most a level apiece.
 TEST_F(ShadowPixelTest, WideLobesFollowTheGaussianAcrossAStraightEdge)
 {
     for (const auto &[sigma, scale] : {std::pair {24.0f, 1}, {9.0f, 2}, {3.2f, 1}, {1.5f, 2}}) {
@@ -1044,16 +993,12 @@ TEST_F(ShadowPixelTest, SilhouetteKeepsTheArrowAndItsStretchedRunsConstant)
         }
         const base::Point box(geometry.margins().left() * scale, geometry.margins().top() * scale);
         const int bottom = box.y() + geometry.canonicalSize().height() * scale;
-        // Inside the arrow nothing; just past its tip more shadow than at the
-        // same depth beside it, where the body edge is further away.
         EXPECT_EQ(alpha(box.x() + 80 * scale, bottom - 4 * scale), 0);
         EXPECT_GT(alpha(box.x() + 80 * scale, bottom + 2 * scale),
                   alpha(box.x() + 40 * scale, bottom + 2 * scale));
     }
 }
 
-// The caster is drawn with no clip and at the image's own scale, whatever the
-// node being painted is under; both are the caller's again afterwards.
 TEST_F(ShadowPixelTest, RenderingIgnoresAndKeepsTheCallersClipAndScale)
 {
     Metrics metrics;
@@ -1071,7 +1016,6 @@ TEST_F(ShadowPixelTest, RenderingIgnoresAndKeepsTheCallersClipAndScale)
     renderer->setRasterScale(1);
     ASSERT_TRUE(texture);
     EXPECT_EQ(readBack(texture.get(), geometry.rasterSize()), plain);
-    // Still clipped: the fill stayed inside the 10px circle at 1.5.
     const auto actual = pixels();
     EXPECT_EQ(channel(actual, 7, 7), 255);
     EXPECT_EQ(channel(actual, 20, 20), 0);

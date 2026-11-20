@@ -32,9 +32,6 @@ namespace cutefish::shell {
 
 class ShellWindow;
 
-// One sheet's content: the
-// application's icon, "“Name” is not responding", the explanation, and
-// Force Quit and Wait, on the dialog's opaque background.
 class NotRespondingView : public ui::View
 {
 public:
@@ -44,9 +41,7 @@ public:
     NotRespondingView(std::string name, std::string icon);
 
     const std::string &title() const;
-    // Takes its text again after the session language changed.
     void retranslate();
-    // The window's height for the layout at its width.
     double implicitHeight(double width) const;
 
     ui::DialogButton *forceQuitButton() const { return m_forceQuit; }
@@ -71,12 +66,7 @@ private:
     uint64_t m_themeGeneration = 0;
 };
 
-// Offers force quit for an application that stopped responding, once the
-// user waits on one of its windows: a sheet hanging from that window, one
-// per application, gone again as soon as the application answers. The
-// window manager asks through setNotRespondingPrompt().
-//
-// Neither exo nor Ash handles hung clients; this is Cutefish's own design.
+// One sheet per application, gone as soon as the application answers.
 class NotRespondingSheets : public Component, public wm::WindowObserver
 {
 public:
@@ -86,21 +76,17 @@ public:
     // A window whose process is unknown stands for an application of its own.
     static int64_t applicationOf(const wm::Window *window);
 
-    // The window manager's prompt; always offered while the shell is up.
+    // Always offered while the shell is up.
     bool prompt(wm::Window *window);
 
-    // The sheet of an application, or null.
     ShellWindow *sheet(int64_t application) const;
     NotRespondingView *view(int64_t application) const;
     uint64_t parentWindow(int64_t application) const;
     size_t sheetCount() const { return m_sheets.size(); }
     bool isWaiting(int64_t application) const { return m_waiting.count(application) != 0; }
 
-    // The user's answers.
     void wait(int64_t application);
     void forceQuit(int64_t application);
-
-    // --- wm::WindowObserver ---
 
     void onWindowResponsiveChanged(wm::Window *window) override;
     void onWindowDestroying(wm::Window *window) override;
@@ -122,7 +108,6 @@ private:
     Shell *m_shell;
     // By application: every window of a stalled client stops answering together.
     std::map<int64_t, Sheet> m_sheets;
-    // Applications the user chose to wait for, until they answer again.
     std::set<int64_t> m_waiting;
     std::set<wm::Window *> m_observed;
     // Closed from inside their own buttons' handlers: destroyed on the next

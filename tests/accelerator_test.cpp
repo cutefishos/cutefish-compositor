@@ -2,12 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Keyboard shortcuts. Behaviour modelled on chromium/src/ash/accelerators
-// (accelerator_controller_unittest.cc, ash_accelerator_configuration_unittest.cc,
-// accelerator_launchpad_state_machine_unittest.cc, accelerator_history_unittest.cc)
-// and ash/wm/window_cycle/window_cycle_controller_unittest.cc, rewritten
-// against the Cutefish abstractions. No DRM, no GL, no Wayland client.
-
 #include <algorithm>
 #include <memory>
 #include <string>
@@ -111,7 +105,6 @@ public:
     std::vector<std::string> media;
 };
 
-// Records what reaches a client keyboard.
 class RecordingKeyboardDelegate : public input::KeyboardDelegate
 {
 public:
@@ -261,9 +254,6 @@ base::json::Value parse(const std::string &json)
 
 } // namespace
 
-////////////////////////////////////////////////////////////////////////////////
-// Accelerator and AcceleratorMap
-
 TEST(Accelerator, IdentityIgnoresTheEvdevCodeAndTextNamesTheKey)
 {
     const Accelerator a(XKB_KEY_q, KEY_Q, ControlDown | ShiftDown, Accelerator::KeyState::Pressed);
@@ -277,7 +267,6 @@ TEST(Accelerator, IdentityIgnoresTheEvdevCodeAndTextNamesTheKey)
     EXPECT_EQ(XKB_KEY_XF86AudioRaiseVolume, keysymFromName("XF86AudioRaiseVolume"));
     EXPECT_TRUE(keysymText(XKB_KEY_Tab).empty());
     EXPECT_EQ("[", keysymText(XKB_KEY_bracketleft));
-    // Upper-cased as text is, beyond what keysyms have cases for.
     EXPECT_EQ("\u00c9", keysymText(XKB_KEY_eacute));
     EXPECT_EQ("SS", keysymText(XKB_KEY_ssharp));
 }
@@ -296,8 +285,7 @@ TEST(AcceleratorMap, PositionalLookupPinsPunctuationToTheUsLayout)
     ASSERT_NE(nullptr, map.find(germanPlus));
     EXPECT_EQ(1, *map.find(germanPlus));
 
-    // A French layout has "m" where the US layout has ";": letters keep their
-    // meaning and are never remapped by position.
+    // A French layout has "m" where the US layout has ";".
     const Accelerator frenchM(XKB_KEY_m, KEY_SEMICOLON, AltDown, Accelerator::KeyState::Pressed);
     EXPECT_EQ(nullptr, map.find(frenchM));
     EXPECT_EQ(0u, positionalUsKeysym(KEY_A, XKB_KEY_a));
@@ -317,9 +305,6 @@ TEST(AcceleratorMap, EraseRemovesWhatFindReturns)
     ASSERT_NE(nullptr, map.find(Accelerator(XKB_KEY_plus, AltDown)));
     EXPECT_EQ(2, *map.find(Accelerator(XKB_KEY_plus, AltDown)));
 }
-
-////////////////////////////////////////////////////////////////////////////////
-// AcceleratorManager
 
 namespace {
 
@@ -390,9 +375,6 @@ TEST(AcceleratorManager, UnregisteringByPositionRemovesTheUsKey)
     EXPECT_EQ(1, other.presses);
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// AcceleratorConfiguration
-
 TEST(AcceleratorConfiguration, AddRemoveReplaceAndRestore)
 {
     input_test::TemporaryDirectory directory;
@@ -416,7 +398,6 @@ TEST(AcceleratorConfiguration, AddRemoveReplaceAndRestore)
     EXPECT_TRUE(configuration.hasCustomAccelerators());
     EXPECT_EQ(1, updates);
 
-    // Giving another action's default to this one takes it away from there.
     EXPECT_EQ(AcceleratorConfigResult::Success,
               configuration.addUserAccelerator(maximize, metaDown));
     EXPECT_EQ(AcceleratorAction::ToggleMaximized, *configuration.findAcceleratorAction(metaDown));
@@ -434,18 +415,13 @@ TEST(AcceleratorConfiguration, AddRemoveReplaceAndRestore)
     EXPECT_EQ(AcceleratorConfigResult::NotFound,
               configuration.removeAccelerator(maximize, metaUp));
 
-    // Meta+Down is still held by maximize, so minimize's restore reports it.
     EXPECT_EQ(AcceleratorConfigResult::RestoreSuccessWithConflicts,
               configuration.restoreDefault(minimize));
-    // Restoring maximize gives the taken default back to minimize, which is
-    // what the override file, with no entry left for either, now describes.
     EXPECT_EQ(AcceleratorConfigResult::Success, configuration.restoreDefault(maximize));
     EXPECT_EQ(AcceleratorAction::ToggleMaximized, *configuration.findAcceleratorAction(metaUp));
     EXPECT_EQ(AcceleratorAction::WindowMinimize, *configuration.findAcceleratorAction(metaDown));
     EXPECT_FALSE(configuration.hasCustomAccelerators());
 
-    // Removing a taken default from its new owner does the same, unless the
-    // default owner had itself disabled it.
     EXPECT_EQ(AcceleratorConfigResult::Success,
               configuration.addUserAccelerator(maximize, metaDown));
     EXPECT_EQ(AcceleratorConfigResult::Success,
@@ -505,7 +481,6 @@ TEST(AcceleratorConfiguration, OverridesPersistAcrossInstances)
                   configuration.removeAccelerator(lock, metaL));
         EXPECT_EQ(AcceleratorConfigResult::Success,
                   configuration.addUserAccelerator(maximize, custom));
-        // Stealing a default records it under the new owner only.
         EXPECT_EQ(AcceleratorConfigResult::Success,
                   configuration.addUserAccelerator(maximize, Accelerator(XKB_KEY_Down, MetaDown)));
     }
@@ -520,7 +495,6 @@ TEST(AcceleratorConfiguration, OverridesPersistAcrossInstances)
                   *configuration.findAcceleratorAction(Accelerator(XKB_KEY_Down, MetaDown)));
         EXPECT_EQ(1u, configuration.acceleratorsForAction(
                               toActionId(AcceleratorAction::WindowMinimize))->size());
-        // Re-adding a removed default cancels the removal instead of stacking.
         EXPECT_EQ(AcceleratorConfigResult::Success,
                   configuration.addUserAccelerator(lock, metaL));
         configuration.restoreAllDefaults();
@@ -545,8 +519,6 @@ TEST(AcceleratorConfiguration, EachConventionKeepsItsOwnOverrides)
     ASSERT_EQ(AcceleratorConfigResult::Success,
               configuration.addUserAccelerator(maximize, pcBinding));
 
-    // Meta is another key under Command, so the PC binding waits and the
-    // Command convention takes edits of its own.
     configuration.setConvention(input::ShortcutConvention::Command);
     EXPECT_FALSE(configuration.findAcceleratorAction(pcBinding));
     EXPECT_FALSE(configuration.hasCustomAccelerators());
@@ -587,13 +559,9 @@ TEST(AcceleratorConfiguration, MalformedOverridesAreDropped)
               *configuration.findAcceleratorAction(Accelerator(XKB_KEY_l, MetaDown)));
     Settings settings(file);
     EXPECT_EQ(std::vector<std::string> {"toggle-maximized"}, settings.childKeys("Shortcuts"));
-    // The file is written as it always was: members sorted, compact, quoted.
     EXPECT_EQ(settings.rawValue("Shortcuts/toggle-maximized"),
               R"("[{\"action\":\"add\",\"key\":\"Home\",\"modifiers\":[\"Meta\"],\"state\":\"pressed\"}]")");
 }
-
-////////////////////////////////////////////////////////////////////////////////
-// AcceleratorHistory and the launchpad state machine
 
 TEST(AcceleratorHistory, TracksCurrentAndPreviousWithoutDoubleCountingHeldKeys)
 {
@@ -604,7 +572,6 @@ TEST(AcceleratorHistory, TracksCurrentAndPreviousWithoutDoubleCountingHeldKeys)
     history.storeCurrentAccelerator(metaDown);
     EXPECT_EQ(metaDown, history.currentAccelerator());
     EXPECT_EQ(altDown, history.previousAccelerator());
-    // Alt goes up while Meta stays down: Meta is not stored as pressed again.
     history.storeCurrentAccelerator(Accelerator(XKB_KEY_Alt_L, MetaDown, Accelerator::KeyState::Released));
     history.storeCurrentAccelerator(Accelerator(XKB_KEY_Super_L, MetaDown));
     EXPECT_EQ(XKB_KEY_Alt_L, history.currentAccelerator().keysym());
@@ -627,7 +594,6 @@ TEST(AcceleratorLaunchpadStateMachine, OnlyALoneMetaTapTriggers)
     EXPECT_EQ(State::Trigger, machine.currentState());
     EXPECT_TRUE(machine.canHandleLaunchpad());
 
-    // Meta+L is not a launchpad tap.
     ++pressed;
     machine.onKey(XKB_KEY_Super_L, true);
     ++pressed;
@@ -641,7 +607,6 @@ TEST(AcceleratorLaunchpadStateMachine, OnlyALoneMetaTapTriggers)
     EXPECT_EQ(State::Start, machine.currentState());
     EXPECT_FALSE(machine.canHandleLaunchpad());
 
-    // A click while Meta is held suppresses the release.
     ++pressed;
     machine.onKey(XKB_KEY_Super_L, true);
     machine.onPointerButton(true);
@@ -651,9 +616,6 @@ TEST(AcceleratorLaunchpadStateMachine, OnlyALoneMetaTapTriggers)
     EXPECT_FALSE(machine.canHandleLaunchpad());
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// Controller and filter, end to end from physical keys
-
 TEST_F(AcceleratorTest, ALoneMetaOpensTheLaunchpadAndMetaChordsDoNot)
 {
     wm::Window *window = makeWindow(base::Rect(100, 100, 300, 200));
@@ -662,8 +624,6 @@ TEST_F(AcceleratorTest, ALoneMetaOpensTheLaunchpadAndMetaChordsDoNot)
     RecordingKeyboardDelegate *keyboardDelegate = delegateOwner.get();
     input::Keyboard keyboard(std::move(delegateOwner), &seat);
 
-    // Ash's default: the launchpad on Meta's release, the key still reaching
-    // the window.
     tap(KEY_LEFTMETA);
     EXPECT_EQ(1, delegate.appListToggles);
     const std::vector<std::pair<uint32_t, bool>> expected = {{KEY_LEFTMETA, true},
@@ -678,7 +638,6 @@ TEST_F(AcceleratorTest, ALoneMetaOpensTheLaunchpadAndMetaChordsDoNot)
 
     chord({KEY_LEFTMETA}, KEY_L);
     EXPECT_EQ(2, delegate.appListToggles);
-    // Meta+L locks; the session is Locking until the lock screen is presented.
     EXPECT_TRUE(session.isBlocked());
 }
 
@@ -696,7 +655,6 @@ TEST_F(AcceleratorTest, WindowActionsApplyToTheActiveWindow)
     EXPECT_EQ(wm::WindowStateType::PrimarySnapped, window->stateType());
     chord({KEY_LEFTMETA}, KEY_RIGHT);
     EXPECT_EQ(wm::WindowStateType::SecondarySnapped, window->stateType());
-    // Snapping to the side the window is already on restores it.
     chord({KEY_LEFTMETA}, KEY_RIGHT);
     EXPECT_EQ(wm::WindowStateType::Normal, window->stateType());
 
@@ -729,7 +687,6 @@ TEST_F(AcceleratorTest, AFixedSizeWindowNeitherMaximizesNorGoesFullscreen)
     chord({KEY_LEFTMETA}, KEY_F);
     EXPECT_EQ(wm::WindowStateType::Normal, window->stateType());
 
-    // Fullscreen it asked for itself still ends with the shortcut.
     window->setFullscreen(true);
     ASSERT_EQ(wm::WindowStateType::Fullscreen, window->stateType());
     chord({KEY_LEFTMETA}, KEY_F);
@@ -738,7 +695,6 @@ TEST_F(AcceleratorTest, AFixedSizeWindowNeitherMaximizesNorGoesFullscreen)
 
 TEST_F(AcceleratorTest, ActionsRunWithoutAKeyUnderTheSameRestrictions)
 {
-    // A hot corner runs an action with no key behind it.
     makeWindow(base::Rect(100, 100, 300, 200));
     wm::ShowDesktopController *showDesktop = manager.showDesktop();
     EXPECT_TRUE(controller->performActionWithoutKey(AcceleratorAction::ToggleShowDesktop));
@@ -754,8 +710,6 @@ TEST_F(AcceleratorTest, ActionsRunWithoutAKeyUnderTheSameRestrictions)
 
 TEST_F(AcceleratorTest, WindowActionsLeaveTheShellsOwnWindowsAlone)
 {
-    // The desktop takes the keyboard once every application window is
-    // minimized; minimizing or closing it would leave no wallpaper.
     wm::Window *application = makeWindow(base::Rect(100, 100, 300, 200));
     application->minimize();
     wm::Window *desktop = makeWindow(base::Rect(0, 0, 800, 600));
@@ -779,7 +733,6 @@ TEST_F(AcceleratorTest, WindowActionsLeaveTheShellsOwnWindowsAlone)
 
     seat.setShortcutConvention(input::ShortcutConvention::Command);
     configuration->setConvention(input::ShortcutConvention::Command);
-    // Command+M, with Alt where Command is on a PC keyboard.
     chord({KEY_LEFTALT}, KEY_M);
     chord({KEY_LEFTCTRL, KEY_LEFTALT}, KEY_F);
     EXPECT_EQ(wm::WindowStateType::Normal, desktop->stateType());
@@ -817,8 +770,6 @@ TEST_F(AcceleratorTest, ConsumedKeysNeverReachTheClientAndOthersDo)
     input::Keyboard keyboard(std::move(delegateOwner), &seat);
 
     chord({KEY_LEFTMETA}, KEY_UP);
-    // Meta itself reaches the client; Up, the accelerator key, does not, and
-    // neither does its release.
     std::vector<std::pair<uint32_t, bool>> expected = {{KEY_LEFTMETA, true}, {KEY_LEFTMETA, false}};
     EXPECT_EQ(expected, keyboardDelegate->keys);
 
@@ -827,7 +778,6 @@ TEST_F(AcceleratorTest, ConsumedKeysNeverReachTheClientAndOthersDo)
     expected = {{KEY_LEFTCTRL, true}, {KEY_C, true}, {KEY_C, false}, {KEY_LEFTCTRL, false}};
     EXPECT_EQ(expected, keyboardDelegate->keys);
 
-    // Device keys are the system's, with or without an action behind them.
     keyboardDelegate->keys.clear();
     tap(KEY_VOLUMEUP);
     chord({KEY_LEFTSHIFT}, KEY_BRIGHTNESSDOWN);
@@ -840,7 +790,6 @@ TEST_F(AcceleratorTest, ConsumedKeysNeverReachTheClientAndOthersDo)
                                              "keyboard-brightness-up"};
     EXPECT_EQ(levels, delegate.levels);
 
-    // Media keys are global playback actions, not duplicate client key presses.
     keyboardDelegate->keys.clear();
     tap(KEY_PLAYPAUSE);
     EXPECT_TRUE(keyboardDelegate->keys.empty());
@@ -853,7 +802,6 @@ TEST_F(AcceleratorTest, HeldVolumeAndBrightnessKeysRepeatAtTheKeyboardRate)
                                   .delay = std::chrono::milliseconds(40),
                                   .interval = std::chrono::milliseconds(10)});
 
-    // Repeats are timers: a loaded machine fires them late, not fewer.
     press(KEY_BRIGHTNESSUP);
     EXPECT_EQ(1u, delegate.levels.size());
     EXPECT_TRUE(cutefish::test::runUntil([this] { return delegate.levels.size() >= 3; }));
@@ -864,7 +812,6 @@ TEST_F(AcceleratorTest, HeldVolumeAndBrightnessKeysRepeatAtTheKeyboardRate)
     cutefish::test::runFor(std::chrono::milliseconds(50));
     EXPECT_EQ(held, delegate.levels.size());
 
-    // Another key going down ends it, as it does for a client.
     delegate.levels.clear();
     press(KEY_VOLUMEDOWN);
     tap(KEY_A);
@@ -872,7 +819,6 @@ TEST_F(AcceleratorTest, HeldVolumeAndBrightnessKeysRepeatAtTheKeyboardRate)
     release(KEY_VOLUMEDOWN);
     EXPECT_EQ(1u, delegate.levels.size());
 
-    // Mute toggles once however long it is held.
     delegate.levels.clear();
     press(KEY_MUTE);
     cutefish::test::runFor(std::chrono::milliseconds(100));
@@ -901,8 +847,6 @@ TEST_F(AcceleratorTest, HeldVolumeAndBrightnessKeysRepeatAtTheKeyboardRate)
 
 TEST_F(AcceleratorTest, AltTabSwitchesApplicationsInMruOrderOnReleaseAndEscapeCancels)
 {
-    // Windows without an application id or a process are applications of
-    // their own.
     wm::Window *first = makeWindow(base::Rect(0, 0, 300, 200));
     wm::Window *second = makeWindow(base::Rect(50, 50, 300, 200));
     wm::Window *third = makeWindow(base::Rect(100, 100, 300, 200));
@@ -910,7 +854,6 @@ TEST_F(AcceleratorTest, AltTabSwitchesApplicationsInMruOrderOnReleaseAndEscapeCa
     manager.activation()->activate(second);
     manager.activation()->activate(third);
 
-    // Stepping only moves the selection; the previous application is first.
     press(KEY_LEFTALT);
     tap(KEY_TAB);
     EXPECT_TRUE(cycle->isCycling());
@@ -920,7 +863,6 @@ TEST_F(AcceleratorTest, AltTabSwitchesApplicationsInMruOrderOnReleaseAndEscapeCa
     EXPECT_EQ(third, manager.activation()->activeWindow());
     tap(KEY_TAB);
     EXPECT_EQ(2, cycle->selectedIndex());
-    // Shift+Alt+Tab, the arrow keys and ` step too.
     press(KEY_LEFTSHIFT);
     tap(KEY_TAB);
     release(KEY_LEFTSHIFT);
@@ -936,7 +878,6 @@ TEST_F(AcceleratorTest, AltTabSwitchesApplicationsInMruOrderOnReleaseAndEscapeCa
     EXPECT_FALSE(cycle->isCycling());
     EXPECT_EQ(second, manager.activation()->activeWindow());
 
-    // The MRU order now starts with the application just chosen.
     const auto list = mru->buildMruWindowList();
     ASSERT_EQ(3u, list.size());
     EXPECT_EQ(second, list[0]);
@@ -949,8 +890,6 @@ TEST_F(AcceleratorTest, AltTabSwitchesApplicationsInMruOrderOnReleaseAndEscapeCa
     EXPECT_EQ(second, manager.activation()->activeWindow());
     release(KEY_LEFTALT);
 
-    // An application whose windows are all minimized is still switched to,
-    // and its window comes back once the keys are released.
     third->minimize();
     press(KEY_LEFTALT);
     tap(KEY_TAB);
@@ -968,8 +907,6 @@ TEST_F(AcceleratorTest, ThePcConventionTakesEveryKeyboardAsItIs)
     RecordingKeyboardDelegate *keyboardDelegate = delegateOwner.get();
     input::Keyboard keyboard(std::move(delegateOwner), &seat);
 
-    // An Apple keyboard's Command is Meta, as on any Linux desktop: a lone tap
-    // opens the launchpad and the client sees Meta.
     input.onKey(at(++time), KEY_LEFTMETA, true, input::KeyboardModifierLayout::Apple);
     input.onKey(at(++time), KEY_LEFTMETA, false, input::KeyboardModifierLayout::Apple);
     EXPECT_EQ(1, delegate.appListToggles);
@@ -995,17 +932,14 @@ TEST_F(AcceleratorTest, UnderTheCommandConventionTheKeyNextToTheSpaceBarSwitches
     RecordingKeyboardDelegate *keyboardDelegate = delegateOwner.get();
     input::Keyboard keyboard(std::move(delegateOwner), &seat);
 
-    // Alt on a PC keyboard is Command here.
     press(KEY_LEFTALT);
     tap(KEY_TAB);
     EXPECT_TRUE(cycle->isCycling());
     release(KEY_LEFTALT);
     EXPECT_FALSE(cycle->isCycling());
     EXPECT_EQ(first, manager.activation()->activeWindow());
-    // Command+Tab never reached the window, not even as a Ctrl.
     EXPECT_TRUE(keyboardDelegate->keys.empty());
 
-    // So is Command on an Apple keyboard.
     input.onKey(at(++time), KEY_LEFTMETA, true, input::KeyboardModifierLayout::Apple);
     tap(KEY_TAB);
     EXPECT_TRUE(cycle->isCycling());
@@ -1057,7 +991,6 @@ TEST_F(AcceleratorTest, UnderTheCommandConventionApplicationsGetCommandAsCtrl)
             {KEY_LEFTCTRL, true}, {KEY_C, true}, {KEY_C, false}, {KEY_LEFTCTRL, false}};
     EXPECT_EQ(expected, keyboardDelegate->keys);
 
-    // The launchpad has no default here; Command+Space is the application's.
     keyboardDelegate->keys.clear();
     chord({KEY_LEFTALT}, KEY_SPACE);
     EXPECT_EQ(0, delegate.appListToggles);
@@ -1067,8 +1000,6 @@ TEST_F(AcceleratorTest, UnderTheCommandConventionApplicationsGetCommandAsCtrl)
                                                           {KEY_LEFTCTRL, false}};
     EXPECT_EQ(space, keyboardDelegate->keys);
 
-    // Command+Q, Command+H and Command+Option+H are the application menu's
-    // Quit, Hide and Hide Others; the window sees none of them.
     int closes = 0;
     window->setCloseCallback([&closes] {
         ++closes;
@@ -1077,7 +1008,6 @@ TEST_F(AcceleratorTest, UnderTheCommandConventionApplicationsGetCommandAsCtrl)
     manager.activation()->activate(window);
     keyboardDelegate->keys.clear();
     chord({KEY_LEFTALT}, KEY_Q);
-    // Quit waits a moment after the keys.
     EXPECT_EQ(0, closes);
     for (int waited = 0; closes == 0 && waited < 1000; waited += 10)
         cutefish::test::runFor(std::chrono::milliseconds(10));
@@ -1091,7 +1021,6 @@ TEST_F(AcceleratorTest, UnderTheCommandConventionApplicationsGetCommandAsCtrl)
     window->setHidden(false);
     manager.activation()->activate(window);
 
-    // Control+Command+F is the compositor's, and Control+Tab the window's.
     chord({KEY_LEFTCTRL, KEY_LEFTALT}, KEY_F);
     EXPECT_TRUE(window->state()->isFullscreen());
     keyboardDelegate->keys.clear();
@@ -1100,7 +1029,6 @@ TEST_F(AcceleratorTest, UnderTheCommandConventionApplicationsGetCommandAsCtrl)
             {KEY_LEFTCTRL, true}, {KEY_TAB, true}, {KEY_TAB, false}, {KEY_LEFTCTRL, false}};
     EXPECT_EQ(tab, keyboardDelegate->keys);
 
-    // Control+Up shows all windows, and Command+Up stays the window's Ctrl+Up.
     scene::OverviewNode node([] {
         return int64_t(0);
     });
@@ -1138,14 +1066,12 @@ TEST_F(AcceleratorTest, ScreenCaptureKeysGoToTheShellUnderBothConventions)
     delegate.captures.clear();
     keyboardDelegate->keys.clear();
 
-    // Alt on a PC keyboard is Command here.
     chord({KEY_LEFTALT, KEY_LEFTSHIFT}, KEY_3);
     chord({KEY_LEFTCTRL, KEY_LEFTALT, KEY_LEFTSHIFT}, KEY_3);
     chord({KEY_LEFTALT, KEY_LEFTSHIFT}, KEY_4);
     chord({KEY_LEFTCTRL, KEY_LEFTALT, KEY_LEFTSHIFT}, KEY_4);
     chord({KEY_LEFTALT, KEY_LEFTSHIFT}, KEY_5);
     chord({KEY_LEFTCTRL, KEY_LEFTALT}, KEY_ESC);
-    // Print works as under PC.
     tap(KEY_SYSRQ);
     chord({KEY_LEFTSHIFT}, KEY_SYSRQ);
     chord({KEY_LEFTALT, KEY_LEFTSHIFT}, KEY_SYSRQ);
@@ -1171,8 +1097,6 @@ TEST_F(AcceleratorTest, TheClipboardHistoryKeyGoesToTheShellUnderBothConventions
     chord({KEY_LEFTMETA}, KEY_V);
     EXPECT_EQ(1, delegate.clipboardHistoryToggles);
 
-    // Control+Command+V, with Alt where Command is on a PC keyboard; Command+V
-    // stays the application's paste.
     seat.setShortcutConvention(input::ShortcutConvention::Command);
     configuration->setConvention(input::ShortcutConvention::Command);
     keyboardDelegate->keys.clear();
@@ -1195,14 +1119,12 @@ TEST_F(AcceleratorTest, SendPasteTypesTheApplicationsPasteShortcut)
     input::Keyboard keyboard(std::move(delegateOwner), &seat);
     wm::Window *window = makeWindow(base::Rect(100, 100, 300, 200));
     manager.activation()->activate(window);
-    // As the shell tells the translator which focus is a terminal.
     seat.keyTranslator()->setTerminalProvider([this] {
         compositor::Surface *focus = seat.focusedSurface();
         const wm::Window *focused = focus ? manager.windowForSurface(focus) : nullptr;
         return focused && input::isTerminal(focused->applicationId());
     });
 
-    // Under the Command convention too: the keys go out as clients see them.
     seat.setShortcutConvention(input::ShortcutConvention::Command);
     configuration->setConvention(input::ShortcutConvention::Command);
     manager.sendPaste();
@@ -1221,7 +1143,6 @@ TEST_F(AcceleratorTest, SendPasteTypesTheApplicationsPasteShortcut)
             {KEY_V, false},       {KEY_LEFTSHIFT, false}, {KEY_LEFTCTRL, false}};
     EXPECT_EQ(terminalPaste, keyboardDelegate->keys);
 
-    // A held key, such as the Return that picked the entry, is waited for.
     press(KEY_ENTER);
     keyboardDelegate->keys.clear();
     manager.sendPaste();
@@ -1230,8 +1151,6 @@ TEST_F(AcceleratorTest, SendPasteTypesTheApplicationsPasteShortcut)
     keyboardDelegate->keys.clear();
     cutefish::test::runFor(std::chrono::milliseconds(100));
     EXPECT_EQ(terminalPaste, keyboardDelegate->keys);
-
-    // Nothing to the desktop, or while locked.
 
     wm::Window *desktop = makeWindow(base::Rect(0, 0, 800, 600));
     desktop->setRole(wm::WindowRole::Desktop);
@@ -1274,7 +1193,6 @@ TEST_F(AcceleratorTest, DeskKeysAddSwitchSendAndRemoveDesksUnderBothConventions)
     wm::Window *window = makeWindow(base::Rect(100, 100, 300, 200));
     manager.activation()->activate(window);
 
-    // Meta+Shift+= adds a desk and goes there; Meta+[ comes back.
     chord({KEY_LEFTMETA, KEY_LEFTSHIFT}, KEY_EQUAL);
     ASSERT_EQ(2u, desks->desks().size());
     EXPECT_EQ(1, desks->activeDeskIndex());
@@ -1283,25 +1201,20 @@ TEST_F(AcceleratorTest, DeskKeysAddSwitchSendAndRemoveDesksUnderBothConventions)
     EXPECT_EQ(0, desks->activeDeskIndex());
     EXPECT_EQ(window, manager.activation()->activeWindow());
 
-    // Meta+Shift+] sends the window right without taking the user along.
     chord({KEY_LEFTMETA, KEY_LEFTSHIFT}, KEY_RIGHTBRACE);
     EXPECT_EQ(0, desks->activeDeskIndex());
     EXPECT_EQ(desks->deskAt(1), desks->deskOf(window));
-    // Meta+Shift+2 goes straight to the second desk.
     chord({KEY_LEFTMETA, KEY_LEFTSHIFT}, KEY_2);
     EXPECT_EQ(1, desks->activeDeskIndex());
     EXPECT_EQ(window, manager.activation()->activeWindow());
-    // Meta+Shift+A puts it on every desk, and again takes it back.
     chord({KEY_LEFTMETA, KEY_LEFTSHIFT}, KEY_A);
     EXPECT_TRUE(desks->isVisibleOnAllDesks(window));
     chord({KEY_LEFTMETA, KEY_LEFTSHIFT}, KEY_A);
     EXPECT_EQ(desks->deskAt(1), desks->deskOf(window));
-    // Meta+Shift+- removes it; the window goes to the desk on the left.
     chord({KEY_LEFTMETA, KEY_LEFTSHIFT}, KEY_MINUS);
     ASSERT_EQ(1u, desks->desks().size());
     EXPECT_TRUE(window->isVisible());
 
-    // Control+Command where PC has Meta; Alt is Command here.
     seat.setShortcutConvention(input::ShortcutConvention::Command);
     configuration->setConvention(input::ShortcutConvention::Command);
     chord({KEY_LEFTCTRL, KEY_LEFTALT}, KEY_EQUAL);
@@ -1312,11 +1225,9 @@ TEST_F(AcceleratorTest, DeskKeysAddSwitchSendAndRemoveDesksUnderBothConventions)
     chord({KEY_LEFTCTRL, KEY_LEFTALT}, KEY_2);
     EXPECT_EQ(1, desks->activeDeskIndex());
     chord({KEY_LEFTCTRL, KEY_LEFTALT}, KEY_1);
-    // Control alone is the application's Ctrl.
     chord({KEY_LEFTCTRL}, KEY_RIGHT);
     chord({KEY_LEFTCTRL}, KEY_2);
     EXPECT_EQ(0, desks->activeDeskIndex());
-    // With Shift the window goes along to the next desk.
     chord({KEY_LEFTCTRL, KEY_LEFTALT, KEY_LEFTSHIFT}, KEY_RIGHTBRACE);
     EXPECT_EQ(desks->deskAt(1), desks->deskOf(window));
     chord({KEY_LEFTCTRL, KEY_LEFTALT}, KEY_MINUS);
@@ -1341,8 +1252,6 @@ TEST_F(AcceleratorTest, SwitchingToAHiddenApplicationBringsItAllBack)
     ASSERT_TRUE(editor->isHidden());
     ASSERT_TRUE(editor2->isHidden());
 
-    // The hidden application is still in the list, once, and switching to it
-    // shows all of its windows.
     press(KEY_LEFTALT);
     tap(KEY_TAB);
     EXPECT_TRUE(cycle->isCycling());
@@ -1440,7 +1349,6 @@ TEST_F(AcceleratorTest, TheApplicationListShowsOnlyOnceTheKeysAreHeld)
     manager.activation()->activate(first);
     manager.activation()->activate(second);
 
-    // A quick press switches without it.
     chord({KEY_LEFTALT}, KEY_TAB);
     EXPECT_TRUE(view.calls.empty());
     EXPECT_EQ(first, manager.activation()->activeWindow());
@@ -1469,20 +1377,16 @@ TEST_F(AcceleratorTest, TheApplicationListTakesThePointer)
     press(KEY_LEFTALT);
     tap(KEY_TAB);
     cycle->showViewNowForTesting();
-    // The list appeared under a resting pointer; a nudge does not select.
     input.onPointerMotionAbsolute(at(++time), base::PointF(55, 654));
     EXPECT_EQ(1, cycle->selectedIndex());
-    // Moving on to an entry does.
     input.onPointerMotionAbsolute(at(++time), base::PointF(250, 650));
     EXPECT_EQ(2, cycle->selectedIndex());
-    // A click beside the list does nothing at all.
     input.onPointerMotionAbsolute(at(++time), base::PointF(450, 50));
     input.onPointerButton(at(++time), BTN_LEFT, true);
     input.onPointerButton(at(++time), BTN_LEFT, false);
     EXPECT_TRUE(cycle->isCycling());
     EXPECT_EQ(third, manager.activation()->activeWindow());
 
-    // A click on an entry switches to it.
     input.onPointerMotionAbsolute(at(++time), base::PointF(150, 650));
     input.onPointerButton(at(++time), BTN_LEFT, true);
     input.onPointerButton(at(++time), BTN_LEFT, false);
@@ -1504,7 +1408,6 @@ TEST_F(AcceleratorTest, AltTabSwitchesOverAFullscreenWindowButNotPastAnInhibitor
     chord({KEY_LEFTALT}, KEY_TAB);
     EXPECT_EQ(first, manager.activation()->activeWindow());
 
-    // A remote desktop or a virtual machine asked for every key.
     struct Inhibitor : input::ShortcutsInhibitorDelegate {
         compositor::Surface *surface = nullptr;
         compositor::Surface *inhibitedSurface() const override { return surface; }
@@ -1571,7 +1474,6 @@ TEST_F(AcceleratorTest, QAndHQuitAndHideTheSelectedApplication)
     EXPECT_FALSE(editor->isHidden());
     tap(KEY_Q);
     EXPECT_EQ(1, closes);
-    // Its window is still there until the application closes it.
     EXPECT_TRUE(cycle->isCycling());
     manager.destroyWindow(editor);
     const std::vector<wm::Window *> left = {viewer};
@@ -1589,14 +1491,11 @@ TEST_F(AcceleratorTest, ABlockedSessionPerformsNothing)
     session.notifyFramePresented();
     ASSERT_EQ(session::SessionState::Locked, session.state());
 
-    // The seat routes keys to the lock screen while blocked; the controller
-    // refuses everything as well, should it be asked.
     chord({KEY_LEFTMETA}, KEY_UP);
     EXPECT_EQ(wm::WindowStateType::Normal, window->stateType());
     EXPECT_FALSE(controller->process(Accelerator(XKB_KEY_Up, MetaDown)));
     EXPECT_FALSE(controller->process(Accelerator(XKB_KEY_l, MetaDown)));
 
-    // Apart from the volume, the microphone and the brightness.
     tap(KEY_VOLUMEDOWN);
     tap(KEY_MICMUTE);
     tap(KEY_BRIGHTNESSUP);
@@ -1613,8 +1512,6 @@ TEST_F(AcceleratorTest, WindowActionsAreSwallowedWithoutAWindowAndWhilePrevented
     auto delegateOwner = std::make_unique<RecordingKeyboardDelegate>();
     RecordingKeyboardDelegate *keyboardDelegate = delegateOwner.get();
     input::Keyboard keyboard(std::move(delegateOwner), &seat);
-    // No window: the key is consumed all the same, as Ash's
-    // PREVENT_PROCESSING_AND_PROPAGATION does.
     EXPECT_TRUE(controller->process(Accelerator(XKB_KEY_Up, MetaDown)));
 
     controller->setPreventProcessingAccelerators(true);
@@ -1642,11 +1539,9 @@ TEST_F(AcceleratorTest, WindowActionsDoNothingInTheOverview)
     chord({KEY_LEFTALT}, KEY_F4);
     EXPECT_EQ(wm::WindowStateType::Normal, window->stateType());
     EXPECT_EQ(0, closes);
-    // The overview's own shortcut still works.
     chord({KEY_LEFTMETA}, KEY_TAB);
     EXPECT_EQ(wm::OverviewController::State::Exiting, overview->state());
 
-    // On its way out the window has the shortcuts again.
     chord({KEY_LEFTMETA}, KEY_UP);
     EXPECT_EQ(wm::WindowStateType::Maximized, window->stateType());
     overview->exitImmediately();
@@ -1662,7 +1557,6 @@ TEST_F(AcceleratorTest, FullscreenWindowsKeepNonReservedKeysExceptMetaOnes)
     RecordingKeyboardDelegate *keyboardDelegate = delegateOwner.get();
     input::Keyboard keyboard(std::move(delegateOwner), &seat);
 
-    // Alt+F4 is not reserved: the fullscreen window keeps it.
     int closes = 0;
     window->setCloseCallback([&closes] {
         ++closes;
@@ -1674,7 +1568,6 @@ TEST_F(AcceleratorTest, FullscreenWindowsKeepNonReservedKeysExceptMetaOnes)
     chord({KEY_LEFTMETA}, KEY_F);
     EXPECT_EQ(wm::WindowStateType::Normal, window->stateType());
 
-    // The volume is the system's even over a game.
     keyboardDelegate->keys.clear();
     tap(KEY_VOLUMEUP);
     EXPECT_TRUE(keyboardDelegate->keys.empty());
@@ -1704,19 +1597,16 @@ TEST_F(AcceleratorTest, AShortcutsInhibitorTakesEveryKeyButTheReservedOnesAndMet
     ASSERT_TRUE(seat.shortcutsInhibition()->add(&inhibitor));
     EXPECT_TRUE(inhibitor.active);
 
-    // Meta ones included, which even a fullscreen window does not get.
     chord({KEY_LEFTMETA}, KEY_UP);
     EXPECT_EQ(wm::WindowStateType::Normal, window->stateType());
     chord({KEY_LEFTALT}, KEY_TAB);
     EXPECT_FALSE(cycle->isCycling());
     EXPECT_EQ(8u, keyboardDelegate->keys.size());
 
-    // Exo's inhibitor exists for the system keys.
     tap(KEY_VOLUMEUP);
     EXPECT_EQ(10u, keyboardDelegate->keys.size());
     EXPECT_TRUE(delegate.levels.empty());
 
-    // Meta+Escape takes the shortcuts back, until a click on the window.
     keyboardDelegate->keys.clear();
     chord({KEY_LEFTMETA}, KEY_ESC);
     EXPECT_FALSE(inhibitor.active);
@@ -1729,7 +1619,6 @@ TEST_F(AcceleratorTest, AShortcutsInhibitorTakesEveryKeyButTheReservedOnesAndMet
     input.onPointerButton(at(++time), BTN_LEFT, false);
     EXPECT_TRUE(inhibitor.active);
 
-    // Nothing to take back: Meta+Escape is an ordinary key again.
     seat.shortcutsInhibition()->remove(&inhibitor);
     keyboardDelegate->keys.clear();
     chord({KEY_LEFTMETA}, KEY_ESC);
@@ -1741,9 +1630,6 @@ TEST_F(AcceleratorTest, AShortcutsInhibitorTakesEveryKeyButTheReservedOnesAndMet
     EXPECT_FALSE(inhibitor.active);
     seat.shortcutsInhibition()->remove(&inhibitor);
 }
-
-////////////////////////////////////////////////////////////////////////////////
-// The D-Bus service
 
 TEST_F(AcceleratorTest, ServiceValidatesConfirmsAndReportsConflicts)
 {
@@ -1766,7 +1652,6 @@ TEST_F(AcceleratorTest, ServiceValidatesConfirmsAndReportsConflicts)
               parse(service.addAccelerator("no-such", KEY_K, 0, MetaDown))
                       ["result"].toString());
 
-    // Meta+Down belongs to minimize: the first request asks, the second takes.
     base::json::Value answer = parse(service.addAccelerator(maximize, KEY_DOWN, 0, MetaDown));
     EXPECT_EQ("conflict-can-override", answer["result"].toString());
     EXPECT_EQ("window-minimize", answer["conflictAction"].toString());
@@ -1775,18 +1660,15 @@ TEST_F(AcceleratorTest, ServiceValidatesConfirmsAndReportsConflicts)
     EXPECT_EQ(AcceleratorAction::ToggleMaximized,
               *configuration->findAcceleratorAction(Accelerator(XKB_KEY_Down, MetaDown)));
 
-    // Already this action's own: a plain conflict.
     answer = parse(service.addAccelerator(maximize, KEY_UP, 0, MetaDown));
     EXPECT_EQ("conflict", answer["result"].toString());
 
-    // Without Meta the first request only warns; the second goes through.
     answer = parse(service.addAccelerator(maximize, KEY_K, 0, ControlDown | AltDown));
     EXPECT_EQ("non-meta-accelerator-warning",
               answer["result"].toString());
     answer = parse(service.addAccelerator(maximize, KEY_K, 0, ControlDown | AltDown));
     EXPECT_EQ("success", answer["result"].toString());
 
-    // Starting the recorder again forgets any pending confirmation.
     answer = parse(service.addAccelerator(maximize, KEY_J, 0, ControlDown | AltDown));
     EXPECT_EQ("non-meta-accelerator-warning",
               answer["result"].toString());
@@ -1799,8 +1681,6 @@ TEST_F(AcceleratorTest, ServiceValidatesConfirmsAndReportsConflicts)
     answer = parse(service.addAccelerator(maximize, KEY_J, 0, ControlDown | AltDown));
     EXPECT_EQ("success", answer["result"].toString());
 
-    // Under Command, Command+key is the application's Ctrl+key; only
-    // Control+Command is clear of it.
     seat.setShortcutConvention(input::ShortcutConvention::Command);
     configuration->setConvention(input::ShortcutConvention::Command);
     const std::string launchpad = "toggle-app-list";
@@ -1812,7 +1692,6 @@ TEST_F(AcceleratorTest, ServiceValidatesConfirmsAndReportsConflicts)
     seat.setShortcutConvention(input::ShortcutConvention::Pc);
     configuration->setConvention(input::ShortcutConvention::Pc);
 
-    // Five accelerators per action at most.
     EXPECT_EQ(5u, configuration->acceleratorsForAction(
                           toActionId(AcceleratorAction::ToggleMaximized))->size());
     EXPECT_EQ("maximum-accelerators-reached",
@@ -1822,8 +1701,6 @@ TEST_F(AcceleratorTest, ServiceValidatesConfirmsAndReportsConflicts)
               parse(service.removeAccelerator(maximize, XKB_KEY_j, ControlDown | AltDown))
                       ["result"].toString());
 
-    // The keysym the toolkit saw is the fallback when no keycode is known; a
-    // known keycode wins because the compositor's keymap decides.
     EXPECT_EQ("success",
               parse(service.addAccelerator(maximize, 0, XKB_KEY_X, MetaDown))
                       ["result"].toString());
@@ -1831,8 +1708,6 @@ TEST_F(AcceleratorTest, ServiceValidatesConfirmsAndReportsConflicts)
     answer = parse(service.describeKey(KEY_1, XKB_KEY_exclam));
     EXPECT_EQ("1", answer["keyText"].toString());
 
-    // An action without a default starts empty and takes a binding like any
-    // other.
     EXPECT_EQ("success",
               parse(service.addAccelerator("toggle-app-list", KEY_SPACE, 0,
                                            MetaDown))
@@ -1845,9 +1720,6 @@ TEST_F(AcceleratorTest, ServiceValidatesConfirmsAndReportsConflicts)
     chord({KEY_LEFTMETA}, KEY_SPACE);
     EXPECT_EQ(1, delegate.appListToggles);
 
-    // The launchpad's default is Ash's lone Meta tap: it fires on release, only
-    // when nothing else was pressed meanwhile, and the client still sees both
-    // halves of the key.
     const Accelerator metaTap(XKB_KEY_Super_L, NoModifier, Accelerator::KeyState::Released);
     EXPECT_TRUE(configuration->findAcceleratorAction(metaTap));
     tap(KEY_LEFTMETA);
@@ -1864,7 +1736,6 @@ TEST_F(AcceleratorTest, ServiceValidatesConfirmsAndReportsConflicts)
                       ["result"].toString());
     tap(KEY_LEFTMETA);
     EXPECT_EQ(2, delegate.appListToggles);
-    // Recording a lone Meta binds the same tap again.
     EXPECT_EQ("success",
               parse(service.addAccelerator("toggle-app-list", KEY_LEFTMETA, 0,
                                            NoModifier))
@@ -1879,8 +1750,6 @@ TEST_F(AcceleratorTest, ServiceValidatesConfirmsAndReportsConflicts)
     EXPECT_TRUE(service.hasCustomAccelerators());
     EXPECT_EQ("success",
               parse(service.restoreDefault(maximize))["result"].toString());
-    // Meta+Down went back to minimize with maximize's defaults: nothing is
-    // custom any more.
     EXPECT_FALSE(service.hasCustomAccelerators());
     EXPECT_EQ("success",
               parse(service.restoreAllDefaults())["result"].toString());
@@ -1898,8 +1767,6 @@ TEST_F(AcceleratorTest, PositionalLayoutsPinPunctuationAndStoreTheUsKey)
     // Alt+] is Alt+"+" on a German keyboard, at the same position.
     chord({KEY_LEFTALT}, KEY_RIGHTBRACE);
     EXPECT_EQ(wm::WindowStateType::SecondarySnapped, window->stateType());
-    // Alt+= (maximize) sits under Alt+"´" there; letters keep their meaning:
-    // Meta+"Y" is the German key where the US layout has Z.
     chord({KEY_LEFTALT}, KEY_EQUAL);
     EXPECT_EQ(wm::WindowStateType::Maximized, window->stateType());
 
@@ -1908,7 +1775,6 @@ TEST_F(AcceleratorTest, PositionalLayoutsPinPunctuationAndStoreTheUsKey)
               parse(service.addAccelerator("window-minimize", KEY_SLASH, 0,
                                            MetaDown))
                       ["result"].toString());
-    // Stored as the US key at that position, so the physical key finds it.
     EXPECT_TRUE(configuration->findAcceleratorAction(Accelerator(XKB_KEY_slash, MetaDown)));
     chord({KEY_LEFTMETA}, KEY_SLASH);
     EXPECT_EQ(wm::WindowStateType::Minimized, window->stateType());
@@ -1933,7 +1799,6 @@ TEST_F(AcceleratorTest, ServiceListsActionsWithTheirDefaultsOverTheBus)
     bool sawOverview = false;
     for (const base::json::Value &action : actions.toArray()) {
         if (action["name"].toString() == "toggle-overview") {
-            // Meta+Tab and the dedicated key.
             sawOverview = true;
             const base::json::Value &defaults = action["defaults"];
             ASSERT_EQ(2u, defaults.size());
@@ -1943,7 +1808,6 @@ TEST_F(AcceleratorTest, ServiceListsActionsWithTheirDefaultsOverTheBus)
             continue;
         }
         if (action["name"].toString() == "toggle-app-list") {
-            // The lone Meta tap, which triggers on release.
             const base::json::Value &defaults = action["defaults"];
             ASSERT_EQ(1u, defaults.size());
             const base::json::Value &tap = defaults[0];
@@ -1961,7 +1825,6 @@ TEST_F(AcceleratorTest, ServiceListsActionsWithTheirDefaultsOverTheBus)
         EXPECT_EQ(static_cast<int>(MetaDown), metaUp["modifiers"].toInt());
         EXPECT_EQ("default", metaUp["type"].toString());
         EXPECT_EQ(accelerators, action["defaults"]);
-        // What Settings has always read: the members in sorted order.
         EXPECT_EQ(R"({"keyName":"Up","keyState":"pressed","keyText":"","keysym":65362,)"
                   R"("modifiers":8,"type":"default"})",
                   metaUp.serialize());
@@ -1982,7 +1845,6 @@ TEST_F(AcceleratorTest, ARecorderThatLeavesTheBusLiftsTheAcceleratorBlock)
     AcceleratorService service(configuration.get(), controller.get(), seat.xkbTracker());
     ASSERT_TRUE(service.registerService());
 
-    // A second connection stands in for Settings, which dies while recording.
     {
         input_test::RemoteObject recorder(loop, "org.cutefish.Shortcuts1",
                                           "/org/cutefish/Shortcuts1", "org.cutefish.Shortcuts1");

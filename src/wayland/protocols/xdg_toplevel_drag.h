@@ -17,8 +17,6 @@ namespace cutefish::wayland {
 
 constexpr uint32_t kXdgToplevelDragManagerVersion = 1;
 
-// xdg_toplevel_drag_manager_v1: a toplevel that follows the pointer through a
-// wl_data_device drag, which is how a tab is pulled out into a window of its own.
 wl_global *createXdgToplevelDragGlobal(wl_display *display, wm::WindowManager *windowManager);
 
 } // namespace cutefish::wayland

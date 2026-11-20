@@ -4,8 +4,6 @@
 //
 // Upstream: chromium/src/ui/base/x/x11_drag_drop_client.cc
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// What is taken: the XDND messaging.
 #include "xwayland/dnd_bridge.h"
 
 #include <algorithm>
@@ -24,11 +22,9 @@
 namespace cutefish::xwayland {
 namespace {
 
-// Upstream kMinXdndVersion and kMaxXdndVersion.
 constexpr uint32_t kMinXdndVersion = 3;
 constexpr uint32_t kMaxXdndVersion = 5;
-// Upstream ends its move loop one second after the drop. The data may still be
-// converting then, so the source waits as long as a selection transfer idles.
+// The data may still be converting after the drop, so the source waits as long as a selection transfer idles.
 constexpr std::chrono::milliseconds kFinishTimeout(10000);
 constexpr std::chrono::milliseconds kTrackInterval(16);
 
@@ -99,8 +95,7 @@ struct DndBridge::Incoming {
     bool finished = false;
 };
 
-// An X11 drag's data, converted from XdndSelection on demand. The drag's
-// feedback flows back to the X11 source as XdndStatus and XdndFinished.
+// Converted from XdndSelection on demand; feedback flows back as XdndStatus and XdndFinished.
 class DndBridge::ImportedSource : public clipboard::DataSource
 {
 public:
@@ -115,8 +110,8 @@ public:
             close(fd);
             return;
         }
-        // The XDND spec converts at the XdndDrop timestamp, and Qt finds the
-        // drop a request belongs to by that time alone.
+        // The XDND spec converts at the XdndDrop timestamp, and some clients find the drop a
+        // request belongs to by that time alone.
         auto *in = current();
         bridge->m_selection->receive(it->second, fd, generation, {}, in ? in->time : 0);
     }
@@ -240,8 +235,7 @@ void DndBridge::start(uint8_t xfixesEvent)
     poll(xcb_get_input_focus(m_connection).sequence, [this](void *p) {
         if (!p || m_atoms.size() != std::size(atomNames))
             return;
-        // Upstream uses an InputOnly override-redirect window as well, found by
-        // the X11 source like any other toplevel under the pointer.
+        // An InputOnly override-redirect window, found by the X11 source like any other toplevel under the pointer.
         m_proxy = xcb_generate_id(m_connection);
         const uint32_t overrideRedirect = 1;
         xcb_create_window(m_connection, 0, m_proxy, m_root, 0, 0, 1, 1, 0,
@@ -321,9 +315,6 @@ bool DndBridge::event(xcb_generic_event_t *generic)
         onDrop(*e);
     return true;
 }
-
-////////////////////////////////////////////////////////////////////////////////
-// Wayland drag, X11 target.
 
 void DndBridge::onDragEntered(compositor::Surface *surface)
 {
@@ -550,9 +541,6 @@ void DndBridge::clearExport()
     m_controller.setSource(nullptr);
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// X11 drag, Wayland target.
-
 void DndBridge::onOwnerChanged(xcb_window_t owner)
 {
     m_owner = owner && !owns(owner) ? owner : 0;
@@ -607,7 +595,7 @@ void DndBridge::onEnter(const xcb_client_message_event_t &event)
 {
     const auto *d = event.data.data32;
     const uint32_t version = d[1] >> 24;
-    // Upstream discards a version it does not speak without answering.
+    // A version it does not speak is discarded without an answer.
     CF_DEBUG(cfWayland) << "XDND source enter" << d[0] << "version" << version;
     // Only a drag the pointer is really making: the proxy is never under the
     // pointer otherwise, but any client can name it in a message.

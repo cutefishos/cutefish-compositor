@@ -15,8 +15,8 @@ namespace cutefish::render {
 
 namespace {
 
-// A binary syncobj used to move one timeline point in or out as a sync_file.
-// The kernel has no ioctl that exports a timeline point directly.
+// The kernel has no ioctl that exports a timeline point directly, so a binary
+// syncobj carries it.
 class ScopedSyncobj
 {
 public:

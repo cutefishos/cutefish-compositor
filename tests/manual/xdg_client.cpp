@@ -2,13 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// A small xdg-shell client, owned by the repository so that xdg-shell can be
-// exercised without depending on a toolkit being installed.
-//
-// It maps an xdg_toplevel, honours configure, draws a pattern that shows the
-// window size, opens a grabbing popup menu on a pointer press, and drives an
-// interactive move from the drag that follows. With --script it runs the whole
-// state machine on a timer and exits, which is what the VT harness uses.
+// With --script it runs the whole state machine on a timer and exits.
 
 #include <linux/input-event-codes.h>
 #include <sys/mman.h>
@@ -50,7 +44,6 @@ struct Client {
     xdg_toplevel* toplevel = nullptr;
     Buffer buffer;
 
-    // The popup menu, when one is open.
     wl_surface* popupSurface = nullptr;
     xdg_surface* popupXdgSurface = nullptr;
     xdg_popup* popup = nullptr;
@@ -117,8 +110,6 @@ void destroyBuffer(Buffer* buffer)
     *buffer = Buffer();
 }
 
-// A frame with a visible border, a corner marker per edge and diagonal
-// hatching, so a resize or a move is obvious on a real screen.
 void paint(Buffer* buffer, uint32_t base, uint32_t accent)
 {
     if (!buffer->pixels)
@@ -326,7 +317,6 @@ const wl_pointer_listener pointerListener = {
         if (button == BTN_RIGHT) {
             openPopup(client, x, y, /*grab=*/true);
         } else if (button == BTN_LEFT) {
-            // Near an edge, resize; otherwise move.
             const int margin = 24;
             uint32_t edge = XDG_TOPLEVEL_RESIZE_EDGE_NONE;
             if (x >= client->width - margin && y >= client->height - margin)
@@ -406,8 +396,7 @@ const wl_seat_listener seatListener = {
     [](void*, wl_seat*, const char*) {},
 };
 
-// One step of the scripted run. Each step logs what it asked for, so the VT
-// harness can check the sequence from the client log.
+// Each step logs what it asked for, so the VT harness can check the sequence.
 void runScriptStep(Client* client)
 {
     switch (client->scriptStep++) {

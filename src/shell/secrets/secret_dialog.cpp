@@ -27,11 +27,8 @@ namespace cutefish::shell {
 
 static constexpr double kTitleGap = 4;
 static constexpr double kButtonSpacing = 8;
-// A press that moves this far moves the window.
 static constexpr double kDragDistance = 10;
 static constexpr int kDemiBold = 600;
-
-// --- SecretDialog::Frame ---
 
 class SecretDialog::Frame final : public ui::View
 {
@@ -64,7 +61,6 @@ public:
         requestLayout();
     }
 
-    // The window's height: the layout and the margins around it.
     double contentHeight() { return std::ceil(arrange(false)); }
 
     bool acceptsPointer() const override { return true; }
@@ -99,9 +95,7 @@ protected:
     void pointerRelease(const ui::PointerEvent &) override { m_pressed = false; }
 
 private:
-    // FishUI's dialog column: margins 16, spacing 16, the text
-    // column (title, 4, body), the rows, the buttons at the right. Returns
-    // the height; places the views when `apply`.
+    // Returns the height; places the views when `apply`.
     double arrange(bool apply)
     {
         const ui::Theme &theme = ui::Theme::current();
@@ -158,8 +152,6 @@ private:
     ui::PointF m_pressPosition;
 };
 
-// --- SecretDialog ---
-
 SecretDialog::SecretDialog(Shell *shell)
     : m_shell(shell)
 {
@@ -192,7 +184,6 @@ void SecretDialog::open()
         m_frame = frame.get();
         build(m_frame);
         m_window->setContentView(std::move(frame));
-        // Above applications.
         m_window->surface()->setAlwaysOnTop(true);
         m_window->onCloseRequested = [this] { dismiss(); };
         m_window->window()->addShortcut(ui::NoModifier, ui::key::Escape, [this] { dismiss(); });

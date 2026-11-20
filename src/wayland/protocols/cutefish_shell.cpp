@@ -39,9 +39,7 @@ std::optional<WindowRole> roleFromWayland(uint32_t role)
     }
 }
 
-// The user data of a cutefish_shell_surface_v1. It owns no window and no
-// surface: it holds the client's description of one surface and pushes it into
-// the window manager, which is the only thing that outlives a client restart.
+// Owns no window and no surface: the window manager outlives a client restart.
 class CutefishShellSurface : public compositor::SurfaceObserver
 {
 public:
@@ -67,11 +65,8 @@ public:
         m_resource = nullptr;
         if (m_surface) {
             m_surface->removeSurfaceObserver(this);
-            // Only the stored metadata is dropped. A window that is still
-            // mapped keeps the role it was given: a client may destroy and
-            // recreate this object whenever it recreates the wl_surface, and
-            // pushing a Normal role into the live window in between would drop
-            // the desktop out of its stacking layer.
+            // Only the stored metadata is dropped: a client may recreate this object with its
+            // wl_surface, and the mapped window keeps its role.
             m_manager->clearShellMetadata(m_surface);
         }
     }
@@ -120,7 +115,6 @@ public:
         m_manager->activation()->activate(window);
     }
 
-    // compositor::SurfaceObserver
     void onSurfaceDestroying(compositor::Surface* surface) override
     {
         if (surface != m_surface)
@@ -153,7 +147,6 @@ private:
         return output;
     }
 
-    // A desktop sits at its output's origin, and moves with it.
     void placeOnOutput()
     {
         if (m_metadata.role != WindowRole::Desktop)
@@ -168,8 +161,7 @@ private:
             apply();
     }
 
-    // A desktop lays out its content in its output's work area, relative to
-    // that output's origin, where the desktop is placed.
+    // Relative to the output's origin, where the desktop is placed.
     void sendWorkArea()
     {
         if (!m_resource || m_metadata.role != WindowRole::Desktop)
@@ -297,8 +289,7 @@ void bindShell(wl_client* client, void* data, uint32_t version, uint32_t id)
 {
     auto* shell = static_cast<WaylandCutefishShell*>(data);
 
-    // Defence in depth: the global filter already hides this interface, but a
-    // bind must never be served to anything but the current trusted shell.
+    // The global filter already hides this interface; a bind must still be refused to anything but the trusted shell.
     if (!shell->privileged()->isTrusted(client)) {
         wl_client_post_implementation_error(client, "cutefish_shell_v1 is not available");
         return;

@@ -4,9 +4,6 @@
 //
 // Upstream: chromium/src/ui/base/accelerators/accelerator.cc
 // Revision: 8abbac30b9cf2fe976422c58c000c94685648b65
-//
-// Adapted for Cutefish: key names come from xkbcommon rather than the
-// localized VKEY tables.
 
 #include "accelerators/accelerator.h"
 #include "base/strings.h"
@@ -80,9 +77,7 @@ bool isAlphanumericKeysym(uint32_t keysym)
 uint32_t positionalUsKeysym(uint32_t evdevCode, uint32_t layoutKeysym)
 {
     switch (evdevCode) {
-    // ui::ShouldPositionallyRemapKey: these positions hold letters on many
-    // layouts (the US semicolon is "m" on a French keyboard), so they keep the
-    // letter's meaning instead of the position.
+    // These positions hold letters on many layouts, so they keep the letter's meaning.
     case KEY_SEMICOLON:
     case KEY_APOSTROPHE:
     case KEY_BACKSLASH:

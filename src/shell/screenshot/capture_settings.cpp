@@ -32,7 +32,6 @@ static std::string validDestination(const std::string &destination, bool video)
             : std::string(CaptureSettings::kDefault);
 }
 
-// base::Settings' own rectangle value.
 static base::Rect readRect(const base::Settings &settings, const std::string &name)
 {
     const std::optional<base::Settings::Rect> rect = settings.rectValue(name);

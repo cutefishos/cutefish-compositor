@@ -1,19 +1,4 @@
 #!/usr/bin/env bash
-#
-# Development-only harness for running cutefish-compositor against real DRM/KMS
-# hardware from an SSH session, and pointing a Wayland test client at it.
-#
-# It picks a free virtual terminal, starts the compositor there under
-# LIBSEAT_BACKEND=builtin (which needs root, because the builtin libseat backend
-# does the VT ioctls and takes DRM master itself), waits for the Wayland socket,
-# runs the client from the calling session, and tears everything down again.
-#
-# This is a TEST harness only. Production stays:
-#
-#     normal user session -> libseat/logind -> DRM/KMS
-#
-# Nothing here should ever become a runtime requirement.
-#
 # Usage:
 #   tools/run-vt-test.sh [options] -- <client> [client args...]
 #
@@ -101,14 +86,8 @@ if ! sudo -n true 2>/dev/null; then
     fi
 fi
 
-################################################################################
-# VT selection
-#
-# A VT is considered busy if a logind session sits on it, if a getty is running
-# on it, if someone is logged in on it, or if it is the foreground VT. The
-# graphical session is therefore never a candidate, and neither is the terminal
-# the user is looking at.
-################################################################################
+# A VT is busy if a logind session, a getty or a login sits on it, or if it is the
+# foreground VT.
 
 foreground_vt() {
     local active
@@ -177,10 +156,6 @@ if [[ -n "$ORIGINAL_VT" && "$VT" == "$ORIGINAL_VT" ]]; then
     die "refusing to use VT $VT: it is the foreground VT"
 fi
 
-################################################################################
-# Working directory and logs
-################################################################################
-
 WORKDIR="$(mktemp -d /tmp/cutefish-vt-test.XXXXXX)"
 RUNTIME_DIR="$WORKDIR/runtime"
 COMPOSITOR_LOG="$WORKDIR/compositor.log"
@@ -200,10 +175,6 @@ info "client:          ${CLIENT[*]}"
 info "socket:          $SOCKET"
 info "XDG_RUNTIME_DIR: $RUNTIME_DIR"
 info "logs:            $WORKDIR"
-
-################################################################################
-# Teardown
-################################################################################
 
 CLIENT_PID=""
 CLEANUP_FAILED=0
@@ -250,8 +221,6 @@ restore_vt() {
     return 0
 }
 
-# Both ends matter: startup lives at the top of the log and failures at the
-# bottom, so a long log is shown head and tail rather than tail alone.
 dump_log_file() {
     local label="$1" file="$2" lines
     printf '\n===== %s (%s) =====\n' "$label" "$file"
@@ -290,10 +259,6 @@ cleanup() {
     exit "$status"
 }
 trap cleanup EXIT INT TERM
-
-################################################################################
-# Start the compositor on the chosen VT
-################################################################################
 
 # Left at the compositor's own defaults unless asked: the debug categories log
 # once per surface commit, which is once per frame.
@@ -344,10 +309,6 @@ done
 sudo -n chmod 0666 "$SOCKET_PATH" || die "failed to make the socket connectable"
 
 info "socket is up: $SOCKET_PATH"
-
-################################################################################
-# Run the client from this session
-################################################################################
 
 info "running the client for up to ${CLIENT_TIMEOUT}s"
 env XDG_RUNTIME_DIR="$RUNTIME_DIR" WAYLAND_DISPLAY="$SOCKET" \

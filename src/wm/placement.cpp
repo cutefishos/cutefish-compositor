@@ -6,8 +6,6 @@
 //           chromium/src/ui/views/widget/native_widget_aura.cc (CenterWindow)
 //           chromium/src/ui/gfx/geometry/rect.cc (AdjustToFit)
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: gfx::Rect becomes base::Rect.
 
 #include "wm/placement.h"
 
@@ -40,13 +38,9 @@ void adjustBoundsToEnsureMinimumVisibility(const base::Rect &visibleArea, base::
     if (visibleArea.isEmpty())
         return;
 
-    // A fixed strip rather than Ash's 30% of the window, so large windows can
-    // still be pushed to the screen edge.
     int minWidth = kMinimumOnScreenArea;
     int minHeight = kMinimumOnScreenArea;
 
-    // No larger than the work area, as Ash's SetBoundsConstrained: only the
-    // position may take a window under the dock.
     adjustBoundsSmallerThan(grabArea.isEmpty() ? visibleArea.size() : grabArea.size(), bounds);
 
     minWidth = std::min(minWidth, visibleArea.width());
@@ -56,8 +50,6 @@ void adjustBoundsToEnsureMinimumVisibility(const base::Rect &visibleArea, base::
     const int areaTop = visibleArea.y();
     const int areaRight = visibleArea.right();
     const int areaBottom = visibleArea.bottom();
-    // The dock covers the bottom of the visible area; a strip pushed under it
-    // has nothing left to grab, so the lower limit is the work area's.
     const int grabBottom = grabArea.isEmpty()
             ? areaBottom
             : std::min(areaBottom, grabArea.y() + grabArea.height());
@@ -118,7 +110,6 @@ base::Rect Placement::placeTransient(const base::Size &requestedSize, const base
     base::Rect bounds(area.x() + (area.width() - size.width()) / 2,
                  area.y() + (area.height() - size.height()) / 2, size.width(), size.height());
 
-    // Never larger than the work area, or its caption could end up out of reach.
     if (!workArea.isEmpty())
         adjustBoundsToFit(workArea, &bounds);
     return bounds;

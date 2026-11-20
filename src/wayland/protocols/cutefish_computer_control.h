@@ -15,7 +15,6 @@ class Controller;
 
 namespace cutefish::wayland {
 
-// cutefish_computer_control_manager_v1, over the controller.
 class WaylandComputerControl
 {
 public:

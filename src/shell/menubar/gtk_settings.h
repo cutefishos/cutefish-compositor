@@ -12,8 +12,7 @@
 namespace cutefish::shell {
 
 // org.gtk.Settings at /org/gtk/Settings, where GTK 3 on Wayland reads the
-// modules it loads. It names appmenu-gtk-module, which moves an in-window
-// menu bar into the menu bar.
+// modules it loads.
 class GtkSettings
 {
 public:

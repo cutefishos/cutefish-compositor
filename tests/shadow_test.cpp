@@ -6,8 +6,6 @@
 // Upstream: chromium/src/ui/compositor_extra/shadow_unittest.cc
 //           chromium/src/ui/gfx/shadow_value_unittest.cc
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// What is taken: the margin, bounds, small-content and cache cases.
 
 #include <algorithm>
 #include <cstdint>
@@ -71,14 +69,11 @@ TEST(ShadowTest, TinyAndLargeSlicesAreBoundedAndDoNotOverlap)
                 EXPECT_TRUE(rect.intersected(geometry.targets()[j]).isEmpty());
         }
         EXPECT_EQ(area, int64_t(geometry.paintBounds().width()) * geometry.paintBounds().height());
-        // However big the window, the raster never exceeds the canonical
-        // nine-patch source: everything past it is the stretched aperture.
         EXPECT_LE(geometry.rasterSize().width(), largest.rasterSize().width());
         EXPECT_LE(geometry.rasterSize().height(), largest.rasterSize().height());
     }
 }
 
-// A tall popup with an arrow under its bottom edge.
 ui::Path arrowedPopup(const base::Size &size)
 {
     const double body = size.height() - 9;
@@ -100,7 +95,6 @@ TEST(ShadowTest, SilhouetteStretchesOnlyItsStraightRuns)
     for (int scale : {1, 2}) {
         ShadowGeometry geometry(size, 0, style, scale, Corners::all(), arrowedPopup(size));
         ASSERT_FALSE(geometry.paintBounds().isEmpty());
-        // Only the height has a run long enough to stretch; the arrow breaks the width.
         EXPECT_LT(geometry.canonicalSize().height(), 200);
         EXPECT_EQ(geometry.canonicalSize().width(), size.width());
         EXPECT_EQ(geometry.sources()[4].height(), scale);
@@ -111,7 +105,6 @@ TEST(ShadowTest, SilhouetteStretchesOnlyItsStraightRuns)
     }
 }
 
-// The renderer is handed the style in the pixels of the image it draws.
 TEST(ShadowTest, LobesReachTheRendererInImagePixels)
 {
     const ShadowStyle style {{{2.5f, {1, 3}, 0.4f}, {1, {0, 0}, 0}, {4, {-2, 0}, 0.1f}}};
@@ -119,7 +112,6 @@ TEST(ShadowTest, LobesReachTheRendererInImagePixels)
     const auto texture = ShadowGeometry({300, 200}, 11, style, 2).render(renderer);
     ASSERT_TRUE(texture);
     EXPECT_EQ(texture->size(), ShadowGeometry({300, 200}, 11, style, 2).rasterSize());
-    // A lobe with no opacity is left out.
     ASSERT_EQ(renderer.lastShadowLobes.size(), 2u);
     EXPECT_FLOAT_EQ(renderer.lastShadowLobes[0].sigma, 5);
     EXPECT_EQ(renderer.lastShadowLobes[0].offset, base::Point(2, 6));
@@ -155,7 +147,6 @@ TEST(ShadowTest, MovesAndOrdinaryResizesReuseAndSmallVariantsRetire)
     testsupport::FakeRenderer replacement;
     paintShadow(replacement, ShadowGeometry({500, 400}, 11, metrics.shadow(true)), {});
     EXPECT_EQ(replacement.renderedShadows, 1);
-    // One image, drawn as the eight slices around the window.
     EXPECT_EQ(replacement.kinds(), std::vector<std::string>(8, "texture"));
 }
 

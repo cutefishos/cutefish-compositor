@@ -144,7 +144,6 @@ TEST_F(SchedulerTest, FrameTimeIsTheNominalSlotNotTheWakeup)
     scheduler.request(Reason::Scene);
     now = *scheduler.deadline() + 3ms;
     submit();
-    // The wakeup ran 3 ms into the slot; the frame is still that slot's.
     EXPECT_EQ(scheduler.frameTime(), OutputScheduler::Time {} + 10ms);
     now += 6ms;
     flip();
@@ -156,13 +155,11 @@ TEST_F(SchedulerTest, FrameTimeIsTheNominalSlotNotTheWakeup)
     flip();
     scheduler.request(Reason::Scene);
     submit();
-    // After a gap the slot starts where the request woke the output.
     EXPECT_EQ(scheduler.frameTime(), now);
     flip();
     scheduler.request(Reason::Scene);
     const auto deadline = *scheduler.deadline();
     now = deadline + 35ms;
-    // Missed slots are skipped: the frame belongs to the slot the wakeup fell in.
     submit();
     EXPECT_EQ(scheduler.frameTime(), deadline + 30ms);
 }
@@ -176,7 +173,6 @@ TEST_F(SchedulerTest, TwoPendingFramesRenderTheNextSlotBeforeTheFlipLands)
     submit();
     const auto first = pending;
     pending = 0;
-    // No flip yet, but the next slot's demand is served anyway.
     scheduler.request(Reason::Scene);
     ASSERT_TRUE(scheduler.deadline());
     EXPECT_EQ(*scheduler.deadline(), now + 10ms);
@@ -186,11 +182,9 @@ TEST_F(SchedulerTest, TwoPendingFramesRenderTheNextSlotBeforeTheFlipLands)
     const auto second = pending;
     pending = 0;
     EXPECT_EQ(scheduler.pendingFrames(), 2u);
-    // Two are on their way; a third waits for the oldest to land.
     scheduler.request(Reason::Scene);
     EXPECT_EQ(scheduler.state(), State::FlipPending);
     EXPECT_FALSE(scheduler.deadline());
-    // Completions arrive in order only.
     EXPECT_FALSE(scheduler.complete(second));
     now += 4ms;
     ASSERT_TRUE(scheduler.complete(first));
@@ -273,15 +267,12 @@ TEST_F(SchedulerTest, StampedFlipsLayTheSlotsOnTheVblank)
         return OutputScheduler::Time {} + offset;
     };
     start();
-    // The display flips on its own phase, 3 ms off the scheduler's.
     scheduler.request(Reason::Scene);
     now = *scheduler.deadline();
     submit();
     now = at(13ms);
     ASSERT_TRUE(scheduler.complete(pending, at(13ms)));
     pending = 0;
-    // Demand early in the refresh waits until a third of a period before the
-    // vblank, so later client commits still make that vblank.
     now = at(14ms);
     scheduler.request(Reason::Scene);
     const auto budget = scheduler.drawBudget();
@@ -294,7 +285,6 @@ TEST_F(SchedulerTest, StampedFlipsLayTheSlotsOnTheVblank)
     ASSERT_TRUE(scheduler.complete(pending, at(33ms)));
     pending = 0;
     EXPECT_EQ(scheduler.stats().missed, 0u);
-    // Demand past the draw point is drawn at once, aimed at the next vblank.
     now = at(42ms);
     scheduler.request(Reason::Scene);
     EXPECT_EQ(*scheduler.deadline(), now);
@@ -331,7 +321,6 @@ TEST_F(SchedulerTest, AWakeupJustShortOfTheDeadlineDrawsInItsSlot)
 TEST_F(SchedulerTest, AWakeupJustShortOfADrawPointOnTheVblankDrawsInTheNewSlot)
 {
     start();
-    // A full repaint as slow as a refresh is begun on the vblank itself.
     scheduler.request(Reason::Scene, true);
     now = *scheduler.deadline();
     submit();
@@ -361,8 +350,6 @@ TEST_F(SchedulerTest, FramesShowTheirDrawPoint)
     pending = 0;
     const auto budget = scheduler.drawBudget();
 
-    // A run of frames shows each at its draw point, a period apart, however
-    // late or early its wakeup ran.
     for (const auto late : {0ms, 3ms, 0ms}) {
         scheduler.request(Reason::Scene);
         const auto deadline = *scheduler.deadline();
@@ -382,7 +369,6 @@ TEST_F(SchedulerTest, FramesShowTheirDrawPoint)
     ASSERT_TRUE(scheduler.complete(pending, now));
     pending = 0;
 
-    // Demand early in an idle slot is drawn at once, and shows that moment.
     now += 1s + 1ms;
     scheduler.request(Reason::Scene);
     submit();
@@ -412,12 +398,10 @@ TEST_F(SchedulerTest, ALateFrameDoesNotQueueTheFramesAfterIt)
     pending = 0;
     ASSERT_EQ(scheduler.stats().missed, 0u);
 
-    // Demand past the draw point is drawn at once and lands a refresh late.
     now = at(39ms);
     scheduler.request(Reason::Scene);
     submit();
     const uint64_t late = std::exchange(pending, 0);
-    // The next frame would land behind it; it waits for it instead.
     scheduler.request(Reason::Scene);
     now = *scheduler.deadline();
     EXPECT_EQ(scheduler.begin(), 0u);
@@ -426,8 +410,6 @@ TEST_F(SchedulerTest, ALateFrameDoesNotQueueTheFramesAfterIt)
     ASSERT_TRUE(scheduler.complete(late, at(50ms)));
     EXPECT_EQ(scheduler.stats().missed, 0u);
     EXPECT_EQ(scheduler.stats().lateDemand, 1u);
-    // Begun late, it leaves the budget alone, and the next frame is drawn
-    // for the slot it landed in.
     EXPECT_EQ(scheduler.drawBudget(), budget);
     EXPECT_EQ(*scheduler.deadline(), at(60ms) - budget);
     now = *scheduler.deadline();
@@ -452,7 +434,6 @@ TEST_F(SchedulerTest, AFullRepaintFromIdlePastItsDrawPointBeginsAtTheNextOne)
     const auto slot = now + 1s;
     const auto budget = 6ms + OutputScheduler::kLatchMargin;
 
-    // Begun at once it would miss the vblank and show a stale slot.
     now = slot + 5ms;
     scheduler.request(Reason::Scene, true);
     EXPECT_EQ(*scheduler.deadline(), slot + 20ms - budget);
@@ -464,7 +445,6 @@ TEST_F(SchedulerTest, AFullRepaintFromIdlePastItsDrawPointBeginsAtTheNextOne)
     ASSERT_TRUE(scheduler.complete(pending, now));
     pending = 0;
 
-    // So does one that turns full after cheaper demand was scheduled.
     now += 1s + 5ms;
     scheduler.request(Reason::Scene);
     EXPECT_EQ(*scheduler.deadline(), now);
@@ -489,15 +469,12 @@ TEST_F(SchedulerTest, AFullRepaintAfterCheapFramesIsBegunAsEarlyAsTheLastOne)
     frame(6ms, true);
     const auto full = 6ms + OutputScheduler::kLatchMargin;
     EXPECT_EQ(scheduler.fullRepaintDrawTime(), 6ms);
-    // Cheap frames bring the budget back down...
     for (size_t i = 0; i < OutputScheduler::kDrawTimeWindow + 200; ++i)
         frame(1ms, false);
     EXPECT_EQ(scheduler.drawBudget(), OutputScheduler::Duration(10ms) / 3);
     scheduler.request(Reason::Scene);
     EXPECT_EQ(*scheduler.deadline(), scheduler.frameTime() + 20ms - OutputScheduler::Duration(10ms) / 3);
     frame(1ms, false);
-    // ...but a full repaint is begun as early as the last one needed, and
-    // the budget stays there once it has landed.
     scheduler.request(Reason::Scene, true);
     EXPECT_EQ(*scheduler.deadline(), scheduler.frameTime() + 20ms - full);
     now = *scheduler.deadline();
@@ -509,14 +486,12 @@ TEST_F(SchedulerTest, AFullRepaintAfterCheapFramesIsBegunAsEarlyAsTheLastOne)
     EXPECT_EQ(scheduler.stats().missed, 0u);
     EXPECT_EQ(scheduler.drawBudget(), full);
 
-    // Forgotten once it is kFullRepaintMemory old.
     now += OutputScheduler::kFullRepaintMemory + 1s;
     EXPECT_EQ(scheduler.fullRepaintDrawTime(), OutputScheduler::Duration::zero());
 }
 
 TEST_F(SchedulerTest, FramesSlowerThanAThirdOfARefreshAreBegunInTime)
 {
-    // Each frame lands on the vblank it was aimed at, `gpu` after its wakeup.
     const auto frame = [this](OutputScheduler::Duration gpu) {
         scheduler.request(Reason::Scene);
         now = *scheduler.deadline();
@@ -531,16 +506,12 @@ TEST_F(SchedulerTest, FramesSlowerThanAThirdOfARefreshAreBegunInTime)
     frame(1ms);
     EXPECT_EQ(scheduler.drawBudget(), OutputScheduler::Duration(10ms) / 3);
 
-    // 5 ms of GPU time is past a third of the 10 ms refresh; the next frame
-    // is begun early enough for it and the flip to make the vblank.
     frame(5ms);
     const auto budget = 5ms + OutputScheduler::kLatchMargin;
     EXPECT_EQ(scheduler.drawBudget(), budget);
     scheduler.request(Reason::Scene);
     EXPECT_EQ(*scheduler.deadline(), scheduler.frameTime() + 20ms - budget);
 
-    // It holds while the slow frame is in the window, and is back as soon as
-    // the frame has left it.
     for (size_t i = 0; i < OutputScheduler::kDrawTimeWindow - 1; ++i)
         frame(1ms);
     EXPECT_EQ(scheduler.drawBudget(), budget);
@@ -561,8 +532,6 @@ TEST_F(SchedulerTest, LateStampedFlipsBeginFramesEarlierThenWinTheTimeBack)
     now = at(10ms);
     ASSERT_TRUE(scheduler.complete(pending, at(10ms)));
     pending = 0;
-    // Two frames that land a refresh late: the budget grows to the whole
-    // period, drawing at the vblank itself.
     for (int i = 0; i < 2; ++i) {
         scheduler.request(Reason::Scene);
         now = *scheduler.deadline();
@@ -574,18 +543,14 @@ TEST_F(SchedulerTest, LateStampedFlipsBeginFramesEarlierThenWinTheTimeBack)
     }
     EXPECT_EQ(scheduler.stats().missed, 2u);
     EXPECT_EQ(scheduler.drawBudget(), 10ms);
-    // Its slot is gone, so the demand is drawn at once.
     scheduler.request(Reason::Scene);
     EXPECT_EQ(*scheduler.deadline(), now);
     submit();
     now = scheduler.frameTime() + 10ms;
     ASSERT_TRUE(scheduler.complete(pending, now));
     pending = 0;
-    // Then from just after the vblank.
     scheduler.request(Reason::Scene);
     EXPECT_EQ(*scheduler.deadline(), now + OutputScheduler::Duration(10ms) / 30);
-    // On time again, it is back to a third of the period after about twenty
-    // frames.
     for (int i = 0; i < 20; ++i) {
         now = *scheduler.deadline();
         submit();
@@ -596,7 +561,6 @@ TEST_F(SchedulerTest, LateStampedFlipsBeginFramesEarlierThenWinTheTimeBack)
     }
     EXPECT_EQ(scheduler.stats().missed, 2u);
     EXPECT_EQ(scheduler.drawBudget(), OutputScheduler::Duration(10ms) / 3);
-    // A suspended display may come back on other timing.
     scheduler.suspend();
     scheduler.resume();
     EXPECT_EQ(*scheduler.deadline(), now);
@@ -611,8 +575,6 @@ TEST_F(SchedulerTest, AFrameLateForItsOwnDrawTimeDoesNotDoubleTheBudget)
     now = scheduler.frameTime() + 10ms;
     ASSERT_TRUE(scheduler.complete(pending, now));
     pending = 0;
-    // Begun a third of the refresh before its vblank, it takes 5 ms and lands
-    // a refresh late: the budget becomes what it needed, not the whole period.
     scheduler.request(Reason::Scene);
     now = *scheduler.deadline();
     const auto began = now;
@@ -624,7 +586,6 @@ TEST_F(SchedulerTest, AFrameLateForItsOwnDrawTimeDoesNotDoubleTheBudget)
     EXPECT_EQ(scheduler.stats().missed, 1u);
     EXPECT_EQ(scheduler.drawBudget(), 5ms + OutputScheduler::kLatchMargin);
 
-    // One late although it finished in time still doubles it, up to the period.
     scheduler.request(Reason::Scene);
     now = *scheduler.deadline();
     const auto next = now;
@@ -637,11 +598,6 @@ TEST_F(SchedulerTest, AFrameLateForItsOwnDrawTimeDoesNotDoubleTheBudget)
     EXPECT_EQ(scheduler.drawBudget(), 10ms);
 }
 
-// With two frames in flight and the budget at a whole period, each frame is
-// begun at the vblank while the previous one is still queued, and lands a
-// refresh after its own slot. That is the queue, not a slow draw: counting it
-// as a miss kept the budget at the period for good, and a client committing
-// just after the vblank waited three refreshes for every frame.
 TEST_F(SchedulerTest, FramesAfterALateFlipLandOnTheirOwnVblanks)
 {
     const auto at = [](auto offset) {
@@ -666,8 +622,6 @@ TEST_F(SchedulerTest, FramesAfterALateFlipLandOnTheirOwnVblanks)
     ASSERT_EQ(scheduler.stats().missed, 2u);
     ASSERT_EQ(scheduler.drawBudget(), 10ms);
 
-    // A late flip holds the next frame back until it lands, so the ones
-    // after it land on their own vblanks instead of queueing behind it.
     scheduler.request(Reason::Scene);
     now = *scheduler.deadline();
     const uint64_t late = scheduler.begin();
@@ -689,8 +643,6 @@ TEST_F(SchedulerTest, FramesAfterALateFlipLandOnTheirOwnVblanks)
         pending = 0;
         scheduler.request(Reason::Scene);
     }
-    // Only the late flip itself was a miss, so the budget is winning the time
-    // back.
     EXPECT_EQ(scheduler.stats().missed, 3u);
     EXPECT_LT(scheduler.drawBudget(), 10ms);
 }
@@ -727,7 +679,6 @@ TEST_F(SchedulerTest, ASkippedFrameAnswersItsDemandAndKeepsTheCadence)
     EXPECT_EQ(scheduler.pendingFrames(), 0u);
     EXPECT_EQ(scheduler.stats().skips, 1u);
     EXPECT_EQ(scheduler.stats().failures, 0u);
-    // Demand arriving while the frame was begun waits for the next slot.
     scheduler.request(Reason::Scene);
     now = *scheduler.deadline();
     frame = scheduler.begin();
@@ -972,7 +923,6 @@ TEST_F(ScheduledSceneTest, OnlySurfacesThatMovedAreReportedForOutputUpdates)
     const auto moved = compositor.takeMovedSurfaces();
     ASSERT_EQ(moved.size(), 1u);
     EXPECT_EQ(*moved.front(), a.get());
-    // New content at the same size stays where it was.
     b->attach(pool->createBuffer({16, 16}, 0, 64, cutefish::render::PixelFormat::Bgra8888,
                                  nullptr),
               {});
@@ -1071,7 +1021,6 @@ TEST_F(ScheduledSceneTest, ShadowTransitionsRequestOneRepaintAndSettle)
     window->setBounds(window->bounds().translated(20, 10));
     settle();
     window->activate();
-    // Mapping may already have activated it. Moving always makes demand.
     window->setBounds(window->bounds().translated(1, 0));
     settle();
     window->minimize();
@@ -1091,7 +1040,7 @@ TEST_F(ScheduledSceneTest, ShadowTransitionsRequestOneRepaintAndSettle)
     window->setDecorated(true);
     settle();
     const auto misses = renderer.textureCacheMisses();
-    root.render(renderer); // Sampling a clean shadow cannot create demand.
+    root.render(renderer);
     EXPECT_FALSE(scheduler.deadline());
     EXPECT_EQ(renderer.textureCacheMisses(), misses);
     wm.destroyWindow(window);

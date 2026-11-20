@@ -4,9 +4,6 @@
 //
 // Upstream: chromium/src/ui/display/manager/display_configurator.h
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: a serialized callback pipeline validates, tests,
-// and commits one revisioned configuration through NativeDisplayDelegate.
 
 #pragma once
 

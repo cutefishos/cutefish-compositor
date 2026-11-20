@@ -4,9 +4,6 @@
 //
 // Upstream: chromium/src/components/exo/wayland/wayland_positioner.h
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: gfx geometry becomes base geometry. The constraint
-// solver itself is unchanged.
 
 #ifndef CUTEFISH_WAYLAND_PROTOCOLS_XDG_POSITIONER_H_
 #define CUTEFISH_WAYLAND_PROTOCOLS_XDG_POSITIONER_H_
@@ -27,7 +24,6 @@ public:
         base::Rect toRect() const { return base::Rect(origin, size); }
     };
 
-    // The 1-dimensional projection of the gravity/anchor values.
     enum Direction { kNegative = -1, kNeutral = 0, kPositive = 1 };
 
     WaylandPositioner() = default;
@@ -62,8 +58,6 @@ private:
     Direction m_gravityX = kNeutral;
     Direction m_gravityY = kNeutral;
 
-    // Which modifications to the position/size are allowed; see
-    // xdg_positioner.set_constraint_adjustment.
     uint32_t m_adjustment = 0;
 
     // An absolute translation, unaffected by flipping, sliding or resizing.

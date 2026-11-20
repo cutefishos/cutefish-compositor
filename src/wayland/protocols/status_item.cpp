@@ -40,8 +40,6 @@ std::string clientExecutable(wl_client *client)
     return std::string(path, size_t(length));
 }
 
-// One cutefish_status_item_v1: the item, and the check that the client
-// configures before it draws.
 class WaylandStatusItem : public compositor::SurfaceObserver
 {
 public:

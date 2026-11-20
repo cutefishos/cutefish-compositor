@@ -10,19 +10,6 @@
 
 namespace cutefish::shell {
 
-// The dock's geometry in one place. For the
-// default icon size of 54 and a bottom dock:
-//
-//     +--------------------------------------------------+  <- far side
-//     |                    outerPadding 16               |
-//     |  16 |  icon 54  | 16 |  icon 54  | 16 |          |  <- lengthPadding
-//     |                      dotGap 8                    |
-//     |                      dot 4                       |
-//     |                      edgePadding 4               |
-//     +--------------------------------------------------+  <- screen edge
-//
-// A left or right dock is the same block, rotated: the running dot always
-// stays on the side that faces the screen edge.
 struct DockMetrics {
     static constexpr int kBaseIconSize = 54;
 
@@ -37,7 +24,7 @@ struct DockMetrics {
     static DockMetrics forIconSize(int iconSize)
     {
         const double scale = std::max(1, iconSize) / double(kBaseIconSize);
-        // qRound: halves away from zero.
+        // Halves round away from zero.
         const auto scaled = [scale](int value) {
             return std::max(1, int(std::floor(value * scale + 0.5)));
         };
@@ -52,21 +39,14 @@ struct DockMetrics {
         return metrics;
     }
 
-    // From the screen edge to the far side of the dock.
     int thickness() const { return edgePadding + dotSize + dotGap + iconSize + outerPadding; }
-    // The gap a divider stands in, between the pinned and the running applications.
     int sectionExtent() const { return int(std::floor(iconGap * 1.5 + 0.5)); }
     int pitch() const { return iconSize + iconGap; }
     int dotAreaSize() const { return edgePadding + dotSize + dotGap; }
-    // How far a launching icon bounces away from the screen edge, and the
-    // room that takes past the dock's far side.
     int bounceHeight() const { return int(std::floor(iconSize * 0.35 + 0.5)); }
     int bounceRoom() const { return std::max(0, bounceHeight() - outerPadding); }
-    // A full dock leaves this free between each screen end and the panel,
-    // room an end icon grows into.
     static constexpr double kEndRoomSlots = 0.8;
     int endRoom() const { return int(std::ceil(pitch() * kEndRoomSlots)); }
-    // Along the dock: the icons plus the padding at both ends.
     int length(int itemCount) const
     {
         return lengthPadding * 2 + itemCount * iconSize + std::max(0, itemCount - 1) * iconGap;
@@ -75,7 +55,6 @@ struct DockMetrics {
     bool operator==(const DockMetrics &) const = default;
 };
 
-// DockMetrics as drawn between two of them while the dock resizes.
 struct DrawnDockMetrics {
     double iconSize = 54;
     double iconGap = 16;

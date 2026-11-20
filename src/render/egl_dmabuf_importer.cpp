@@ -67,8 +67,7 @@ EglDmaBufImporter::EglDmaBufImporter(std::shared_ptr<EglContext> context, gbm_de
         return;
     }
 
-    // The device clients should allocate on. Without it the protocol falls back
-    // to the pre-feedback version.
+    // Without it the protocol falls back to the pre-feedback version.
     struct stat deviceStat = {};
     const int gbmFd = device ? gbm_device_get_fd(device) : -1;
     if (gbmFd >= 0 && fstat(gbmFd, &deviceStat) == 0)

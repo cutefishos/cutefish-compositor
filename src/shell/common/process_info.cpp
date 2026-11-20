@@ -12,7 +12,6 @@
 
 namespace cutefish::shell {
 
-// python3.12, perl5, lua5.4 and the like: a name, then digits and dots.
 static bool isScriptInterpreter(const std::string &name)
 {
     for (const char *interpreter : {"python", "perl", "ruby", "lua"}) {
@@ -70,8 +69,8 @@ int64_t parentProcess(int64_t pid)
     if (!stat)
         return 0;
 
-    // The parent follows the state, after the name in parentheses that may
-    // itself hold any character.
+    // The name in parentheses may hold any character, so the parent follows the
+    // last ')'.
     const size_t close = stat->rfind(')');
     if (close == std::string::npos || close + 2 >= stat->size())
         return 0;

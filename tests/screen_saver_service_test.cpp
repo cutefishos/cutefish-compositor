@@ -22,7 +22,6 @@ class ScreenSaverServiceTest : public testing::Test
 protected:
     std::unique_ptr<dbus::Connection> client = dbus::Connection::open(dbus::Connection::Bus::Session, core::mainLoop());
 
-    // A call in flight; its reply lands in `reply`.
     struct Pending {
         std::optional<dbus::Reply> reply;
         dbus::PendingCall call;
@@ -219,7 +218,6 @@ TEST_F(ScreenSaverServiceTest, InhibitCookiesBelongToTheirCaller)
     const uint32_t cookie = reply.value<uint32_t>().value_or(0);
     EXPECT_NE(cookie, 0u);
     EXPECT_EQ(count, 1);
-    // Another caller cannot release it.
     EXPECT_FALSE(finished(callAt("UnInhibit", path, second.get(), cookie)).isError());
     EXPECT_EQ(count, 1);
     reply = inhibit(first.get());
@@ -229,7 +227,6 @@ TEST_F(ScreenSaverServiceTest, InhibitCookiesBelongToTheirCaller)
     EXPECT_EQ(count, 1);
     finished(callAt("UnInhibit", path, first.get(), cookie));
     EXPECT_EQ(count, 1);
-    // Leaving the bus releases everything the caller still holds.
     first.reset();
     EXPECT_TRUE(waitFor([&] { return count == 0; }));
 }
@@ -254,15 +251,13 @@ TEST_F(ScreenSaverServiceTest, InhibitFromACallerThatAlreadyLeftIsReleased)
     dbus::Message message = gone->newMethodCall("org.freedesktop.ScreenSaver", "/ScreenSaver",
                                                 "org.freedesktop.ScreenSaver", "Inhibit");
     message.append(std::string("test"), std::string("video"));
-    // Sent without waiting for the cookie, as dbus-send does; the blocking
-    // call behind it makes sure the bus has it.
+    // Sent without waiting for the reply; the blocking call behind it makes sure the bus has it.
     ASSERT_TRUE(gone->send(message));
     dbus::Proxy driver(gone.get(), "org.freedesktop.DBus", "/org/freedesktop/DBus",
                        "org.freedesktop.DBus");
     ASSERT_FALSE(driver.call("GetId").isError());
     gone.reset();
-    // Blocking calls dispatch nothing here, so the service handles the
-    // Inhibit only after the bus has announced that the caller left.
+    // Blocking calls dispatch nothing here, so the service sees the Inhibit only after the caller has left.
     dbus::Proxy clientDriver(client.get(), "org.freedesktop.DBus", "/org/freedesktop/DBus",
                              "org.freedesktop.DBus");
     const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);

@@ -4,8 +4,6 @@
 //
 // Upstream: chromium/src/components/exo/touch.cc
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: see touch.h.
 
 #include "input/touch.h"
 
@@ -87,7 +85,7 @@ void Touch::onTouchFrame()
 
 void Touch::onSurfaceDestroying(compositor::Surface*)
 {
-    // As upstream, a surface going away cancels every point, not only its own.
+    // A surface going away cancels every point, not only its own.
     cancelAllTouches();
     m_delegate->onTouchCancel();
     m_framePending = false;

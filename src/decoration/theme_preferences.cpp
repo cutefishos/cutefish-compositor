@@ -19,8 +19,7 @@ ThemePreferences::ThemePreferences(Theme &theme)
     std::error_code error;
     std::filesystem::create_directories(std::filesystem::path(m_settings.path()).parent_path(),
                                         error);
-    // The directory is what is watched, so a file replaced by a rename is
-    // followed as well.
+    // The directory is watched, so a file replaced by a rename is followed too.
     m_watch = base::FileWatch::file(m_settings.path(), [this] { reload(); }, core::mainLoop());
     if (m_appearance.isValid()) {
         const auto readBool = [](const base::dbus::Message &message) {

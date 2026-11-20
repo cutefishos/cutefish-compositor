@@ -4,9 +4,6 @@
 //
 // Upstream: chromium/src/components/exo/buffer.cc
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: integrates the upstream behavior with native
-// compositor types and ownership.
 
 #include "compositor/dmabuf_buffer.h"
 
@@ -25,8 +22,8 @@ std::unique_ptr<DmaBufBuffer> DmaBufBuffer::create(render::DmaBufDevice* device,
     if (!device)
         return nullptr;
 
-    // Import before the wl_buffer exists, so an unimportable buffer is reported
-    // as params.failed rather than turning up as a blank window later.
+    // Import before the wl_buffer exists, so a failure is reported as
+    // params.failed.
     std::shared_ptr<render::Texture> texture = device->importDmaBuf(attributes);
     if (!texture) {
         CF_WARNING(cfCompositor).printf(

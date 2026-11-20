@@ -40,7 +40,6 @@ RunningApplications::RunningApplications(dbus::Connection *bus, TaskManager &tas
             add(name);
     });
 
-    // Those already running when the shell starts.
     const dbus::Proxy daemon(m_bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus");
     m_listNames = daemon.callAsync("ListNames", [this](const dbus::Reply &reply) {
         std::vector<std::string> names;
@@ -52,7 +51,6 @@ RunningApplications::RunningApplications(dbus::Connection *bus, TaskManager &tas
         }
     });
 
-    // A scan can give a running application another entry.
     m_subscriptions.push_back(m_tasks.applicationSource().changed.connect([this] {
         for (const std::string &name : std::vector<std::string>(m_order))
             resolve(name);

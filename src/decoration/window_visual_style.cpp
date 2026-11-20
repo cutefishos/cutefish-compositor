@@ -17,8 +17,6 @@ constexpr double kOutlineWidthPx = 1.0;
 constexpr render::Color kOutlineColor {0, 0, 0, 0.05f};
 // Drawn just inside the outline; only shows on dark content.
 constexpr render::Color kHighlightColor {1, 1, 1, 0.15f};
-// Dark content needs a real dark edge to separate from the shadow, and a
-// brighter rim inside it so the window still reads as raised.
 constexpr render::Color kDarkOutlineColor {0, 0, 0, 0.7f};
 constexpr render::Color kDarkHighlightColor {1, 1, 1, 0.2f};
 constexpr render::Color kShellOutlineColor {0, 0, 0, 0.14f};
@@ -27,12 +25,10 @@ constexpr render::Color kDockOutlineColor {0, 0, 0, 0.1f};
 constexpr render::Color kDockHighlightColor {1, 1, 1, 0.2f};
 constexpr render::Color kDarkDockOutlineColor {0, 0, 0, 0.3f};
 constexpr render::Color kDarkDockHighlightColor {1, 1, 1, 0.2f};
-// Light enough that the blocked window still reads; ash's 0.5 is for whole
-// containers behind system modals.
 constexpr float kDimOpacity = 0.15f;
 constexpr float kDarkDimOpacity = 0.25f;
 
-// FishUI's ThemeManager accent palette, in the Appearance service's index order.
+// In the Appearance service's index order.
 constexpr render::Color kAccentColors[] = {
     {51 / 255.f, 133 / 255.f, 255 / 255.f, 1}, // Blue
     {255 / 255.f, 92 / 255.f, 109 / 255.f, 1}, // Red
@@ -43,9 +39,6 @@ constexpr render::Color kAccentColors[] = {
     {79 / 255.f, 89 / 255.f, 107 / 255.f, 1}, // Grey
 };
 
-// Ash's phantom window: kColorAshPhantomWindowBackgroundColor is the primary
-// colour at kAlpha25, edged by views::HighlightBorder's kHighlightBorderNoShadow
-// (cros.sys.system-highlight-border outside, cros.sys.system-highlight inside).
 constexpr float kSnapPreviewFillAlpha = 0x40 / 255.f;
 constexpr render::Color kSnapPreviewOutline {0, 0, 0, 0x14 / 255.f};
 constexpr render::Color kSnapPreviewHighlight {1, 1, 1, 0x28 / 255.f};

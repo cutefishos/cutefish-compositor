@@ -4,9 +4,6 @@
 //
 // Upstream: chromium/src/ui/display/manager/display_manager.h
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: one model owns immutable hardware snapshots
-// and applied logical display batches without Ash observers or preferences.
 
 #pragma once
 
@@ -50,8 +47,8 @@ public:
     }
 
     base::PointF normalizedToGlobal(const base::PointF &point) const;
-    // A point on the touchscreen, 0..1 across its panel in the panel's own
-    // orientation, on the desktop. Null when no display shows it.
+    // 0..1 across its panel in the panel's own orientation; null when no
+    // display shows it.
     std::optional<base::PointF> touchscreenToGlobal(const base::PointF &normalized) const;
     std::optional<base::PointF> globalToOutputLocal(const DisplayId &id,
                                                     const base::PointF &point) const;

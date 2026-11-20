@@ -3,9 +3,7 @@
 // found in the LICENSE file.
 
 // Modelled on chromium/src/ui/wm/core/transient_window_manager.*
-// (revision 7acd40ddefff49c9d36144999aafdbb674dbd07a), reduced to the
-// parent/child relationship itself. WindowManager applies popup stacking;
-// modal blocking lives in window_modality_controller.h.
+// (revision 7acd40ddefff49c9d36144999aafdbb674dbd07a).
 
 #ifndef CUTEFISH_WM_TRANSIENT_MANAGER_H_
 #define CUTEFISH_WM_TRANSIENT_MANAGER_H_
@@ -21,14 +19,10 @@ public:
     TransientManager(const TransientManager &) = delete;
     TransientManager &operator=(const TransientManager &) = delete;
 
-    // Null `parent` clears the relationship. Returns false, changing nothing,
-    // if `child` is null, if `parent` is `child`, or if the link would close a
-    // cycle.
+    // Null `parent` clears it. Returns false, changing nothing, on a null child or a cycle.
     bool setTransientParent(Window *child, Window *parent);
 
-    // Detaches `window` from its parent and orphans its children. Cutefish does
-    // not destroy transient children with their parent: the client owns their
-    // lifetime, and xdg-shell must not have surfaces disappear behind its back.
+    // Transient children are not destroyed with their parent: the client owns their lifetime.
     void windowDestroying(Window *window);
 
 private:

@@ -11,8 +11,7 @@
 
 namespace cutefish::input {
 
-// Offered every touchpad gesture before any client. A gesture claimed at its
-// begin is the compositor's to the end: no client sees any of it.
+// A gesture claimed at its begin is the compositor's to the end: no client sees any of it.
 class GestureFilter
 {
 public:

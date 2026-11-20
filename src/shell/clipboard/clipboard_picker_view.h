@@ -28,8 +28,7 @@ namespace cutefish::shell {
 
 class ClipboardHistory;
 
-// The filter line: a FishUI field without its frame. The picker's keys go
-// to onKey before the field edits with them.
+// The picker's keys go to onKey before the field edits with them.
 class ClipboardFilterField : public ui::TextField
 {
 public:
@@ -39,30 +38,23 @@ protected:
     bool keyPress(const ui::KeyEvent &event) override;
 };
 
-// What the picker window shows: the filter line, the entries newest first on
-// the left, the selected one in full on the right, and the confirmation before
-// clearing.
 class ClipboardPickerView : public ui::View
 {
 public:
     static constexpr int kWidth = 720;
     static constexpr int kHeight = 440;
     static constexpr int kPadding = 12;
-    // FishUI's bigRadius * 1.5.
     static constexpr double kCardRadius = 18;
-    // Rows meet the card's sides one padding in.
     static constexpr double kRowRadius = kCardRadius - kPadding;
     static constexpr int kHeaderHeight = 40;
     static constexpr int kRowHeight = 36;
     static constexpr int kIconSize = 24;
-    // Page Up and Page Down move the selection this far.
     static constexpr int kPageRows = 6;
 
     explicit ClipboardPickerView(ClipboardHistory &history);
     ~ClipboardPickerView() override;
 
-    // As the picker opens: no filter, the first row, no confirmation, and a
-    // pointer that has to move before it selects.
+    // As the picker opens; the pointer has to move before it selects.
     void reset();
 
     int currentIndex() const { return m_currentIndex; }
@@ -76,12 +68,10 @@ public:
     ui::Label *preview() const { return m_previewText; }
     ui::Label *emptyLabel() const { return m_empty; }
 
-    // Escape with no filter.
     std::function<void()> onCloseRequested;
     // Before each paint, so the window's glass follows the theme.
     std::function<void()> onPainted;
 
-    // Called by the rows; not part of the public API.
     bool pointerMoved(ui::PointF windowPosition);
     void rowClicked(int row);
     const ui::Bitmap *thumbnail(const std::string &key);
@@ -113,7 +103,6 @@ private:
     // Where the pointer last was, in window coordinates; none since opening.
     bool m_pointerKnown = false;
     ui::PointF m_lastPointer;
-    // Row thumbnails by entry key, decoded at the row's thumbnail size.
     std::map<std::string, ui::Bitmap> m_thumbnails;
     std::map<std::string, base::Job> m_thumbnailJobs;
     std::string m_previewKey;

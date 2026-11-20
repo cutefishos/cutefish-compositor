@@ -4,9 +4,6 @@
 //
 // Upstream: chromium/src/ui/ozone/platform/drm/gpu/drm_gpu_display_manager.cc
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: bounded combined-mode retries downgrade only affected
-// external base-connector groups and return structured link diagnostics.
 
 #pragma once
 

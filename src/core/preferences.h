@@ -10,15 +10,12 @@
 
 namespace cutefish {
 
-// ~/.config/cutefish, where every preference file of the session lives.
 std::string preferencesDirectory();
 
-// ~/.config/cutefish/<process>.conf. Each file has one writer, the process it
-// is named after; the compositor writes "compositor" and only reads the others.
+// Each file has one writer, the process it is named after.
 std::string preferencesFile(std::string_view process);
 
-// Tests: preferences under `configHome`/cutefish instead of the user's;
-// empty restores the user's. The test main sets a scratch one for every test.
+// Empty restores the user's.
 void setConfigHomeForTesting(std::string configHome);
 
 } // namespace cutefish

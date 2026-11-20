@@ -14,21 +14,16 @@
 
 namespace cutefish::shell {
 
-// A theme icon that never reads an icon file named by its path on this
-// thread: an application bundle's icon may sit on a mounted disk image, whose
-// reads can hang. The file is read and rasterised on the pool, and nothing is
-// drawn until it is there. Theme names draw as ThemeIcon draws them.
+// Reads icon files on the pool: a bundle's icon may sit on a mounted disk image
+// whose reads can hang.
 class FileThemeIcon : public ui::ThemeIcon
 {
 public:
     explicit FileThemeIcon(std::string name = {}, double size = 32);
     ~FileThemeIcon() override;
 
-    // ui::preloadThemeIcons(), after which these icons draw at once at that
-    // size and scale.
     static void preload(std::vector<std::string> names, int size, double scale, std::function<void()> done = {});
-    // Whether the icon at that size and scale draws now; when not, it is
-    // loading and `ready` runs here once it is in the icon cache.
+    // When false, `ready` runs here once the icon is in the cache.
     static bool isReady(const std::string &name, int size, double scale, std::function<void()> ready);
 
 protected:

@@ -22,22 +22,11 @@
 
 namespace cutefish::shell {
 
-// A client of a com.canonical.dbusmenu exporter, written from the protocol:
-// the layout fetched one level at a time as menus open, kept current from
-// LayoutUpdated and ItemsPropertiesUpdated, and the events a menu sends back.
-// Nothing blocks; untrusted sizes are capped.
-//
-// An entry keeps the kind it had when it
-// first arrived (type, toggle-type and children-display are not changed by a
-// later layout), a submenu that opens is asked AboutToShow and refetched when
-// the application says so or its entries are not current, and "opened",
-// "closed" and "clicked" events go along. A LayoutUpdated makes everything
-// under its parent out of date: open menus are refetched at once, the others
-// when they next show.
+// Untrusted sizes are capped; an entry keeps the type, toggle-type and
+// children-display it first arrived with.
 class DBusMenu : public compositor::MenuModel
 {
 public:
-    // Past these, the rest of a layout is dropped.
     static constexpr size_t kMaxItems = 4096;
     static constexpr size_t kMaxLabelBytes = 4096;
     static constexpr size_t kMaxIconBytes = 1 << 20;
@@ -54,9 +43,7 @@ public:
 
     const compositor::MenuItem *item(int32_t id) const override;
     void refresh(int32_t id) override;
-    // AboutToShow; the entries are refetched when needed.
     void prepare(int32_t id) override;
-    // The "opened" event.
     void opened(int32_t id) override;
     void closed(int32_t id) override;
     void activate(int32_t id) override;
@@ -79,7 +66,6 @@ private:
     std::vector<base::dbus::Match> m_matches;
     PendingCalls m_calls;
     std::set<int32_t> m_pendingLayoutUpdates;
-    // The menus between "opened" and "closed".
     std::set<int32_t> m_open;
     base::Timer m_layoutTimer;
     std::unordered_map<int32_t, base::Job> m_iconJobs;

@@ -14,11 +14,6 @@ namespace cutefish::shell {
 class Shell;
 class ShellWindow;
 
-// FishUI's ConfirmDialog asking before logging
-// out, restarting or shutting down, a toplevel kept above applications and
-// centred by the window manager. Return confirms even while Cancel has the
-// focus; Escape and Cancel cancel. Asking again while it is up
-// changes what it asks.
 class PowerDialog
 {
 public:
@@ -34,14 +29,10 @@ public:
     PowerDialog(const PowerDialog &) = delete;
     PowerDialog &operator=(const PowerDialog &) = delete;
 
-    // Shows the dialog for `action`, or changes it while shown.
     void open(Action action);
-    // Hides it without an answer.
     void close();
     bool isOpen() const;
     Action action() const { return m_action; }
-    // Takes its text again after the session language changed, still asking
-    // what it asked.
     void retranslate();
 
     ShellWindow *window() const { return m_window.get(); }

@@ -20,7 +20,6 @@ constexpr int64_t kStableUptimeMs = 60000;
 constexpr std::chrono::milliseconds kTerminateTimeout(3000);
 constexpr std::chrono::milliseconds kFinishWait(500);
 
-// Replaces or adds NAME=value in NAME=value entries.
 void setVariable(std::vector<std::string> &environment, const std::string &name,
                  const std::string &value)
 {
@@ -49,7 +48,6 @@ struct InputMethodLauncher::Child {
 
     base::Process process;
     std::string program;
-    // Started once the process was asked to end; gives up waiting.
     base::Timer kill;
 };
 

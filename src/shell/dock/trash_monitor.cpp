@@ -29,13 +29,11 @@ static constexpr std::chrono::milliseconds kDebounce(40);
 static constexpr std::chrono::milliseconds kRetry(2000);
 static constexpr std::chrono::milliseconds kRetryLimit(60000);
 
-// Kernel interfaces, memory-backed folders, automounts and remote
-// filesystems: a memory-backed trash would be lost at shutdown, so the file
-// manager sends those files home; looking into an automount mounts it, and a
-// hung share would block the look and its watch.
+// Memory-backed trashes are sent home, looking into an automount mounts it, and
+// a hung share would block the look.
 static bool holdsNoTrash(const std::string &mountPoint, const std::string &type)
 {
-    // The system's own places; removable volumes may be mounted under /run/media.
+    // Removable volumes may be mounted under /run/media.
     for (const std::string_view system : {"/proc", "/sys", "/dev", "/run"}) {
         if (mountPoint.starts_with(system) && (mountPoint.size() == system.size() || mountPoint[system.size()] == '/'))
             return !mountPoint.starts_with("/run/media/");
@@ -70,8 +68,6 @@ static std::string unescapeMountPoint(const std::string &field)
     return result;
 }
 
-// Each mount point that can hold a trash, with the type mounted there last,
-// which hides any below it.
 static std::vector<std::string> mountPoints(const std::string &mountTable)
 {
     const std::optional<std::string> table = base::file::read(mountTable);
@@ -100,8 +96,6 @@ static std::vector<std::string> mountPoints(const std::string &mountTable)
 
     std::vector<std::string> points;
     for (const auto &[mountPoint, type] : mounts) {
-        // A volume the user cannot enter, such as a service's credentials,
-        // has no trash of theirs.
         if (!holdsNoTrash(mountPoint, type) && access(mountPoint.c_str(), X_OK) == 0)
             points.push_back(mountPoint);
     }
@@ -141,7 +135,6 @@ TrashMonitor::State TrashMonitor::look(const std::string &mountTable, const std:
             if (shared && !isSharedTrashUsable(topdir))
                 continue;
             const std::string trash = shared ? joined(topdir, ".Trash/" + uid) : joined(topdir, ".Trash-" + uid);
-            // A volume mounted twice, or bound into another place, has one trash.
             if (isOwnDirectory(trash, &st) && !seen.count({st.st_dev, st.st_ino})) {
                 seen.insert({st.st_dev, st.st_ino});
                 trashes.push_back(trash);
@@ -167,8 +160,6 @@ TrashMonitor::State TrashMonitor::look(const std::string &mountTable, const std:
         }
     }
     for (const std::string &topdir : points) {
-        // Where the user cannot make a trash, such as /, one an administrator
-        // makes later is found by the next look.
         if (access(topdir.c_str(), W_OK) == 0) {
             state.entries[topdir].push_back(".Trash");
             state.entries[topdir].push_back(".Trash-" + uid);
@@ -189,8 +180,7 @@ TrashMonitor::TrashMonitor(std::string mountTable, std::string homeTrash)
     m_retry.setSingleShot(true);
     m_retry.onTimeout = [this] { retryWatches(); };
 
-    // Mounts and unmounts change which volumes have a trash; procfs tells
-    // through POLLPRI, a test's own table cannot.
+    // procfs signals mount changes through POLLPRI; a test's own table cannot.
     if (m_mountTable.starts_with("/proc/"))
         m_mountFd = open(m_mountTable.c_str(), O_RDONLY | O_CLOEXEC);
     if (m_mountFd >= 0) {
@@ -239,7 +229,6 @@ void TrashMonitor::watch(const State &state)
     }
     for (const auto &[directory, names] : state.entries) {
         std::error_code error;
-        // A trash's own folder may not be there yet; its parent tells.
         if (!fs::is_directory(directory, error))
             continue;
         if (!addWatch(directory, names))
@@ -254,8 +243,7 @@ void TrashMonitor::watch(const State &state)
     }
 }
 
-// Watching takes read access, which the user may lack and retrying cannot
-// bring; such a directory counts as watched.
+// A directory the user cannot read counts as watched: retrying cannot help.
 bool TrashMonitor::addWatch(const std::string &directory, const std::vector<std::string> &names)
 {
     if (access(directory.c_str(), R_OK) != 0)
@@ -286,8 +274,6 @@ void TrashMonitor::retryWatches()
     }
     m_unwatched = std::move(unwatched);
 
-    // What changed while it was not watched, or a folder gone since the
-    // look, is seen by looking again.
     if (changed && !m_debounce.isActive())
         m_debounce.start(kDebounce);
 

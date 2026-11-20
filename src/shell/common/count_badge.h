@@ -16,14 +16,10 @@ class Label;
 
 namespace cutefish::shell {
 
-// An application's count on the top-right corner of its icon: a red circle
-// with the number in it, as wide as a pill for two digits, and "99+" past 99.
 class CountBadge final : public ui::View
 {
 public:
     static constexpr ui::Color kColor {255, 59, 48, 255};
-    // Its height as a share of the icon's: the dock's, and the launchpad's
-    // larger icons'.
     static constexpr double kDockRatio = 0.34;
     static constexpr double kLaunchpadRatio = 0.24;
 
@@ -37,10 +33,8 @@ public:
     static std::string textFor(int64_t count);
 
     void setHeightRatio(double ratio);
-    // Sizes it for the icon and puts it on the icon's top-right corner, both
-    // in the parent's coordinates.
+    // `icon` is in the parent's coordinates.
     void setIconRect(const ui::RectF &icon);
-    // The badge's height for an icon of `iconSize`.
     static double heightFor(double iconSize, double ratio);
 
 protected:

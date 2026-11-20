@@ -158,7 +158,6 @@ TEST(SceneNode, ReorderingMovesOnlyWhatIsOutOfPlace)
     before = after;
     root.reorderChildren(root.children());
     EXPECT_EQ(revisions(), before);
-    // Of two neighbours trading places, one moves.
     root.reorderChildren({nodes[2], nodes[1], nodes[3], nodes[4], nodes[0]});
     after = revisions();
     int moved = 0;

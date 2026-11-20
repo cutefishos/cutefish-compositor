@@ -23,7 +23,6 @@
 namespace cutefish::wayland {
 namespace {
 
-// Every bound manager, for the events about a client's surfaces.
 std::vector<wl_resource *> &managers()
 {
     static std::vector<wl_resource *> resources;
@@ -37,8 +36,6 @@ struct Manager {
     std::map<std::string, std::pair<base::Rect, bool>> sentWorkAreas;
 };
 
-// Follows the work areas for the managers of one global, until the display
-// goes.
 struct WorkAreaWatch {
     struct DisplayListener {
         wl_listener listener;

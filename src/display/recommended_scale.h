@@ -11,8 +11,7 @@
 
 namespace cutefish::display {
 
-// The scale a display starts at until someone picks another: from its pixel
-// density in its native mode, snapped to the steps Settings offers.
+// Snapped to the steps Settings offers.
 compositor::OutputScale recommendedScale(const DisplaySnapshot &display);
 
 } // namespace cutefish::display

@@ -152,7 +152,6 @@ void ScreenRecording::onFinished(int exitCode, bool crashed)
     std::string error(base::strings::trimmed(m_process->standardError()));
     if (error.empty() && !ok)
         error = crashed ? tr("The screen recorder crashed.") : tr("The screen recorder failed.");
-    // Its last line says why.
     if (const size_t newline = error.rfind('\n'); newline != std::string::npos)
         error = error.substr(newline + 1);
     // Gone from inside its own callback: on the next loop turn.

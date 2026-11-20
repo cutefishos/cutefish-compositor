@@ -30,8 +30,6 @@ LaunchpadWindow::LaunchpadWindow(Shell *shell, std::unique_ptr<Launchpad> launch
     auto view = std::make_unique<LaunchpadView>(*m_launchpad, *m_wallpaper, shell->badges());
     m_view = view.get();
     m_window->setContentView(std::move(view));
-    // Transparent: until the wallpaper decodes, the dimmer darkens what is
-    // behind it.
     m_window->window()->setBackgroundColor(ui::Color {0, 0, 0, 0});
     m_window->window()->onActiveChanged = [this] { activeChanged(); };
     m_window->onCloseRequested = [this] { m_launchpad->hide(); };
@@ -39,7 +37,6 @@ LaunchpadWindow::LaunchpadWindow(Shell *shell, std::unique_ptr<Launchpad> launch
     m_launchpad->showWindow = [this] { showWindow(); };
     m_launchpad->hideWindow = [this] { hideWindow(); };
     LaunchpadModel &model = m_launchpad->applications();
-    // Applications opened before the view existed are no longer new.
     model.clearNewInstalled(m_launchpad->takeOpenedApplications());
     m_subscriptions.push_back(model.applicationLaunched.connect([this] { m_launchpad->hide(); }));
     m_subscriptions.push_back(m_view->dismissRequested.connect([this] { m_launchpad->hide(); }));
@@ -47,7 +44,6 @@ LaunchpadWindow::LaunchpadWindow(Shell *shell, std::unique_ptr<Launchpad> launch
     if (m_dock)
         m_subscriptions.push_back(m_dock->primaryGeometryChanged.connect([this] { updateGeometry(); }));
 
-    // Laid out and decoded while hidden, so the first show has its pages.
     updateGeometry();
 }
 
@@ -67,14 +63,11 @@ void LaunchpadWindow::updateGeometry()
     const Shell::Output *output = m_shell->output({});
     if (!output)
         return;
-    // The whole output, not its work area: it covers the menu bar.
     m_window->setOutput(output->name);
     m_window->setGeometry(output->bounds);
-    // The wallpaper is decoded at the device pixel size.
     m_wallpaper->setSurfaceSize(base::Size(int(std::lround(output->bounds.width() * output->scale)),
                                            int(std::lround(output->bounds.height() * output->scale))));
 
-    // Room for the dock on its edge, and a constant 8 at the top.
     LaunchpadMetrics::Margins margins;
     const base::Rect dock = m_dock && m_dock->primaryGeometry ? m_dock->primaryGeometry() : base::Rect();
     if (!dock.isEmpty()) {
@@ -104,8 +97,6 @@ void LaunchpadWindow::showWindow()
     updateGeometry();
     m_view->setShown(true);
     m_window->show();
-    // The trusted shell needs no activation token: the window manager's own
-    // activation, as cutefish_shell_surface_v1.activate.
     m_window->activate();
 }
 
@@ -119,7 +110,6 @@ bool LaunchpadWindow::keepsShownWhileInactive() const
 {
     if (m_launchpad->isDragging() || m_view->isMenuOpen())
         return true;
-    // The capture tools take the keyboard to picture the launchpad, not to close it.
     const auto &windows = m_shell->windowManager()->windows();
     return std::any_of(windows.begin(), windows.end(), [](const wm::Window *window) {
         return window->role() == wm::WindowRole::Capture && window->isVisible();

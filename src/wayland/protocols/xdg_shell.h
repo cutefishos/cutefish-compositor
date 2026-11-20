@@ -4,11 +4,6 @@
 //
 // Upstream: chromium/src/components/exo/wayland/xdg_shell.h
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: the ChromeOS window-state types become wm::
-// WindowStateType and the HT* hit-test constants become wm::ResizeEdge. The
-// zxdg_decoration half lives in xdg_decoration.cc and reaches the shell surface
-// through shellSurfaceForToplevel().
 
 #ifndef CUTEFISH_WAYLAND_PROTOCOLS_XDG_SHELL_H_
 #define CUTEFISH_WAYLAND_PROTOCOLS_XDG_SHELL_H_
@@ -38,16 +33,12 @@ namespace cutefish::wayland {
 
 class SerialTracker;
 
-// Exo stops at version 3, which brought xdg_popup.reposition and
-// xdg_positioner.set_reactive. Versions 4 to 6 add configure_bounds,
-// wm_capabilities and the suspended state, all Cutefish's own.
+// Version 6: configure_bounds, wm_capabilities and the suspended state.
 constexpr uint32_t kXdgWmBaseVersion = 6;
 
-// How long a client has to answer xdg_wm_base.ping before its toplevels turn
-// unresponsive. Mutter's default check-alive-timeout.
+// How long a client has to answer xdg_wm_base.ping before its toplevels turn unresponsive.
 constexpr int kXdgPingTimeoutMs = 5000;
 
-// The per-display state the xdg_wm_base global hands to its resources.
 class WaylandXdgShell
 {
 public:
@@ -81,13 +72,10 @@ private:
 
 wl_global* createXdgShellGlobal(wl_display* display, WaylandXdgShell* shell);
 
-// The shell surface behind an xdg_toplevel resource, or nullptr when the
-// xdg_surface it belongs to has already been destroyed. xdg-decoration needs
-// it, and has no business knowing how the role object is laid out.
+// Null when the xdg_surface it belongs to has already been destroyed.
 wm::ShellSurface* shellSurfaceForToplevel(wl_resource* toplevelResource);
 
-// The toplevel shell surface a wl_surface belongs to, or nullptr when it has no
-// xdg_toplevel role. xdg-foreign works in wl_surfaces, not role objects.
+// Null when it has no xdg_toplevel role.
 wm::ShellSurface* toplevelShellSurfaceForSurface(wl_resource* surfaceResource);
 
 enum class ParentlessPopupResult {
@@ -98,11 +86,8 @@ enum class ParentlessPopupResult {
     Dismissed,
 };
 
-// Gives an xdg_popup made with a null parent its parent, for the protocol that
-// names it: the popup is solved against the work area of `parent`'s output
-// with its positioner's anchor rect moved by `anchorOffset`, `adopt` makes it
-// a popup of `parent` at those bounds, and the first configure goes out. A
-// null parent, or `adopt` refusing, dismisses the popup.
+// The popup is solved against `parent`'s output work area with its anchor moved by `anchorOffset`;
+// a null parent, or `adopt` refusing, dismisses it.
 ParentlessPopupResult adoptParentlessPopup(wl_resource* popupResource, wm::ShellSurface* parent,
                                            const base::Point& anchorOffset,
                                            const std::function<bool(wm::ShellSurface*, const base::Rect&)>& adopt);

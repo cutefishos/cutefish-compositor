@@ -132,7 +132,6 @@ void StatusNotifierWatcher::ownerChanged(const std::string &service, const std::
             serviceUnregistered(service);
             return;
         }
-        // Not on the bus: nothing it asked for is kept.
         m_waitingItems.erase(service);
         m_waitingHosts.erase(service);
         m_watches.erase(service);

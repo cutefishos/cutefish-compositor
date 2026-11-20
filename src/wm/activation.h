@@ -4,12 +4,6 @@
 //
 // Upstream: chromium/src/ui/wm/core/focus_controller.* and base_focus_rules.*
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// What is taken: the separation of "which window is active" from "where input
-// goes", the activation-change ordering, what happens when the active window
-// is destroyed or hidden, and redirecting activation to a modal transient.
-// What is dropped: aura's focused-window-inside-active-window distinction
-// (Cutefish has no nested focusable widgets) and the FocusRules indirection.
 
 #ifndef CUTEFISH_WM_ACTIVATION_H_
 #define CUTEFISH_WM_ACTIVATION_H_
@@ -27,11 +21,9 @@ public:
     virtual ~ActivationObserver() = default;
 
     // Called before a change, while no other activation change can start.
-    // Upstream: wm::ActivationChangeObserver::OnWindowActivating.
     virtual void onWindowActivating(Window *gainingActive, Window *losingActive) { }
 
-    // Called once per change, after both windows have been told. Either may be
-    // null.
+    // Called once per change, after both windows have been told. Either may be null.
     virtual void onWindowActivated(Window *gainedActive, Window *lostActive) = 0;
 };
 
@@ -45,21 +37,14 @@ public:
 
     Window *activeWindow() const { return m_activeWindow; }
 
-    // Null clears activation. A window that cannot be activated is ignored,
-    // except that a modal transient or a transient child's ancestor chain is
-    // followed: see activatableFor().
+    // Null clears activation. See activatableFor().
     void activate(Window *window);
 
-    // Drops activation from `window` if it holds it, moving to the next
-    // activatable window. Does nothing otherwise.
     void deactivate(Window *window);
 
     bool canActivate(const Window *window) const;
 
-    // The window that should actually become active when `window` is asked
-    // for: its modal transient if it is blocked by one, otherwise the nearest
-    // transient ancestor that can be activated. Matches
-    // BaseFocusRules::GetActivatableWindow.
+    // Its modal transient if blocked by one, else the nearest activatable transient ancestor.
     Window *activatableFor(Window *window) const;
 
     void addObserver(ActivationObserver *observer);

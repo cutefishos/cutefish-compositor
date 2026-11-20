@@ -50,7 +50,6 @@ DBusMenu::DBusMenu(dbus::Connection *bus, std::string service, std::string path)
         if (!m_sender.accepts(message) || !message.read(updated, removed))
             return;
         for (const auto &[id, properties] : updated) {
-            // An entry of a menu not fetched yet arrives with that menu.
             const auto it = m_items.find(id);
             if (it == m_items.end())
                 continue;
@@ -90,7 +89,6 @@ void DBusMenu::refresh(int32_t id)
         return m_proxy.callAsync(
                 "GetLayout",
                 [this, id, finished](const dbus::Reply &reply) {
-                    // The revision is of no use: each fetch takes the whole level.
                     if (reply.isError() || reply.arguments().size() < 2) {
                         if (m_items.count(id))
                             menuUpdated(id);
@@ -132,12 +130,10 @@ void DBusMenu::applyLayout(int32_t parentId, const dbus::Variant &layout)
             // A whole layout leaves out the properties at their defaults.
             for (const char *key : {"label", "enabled", "visible", "toggle-state", "icon-name", "shortcut"})
                 resetProperty(it->second, key);
-            // A picture still being decoded stays until the new one is in.
             if (!properties.count("icon-data"))
                 resetProperty(it->second, "icon-data");
             applyProperties(it->second, properties, false);
             if (it->second.parent != parentId) {
-                // An entry that moved to another menu leaves the old one.
                 if (auto old = m_items.find(it->second.parent); old != m_items.end())
                     std::erase(old->second.children, id);
             }
@@ -146,7 +142,6 @@ void DBusMenu::applyLayout(int32_t parentId, const dbus::Variant &layout)
         children.push_back(id);
     }
 
-    // Entries no longer listed go, with everything under them.
     const std::vector<int32_t> previous = m_items.at(parentId).children;
     for (int32_t id : previous) {
         if (std::find(children.begin(), children.end(), id) == children.end()) {
@@ -187,7 +182,6 @@ void DBusMenu::invalidate(int32_t id)
         const auto childIt = m_items.find(child);
         if (childIt == m_items.end() || childIt->second.parent != id)
             continue;
-        // The rows it shows stay until the new ones are in.
         childIt->second.childrenLoaded = false;
         if (m_open.count(child))
             refresh(child);
@@ -199,7 +193,6 @@ static std::string cappedLabel(const std::string &label)
 {
     if (label.size() <= DBusMenu::kMaxLabelBytes)
         return label;
-    // Cut on a character boundary.
     size_t size = DBusMenu::kMaxLabelBytes;
     while (size > 0 && (uint8_t(label[size]) & 0xc0) == 0x80)
         --size;
@@ -262,8 +255,6 @@ void DBusMenu::resetProperty(compositor::MenuItem &item, const std::string &key)
         item.shortcut.clear();
 }
 
-// The width and height of a PNG, from its header, so a bomb is refused
-// before it is decoded.
 static bool pngSize(const std::string &bytes, uint32_t *width, uint32_t *height)
 {
     static constexpr unsigned char signature[] = {0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n'};

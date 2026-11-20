@@ -2,9 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// The compositor's command line, logging categories, preference paths and
-// child environment.
-
 #include <algorithm>
 #include <cstdlib>
 #include <filesystem>
@@ -65,8 +62,6 @@ TEST(CompositorOptionsTest, ReadsValuesAndRepeats)
     EXPECT_EQ(options->logRules, "cutefish.drm.debug=true");
 }
 
-// Anyone can run the screenshot tool or the recorder with arguments of their
-// choosing, so their paths grant nothing.
 TEST(CompositorOptionsTest, OnlyThePortalBackendCapturesByItsPath)
 {
     const auto defaults = parse({});
@@ -89,7 +84,6 @@ TEST(CompositorOptionsTest, RejectsInvalidValues)
     EXPECT_FALSE(parse({"--no-drm", "--headless-outputs", "17"}));
     EXPECT_FALSE(parse({"--ready-fd", "2"}));
     EXPECT_FALSE(parse({"--ready-fd", "x"}));
-    // A count is checked only for the headless backend, as before.
     EXPECT_TRUE(parse({"--headless-outputs", "0"}));
 }
 
@@ -135,7 +129,6 @@ TEST(LoggingTest, TheMacroWritesOneLine)
 
 TEST(PreferencesTest, TestsWriteUnderTheirOwnConfigHome)
 {
-    // The test main points every test binary at a scratch directory.
     const std::string scratch = std::filesystem::path(preferencesDirectory()).parent_path();
     EXPECT_NE(scratch, base::paths::configHome());
 
@@ -143,7 +136,6 @@ TEST(PreferencesTest, TestsWriteUnderTheirOwnConfigHome)
     EXPECT_EQ(preferencesDirectory(), "/tmp/cutefish-core-test/cutefish");
     EXPECT_EQ(preferencesFile("compositor"), "/tmp/cutefish-core-test/cutefish/compositor.conf");
 
-    // Without an override, the user's configuration directory.
     setConfigHomeForTesting({});
     EXPECT_EQ(preferencesFile("shell"), base::paths::configHome() + "/cutefish/shell.conf");
     setConfigHomeForTesting(scratch);

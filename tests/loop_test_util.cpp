@@ -32,13 +32,10 @@ bool runUntil(const std::function<bool()>& done, std::chrono::milliseconds timeo
             std::this_thread::sleep_for(std::min(left, milliseconds(1)));
             continue;
         }
-        // The descriptor turns readable for any watch, timer or posted task;
-        // done() may also turn on another thread's work, so it is checked
-        // every few milliseconds whatever the loop does.
+        // done() may depend on another thread's work, so it is checked every few milliseconds.
         pollfd ready {loop->fd(), POLLIN, 0};
         poll(&ready, 1, int(std::min(left, milliseconds(5)).count()));
-        // Ends with the loop's prepare hooks, as before any wait, so what the
-        // work queued is flushed before the next poll.
+        // Runs the prepare hooks too, so queued work is flushed before the next poll.
         loop->dispatch();
     }
     return true;

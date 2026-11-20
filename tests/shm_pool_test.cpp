@@ -93,15 +93,12 @@ TEST_F(ShmPoolTest, RejectsAStrideNarrowerThanTheRow)
 
 TEST_F(ShmPoolTest, RejectsABufferThatLeavesThePool)
 {
-    // One pixel past the end of the last row.
     EXPECT_EQ(nullptr, create(base::Size(256, 256), 4, 256 * 4));
     EXPECT_EQ(nullptr, create(base::Size(256, 257), 0, 256 * 4));
 }
 
 TEST_F(ShmPoolTest, TheLastRowNeedsOnlyItsOwnPixels)
 {
-    // A pool that is exactly (height - 1) * stride + width * 4 bytes long is
-    // enough; the padding of the final row need not be mapped.
     std::shared_ptr<ShmPool> pool = makePool(3 * 40 + 32);
     ASSERT_TRUE(pool);
     EXPECT_TRUE(pool->createBuffer(base::Size(8, 4), 0, 40, kFormat, nullptr));
@@ -127,7 +124,6 @@ TEST_F(ShmPoolTest, GrowsButNeverShrinks)
     EXPECT_EQ(4096u, pool->size());
 
     EXPECT_FALSE(pool->createBuffer(base::Size(64, 32), 0, 64 * 4, kFormat, nullptr));
-    // The client grows the file before asking the pool to follow.
     ASSERT_EQ(0, ftruncate(spare, 8192));
     close(spare);
     ASSERT_TRUE(pool->resize(8192));
@@ -138,7 +134,6 @@ TEST_F(ShmPoolTest, GrowsButNeverShrinks)
     EXPECT_FALSE(pool->resize(0));
     EXPECT_FALSE(pool->resize(-1));
     EXPECT_EQ(8192u, pool->size());
-    // Resizing to the current size is a no-op, not a failure.
     EXPECT_TRUE(pool->resize(8192));
 }
 
@@ -189,8 +184,7 @@ TEST_F(ShmPoolTest, SurvivesTheFileShrinkingUnderARead)
     std::shared_ptr<ShmPool> other = makePool(4096);
     ASSERT_TRUE(other);
 
-    // The client shrinks the file after create_pool; the second page is now
-    // beyond EOF and touching it raises SIGBUS.
+    // The second page is now beyond EOF, where touching it raises SIGBUS.
     ASSERT_EQ(0, ftruncate(spare, 4096));
     close(spare);
 
@@ -202,13 +196,11 @@ TEST_F(ShmPoolTest, SurvivesTheFileShrinkingUnderARead)
     EXPECT_EQ(0, copy[4096]);
     EXPECT_EQ(0, copy[8191]);
 
-    // The pool is dead but harmless: it stays readable and cannot grow.
     pool->beginAccess();
     std::memcpy(copy.data(), pool->data(), copy.size());
     EXPECT_FALSE(pool->endAccess());
     EXPECT_FALSE(pool->resize(16384));
 
-    // Other pools are untouched.
     other->beginAccess();
     std::memcpy(copy.data(), other->data(), 4096);
     EXPECT_TRUE(other->endAccess());
@@ -259,7 +251,6 @@ TEST_F(ShmPoolTest, WritesTightRowsInOneRange)
 
     ASSERT_TRUE(pool->writeRows(256, 16 * 4, 8, 16 * 4, source.data(), 16 * 4));
     EXPECT_EQ(0, std::memcmp(pool->data() + 256, source.data(), source.size()));
-    // Nothing outside the range is touched.
     EXPECT_EQ(0, pool->data()[255]);
     EXPECT_EQ(0, pool->data()[256 + source.size()]);
 }
@@ -268,7 +259,6 @@ TEST_F(ShmPoolTest, WritesPaddedRowsWithoutTouchingTheGaps)
 {
     std::shared_ptr<ShmPool> pool = makePool(8192);
     ASSERT_TRUE(pool);
-    // Dirty the pool first so untouched bytes are distinguishable.
     std::vector<uint8_t> dirt(8192, 0xaa);
     ASSERT_TRUE(pool->write(0, dirt.data(), dirt.size()));
 
@@ -344,7 +334,6 @@ TEST_F(ShmPoolTest, BuffersKeepThePoolAlive)
     const ShmPool* raw = pool.get();
     pool.reset();
 
-    // The client destroyed wl_shm_pool; the mapping is still readable.
     EXPECT_EQ(raw, buffer->pool());
     EXPECT_NE(nullptr, buffer->pixels());
 }

@@ -24,7 +24,6 @@ private:
     bool m_damageFailed = false;
 };
 
-// An EGL window surface on a gbm_surface.
 class EglRenderTarget : public RenderTarget
 {
 public:

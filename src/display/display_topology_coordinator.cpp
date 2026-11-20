@@ -26,7 +26,7 @@ DisplayTopologyCoordinator::DisplayTopologyCoordinator(DisplayManager *manager,
 {
     m_retry.setSingleShot(true);
     m_retry.onTimeout = [this] { run(); };
-    // Handled from the loop: the operation's own caller finishes first.
+    // From the loop, so the operation's own caller finishes first.
     m_operationFinished = controller->operationFinished.connect(
             [this](const std::string &token, const ConfigurationResult &result) {
                 core::mainLoop()->post([this, alive = std::weak_ptr<bool>(m_alive), token,

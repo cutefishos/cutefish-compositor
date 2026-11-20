@@ -42,7 +42,6 @@ void NotificationUi::openPanel(Panel panel, ShellWindow *bar, const base::Rect &
 {
     if (panel != Panel::NotificationCenter || !bar)
         return;
-    // The clock item's plate starts 3 in from its rect (its leftInset).
     m_centre->open(bar, base::Point(bar->geometry().x() + anchor.x() + 3, bar->geometry().bottom()));
 }
 

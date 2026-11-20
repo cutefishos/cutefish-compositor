@@ -58,7 +58,6 @@ struct Desktop {
     }
 };
 
-// renderImage()'s alpha at a point.
 template <typename Image>
 int alphaAt(const Image &image, const base::Point &point)
 {
@@ -89,7 +88,6 @@ TEST(SwitcherViewTest, FindsEntriesByIdAndWindowClassAndRemembersMisses)
     EXPECT_EQ(cache.lookup("paint", "x").name, std::string("paint"));
     EXPECT_EQ(cache.lookup("", "Untitled").name, std::string("Untitled"));
 
-    // An application installed since is found.
     std::this_thread::sleep_for(std::chrono::milliseconds(20));
     writeEntry("paint.desktop", "Name=Paint\nIcon=paint-icon\n");
     cache.refresh();
@@ -109,7 +107,6 @@ TEST(SwitcherViewTest, DrawsARowCentredOnTheOutputAndFindsItsEntries)
     EXPECT_EQ(bounds.size(),
               base::Size(base::roundToInt(2 * cell + 2 * switcher::SwitcherView::kPadding),
                          base::roundToInt(cell + 2 * switcher::SwitcherView::kVerticalPadding)));
-    // Both extents are even, so whole-pixel centres compare as exact ones.
     EXPECT_EQ(bounds.center(), base::Rect(0, 0, 1000, 800).center());
 
     const auto image = view.renderImage();
@@ -117,14 +114,12 @@ TEST(SwitcherViewTest, DrawsARowCentredOnTheOutputAndFindsItsEntries)
     EXPECT_EQ(imageSize(image), bounds.size());
     const int padding = base::roundToInt(switcher::SwitcherView::kPadding);
     const int top = base::roundToInt(switcher::SwitcherView::kVerticalPadding);
-    // The selection's glass sits centred on the second cell.
     const base::Rect selection = view.selectionBounds();
     const base::PointF secondCell = base::PointF(bounds.topLeft() + base::Point(padding, top))
             + base::PointF(cell * 1.5, cell / 2);
     EXPECT_TRUE(base::fuzzyCompare(base::RectF(selection).center(), secondCell));
     EXPECT_EQ(selection.width(), base::roundToInt(cell * switcher::SwitcherView::kSelectionRatio));
 
-    // Moving the selection repaints only what changed; the rest stays.
     const base::Point firstIcon(padding + base::roundToInt(cell / 2), top + base::roundToInt(cell / 2));
     EXPECT_TRUE(alphaAt(image, firstIcon) > 0);
     view.selectWindowCycleEntry(0);
@@ -181,7 +176,6 @@ TEST(SwitcherViewTest, ThePanelCastsAShadow)
     EXPECT_TRUE(shadow->isVisible());
     EXPECT_TRUE(shadow->elevation() != wm::ShadowElevation::None);
     EXPECT_TRUE(shadow->absoluteGeometry().contains(view.bounds()));
-    // The glass's own corner: a tighter one shows past it as a dark crescent.
     EXPECT_EQ(shadow->radius(), switcher::SwitcherView::kRadius);
 }
 

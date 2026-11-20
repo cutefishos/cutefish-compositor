@@ -13,9 +13,8 @@ class EventLoop;
 
 namespace cutefish::core {
 
-// The main thread's event loop, for base::Timer, fd watches, posted tasks and
-// sd-bus; main() runs it. Made before anything that uses it and destroyed
-// after. A second one stands in for the first while it exists.
+// Made before anything that uses it and destroyed after. A second one stands in
+// for the first while it exists.
 class MainLoop
 {
 public:
@@ -32,7 +31,7 @@ private:
     MainLoop *m_previous = nullptr;
 };
 
-// The loop of the MainLoop that exists, or null.
+// Null when no MainLoop exists.
 base::EventLoop *mainLoop();
 
 } // namespace cutefish::core

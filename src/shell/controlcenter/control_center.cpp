@@ -26,12 +26,8 @@
 
 namespace cutefish::shell {
 
-// The menu bar's height: the control centre hangs this far below the
-// bar's screen's top, whatever the item.
 static constexpr int kBarHeight = 32;
 
-// A popup's content: the panel's view filling it. A theme change lays every
-// window out again, which is where the glass's tint follows dark mode.
 class ControlCenter::PopupRoot final : public ui::View
 {
 public:
@@ -77,9 +73,6 @@ ControlCenter::ControlCenter(Shell *shell, std::unique_ptr<ControlCenterServices
         m_subscriptions.push_back(m_powerActions->pendingChanged.connect([this] { updatePower(); }));
         m_subscriptions.push_back(m_powerActions->requested.connect([this] { updatePower(); }));
     }
-    // StatusPanel's adjustPosition on a work area change: the panel keeps
-    // its place and takes the new height. Only the status panels and the
-    // control centre's detail page follow it.
     m_subscriptions.push_back(m_shell->outputsChanged.connect([this] {
         for (Panel panel : {Panel::Network, Panel::Bluetooth, Panel::Volume, Panel::Battery})
             fitToWorkArea(panel);
@@ -166,7 +159,7 @@ ShellWindow *ControlCenter::popupWindow(Panel panel) const
     return window ? m_shell->host()->windowFor(static_cast<ui::EmbeddedWindow *>(window)) : nullptr;
 }
 
-// A popup of `bar` at `geometry`, in screen coordinates.
+// `geometry` is in screen coordinates.
 static ui::PopupPlacement placementAt(ShellWindow *bar, const base::Rect &geometry)
 {
     const base::Point origin = bar->geometry().topLeft();
@@ -183,7 +176,6 @@ static ui::PopupPlacement placementAt(ShellWindow *bar, const base::Rect &geomet
 base::Rect ControlCenter::panelGeometry(Panel panel, ShellWindow *bar, const base::Rect &anchor) const
 {
     const base::Point barOrigin = bar ? bar->geometry().topLeft() : base::Point();
-    // The left edge of the item's plate, at the bar's bottom.
     const base::Point position(barOrigin.x() + anchor.x() + 3, barOrigin.y() + anchor.y() + anchor.height());
     const Shell::Output *output = m_shell->output(bar ? bar->outputName() : std::string());
     const base::Rect screen = output ? output->bounds : base::Rect(0, 0, 1440, 960);
@@ -203,8 +195,6 @@ base::Rect ControlCenter::panelGeometry(Panel panel, ShellWindow *bar, const bas
 
     const base::Rect area = output ? m_shell->workArea(*output) : screen;
     const int width = int(status_panel::kWidth);
-    // As tall as the work area allows the panel to grow; the window is as
-    // tall as the panel is drawn.
     const int height = std::max(0, area.height() - margin * 2);
     const int x = std::max(area.x() + margin, std::min(position.x(), area.x() + area.width() - width - margin));
     const int y = std::max(area.y() + margin, std::min(position.y() + margin, area.y() + area.height() - height - margin));
@@ -276,7 +266,6 @@ void ControlCenter::openPanel(Panel panel, ShellWindow *bar, const base::Rect &a
                 escape(panel);
         });
     });
-    // A press outside the bar and the panel, or the bar closing its popups.
     open.window->onCloseRequested = [this, panel] {
         const std::shared_ptr<bool> alive = m_alive;
         core::mainLoop()->post([this, alive, panel] {
@@ -288,7 +277,6 @@ void ControlCenter::openPanel(Panel panel, ShellWindow *bar, const base::Rect &a
         open.window->setScale(bar->scale());
         open.geometry.setHeight(int(open.pager->windowHeight(bar->scale())));
     }
-    // A status panel's window takes its height from the panel once shown.
     open.window->resize({double(open.geometry.width()),
                          open.panel ? std::max(1.0, open.panel->contentHeight()) : double(open.geometry.height())});
     open.window->show();
@@ -311,8 +299,6 @@ void ControlCenter::updateWindow(Panel panel)
     open.dark = ui::Theme::current().darkMode;
     int height = open.geometry.height();
     if (open.panel) {
-        // The window follows the panel's height as it animates, and the
-        // compositor's outline and shadow follow the window.
         height = std::max(1, int(std::lround(open.panel->shownBottom())));
         open.window->resize({double(open.geometry.width()), double(height)});
     }
@@ -423,8 +409,6 @@ void ControlCenter::close(Panel panel)
     panelsChanged();
 }
 
-// The open panels and the power dialog stay as they are, with their text
-// taken again.
 void ControlCenter::retranslate()
 {
     if (m_open[0].controlCenter)

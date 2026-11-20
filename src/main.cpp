@@ -21,10 +21,8 @@
 
 namespace {
 
-// Blocks SIGINT/SIGTERM/SIGHUP and returns a signalfd for them, so shutdown runs
-// on the event loop rather than in a signal handler. SIGHUP is what the session's
-// terminal sends when its leader exits; dying of it would skip the teardown that
-// leaves the last frame on screen for the next DRM master.
+// SIGHUP comes when the session leader exits; dying of it would skip the
+// teardown that leaves the last frame on screen.
 int createSignalFd()
 {
     sigset_t mask;
@@ -45,8 +43,7 @@ int main(int argc, char *argv[])
 {
     cutefish::core::applyMallocPolicy();
     signal(SIGPIPE, SIG_IGN);
-    // The user's locale from the start, not only once the embedded toolkit
-    // sets it when the lock screen first appears.
+    // Set now, not only once the embedded toolkit sets it for the lock screen.
     cutefish::base::Locale::setProcessLocale();
     cutefish::i18n::setDomain("cutefish-compositor");
     const cutefish::ScopedFd signalFdOwner(createSignalFd());

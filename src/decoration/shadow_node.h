@@ -5,15 +5,6 @@
 //
 // Upstream: chromium/src/ui/compositor_extra/shadow.{h,cc}
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// The compositor shadow's presentation half. Independent of the SSD frame: a
-// client-decorated window with no Decoration still gets one.
-//
-//   window node
-//     +-- ShadowNode         <- this, always at the bottom
-//     +-- WindowVisualNode
-//          +-- DecorationNode (SSD only)
-//          +-- client surface tree
 
 #ifndef CUTEFISH_DECORATION_SHADOW_NODE_H_
 #define CUTEFISH_DECORATION_SHADOW_NODE_H_
@@ -38,20 +29,13 @@ class ShadowNode : public scene::Node
 public:
     explicit ShadowNode(const Theme *theme);
 
-    // `content` is what the window actually has on screen, in the window node's
-    // coordinates, and `corners` and `radius` its silhouette; the node's own
-    // geometry becomes that rectangle grown by the style's exterior margins, so
-    // the scene - and with it the animation's offscreen coverage and the
-    // scanout planner - sees everything the shadow paints. Repeating a call
-    // that changes nothing costs nothing.
-    // A non-empty `silhouette`, relative to `content`, replaces the corners and radius.
+    // `content` is in the window node's coordinates; a non-empty `silhouette`,
+    // relative to `content`, replaces the corners and radius.
     void update(const base::Rect &content, wm::ShadowElevation elevation, const Corners &corners,
                 int radius, const ui::Path &silhouette = {});
 
     wm::ShadowElevation elevation() const { return m_elevation; }
 
-    // The silhouette the shadow is cut around: the window's own corner shape,
-    // not the frame's.
     Corners corners() const { return m_corners; }
 
     int radius() const { return m_radius; }
@@ -64,8 +48,8 @@ public:
     // onto physical pixels.
     void setSurfaceOrigin(const base::Point &origin);
 
-    // A drawn shadow is blended over whatever is behind the window, so the
-    // frame it appears in has to be composited.
+    // Blended over what is behind the window, so the frame has to be
+    // composited.
     Content content() const override
     {
         return m_elevation == wm::ShadowElevation::None ? Content::None : Content::Translucent;
@@ -81,16 +65,15 @@ private:
     int m_radius = 0;
     ui::Path m_silhouette;
     base::Point m_surfaceOrigin;
-    // What the controller asked for, and what is actually drawn - which is
-    // None as well whenever the window is too small for the style.
+    // The drawn elevation is None whenever the window is too small for the
+    // style.
     wm::ShadowElevation m_requested = wm::ShadowElevation::None;
     wm::ShadowElevation m_elevation = wm::ShadowElevation::None;
     base::Insets m_margins;
 };
 
-// What wm::ShadowController drives. Owns the node, which lives under the
-// window's own node so that stacking, hiding and the close animation take the
-// shadow with them.
+// The node lives under the window's own node, so stacking, hiding and the close
+// animation take the shadow along.
 class Shadow : public wm::WindowShadow
 {
 public:

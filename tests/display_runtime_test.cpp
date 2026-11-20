@@ -37,7 +37,6 @@ using namespace cutefish;
 
 namespace {
 
-// Records a signal's emissions.
 template<typename... Args>
 class Spy
 {
@@ -47,7 +46,6 @@ public:
     {
     }
 
-    // Waits for the next emission.
     bool wait(int milliseconds)
     {
         const size_t count = calls.size();
@@ -575,8 +573,7 @@ TEST_F(DisplayRuntimeTest, UnpluggingADisplayMovesItsWindowsWholeToThePrimary)
               base::Rect(primary.topLeft() + base::Point(600, 285), base::Size(760, 450)));
 }
 
-// The seat activation at startup reprobes, and SDL2 cannot survive its only
-// output being withdrawn and re-announced while it recreates its window.
+// SDL2 cannot survive its only output being withdrawn and re-announced.
 TEST_F(DisplayRuntimeTest, AReprobeKeepsTheOutputGlobalOfAConnectorThatStays)
 {
     ASSERT_TRUE(apply(request()).succeeded);
@@ -605,9 +602,6 @@ TEST_F(DisplayRuntimeTest, AReprobeKeepsTheOutputGlobalOfAConnectorThatStays)
     runtime->replaceOutputs({&first, &second});
 }
 
-// Between a reprobe and the configuration it reconciles, the coordinator
-// installs a baseline with no logical display. That disables nothing, so no
-// client sees its output go away and come back.
 TEST_F(DisplayRuntimeTest, TheRecoveryBaselineKeepsTheOutputGlobals)
 {
     ASSERT_TRUE(apply(request()).succeeded);
@@ -697,7 +691,6 @@ TEST_F(DisplayRuntimeTest, StartGivesUnsavedDisplaysTheirRecommendedScale)
 {
     auto hardware = *manager.hardware();
     for (auto &physical : hardware.displays) {
-        // 13.3" at 1080p, 166 dpi.
         physical.connectionType = display::DisplayConnectionType::Internal;
         physical.physicalSizeMm = {294, 165};
     }
@@ -710,7 +703,6 @@ TEST_F(DisplayRuntimeTest, StartGivesUnsavedDisplaysTheirRecommendedScale)
             },
             display::DisplayPreferences(filePath("display.json")));
     Spy done(coordinator.reconciled);
-    // The layout initialize() made runs at 1; start() must not keep it.
     EXPECT_EQ(input.pointerPosition(), base::PointF(960, 540));
     coordinator.start();
     ASSERT_TRUE(done.wait(2000));
@@ -718,7 +710,6 @@ TEST_F(DisplayRuntimeTest, StartGivesUnsavedDisplaysTheirRecommendedScale)
     ASSERT_EQ(manager.applied()->logicalDisplays.size(), 2);
     for (const auto &logical : manager.applied()->logicalDisplays)
         EXPECT_EQ(logical.scale.value(), 1.25);
-    // Still the centre of the primary display, now 1536x864.
     EXPECT_EQ(input.pointerPosition(), base::PointF(768, 432));
 }
 

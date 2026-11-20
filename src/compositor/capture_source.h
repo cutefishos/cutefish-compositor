@@ -17,9 +17,8 @@ class Node;
 
 namespace cutefish::compositor {
 
-// What an ext_image_capture_source_v1 refers to: a whole output, or one
-// window painted on its own. The owner keeps the fields current and emits
-// changed() when the buffer constraints move or the source goes away.
+// The owner keeps the fields current and emits changed() when the buffer
+// constraints move or the source goes away.
 class CaptureSource final
 {
 public:
@@ -30,9 +29,7 @@ public:
 
     Kind kind = Kind::Output;
     Output output;
-    // Window sources: the subtree to paint, its logical bounds in global
-    // coordinates, the scale it is rasterized at, and the output whose
-    // composition carries it.
+    // Window sources only; bounds are logical, in global coordinates.
     const scene::Node *node = nullptr;
     base::Rect bounds;
     double scale = 1;

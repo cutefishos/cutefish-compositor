@@ -28,7 +28,7 @@ namespace cutefish::shell {
 
 namespace {
 
-// JavaScript's Math.round: halves go up.
+// Halves go up.
 double jsRound(double value)
 {
     return std::floor(value + 0.5);
@@ -45,7 +45,7 @@ bool intersects(const ui::RectF &a, const ui::RectF &b)
             && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
 }
 
-// Text.Outline: the text over its copies a device pixel off each way.
+// The text over its copies a device pixel off each way.
 class OutlinedLabel final : public ui::Label
 {
 public:
@@ -67,7 +67,6 @@ private:
     ui::Color m_outline;
 };
 
-// The timer counting down over what is about to be captured.
 class CountdownBadge final : public ui::View
 {
 public:
@@ -101,8 +100,7 @@ private:
 
 } // namespace
 
-// The overlay's content, everything in this output's coordinates; the
-// capture speaks global ones.
+// In this output's coordinates; the capture speaks global ones.
 class CaptureOverlay::View final : public ui::View
 {
 public:
@@ -142,8 +140,6 @@ public:
 
     CaptureToolbar *toolbar() const { return m_toolbar; }
     OutlinedLabel *coordinates() const { return m_coordinates; }
-
-    // --- What the overlay's views read ---
 
     double width() const { return m_overlay->bounds().width(); }
     double height() const { return m_overlay->bounds().height(); }
@@ -194,9 +190,8 @@ public:
         return {x, y};
     }
 
-    // The pointer rests a third of a pixel inside the far edges at 150%, so
-    // jitter along them would flip a selection edge between the last two
-    // pixels. Once on an edge, the drag keeps to it until the pointer is clear.
+    // Once on a far edge, the drag keeps to it until the pointer is clear, so jitter
+    // does not flip the edge between the last two pixels.
     ui::PointF stickToEdges(ui::PointF p)
     {
         m_atRightEdge = width() - p.x <= (m_atRightEdge ? 2 : 1);
@@ -204,7 +199,7 @@ public:
         return {m_atRightEdge ? width() : p.x, m_atBottomEdge ? height() : p.y};
     }
 
-    // Which of the selection's handles or edges is at p; 8 inside, -1 outside.
+    // 8 inside, -1 outside.
     int handleAt(ui::PointF p) const
     {
         if (!selectionHere())
@@ -229,7 +224,6 @@ public:
         return withinX && withinY ? 8 : -1;
     }
 
-    // The toolbar's selection after a drag that started at the anchor.
     ui::RectF adjusted(ui::PointF p) const
     {
         const ui::RectF s = m_dragStart;
@@ -296,8 +290,6 @@ public:
         return between(topLeft, bottomRight);
     }
 
-    // Where it was last dragged to while that is on this screen, kept whole
-    // on it; centred above the dock otherwise.
     void placeToolbar()
     {
         const ui::SizeF size = m_toolbar->implicitSize();
@@ -317,8 +309,6 @@ public:
         m_placedArea = m_capture->toolbarArea();
         m_placedWidth = size.width;
     }
-
-    // --- Following the capture ---
 
     void sync()
     {
@@ -414,7 +404,6 @@ public:
     }
 
 protected:
-    // A theme change lays every window out again.
     void layout() override
     {
         if (m_overlay->m_glassDark != ui::Theme::current().darkMode)
@@ -470,7 +459,6 @@ protected:
             return;
         const bool toClipboard = event.modifiers & ui::ControlModifier;
         const base::Rect screen = m_overlay->bounds();
-        // Picking a screen or a window is a click.
         if (source() != ScreenCapture::Region) {
             m_capture->clickAt(base::PointF(event.position.x + screen.x(), event.position.y + screen.y()).toPoint(),
                                m_overlay->outputName(), toClipboard);
@@ -562,8 +550,7 @@ private:
     bool m_pointerInside = false;
     bool m_held = false;
     bool m_dragging = false;
-    // What a drag in the toolbar's portion mode does: -1 draws a new
-    // selection, 8 moves it, 0 to 7 pull a handle.
+    // -1 draws a new selection, 8 moves it, 0 to 7 pull a handle.
     int m_dragHandle = -1;
     ui::PointF m_dragAnchor;
     ui::PointF m_dragLast;
@@ -577,9 +564,8 @@ private:
 
 namespace {
 
-// What the overlay paints around the toolbar. The toolbar's glass is the
-// compositor's, behind the window, so nothing may cover the toolbar: shapes
-// over it lose that part.
+// The toolbar's glass is the compositor's, behind the window, so nothing may cover
+// the toolbar.
 class Covers
 {
 public:
@@ -588,7 +574,6 @@ public:
     {
         if (!hole)
             return;
-        // Snapped as FishUI's RoundedRectangle in the mask is.
         const ui::Rect device = painter.snappedRect(*hole);
         const double scale = painter.scale();
         m_holeRect = {device.x / scale, device.y / scale, device.width / scale, device.height / scale};
@@ -601,7 +586,6 @@ public:
         m_active = true;
     }
 
-    // A plain rectangle: its edges on the device grid.
     void fillRect(const ui::RectF &rect, ui::Color color)
     {
         if (rect.width <= 0 || rect.height <= 0)
@@ -615,7 +599,6 @@ public:
         m_painter.fillPath(path.subtracted(m_hole), color);
     }
 
-    // FishUI's RoundedRectangle with circular corners and a border inside.
     void roundedRect(const ui::RectF &rect, double radius, ui::Color fill, double borderWidth = 0,
                      ui::Color border = {})
     {
@@ -653,8 +636,6 @@ private:
     ui::Path m_hole;
 };
 
-// The outline of a selected portion and the eight handles it is resized by,
-// kept on the screen.
 void paintFrame(Covers &covers, double scale, const ui::RectF &rect, double screenWidth, double screenHeight,
                 bool handles)
 {
@@ -693,8 +674,6 @@ void CaptureOverlay::View::paint(ui::Painter &painter)
     const double w = width();
     const double h = height();
 
-    // The rest of the screen, dimmed around a portion. A screen without the
-    // portion is dimmed whole.
     const bool region = source() == ScreenCapture::Region;
     if (toolbarStyle() && region) {
         const ui::Color dim = ui::Color {0, 0, 0, 255}.withAlpha(0.4);
@@ -709,12 +688,10 @@ void CaptureOverlay::View::paint(ui::Painter &painter)
         }
     }
 
-    // The window a click would capture.
     if (source() == ScreenCapture::Window && m_capture->hoveredWindow().width() > 0)
         covers.roundedRect(localRect(m_capture->hoveredWindow()), m_capture->hoveredWindowRadius(),
                            ui::Color {89, 153, 255, 255}.withAlpha(0.3));
 
-    // The crosshair's selection as it is drawn.
     if (!toolbarStyle() && m_dragging && region) {
         painter.fillRect(m_draft, ui::Color {153, 153, 153, 255}.withAlpha(0.3));
         Covers plain(painter, std::nullopt, 0);
@@ -770,7 +747,6 @@ void CaptureOverlay::setOutput(const Shell::Output &output)
 
 void CaptureOverlay::present(bool focus)
 {
-    // The pointer size of the moment the interface shows.
     m_cursorSizeLoad = runOnFileThread(
             [] { return int(base::Settings(preferencesFile("services")).intValue("Appearance/CursorSize", 24)); },
             [this](int size) {

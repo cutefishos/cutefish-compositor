@@ -17,9 +17,7 @@
 
 namespace cutefish::scene {
 
-// A positioned, ordered item in the compositor scene. Geometry is relative to
-// the parent; first child is furthest back. Children normally paint after the
-// parent, with an optional split for subsurfaces stacked below parent content.
+// Geometry is relative to the parent; the first child is furthest back.
 class Node
 {
 public:
@@ -37,13 +35,10 @@ public:
     Node *addChild(std::unique_ptr<Node> child);
     std::unique_ptr<Node> removeChild(Node *child);
 
-    // Moves `child` to the front (top) or back (bottom) of the sibling order.
     void raise(Node *child);
     void lower(Node *child);
 
-    // Puts the children in `order`, which has to list each of them once. Only
-    // the ones that have to move change, as aura restacks one window at a time
-    // (Window::StackChildAbove): the longest run already in order stays put.
+    // `order` has to list each child once.
     void reorderChildren(const std::vector<Node *> &order);
 
     void setChildrenBelowParent(size_t count);
@@ -73,80 +68,55 @@ public:
     void notifyChanged() const;
     void notifyDamage(const base::Region &damage);
 
-    // Runs the change callbacks without changing anything, for a hidden child
-    // that still paints. Nothing runs under a hidden ancestor.
     void requestFrame() const;
 
     uint64_t damageId() const { return m_damageId; }
 
     uint64_t revision() const { return m_revision; }
 
-    // Counts every change any node reported, so a damage collection can be
-    // told apart from one over the same tree.
     static uint64_t mutations() { return s_mutations; }
 
     uint64_t contentRevision() const { return m_contentRevision; }
 
     base::Region damageSince(uint64_t revision) const;
 
-    // True only if this node and every ancestor is visible.
     bool isEffectivelyVisible() const;
 
-    // Paints children on either side of this node, skipping invisible subtrees.
     virtual void render(render::Renderer &renderer) const;
 
-    // What this node's own paint() puts inside geometry(). The scanout planner
-    // needs it to know what a hardware plane would have to replace.
     enum class Content {
-        None, // paints nothing of its own
-        Opaque, // covers geometry() with no transparency
-        Translucent, // paints, possibly blended
+        None,
+        Opaque,
+        Translucent,
     };
 
     virtual Content content() const { return Content::None; }
 
-    // The node draws its whole subtree itself - an offscreen pass, a transform,
-    // an animation - so the planner must treat the subtree as one blob rather
-    // than descending into it. Nothing inside can go on a hardware plane.
+    // Nothing inside can go on a hardware plane.
     virtual bool paintsSubtree() const { return false; }
 
     virtual bool requiresFullRepaint() const { return paintsSubtree(); }
 
-    // A hidden node that still draws, such as an animation playing on after
-    // its window is gone. Damage follows it the same as a visible one.
     virtual bool paintsWhenHidden() const { return false; }
 
-    // Whether an output with this viewport and scale is about to draw the
-    // subtree again whole, as into a texture kept between frames that no
-    // longer holds it, rather than only where it changed.
     virtual bool redrawsSubtree(const base::Rect &, double) const { return false; }
 
     virtual bool acceptsInput(const base::PointF &) const { return true; }
 
-    // Drawn as usual, but left out of the input hit test, as aura's
-    // ScopedWindowEventTargetingBlocker does for a window dragged with a drag.
     bool isEventTargetingBlocked() const { return m_eventTargetingBlocked; }
 
     void setEventTargetingBlocked(bool blocked) { m_eventTargetingBlocked = blocked; }
 
-    // Paints over the whole of the renderer's current output, opaquely, so
-    // nothing drawn before it there can show. Its parent then skips those
-    // siblings, as viz drops quads an opaque one occludes.
     virtual bool occludesOutput(const render::Renderer &) const { return false; }
 
-    // Draws its siblings [begin, end), all those under it the parent would
-    // draw, itself: a full-output animation keeps them as a texture rather
-    // than repaint them all each frame. False leaves them to the parent.
+    // False leaves them to the parent.
     virtual bool renderSiblingsBelow(render::Renderer &, size_t /*begin*/, size_t /*end*/) const
     {
         return false;
     }
 
-    // A visible node in this subtree occludes the output.
     bool subtreeOccludesOutput(const render::Renderer &renderer) const;
 
-    // Set by the display controller for content it has moved onto a hardware
-    // plane, so composition leaves the same pixels out.
     bool isPromotedToOverlay() const { return m_promotedToOverlay; }
 
     void setPromotedToOverlay(bool promoted)
@@ -156,40 +126,29 @@ public:
         m_promotedToOverlay = promoted;
     }
 
-    // On screen, but never in an image or a video the compositor captures.
     bool isExcludedFromCapture() const { return m_excludedFromCapture; }
 
     void setExcludedFromCapture(bool excluded) { m_excludedFromCapture = excluded; }
 
-    // render() for a capture: children excluded from capture are left out.
     void renderForCapture(render::Renderer &renderer) const;
 
     virtual bool isRetired() const { return false; }
 
     void collectRetired();
-    // Ends the animations in this subtree that only wait to be collected, for
-    // when no output is going to draw them: a blanked display, an inactive seat.
     virtual void finishRetiring();
     virtual void releaseRenderResources();
 
 protected:
     virtual void paint(render::Renderer &renderer, const base::Rect &absoluteGeometry) const;
-    // What the node draws of the content behind it (a background blur), before
-    // the children placed below it: those are its own, not behind it.
     virtual void paintBackdrop(render::Renderer &renderer, const base::Rect &absoluteGeometry) const;
-    // What the node draws over the children placed below it, before its own
-    // paint (a blur of them).
     virtual void paintOverChildrenBelow(render::Renderer &renderer, const base::Rect &absoluteGeometry) const;
 
-    // A fresh damage id, for something a node draws that is kept apart.
     static uint64_t nextDamageId();
 
-    // render() whether or not this node itself is visible, for a subtree drawn
-    // somewhere of its own while hidden, as a desk preview draws another desk.
     void renderSubtree(render::Renderer &renderer) const;
 
 private:
-    // The topmost child that occludes the output, or 0 when none does.
+    // 0 when none does.
     size_t firstUnoccludedChild(const render::Renderer &renderer) const;
 
     static uint64_t s_mutations;
@@ -201,7 +160,6 @@ private:
     std::string m_name;
     Node *m_parent = nullptr;
     std::vector<std::unique_ptr<Node>> m_children;
-    // Paint order; mirrors m_children but is reordered by raise()/lower().
     std::vector<Node *> m_childOrder;
     base::Rect m_geometry;
     bool m_visible = true;
@@ -211,7 +169,6 @@ private:
     size_t m_childrenBelowParent = 0;
 };
 
-// Solid colour rectangle.
 class ColorNode : public Node
 {
 public:

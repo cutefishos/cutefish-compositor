@@ -5,9 +5,6 @@
 // Upstream: chromium/src/ui/wm/core/accelerator_filter.cc and
 //           chromium/src/ash/accelerators/pre_target_accelerator_handler.cc
 // Revision: 8abbac30b9cf2fe976422c58c000c94685648b65
-//
-// Adapted for Cutefish: integrates the upstream behavior with native
-// compositor types and ownership.
 
 #include "accelerators/accelerator_filter.h"
 
@@ -29,7 +26,6 @@ namespace cutefish::accelerators {
 
 namespace {
 
-// ash::AcceleratorController::IsSystemKey, with hardware media key handling on.
 bool isSystemKey(xkb_keysym_t keysym)
 {
     switch (keysym) {
@@ -181,8 +177,7 @@ bool AcceleratorFilter::onKey(input::Timestamp timestamp, uint32_t evdevCode, bo
     if (pressed || evdevCode == m_repeatAccelerator.evdevCode())
         stopRepeat();
 
-    // Ash registers these on aura::Env, ahead of every other pre-target
-    // handler, so they see the key whatever happens to it afterwards.
+    // Recorded first, so the history sees the key whatever happens to it afterwards.
     m_controller->history()->storeCurrentAccelerator(accelerator);
     m_controller->launchpadStateMachine()->onKey(accelerator.keysym(), pressed);
 
@@ -194,10 +189,7 @@ bool AcceleratorFilter::onKey(input::Timestamp timestamp, uint32_t evdevCode, bo
         return true;
     }
 
-    // While cycling, every key that is not the cycle trigger belongs to the
-    // cycle: letting go of the modifiers that started it (Alt, or Command)
-    // completes it, Escape cancels it. The client saw those modifiers go down,
-    // so it gets their release as well.
+    // The client saw the cycle's modifiers go down, so it gets their release as well.
     if (m_windowCycle && m_windowCycle->isCycling()
         && !m_controller->doesAcceleratorMatchAction(accelerator,
                                                      AcceleratorAction::CycleForwardMru)
@@ -221,8 +213,6 @@ bool AcceleratorFilter::onKey(input::Timestamp timestamp, uint32_t evdevCode, bo
 
 bool AcceleratorFilter::onSecureKey(input::Timestamp, uint32_t evdevCode, bool pressed)
 {
-    // Only the system keys: the history, the launchpad and the window cycle
-    // have nothing to see behind the lock screen.
     const Accelerator accelerator = acceleratorForKey(evdevCode, pressed);
     if (pressed || evdevCode == m_repeatAccelerator.evdevCode())
         stopRepeat();
@@ -249,20 +239,18 @@ bool AcceleratorFilter::processAccelerator(const Accelerator &accelerator)
 
 bool AcceleratorFilter::canConsumeSystemKeys() const
 {
-    // Exo's inhibitor is what lets the window have them.
+    // The inhibitor is what lets the window have them.
     input::Seat *seat = m_windowManager ? m_windowManager->seat() : nullptr;
     return seat && seat->shortcutsInhibition()->isActive();
 }
 
 bool AcceleratorFilter::shouldProcessAcceleratorNow(const Accelerator &accelerator) const
 {
-    // Reserved accelerators (such as the lock key) always have priority.
     if (m_controller->isReserved(accelerator))
         return true;
 
-    // Exo's inhibitor only lets the window consume system keys. A remote
-    // desktop or a virtual machine needs Meta as well, so it gets every key
-    // but the reserved ones and Meta+Escape.
+    // A remote desktop or a virtual machine also needs Meta, so it gets every key but
+    // the reserved ones and Meta+Escape.
     input::Seat *seat = m_windowManager ? m_windowManager->seat() : nullptr;
     if (seat && seat->shortcutsInhibition()->isActive())
         return false;
@@ -274,10 +262,8 @@ bool AcceleratorFilter::shouldProcessAcceleratorNow(const Accelerator &accelerat
         return true;
     }
 
-    // A full screen window has a right to handle all key events including
-    // the preferred ones. Ash would offer the rest to the window first and
-    // process them afterwards if it declined; without a key-ack extension
-    // Cutefish has no afterwards, so everything else is processed now.
+    // Without a key-ack extension there is no pass after the window, so everything a
+    // fullscreen window does not get is processed now.
     wm::Window *active = m_windowManager ? m_windowManager->activation()->activeWindow() : nullptr;
     const bool fullscreen = active && active->state()->isFullscreen();
     return !fullscreen;

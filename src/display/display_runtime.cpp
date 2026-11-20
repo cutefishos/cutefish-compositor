@@ -38,7 +38,6 @@ namespace cutefish::display {
 
 namespace {
 
-// The output's logical rectangle.
 cutefish::base::Rect logicalBounds(const cutefish::compositor::Output &model)
 {
     return cutefish::base::Rect(model.position, model.logicalSize());
@@ -51,12 +50,10 @@ cutefish::render::OutputRenderContext renderContext(const cutefish::compositor::
             static_cast<uint32_t>(model.transform), frame, model.nativeContentRect};
 }
 
-// How long the outgoing frame may wait for the shell to redraw. Exo holds its
-// orientation compositor lock for up to 2.5 s; the shell redraws far faster.
+// How long the outgoing frame may wait for the shell to redraw.
 constexpr std::chrono::milliseconds kScreenTransitionTimeout(1000);
 
-// How long the startup cover waits for the desktop's wallpaper. Upstream's booting
-// animation waits at most 5 s for the device before it plays anyway.
+// How long the startup cover waits for the desktop's wallpaper.
 constexpr std::chrono::milliseconds kStartupCoverTimeout(5000);
 
 } // namespace
@@ -238,7 +235,6 @@ HardwareSnapshot DisplayRuntime::discover(backend::DrmBackend *backend,
                 | cutefish::display::DisplayCapability::Rotation
                 | cutefish::display::DisplayCapability::SoftwareMirror
                 | cutefish::display::DisplayCapability::Power;
-        // Through the CRTC, or blended over the frame where it cannot.
         if (backend && index < backend->allOutputs().size())
             physical.capabilities |= cutefish::display::DisplayCapability::ColorTransform;
         physical.modes = modes;
@@ -313,12 +309,8 @@ void DisplayRuntime::replaceOutputs(std::vector<compositor::Output *> models)
     cursor.setSink(nullptr);
     if (cursorRouter)
         cursorRouter->setTargets({});
-    // A connector that is still there keeps its wl_output global, with the
-    // bindings and capture sources clients hold on it; publish() sends it the
-    // new metrics. Only a connector that went away is withdrawn. Withdrawing
-    // and re-announcing an unchanged output on every reprobe - the seat
-    // activation at startup included - is a hotplug clients need not see, and
-    // one SDL2 cannot survive while it recreates its window.
+    // A connector that is still there keeps its wl_output global; re-announcing
+    // an unchanged output is a hotplug that some clients cannot survive.
     std::vector<wl_global *> kept(models.size(), nullptr);
     for (int index = 0; index < outputModels.size() && index < int(outputGlobals.size());
          ++index) {
@@ -366,8 +358,8 @@ std::optional<HardwareSnapshot> DisplayRuntime::reprobe()
                                    displayManager.hardware()->topologyGeneration + 1, identity);
     replaceOutputs(models);
     ownedModels = std::move(replacement);
-    // A display that went away takes its power state and wake-on-input entry
-    // along, or every later input event would try to power it on.
+    // A display that went away takes its power state along, or every later
+    // input event would try to power it on.
     std::set<DisplayId> present;
     for (const auto &display : hardware.displays)
         present.insert(display.sessionId);
@@ -468,8 +460,7 @@ void DisplayRuntime::captureOutgoingFrames()
                 renderContext(*model, 0), paintOutgoing);
         if (!texture)
             continue;
-        // Renderer transforms turn logical content by -90 degrees per step, so
-        // the outgoing frame stays put on the panel when turned by the difference.
+        // Renderer transforms turn logical content by -90 degrees per step.
         static constexpr int kDegrees[] = {0, 90, -180, -90};
         rotated[model->name] = {std::move(texture), kDegrees[(quarterTurns % 4 + 4) % 4]};
         outgoing.push_back(outgoingBounds);
@@ -478,10 +469,6 @@ void DisplayRuntime::captureOutgoingFrames()
     if (rotated.empty())
         return;
 
-    // Upstream extends the compositor lock until the wallpaper and apps have
-    // resized. Here the shell's surfaces on a rotated output have to commit
-    // again, every desktop has to cover its output and the wallpaper has to be
-    // decoded at the new size.
     struct TrackedSurface {
         uint64_t window;
         uint64_t revision;
@@ -561,9 +548,8 @@ bool DisplayRuntime::isStartupCoverShowing() const
 void DisplayRuntime::startStartupCover()
 {
     const auto &applied = *displayManager.applied();
-    // A reconciliation publishes an empty layout before it configures: only
-    // the first real one has carried frames, and only it gets the cover. A
-    // later one, a VT switch back included, shows the session at once.
+    // Only the first real layout has carried frames and gets the cover; an
+    // empty layout is published before every configure.
     if (!startupCoverPending || !startupCover || !backend || applied.logicalDisplays.empty())
         return;
     startupCoverPending = false;
@@ -583,8 +569,7 @@ void DisplayRuntime::startStartupCover()
                                           });
         if (logical == applied.logicalDisplays.end())
             continue;
-        // The carried framebuffer is the panel's, unturned; like an outgoing
-        // frame, it stays put when turned by the new rotation.
+        // The carried framebuffer is the panel's, unturned.
         static constexpr int kDegrees[] = {0, 90, -180, -90};
         carried[model->name] = {std::move(frame), kDegrees[int(logical->rotation) % 4]};
         covers.push_back(logical->bounds);
@@ -653,8 +638,8 @@ void DisplayRuntime::bindFrames()
         });
         output->setBeginFrameCallback([this, model](double frameTime) {
             compositor.frameStarted(frameTime);
-            // Like viz's Display without damage, an output that shows nothing
-            // new and owes no client a frame draws and flips nothing.
+            // An output with nothing new that owes no client a frame draws and
+            // flips nothing.
             return scene.hasDamage(renderContext(*model, 0))
                     || compositor.awaitsFrame(base::Rect(model->position, model->logicalSize()))
                     || (capturePending && capturePending(model->name));
@@ -681,9 +666,9 @@ void DisplayRuntime::bindFrames()
                     if (tokens->contains(generation))
                         compositor.outputPresented(tokens->at(generation), timeNs);
                 }));
-        // exo runs wl_surface.frame on the ack viz sends from
-        // Display::DrawAndSwap (RunDrawCallbacks), not on presentation. Paced
-        // by flips, a client behind a queued frame draws every other refresh.
+        // wl_surface.frame completes when the frame is drawn, not presented:
+        // paced by flips, a client behind a queued frame draws every other
+        // refresh.
         binding.subscriptions.push_back(output->frameDrawn.connect(
                 [this, tokens](uint64_t generation, uint64_t aimedNs) {
                     if (!tokens->contains(generation))
@@ -1105,8 +1090,7 @@ ConfigurationResult DisplayRuntime::setPower(const std::vector<DisplayId> &displ
             wakeOnInput.insert(physical.sessionId);
     }
     powerStates = std::move(next);
-    // With every display off nothing draws, so closing windows are done now
-    // rather than kept, snapshot and all, until a display comes back.
+    // With every display off nothing draws, so closing windows finish now.
     if (std::all_of(displayManager.applied()->physicalDisplays.begin(),
                     displayManager.applied()->physicalDisplays.end(),
                     [this](const auto &physical) { return isPoweredOff(physical.sessionId); }))
@@ -1133,10 +1117,8 @@ void DisplayRuntime::requireNativeRecovery()
 void DisplayRuntime::publish()
 {
     if (!displayManager.applied()) {
-        // Unpublished, not gone: the connectors are still there, so their
-        // wl_output globals stay announced with their last metrics and are
-        // brought up to date by the next publication. replaceOutputs()
-        // withdraws the ones a reprobe finds missing.
+        // Unpublished, not gone: the wl_output globals stay announced until a
+        // reprobe finds them missing.
         outputGlobal = nullptr;
         compositor.setOutputViews({});
         inputManager.setTopology({});
@@ -1158,9 +1140,8 @@ void DisplayRuntime::publish()
             maximumScaleChanged(scale);
     }
     const auto &models = outputModels;
-    // The topology coordinator's empty baseline, between a reprobe and the
-    // configuration it reconciles: no display is disabled by it, so no global
-    // is withdrawn for it.
+    // The empty baseline between a reprobe and its configuration disables no
+    // display, so no global is withdrawn.
     const bool baseline = displayManager.applied()->logicalDisplays.empty();
     std::vector<cutefish::compositor::Compositor::OutputView> views;
     std::vector<base::Rect> topology;

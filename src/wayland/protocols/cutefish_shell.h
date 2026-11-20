@@ -19,12 +19,6 @@ class PrivilegedClients;
 
 constexpr uint32_t kCutefishShellVersion = 1;
 
-// The per-display state the cutefish_shell_v1 global hands to its resources.
-//
-// cutefish_shell_v1 is the private extension the trusted client (the file
-// manager's desktop) uses to say that an ordinary xdg surface is an output's
-// desktop. Everything it carries is adapted into wm:: concepts; no wl_resource
-// crosses into the window manager.
 class WaylandCutefishShell
 {
 public:
@@ -40,8 +34,7 @@ private:
     PrivilegedClients* m_privileged = nullptr;
 };
 
-// `shell` must outlive the global. Registering the returned global with the
-// privileged client registry is what hides the interface from ordinary clients.
+// `shell` must outlive the global; registering it with the privileged registry hides it from ordinary clients.
 wl_global* createCutefishShellGlobal(wl_display* display, WaylandCutefishShell* shell);
 
 } // namespace cutefish::wayland

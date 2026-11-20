@@ -43,8 +43,6 @@ ResizeEdge edgeFor(bool left, bool right, bool top, bool bottom)
 ResizeEdge resizeEdgeFor(const render::RoundedShape &shape, const base::Rect &frame,
                          const base::Point &point, int inside, int corner)
 {
-    // The border follows the arc along a rounded corner; everything outside
-    // the outline, the corners' empty pixels included, is border.
     if (shape.distance(base::PointF(point) + base::PointF(0.5, 0.5)) <= -inside)
         return ResizeEdge::None;
 

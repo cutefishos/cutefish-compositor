@@ -15,14 +15,11 @@ class QuitAll;
 
 namespace cutefish::session {
 
-// org.cutefish.Applications1, which the session asks to quit every application
-// before it logs out, restarts or shuts down.
 class ApplicationsService
 {
 public:
-    // `setEnding` puts the docks and panels away while applications quit, and
-    // brings them back if one keeps the session from ending. The session bus
-    // when no connection is given.
+    // `setEnding` puts the docks and panels away while applications quit. The session
+    // bus when no connection is given.
     ApplicationsService(wm::QuitAll *quitAll, std::function<void(bool)> setEnding,
                         base::dbus::Connection *bus = nullptr);
     ApplicationsService(const ApplicationsService &) = delete;

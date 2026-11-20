@@ -35,8 +35,6 @@ bool isFile(const std::string &path)
     return stat(path.c_str(), &info) == 0 && S_ISREG(info.st_mode);
 }
 
-// The [Desktop Entry] group's Name in the user's language, Icon and
-// StartupWMClass.
 DesktopEntry readDesktopEntry(const std::string &path)
 {
     const std::optional<std::string> contents = base::file::read(path);
@@ -87,7 +85,6 @@ DesktopEntry readDesktopEntry(const std::string &path)
     return entry;
 }
 
-// The directory's *.desktop files, sorted by name ignoring case.
 std::vector<std::string> desktopFiles(const std::string &directory)
 {
     std::vector<std::string> names;

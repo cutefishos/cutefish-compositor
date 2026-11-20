@@ -42,7 +42,6 @@ std::shared_ptr<clipboard::StoredSource> sourceWith(const std::vector<std::pair<
     return source;
 }
 
-// Reads one type of the selection as a client would.
 std::string receive(clipboard::DataSource &source, const std::string &type)
 {
     int fds[2];
@@ -91,8 +90,6 @@ TEST(ClipboardStoreTest, ReadsAndWritesItsHistory)
     test::TemporaryDirectory directory;
     directory.write("history/index.json", kIndex);
     directory.write("history/abc", kBody);
-    // A body no entry names goes; what this store never writes, such as an
-    // older history's index, is left alone.
     const std::string orphan(64, 'e');
     directory.write("history/" + orphan, kBody);
     directory.write("history/index", "left over");
@@ -106,7 +103,6 @@ TEST(ClipboardStoreTest, ReadsAndWritesItsHistory)
     EXPECT_EQ(store.entries()[0].copied, 1760000000123LL);
     EXPECT_FALSE(std::filesystem::exists(directory.filePath("history/" + orphan)));
     EXPECT_TRUE(std::filesystem::exists(directory.filePath("history/index")));
-    // Its own place, not the older ~/.config/cutefish/clipboard-history.
     EXPECT_EQ(ClipboardStore::defaultDirectory(), base::paths::dataHome() + "/cutefish/clipboard-history");
 
     std::optional<ClipboardPayload> body;
@@ -126,7 +122,6 @@ TEST(ClipboardStoreTest, ReadsAndWritesItsHistory)
     ASSERT_EQ(stat(directory.filePath("history").c_str(), &info), 0);
     EXPECT_EQ(info.st_mode & 0777, 0700u);
 
-    // The same copy again moves its entry up; past the limit the oldest goes.
     store.add({{"text/plain", "two"}});
     ASSERT_TRUE(test::runUntil([&] { return store.entries()[0].text == "two"; }));
     EXPECT_EQ(store.entries().size(), 2u);
@@ -136,7 +131,6 @@ TEST(ClipboardStoreTest, ReadsAndWritesItsHistory)
     shell::waitForFileThread();
     EXPECT_FALSE(std::filesystem::exists(directory.filePath("history/abc")));
 
-    // The index on disk, newest first; the body in the same format it was read.
     const auto index = base::json::Value::parse(
             base::file::read(directory.filePath("history/index.json")).value_or(""));
     ASSERT_TRUE(index && index->isArray());
@@ -148,7 +142,6 @@ TEST(ClipboardStoreTest, ReadsAndWritesItsHistory)
     EXPECT_EQ(base::file::read(store.bodyPath(key)).value_or(""), "text/plain\n3\none");
     EXPECT_EQ(ClipboardStore::readBody(store.bodyPath(key)),
               (ClipboardPayload{{"text/plain", "one"}}));
-    // A damaged body reads as nothing.
     directory.write("damaged", "text/plain\n9\nshort");
     EXPECT_TRUE(ClipboardStore::readBody(directory.filePath("damaged")).empty());
 
@@ -171,13 +164,10 @@ TEST(ClipboardMonitorTest, ReadsNewSelectionsAndKnowsItsOwn)
     ASSERT_TRUE(test::runUntil([&] { return copies.size() == 1; }));
     EXPECT_EQ(copies[0], (ClipboardPayload{{"text/plain", "x"}}));
 
-    // A password manager's copy is not read.
     selection.setSource(sourceWith({{"text/plain", "secret"}, {"x-kde-passwordManagerHint", "secret"}}));
     test::runFor(std::chrono::milliseconds(20));
     EXPECT_EQ(copies.size(), 1u);
 
-    // An entry put back on the clipboard offers every text alias and says
-    // which entry it is.
     std::vector<std::string> shown;
     auto own = monitor.ownSelectionShown.connect([&](const std::string &key) { shown.push_back(key); });
     ASSERT_TRUE(monitor.setSelection({{"STRING", "caf\xe9"}}, "k1"));

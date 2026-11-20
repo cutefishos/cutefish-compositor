@@ -21,20 +21,13 @@
 
 namespace cutefish::shell {
 
-// How long a menu whose first layout is still on its way may take to open.
 static constexpr std::chrono::milliseconds kMenuWait {250};
-// The tray's menus open this far below the bar (Units.smallSpacing).
 static constexpr double kMenuGap = 6;
-// A move of the held pointer this far starts a drag (startDragDistance).
 static constexpr double kDragThreshold = 10;
 static constexpr char kTrayItemMimeType[] = "application/x-cutefish-tray-item";
 
-// How far a channel of an opaque pixel may stray from the first one's in a
-// single-colour icon: rounding in its export and in the 32 px rendering.
 static constexpr int kMonochromeSlack = 8;
 
-// FishUI's ThemeManager::isMonochromeIcon on a 32 px rendering: every
-// opaque pixel one colour, and that colour nearly grey.
 static bool isMonochromeBitmap(const ui::Bitmap &bitmap)
 {
     if (bitmap.isNull())
@@ -47,7 +40,6 @@ static bool isMonochromeBitmap(const ui::Bitmap &bitmap)
             const uint32_t alpha = pixel >> 24;
             if (alpha < 250)
                 continue;
-            // Unpremultiplied, rounded to nearest.
             const auto channel = [alpha](uint32_t value) { return std::min<uint32_t>(255, (value * 255 + alpha / 2) / alpha); };
             const uint32_t opaque = 0xff000000u | channel((pixel >> 16) & 0xff) << 16
                     | channel((pixel >> 8) & 0xff) << 8 | channel(pixel & 0xff);
@@ -70,13 +62,10 @@ static bool isMonochromeBitmap(const ui::Bitmap &bitmap)
     const int blue = int(first & 0xff);
     const int max = std::max({red, green, blue});
     const int min = std::min({red, green, blue});
-    // HSV saturation, 0-255.
     const int saturation = max == 0 ? 0 : (255 * (max - min) + max / 2) / max;
     return saturation < 24;
 }
 
-// The choice among an item's pictures for a size: the smallest at least
-// that large, else the largest, scaled to it.
 static ui::Bitmap pickPixmap(const std::vector<ui::Bitmap> &pixmaps, int side)
 {
     const ui::Bitmap *best = nullptr;
@@ -160,8 +149,6 @@ void SystemTrayView::rebuild()
     const int rows = m_model ? m_model->count() : 0;
     for (int row = 0; row < rows; ++row) {
         StatusNotifierItem *source = m_model->at(row);
-        // A passive item stays registered but out of sight; its view, if it
-        // had one, leaves with the items that are gone.
         if (source->isPassive())
             continue;
         auto it = std::find_if(m_items.begin(), m_items.end(),
@@ -176,7 +163,6 @@ void SystemTrayView::rebuild()
         view->setIcon(source->iconName(), source->pixmaps(), source->applicationIcon());
         items.push_back(view);
     }
-    // Items that left: their menu goes with them.
     for (TrayItemView *gone : m_items) {
         // The item's DBusMenu is already gone with it.
         if (gone == m_popupItem && m_popup) {
@@ -201,7 +187,6 @@ void SystemTrayView::rebuild()
 
 double SystemTrayView::slotX(int row) const
 {
-    // RightToLeft: the first item at the right end.
     return geometry().width - kItemWidth * (row + 1);
 }
 
@@ -280,7 +265,6 @@ void SystemTrayView::startItemDrag(TrayItemView *item)
 
 void SystemTrayView::dragEntered(TrayItemView *target)
 {
-    // The order changes as the drag enters an item, and only in memory.
     const int from = m_model->indexOf(m_dragged);
     const int to = m_model->indexOf(target->itemId());
     if (from >= 0 && to >= 0 && from != to)
@@ -312,7 +296,6 @@ void SystemTrayView::closeMenu()
 
 void SystemTrayView::itemClicked(TrayItemView *item, const ui::PointerEvent &event)
 {
-    // Where the click was on the screen: only a hint for the application.
     const ui::PointF inWindow = item->mapToWindow(event.position);
     const ui::PointF origin = m_host.origin ? m_host.origin() : ui::PointF {};
     const int x = int(std::lround(origin.x + inWindow.x));
@@ -356,13 +339,10 @@ void SystemTrayView::openContextMenu(TrayItemView *item, const ui::PointF &posit
 
     DBusMenu *menu = m_model->contextMenu(item->itemId(), int(position.x), int(position.y));
     closeMenu();
-    // An item without an exported menu was asked to show its own.
     if (!menu)
         return;
     m_menuItem = item;
     item->setContextMenuPressed(true);
-    // The menu opens with the rows it has once AboutToShow's answer and any
-    // layout it asked for arrived, or after a moment without them.
     m_menuLoaded = menu->menuUpdated.connect([this, item, menu](int32_t id) {
         if (id != 0 || m_menuItem != item)
             return;
@@ -462,7 +442,6 @@ void TrayItemView::setIcon(const std::string &name, const std::vector<ui::Bitmap
         m_themeIcon->setVisible(false);
     }
 
-    // The single-colour verdict, on a 32 px rendering made on a worker.
     const std::string key = !m_name.empty() ? "name:" + m_name : !m_file.empty() ? "file:" + m_file : std::string();
     m_probed.clear();
     if (!m_pixmaps.empty()) {
@@ -526,7 +505,6 @@ void TrayItemView::updatePixmapImage()
 
 void TrayItemView::layout()
 {
-    // A picture is picked for the device size, which follows the scale.
     const ui::Window *w = window();
     const int side = int(std::lround(BarContext::kIconSize * (w ? w->scale() : 1)));
     if (!m_pixmaps.empty() && m_image.width() != side)
@@ -560,7 +538,6 @@ ui::Bitmap TrayItemView::dragImage(double scale) const
         }
         return bitmap.scaled(side, side, true);
     }
-    // A theme icon's file, read here: a small one, once per drag.
     const std::string path = m_name.empty() ? std::string() : ui::themeIconPath(m_name, 16, scale);
     bitmap = path.empty() ? ui::Bitmap() : ui::Bitmap::decodeFile(path, {side, side}, ui::Bitmap::Scaling::Fit);
     if (!bitmap.isNull() && m_monochrome) {

@@ -104,8 +104,7 @@ void SelectionController::setIsolated(bool isolated)
     if (isolated) {
         m_savedSource = m_source;
         m_savedRecipient = m_recipient;
-        // Not cancelled: the session's source stays alive and unused, it is
-        // simply not the current selection while the screen is secure.
+        // Not cancelled: it is restored once the session unlocks.
         m_sourceConnection.reset();
         m_source = nullptr;
         ++m_generation;
@@ -116,8 +115,6 @@ void SelectionController::setIsolated(bool isolated)
 
     auto restored = std::exchange(m_savedSource, nullptr);
     const Recipient recipient = std::exchange(m_savedRecipient, nullptr);
-    // Nothing to drop from the secure screen: setSource refused it all, so the
-    // secure clipboard was empty for its whole life.
     m_source = restored && restored->alive() ? std::move(restored) : nullptr;
     if (m_source) {
         m_sourceConnection = m_source->invalidated.connect([this, expected = m_source.get()] {
@@ -131,9 +128,6 @@ void SelectionController::setIsolated(bool isolated)
 
 bool SelectionController::setSource(std::shared_ptr<DataSource> source)
 {
-    // Refused while isolated, in both directions: nothing set behind the secure
-    // screen becomes the session's selection, and nothing set by the session
-    // replaces what the secure screen sees.
     if (m_isolated)
         return false;
     if (m_destroying || (source && (!source->alive() || source->used())))

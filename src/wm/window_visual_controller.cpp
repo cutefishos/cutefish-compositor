@@ -17,8 +17,6 @@ namespace cutefish::wm {
 
 namespace {
 
-// A glass rim is the edge itself, so the outline stays transparent under it
-// rather than going away: the shadow still follows the outline's shape.
 void setShellOutlineColors(scene::WindowVisualState &state, const Window &window,
                            const decoration::WindowVisualStyle &style)
 {
@@ -42,13 +40,10 @@ WindowVisualController::evaluate(const Window &window, const decoration::WindowV
     scene::WindowVisualState state;
     state.shape.bounds = base::RectF(window.presentedBounds());
     state.surfaceOrigin = window.frameInsets().topLeft() + window.surfaceOrigin();
-    // A sheet is a dialog: clipped and outlined like an application window.
     if (window.isPopup()
         || (window.role() != WindowRole::Normal && window.role() != WindowRole::Sheet)) {
-        // The menu bar has no body: its blur is only behind the plate of an item.
         if (!window.isPopup() && window.role() == WindowRole::Panel)
             return state;
-        // Menus and shell panels describe their rounded body through the blur request.
         const auto *surface = window.rootSurface();
         const base::Point origin = state.surfaceOrigin;
         const ui::Path path = surface ? surface->backgroundBlurShape() : ui::Path();
@@ -60,7 +55,6 @@ WindowVisualController::evaluate(const Window &window, const decoration::WindowV
             setShellOutlineColors(state, window, style);
             return state;
         }
-        // A body the client outlines itself casts the shadow, unoutlined.
         if (surface && !surface->bodyShape().isEmpty()) {
             state.outlinePath = surface->bodyShape().translated(origin.x(), origin.y());
             state.outlineShape = {ui::toBase(state.outlinePath.boundingRect()), 0};
@@ -72,7 +66,6 @@ WindowVisualController::evaluate(const Window &window, const decoration::WindowV
             const double radius = std::min({double(surface->backgroundBlurRadius()),
                                            body.width() / 2.0, body.height() / 2.0});
             state.outlineShape = {base::RectF(body.translated(origin)), radius};
-            // Glass reaching past the surface is cut by it, as the glass is.
             if (!content.contains(body))
                 state.outlineClip = base::RectF(content.translated(origin));
             state.drawOutline = true;
@@ -81,7 +74,6 @@ WindowVisualController::evaluate(const Window &window, const decoration::WindowV
         }
         return state;
     }
-    // A body the client outlines itself: kept as drawn, its shadow cast by it.
     const auto *root = window.rootSurface();
     if (!window.isDecorated() && root && !root->bodyShape().isEmpty()) {
         const base::Point origin = state.surfaceOrigin;
@@ -96,7 +88,6 @@ WindowVisualController::evaluate(const Window &window, const decoration::WindowV
     const auto exterior = window.clientExteriorInsets();
     state.shape.bounds = state.shape.bounds.adjusted(exterior.left, exterior.top, -exterior.right,
                                                      -exterior.bottom);
-    // Exterior pixels stay hidden even when the body has square, tiled edges.
     state.clipContent = !exterior.isNull();
     if (isRoundedStateType(window.stateType())) {
         state.shape.radius = style.radiusFor(state.shape.bounds.size().toSize());

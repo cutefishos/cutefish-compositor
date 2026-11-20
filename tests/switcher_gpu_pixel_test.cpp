@@ -2,10 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// The application switcher composited as an output draws it: its shadow, its
-// glass, the panel's texture, the outline and a node drawn after it, through
-// the real GL renderer, with the panel drawn on the GPU against the CPU.
-
 #include <GLES3/gl3.h>
 #include <gtest/gtest.h>
 
@@ -32,7 +28,6 @@ namespace {
 
 const base::Rect kOutput(0, 0, 640, 320);
 
-// A node drawn after the switcher, as anything above it in the scene is.
 class MarkerNode final : public scene::Node
 {
 public:
@@ -136,8 +131,6 @@ protected:
                 ++frame};
     }
 
-    // A busy backdrop, the switcher over it and a node after it, as an output
-    // draws them.
     ui::Bitmap composite()
     {
         renderer->setOutputContext(context());
@@ -203,7 +196,6 @@ TEST_P(SwitcherGpuPixels, GpuPanelCompositesAsTheCpuOne)
     view->showWindowCycle(windows, 1, "Cutefish-a");
     toolkit::setGpuRenderingAllowed(true);
     const ui::Bitmap gpu = composite();
-    // Twice: the second frame reuses the texture the first one drew.
     const ui::Bitmap again = composite();
 
     base::Rect where;

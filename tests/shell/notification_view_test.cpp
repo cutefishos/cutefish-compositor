@@ -2,10 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// The notification banners and the notification centre as the compositor
-// draws them: windows, places, glass, timeouts, clicks, stacking and the
-// centre's groups, headless on a fake renderer and a private session bus.
-
 #include <chrono>
 #include <cmath>
 
@@ -166,7 +162,6 @@ protected:
         frames();
     }
 
-    // The centre of a view, global.
     base::PointF centreOf(const ui::View *view, const base::Point &windowOrigin)
     {
         const ui::RectF rect = view->localRect();
@@ -253,7 +248,6 @@ TEST_F(NotificationViewTest, ABannerShowsTopRightOnGlassAndTimesOut)
     ASSERT_NE(nullptr, window);
     EXPECT_EQ(wm::WindowRole::Notification, window->role());
     EXPECT_EQ(wm::FocusPolicy::NoFocus, window->focusPolicy());
-    // 6 from the work area's top right corner, 380 wide, as tall as the card.
     EXPECT_EQ(base::Rect(1440 - 6 - 380, kMenuBar + 6, 380, banner->card()->implicitHeight(380)),
               window->bounds());
     const compositor::Surface *surface = banner->window()->surface();
@@ -262,11 +256,9 @@ TEST_F(NotificationViewTest, ABannerShowsTopRightOnGlassAndTimesOut)
     EXPECT_EQ(base::Rect(0, 0, 380, window->bounds().height()), surface->backgroundBlurRect());
     EXPECT_NEAR(0.6, surface->glass().tintAlpha, 1.0 / 256);
 
-    // Seven seconds by default.
     EXPECT_EQ(std::chrono::milliseconds(7000), banner->timeout());
     EXPECT_TRUE(banner->isTimerRunning());
 
-    // Hovering pauses it; the close button shows.
     move(1440 - 200, 60);
     frames();
     EXPECT_FALSE(banner->isTimerRunning());
@@ -276,7 +268,6 @@ TEST_F(NotificationViewTest, ABannerShowsTopRightOnGlassAndTimesOut)
     EXPECT_TRUE(banner->isTimerRunning());
     EXPECT_FALSE(banner->card()->closeButton()->isVisible());
 
-    // Gone through the history when its time is up.
     EXPECT_EQ(0, notifications->history().count());
     notifications->banners().expired(id);
     frames();
@@ -296,7 +287,6 @@ TEST_F(NotificationViewTest, TimeoutsFollowTheRequestAndTheUrgency)
     notify("Critical", "Body", {}, -1, {{"urgency", dbus::Variant(uint8_t(2))}});
     EXPECT_EQ(std::chrono::milliseconds(0), popups().banners().back()->timeout());
 
-    // The short one expires on its own.
     test::runFor(std::chrono::milliseconds(3200));
     frames();
     EXPECT_EQ(3u, popups().banners().size());
@@ -311,7 +301,6 @@ TEST_F(NotificationViewTest, BannersStackNewestFirstAndGlide)
     notify("Second");
     const auto *second = popups().banners()[1].get();
     EXPECT_EQ(base::Point(1054, 38), second->window()->geometry().topLeft());
-    // The older one glides down under the new one.
     EXPECT_EQ(base::Point(1054, 38 + second->height() + 9), first->stackPosition());
     frames(40);
     EXPECT_GT(first->window()->geometry().y(), 38);
@@ -338,7 +327,6 @@ TEST_F(NotificationViewTest, BannersStackNewestFirstAndGlide)
     EXPECT_LT(shown, 5);
     EXPECT_FALSE(popups().banners().front()->isShown());
     EXPECT_EQ(nullptr, popups().banners().front()->window()->wmWindow());
-    // A sixth goes past the cap of five: the oldest moves to the history.
     notify("Sixth");
     EXPECT_EQ(5u, popups().banners().size());
     EXPECT_EQ(1, notifications->history().count());
@@ -349,7 +337,6 @@ TEST_F(NotificationViewTest, ClicksInvokeAndClose)
     const uint32_t plain = notify("Plain", "Body", {"default", "Open"});
     const auto *banner = popups().banners().back().get();
     const base::Point origin = banner->window()->geometry().topLeft();
-    // A click on the card invokes the default action, then dismisses.
     click(origin.x() + 100, origin.y() + 50);
     EXPECT_TRUE(test::runUntil([&] { return !closedSignals(2).empty(); }));
     EXPECT_EQ(std::vector<uint32_t> {plain}, closedSignals(2));
@@ -363,14 +350,12 @@ TEST_F(NotificationViewTest, ClicksInvokeAndClose)
     EXPECT_TRUE(invoked);
     frames();
     EXPECT_TRUE(popups().banners().empty());
-    // Dismissed, not archived.
     EXPECT_EQ(0, notifications->history().count());
 
     const uint32_t withActions = notify("Actions", "Body", {"ok", "OK", "later", "Later"});
     banner = popups().banners().back().get();
     const auto rects = banner->card()->actionRects();
     ASSERT_EQ(2u, rects.size());
-    // Two equal pills 6 apart across the card, 30 high, 12 from the bottom.
     EXPECT_DOUBLE_EQ(rects[0].width, rects[1].width);
     EXPECT_DOUBLE_EQ(12, rects[0].x);
     EXPECT_DOUBLE_EQ(rects[0].x + rects[0].width + 6, rects[1].x);
@@ -389,14 +374,12 @@ TEST_F(NotificationViewTest, ClicksInvokeAndClose)
     }
     EXPECT_TRUE(later);
 
-    // The close button, there under the pointer.
     const uint32_t closable = notify("Close me");
     banner = popups().banners().back().get();
     const base::Point at = banner->window()->geometry().topLeft();
     move(at.x() + 200, at.y() + 40);
     frames();
     ASSERT_TRUE(banner->card()->closeButton()->isVisible());
-    // 7 down and 7 in from the trailing edge.
     const ui::RectF closeRect = banner->card()->closeButton()->geometry();
     EXPECT_DOUBLE_EQ(380 - 7 - 24, closeRect.x);
     EXPECT_DOUBLE_EQ(7, closeRect.y);
@@ -427,7 +410,6 @@ TEST_F(NotificationViewTest, TheCentreOpensUnderTheBarAndTakesTheBanners)
     centre().open(menuBar.get(), base::Point(1440 - 120, kMenuBar));
     frames();
     ASSERT_TRUE(centre().isOpen());
-    // 6 from the right edge, the work area's height less 6 at either end.
     EXPECT_EQ(base::Rect(1054, kMenuBar + 6, 380, 960 - kMenuBar - kDock - 12), centre().geometry());
     shell::ShellWindow *window = centre().shellWindow();
     ASSERT_NE(nullptr, window);
@@ -439,19 +421,16 @@ TEST_F(NotificationViewTest, TheCentreOpensUnderTheBarAndTakesTheBanners)
     EXPECT_FLOAT_EQ(shell::glassFixed(1.2), window->surface()->glass().saturation);
     EXPECT_EQ(18, window->surface()->backgroundBlurRadius());
 
-    // The banner went into the history, where the centre shows it.
     frames();
     EXPECT_TRUE(popups().banners().empty());
     ASSERT_EQ(1u, centre().rows().size());
     EXPECT_EQ(1, centre().liveCount());
-    // While open, new notifications go straight to the history.
     notify("While open");
     EXPECT_TRUE(popups().banners().empty());
     EXPECT_EQ(2, notifications->history().count());
     frames();
     EXPECT_EQ(2u, centre().rows().size());
 
-    // A left edge further in is kept.
     centre().close();
     frames();
     EXPECT_FALSE(centre().isOpen());
@@ -460,7 +439,6 @@ TEST_F(NotificationViewTest, TheCentreOpensUnderTheBarAndTakesTheBanners)
     frames();
     EXPECT_EQ(900, centre().geometry().x());
 
-    // Escape closes it, as does a press outside.
     key(KEY_ESC);
     EXPECT_FALSE(centre().isOpen());
     centre().toggle(menuBar.get(), base::Point(900, kMenuBar));
@@ -483,7 +461,6 @@ TEST_F(NotificationViewTest, TheCentreStacksEachApplicationAndFansItOut)
     frames(100);
     const auto &rows = centre().rows();
     ASSERT_EQ(4u, rows.size());
-    // Chat's newest leads a stack of the two others; Mail stands alone.
     EXPECT_EQ("Chat 3", rows[0]->notification().summary);
     EXPECT_TRUE(rows[0]->isStacked());
     EXPECT_EQ(2, rows[0]->stackCount);
@@ -499,7 +476,6 @@ TEST_F(NotificationViewTest, TheCentreStacksEachApplicationAndFansItOut)
     EXPECT_EQ(4, centre().liveCount());
     EXPECT_TRUE(centre().clearButton()->isVisible());
 
-    // A click on the stack fans it out under a header.
     const base::Point origin = centre().geometry().topLeft();
     click(centreOf(rows[0]->card(), origin).x(), centreOf(rows[0]->card(), origin).y());
     EXPECT_TRUE(centre().isExpanded("org.example.Chat"));
@@ -514,13 +490,11 @@ TEST_F(NotificationViewTest, TheCentreStacksEachApplicationAndFansItOut)
     EXPECT_DOUBLE_EQ(35, rows[0]->geometry().y);
     EXPECT_DOUBLE_EQ(1, rows[1]->contentOpacity());
 
-    // "Show Less" folds it back.
     click(centreOf(header->showLessButton(), origin).x(), centreOf(header->showLessButton(), origin).y());
     EXPECT_FALSE(centre().isExpanded("org.example.Chat"));
     EXPECT_TRUE(rows[0]->isStacked());
     frames(450);
 
-    // A click on a single card shows its whole body.
     click(centreOf(rows[3]->card(), origin).x(), centreOf(rows[3]->card(), origin).y());
     EXPECT_TRUE(rows[3]->isDetailed());
     click(centreOf(rows[3]->card(), origin).x(), centreOf(rows[3]->card(), origin).y());
@@ -539,9 +513,7 @@ TEST_F(NotificationViewTest, ALongGroupGlidesOnlyTheCardsInView)
     click(centreOf(rows[0]->card(), origin).x(), centreOf(rows[0]->card(), origin).y());
     ASSERT_TRUE(centre().isExpanded("org.example.Chat"));
 
-    // In view: on its way.
     EXPECT_LT(rows[1]->geometry().y, rows[1]->targetY());
-    // Past the bottom of the list: there already, whole.
     const shell::NotificationCentre::Row *last = rows.back();
     EXPECT_GT(last->targetY(), centre().geometry().height());
     EXPECT_DOUBLE_EQ(last->targetY(), last->geometry().y);
@@ -549,7 +521,6 @@ TEST_F(NotificationViewTest, ALongGroupGlidesOnlyTheCardsInView)
     frames(450);
     EXPECT_DOUBLE_EQ(rows[1]->targetY(), rows[1]->geometry().y);
 
-    // The list scrolls down to them.
     const base::Point at = centreOf(rows[1]->card(), origin).toPoint();
     move(at.x(), at.y());
     for (int i = 0; i < 10; ++i)
@@ -569,7 +540,6 @@ TEST_F(NotificationViewTest, TheCentreDismissesAfterTheCardsFade)
     auto rows = centre().rows();
     ASSERT_EQ(3u, rows.size());
 
-    // The lone card's close button: one click, a fade, then the history.
     shell::NotificationCentre::Row *mail = rows[2];
     move(centreOf(mail->card(), origin).x(), centreOf(mail->card(), origin).y());
     frames();
@@ -585,7 +555,6 @@ TEST_F(NotificationViewTest, TheCentreDismissesAfterTheCardsFade)
     EXPECT_EQ(2, notifications->history().count());
     ASSERT_EQ(2u, centre().rows().size());
 
-    // The stack's close asks first: the first click arms it as "Clear".
     rows = centre().rows();
     move(centreOf(rows[0]->card(), origin).x(), centreOf(rows[0]->card(), origin).y());
     frames();
@@ -595,11 +564,9 @@ TEST_F(NotificationViewTest, TheCentreDismissesAfterTheCardsFade)
     EXPECT_TRUE(stackClose->isArmed());
     frames(300);
     EXPECT_DOUBLE_EQ(1, stackClose->progress());
-    // A press elsewhere backs it out.
     click(origin.x() + 190, origin.y() + 20);
     EXPECT_FALSE(stackClose->isArmed());
 
-    // The header's clear button: arm, then clear everything.
     const base::PointF clear = centreOf(centre().clearButton(), origin);
     click(clear.x(), clear.y());
     EXPECT_TRUE(centre().clearButton()->isArmed());
@@ -623,12 +590,10 @@ TEST_F(NotificationViewTest, ClosingCommitsPendingRemovalsAndFoldsGroups)
     frames(100);
     const base::Point origin = centre().geometry().topLeft();
     auto rows = centre().rows();
-    // Mail is newest: first. Expand Chat, show Mail's whole body.
     click(centreOf(rows[1]->card(), origin).x(), centreOf(rows[1]->card(), origin).y());
     EXPECT_TRUE(centre().isExpanded("org.example.Chat"));
     click(centreOf(rows[0]->card(), origin).x(), centreOf(rows[0]->card(), origin).y());
     EXPECT_TRUE(rows[0]->isDetailed());
-    // Dismiss Mail and close before the removal lands.
     move(centreOf(rows[0]->card(), origin).x(), centreOf(rows[0]->card(), origin).y());
     frames();
     const base::PointF close = centreOf(rows[0]->card()->closeButton(), origin);

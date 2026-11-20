@@ -16,9 +16,6 @@ class Animation;
 
 namespace cutefish::shell {
 
-// A pill track whose fill ends in the knob, the
-// icon in its left cap. The on-screen display's, and the control centre's
-// sliders'.
 class LevelTrack : public ui::View
 {
 public:
@@ -30,14 +27,11 @@ public:
     double position() const { return m_target; }
     // What is drawn now, during a glide.
     double drawnPosition() const { return m_drawn; }
-    // Artwork for the cap: an SVG file of the light variant, tinted light in
-    // dark mode.
+    // An SVG file of the light variant, tinted light in dark mode.
     void setIcon(std::string file);
     const std::string &icon() const { return m_icon; }
     // Whether a change of position glides (120 ms, OutCubic) rather than snaps.
     void setAnimated(bool animated) { m_animated = animated; }
-    // A darker track under a white fill and knob in either theme, for one on
-    // a card that is lighter than the panel.
     void setSunken(bool sunken);
 
     // The icon's side and its distance from the cap's edge.

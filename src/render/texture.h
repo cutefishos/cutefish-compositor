@@ -11,10 +11,8 @@
 
 namespace cutefish::render {
 
-// Byte order of the pixel data a texture was uploaded from, in increasing
-// address order. wl_shm names formats by their little-endian word layout, so
-// WL_SHM_FORMAT_ARGB8888 is Bgra8888 here and WL_SHM_FORMAT_XRGB8888 is
-// Bgrx8888. Alpha is premultiplied, as Wayland requires.
+// In increasing address order; wl_shm's ARGB8888 is Bgra8888 here. Alpha is
+// premultiplied.
 enum class PixelFormat {
     Rgba8888,
     Rgbx8888,
@@ -27,8 +25,7 @@ inline bool pixelFormatHasAlpha(PixelFormat format)
     return format == PixelFormat::Rgba8888 || format == PixelFormat::Bgra8888;
 }
 
-// Whether sampling yields the components in BGR order and the shader has to
-// swizzle. DMA-BUF imports never do: EGL knows the DRM fourcc.
+// DMA-BUF imports never do: EGL knows the DRM fourcc.
 inline bool pixelFormatIsBgr(PixelFormat format)
 {
     return format == PixelFormat::Bgra8888 || format == PixelFormat::Bgrx8888;
@@ -42,15 +39,12 @@ public:
 
     virtual PixelFormat format() const { return PixelFormat::Rgba8888; }
 
-    // Set by whoever filled it when every texel is opaque, as viz clears a
-    // quad's needs_blending: it is drawn without reading what lies below.
+    // Set by whoever filled it when every texel is opaque.
     bool contentOpaque = false;
-    // What it is for, a string literal its owner sets, for the debug
-    // service's memory report.
+    // A string literal, for the debug service's memory report.
     const char *label = nullptr;
 };
 
-// `texture` with its owner's label set.
 inline std::unique_ptr<Texture> labelled(std::unique_ptr<Texture> texture, const char *label)
 {
     if (texture)

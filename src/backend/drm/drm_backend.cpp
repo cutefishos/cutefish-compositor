@@ -40,8 +40,6 @@ namespace cutefish::backend {
 
 namespace {
 
-// XRGB8888 is the one format every KMS driver can scan out and every EGL
-// implementation can render to.
 constexpr uint32_t kScanoutFormat = DRM_FORMAT_XRGB8888;
 
 std::string readDriverName(int fd)
@@ -60,7 +58,6 @@ std::string fileName(const std::string &path)
     return std::filesystem::path(path).filename().string();
 }
 
-// Whether the firmware showed its boot console on the primary node at `path`.
 bool isBootVga(const std::string &path)
 {
     const auto contents = base::file::read("/sys/class/drm/" + fileName(path) + "/device/boot_vga");
@@ -114,9 +111,8 @@ DrmBackend::~DrmBackend()
         output->retireForReprobe(true);
     for (const auto &output : m_retiringOutputs)
         output->retireForReprobe(false);
-    // The device stays open until the framebuffers are gone: closed through it,
-    // one still on screen stays there for the next DRM master. Freed by the
-    // kernel when the file closes, it would be removed and its plane turned off.
+    // Outputs go before the device closes: framebuffers the kernel frees on
+    // close would have their planes turned off.
     m_outputs.clear();
     m_retiringOutputs.clear();
     m_renderer.reset();
@@ -164,11 +160,6 @@ bool DrmBackend::open(const std::string &devicePath)
         return false;
     }
 
-    // Every atomic device is opened for its driver name, which sysfs gives
-    // only for the bus (virtio-pci for a virtio GPU), as ozone reads it from
-    // the fd. A render-only GPU, beside an ARM system's display controller for
-    // one, has no CRTC to show anything on; ozone's GetValidDisplayCards leaves
-    // it out, and it is taken here only when nothing else is there.
     struct Opened {
         int fd;
         int deviceId;
@@ -229,8 +220,6 @@ bool DrmBackend::open(const std::string &devicePath)
     }
     CF_INFO(cfDrm) << "Atomic modesetting: yes";
 
-    // A secondary device allocates from the rendering card's GBM device, which
-    // gbmDevice() hands out; one of its own would be a driver screen never used.
     if (!m_renderBackend) {
         m_gbm = gbm_create_device(m_fd);
         if (!m_gbm) {
@@ -248,8 +237,8 @@ bool DrmBackend::open(const std::string &devicePath)
 
     m_hotplugMonitor = std::make_unique<DrmHotplugMonitor>();
     m_hotplugMonitor->isContentProtectionProperty = [this](const std::string &devnode, uint32_t id) {
-        // A fresh primary-node open can temporarily become DRM master during
-        // VT switches. Query only the fd the session already owns instead.
+        // A fresh primary-node open can become DRM master during a VT switch,
+        // so only the session's fd is queried.
         const DrmBackend *backend = m_renderBackend ? m_renderBackend : this;
         int propertyFd = devnode == backend->devicePath() ? backend->fd() : -1;
         for (const auto &device : backend->m_devices) {
@@ -291,12 +280,8 @@ DrmDeviceApi *DrmBackend::device() const
 
 namespace {
 
-// Reads a plane's IN_FORMATS blob, which is the only place the modifiers a
-// plane accepts are published. Without it only the legacy format list is
-// available and every modifier is implicit.
-//
-// Upstream: chromium/src/ui/ozone/platform/drm/gpu/hardware_display_plane.cc
-// (HardwareDisplayPlane::Initialize)
+// IN_FORMATS is the only place a plane publishes its modifiers; without it
+// every modifier is implicit.
 void readPlaneFormats(int fd, drmModePlane *plane, const DrmPropertyMap &properties,
                       DrmPlane *target)
 {
@@ -580,9 +565,8 @@ bool DrmBackend::reprobe()
     for (auto &output : m_outputs)
         m_retiringOutputs.push_back(std::move(output));
     m_outputs.clear();
-    // Routes are planned while the old ones are still lit, so the planner keeps
-    // each connector on its CRTC and a route that survives is never turned off:
-    // no black frame and no panel power cycle on seat activation.
+    // Routes are planned while the old ones are still lit, so a route that
+    // survives is never turned off.
     const bool planned = createOutputs();
     for (const auto &output : m_retiringOutputs) {
         const bool keepRoute =
@@ -769,8 +753,6 @@ void DrmBackend::onDrmEvent()
 
     errno = 0;
     if (drmHandleEvent(m_fd, &context) != 0 && errno != EINTR && errno != EAGAIN) {
-        // As Ozone's DrmDevice::IOWatcher does, stop watching events that cannot
-        // be read, rather than spinning on an fd that stays readable.
         CF_WARNING(cfDrm).printf("Cannot read DRM events from %s: %s", m_devicePath.c_str(),
                                  strerror(errno));
         stopWatching();

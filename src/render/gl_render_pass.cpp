@@ -19,13 +19,9 @@
 namespace cutefish::render {
 namespace {
 
-// The target an offscreen pass draws over and gives back: the framebuffer,
-// the viewport and the scissor. Every draw here sets its own program,
-// textures, blend and vertex attributes, so none of that is saved, as
-// gl::ScopedFramebufferBinder restores only the binding it took and Skia's
-// GrGLGpu re-flushes its cached state per draw instead of reading it back.
-// A pixel transfer buffer left bound would turn the pass's own uploads and
-// readbacks into buffer offsets, so those two bindings are dropped.
+// Every draw sets its own program, textures, blend and attributes, so only the
+// framebuffer, viewport and scissor are saved; pixel transfer buffer bindings
+// are dropped.
 class ScopedGlState
 {
 public:
@@ -316,11 +312,8 @@ std::shared_ptr<PendingImage> GlRenderPass::readBack(Renderer &renderer,
     return pending;
 }
 
-// The capture texture is drawn flipped into a texture bound to the DMA-BUF's
-// EGLImage, the way viz copies a drawn render pass out with a flipped scaler
-// pass instead of reading pixels back (GLRenderer::CopyDrawnRenderPass), and
-// the image is bound as a plain GL_TEXTURE_2D render target as ui::
-// NativePixmapEGLBinding does for RGB pixmaps.
+// Drawn flipped into a GL_TEXTURE_2D bound to the DMA-BUF's EGLImage, so the
+// pixels never leave the GPU.
 bool GlRenderPass::captureToImage(Renderer &renderer, const OutputRenderContext &context,
                                   const base::Size &size, EGLImageKHR image,
                                   const std::function<void()> &paint)
@@ -347,8 +340,8 @@ bool GlRenderPass::captureToImage(Renderer &renderer, const OutputRenderContext 
         Framebuffer framebuffer(name);
         complete = framebuffer.complete();
         if (complete) {
-            // A plain identity pass. Sampling the bottom-up capture as if it
-            // were top-down lands it top-down in the target's memory.
+            // Sampling the bottom-up capture as top-down lands it top-down in
+            // the target's memory.
             OutputRenderContext flat;
             flat.outputId = context.outputId;
             flat.logicalViewport = base::Rect(base::Point(), size);
@@ -424,19 +417,14 @@ bool GlRenderPass::render(Renderer &renderer, std::unique_ptr<Texture> &texture,
     if (bounds.isEmpty())
         return false;
     ScopedGlState state(*m_context);
-    // Device pixels counted from the viewport's origin, the grid pixelAligned()
-    // puts content on: a window captured on its own has a viewport whose origin
-    // falls inside a pixel at a fractional scale.
+    // Device pixels from the viewport's origin, which may fall inside a pixel
+    // at a fractional scale.
     const base::PointF origin = renderer.outputContext().logicalViewport.topLeft();
     const base::RectF deviceBounds((base::PointF(bounds.topLeft()) - origin) * renderer.rasterScale(),
                               base::SizeF(bounds.size()) * renderer.rasterScale());
     const base::Rect coverage = deviceBounds.toEnclosingRect();
-    // Rounded outward, the coverage is a pixel wider or taller depending on
-    // where its fractional origin falls, so at a fractional scale a moving
-    // window would take a new texture nearly every frame. The texture is sized
-    // for the largest coverage the bounds can round out to and keeps its size
-    // as the origin moves; contentPixels says where the content is in it, and
-    // the spare row and column stay clear.
+    // Sized for the largest rounding of a fractional origin, so a moving window
+    // keeps its texture; the spare row and column stay clear.
     const bool fractional = renderer.rasterScale() != std::floor(renderer.rasterScale());
     const base::Size allocation(int(std::ceil(bounds.width() * renderer.rasterScale())) + fractional,
                            int(std::ceil(bounds.height() * renderer.rasterScale())) + fractional);
@@ -467,10 +455,8 @@ bool GlRenderPass::render(Renderer &renderer, std::unique_ptr<Texture> &texture,
     target->contentPixels = deviceBounds.translated(-coverage.topLeft());
     GLint previous = 0;
     glGetIntegerv(GL_FRAMEBUFFER_BINDING, &previous);
-    // Every window and blur pass runs through here each frame, so framebuffer
-    // objects are kept and re-pointed rather than created and destroyed per
-    // pass: one per nesting depth, since a blur inside a window's pass copies
-    // out of the framebuffer the window is being drawn into.
+    // One framebuffer object per nesting depth, kept between passes: a blur
+    // inside a window's pass copies out of the window's framebuffer.
     const size_t depth = m_sources.size();
     while (m_framebuffers.size() <= depth) {
         GLuint name = 0;

@@ -4,9 +4,6 @@
 //
 // Upstream: chromium/src/ui/display/types/display_snapshot.h
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: hardware, requested, applied, and persistent-facing
-// identities are separate value types with no Chromium platform graph.
 
 #pragma once
 
@@ -77,7 +74,6 @@ enum class DisplayCapability : uint32_t {
     VariableRefreshRate = 1 << 4,
     HighDynamicRange = 1 << 5,
     PrivacyScreen = 1 << 6,
-    // The night light can tint it.
     ColorTransform = 1 << 7,
 };
 
@@ -270,7 +266,6 @@ struct ConfigurationResult {
     bool degraded = false;
     DisplayError error;
     std::optional<AppliedConfiguration> applied;
-    // The successful test candidate is committed exactly, then used for publication.
     std::optional<DisplayConfiguration> selected;
 };
 

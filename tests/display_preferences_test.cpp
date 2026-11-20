@@ -50,8 +50,6 @@ display::DisplayConfiguration configuration(const display::HardwareSnapshot &har
 
 } // namespace
 
-// display.json is shared with every earlier build: keys sorted at every level,
-// four-space indentation, empty containers closed on their own line.
 TEST_F(DisplayPreferencesTest, SavedFileKeepsItsFormat)
 {
     const auto snapshot = hardware();
@@ -106,8 +104,6 @@ TEST_F(DisplayPreferencesTest, RestoresWhatItSaved)
     EXPECT_EQ(preferences.persistentKeys(), std::vector<std::string> {"edid-a"});
 }
 
-// A number that is not a whole int reads as missing, as it always has: the
-// scale falls back to the panel's recommended one.
 TEST_F(DisplayPreferencesTest, FractionalNumbersFallBack)
 {
     ASSERT_TRUE(base::file::writeAtomically(path(), R"({"version": 2.0,

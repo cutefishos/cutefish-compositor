@@ -19,7 +19,6 @@
 
 namespace input_test {
 
-// A directory of its own under /tmp, removed with its contents.
 class TemporaryDirectory
 {
 public:
@@ -69,9 +68,7 @@ inline bool runUntil(cutefish::base::EventLoop &loop, const std::function<bool()
     return done();
 }
 
-// Calls a service of this process from a connection of its own, running the
-// loop the service is on until the reply comes: a call on the service's own
-// connection would wait for itself.
+// Calls a service of this process from its own connection: one on the service's connection would wait for itself.
 class RemoteObject
 {
 public:

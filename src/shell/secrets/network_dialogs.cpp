@@ -32,14 +32,10 @@ static bool hexadecimal(const std::string &text)
     });
 }
 
-// The password mask character, U+25CF BLACK CIRCLE.
 static constexpr const char *kPasswordCharacter = "\u25cf";
 
-// Sensitive data without word prediction, for a shown password.
 static constexpr uint32_t kSecretHints = ui::SensitiveDataHint;
 
-
-// --- WirelessPasswordDialog ---
 
 WirelessPasswordDialog::WirelessPasswordDialog(Shell *shell, NetworkSecretAgent *agent)
     : SecretDialog(shell)
@@ -90,8 +86,7 @@ bool WirelessPasswordDialog::acceptable(NetworkSecretAgent::Kind kind, const std
 
 bool WirelessPasswordDialog::intermediate(NetworkSecretAgent::Kind kind, const std::string &text)
 {
-    // What a RegularExpressionValidator finds Intermediate or Acceptable: a
-    // start of something the expression matches.
+    // A start of something the expression matches.
     const size_t length = text.size();
     switch (kind) {
     case NetworkSecretAgent::Kind::WepKey:
@@ -161,8 +156,6 @@ void WirelessPasswordDialog::requestChanged()
     open();
 }
 
-// --- VpnPasswordDialog ---
-
 VpnPasswordDialog::VpnPasswordDialog(Shell *shell, NetworkSecretAgent *agent)
     : SecretDialog(shell)
     , m_agent(agent)
@@ -188,8 +181,8 @@ void VpnPasswordDialog::build(ui::View *frame)
 
 void VpnPasswordDialog::rebuildFields()
 {
-    // Return in a field answers the request, and the next one rebuilds the
-    // fields from inside that field's key handling: they go on the next turn.
+    // The next request rebuilds the fields from inside a field's key handling, so they
+    // go on the next turn.
     for (ui::TextField *field : m_fields)
         core::mainLoop()->post([gone = std::shared_ptr<ui::View>(m_frame->takeChild(field))] {});
     m_fields.clear();
@@ -256,7 +249,6 @@ void VpnPasswordDialog::update()
     primaryButton()->setEnabled(complete());
 }
 
-// The fields keep what was typed; only their labels change.
 void VpnPasswordDialog::retranslateRows()
 {
     m_show->setText(tr("Show password"));

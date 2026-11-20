@@ -4,9 +4,6 @@
 //
 // Upstream: chromium/src/components/exo/buffer.cc
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: integrates the upstream behavior with native
-// compositor types and ownership.
 
 #include "compositor/buffer.h"
 
@@ -21,8 +18,8 @@ Buffer::Buffer() = default;
 
 Buffer::~Buffer()
 {
-    // A buffer destroyed mid-frame still owes its releases; the client would
-    // otherwise wait on a point nobody can signal any more.
+    // A buffer destroyed mid-frame still owes its releases, or the client waits
+    // forever.
     signalReleases(render::SyncFence());
 }
 
@@ -38,7 +35,6 @@ void Buffer::setFaultCallback(std::function<void()> callback)
 
 void Buffer::reportFault()
 {
-    // Once is enough: the client is being disconnected.
     if (auto callback = std::move(m_faultCallback))
         callback();
 }
@@ -61,7 +57,6 @@ void Buffer::onDetach(bool cached)
     --m_attachCount;
     if (cached)
         --m_cachedAttachCount;
-    // Nothing will consume contents that are no longer on any surface.
     if (m_attachCount == 0)
         m_contentsInUse = false;
     maybeRelease();
@@ -78,9 +73,6 @@ void Buffer::addRelease(std::shared_ptr<BufferRelease> release)
 {
     if (!release)
         return;
-    // A client re-attaching the buffer it already shows sets a new release
-    // point each time; the ones before it on the same timeline would otherwise
-    // pile up until the buffer is finally released.
     if (const void* timeline = release->timeline()) {
         std::vector<std::shared_ptr<BufferRelease>> superseded;
         for (auto it = m_releases.begin(); it != m_releases.end();) {
@@ -118,7 +110,7 @@ void Buffer::onScanoutReleased(render::SyncFence fence)
 void Buffer::signalReleases(const render::SyncFence& fence)
 {
     // Move first: signalling may destroy the client objects behind these and
-    // re-enter here through the buffer's own teardown.
+    // re-enter here.
     auto releases = std::move(m_releases);
     m_releases.clear();
     for (const auto& release : releases)
@@ -127,8 +119,8 @@ void Buffer::signalReleases(const render::SyncFence& fence)
 
 void Buffer::addConsumedFence(render::SyncFence fence)
 {
-    // A buffer that stays on a plane is handed an out-fence on every flip, so
-    // keep one fd: a signalled fence adds nothing, pending ones are merged.
+    // A buffer that stays on a plane gets an out-fence every flip, so pending
+    // ones are merged into one fd.
     if (fence.isSignaled())
         return;
     std::vector<render::SyncFence> fences;

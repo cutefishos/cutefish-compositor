@@ -24,21 +24,17 @@ namespace cutefish::wm {
 
 namespace {
 
-// The dock and the panels: everything the shell pins along a screen edge.
 bool isEdgeSurface(const Window *window)
 {
     return (window->role() == WindowRole::Dock || window->role() == WindowRole::Panel)
             && !window->isPopup();
 }
 
-// A window the workspace is made of: what the dock makes room for.
 bool isWorkspaceWindow(const Window *window)
 {
     return window->role() == WindowRole::Normal && !window->isPopup() && window->isVisible();
 }
 
-// A dialog over a fullscreen window keeps the workspace fullscreen.
-// Upstream: FindFullscreenOrPinnedWindow.
 bool isFullscreenOrOverFullscreen(const Window *window)
 {
     for (; window; window = window->transientParent()) {
@@ -48,8 +44,6 @@ bool isFullscreenOrOverFullscreen(const Window *window)
     return false;
 }
 
-// A dock lies long along its edge and thin across it, so the nearest edge in
-// the thin direction is the one it belongs to.
 ScreenEdge edgeFor(const base::Rect &bounds, const base::Rect &output)
 {
     if (bounds.width() >= bounds.height()) {
@@ -60,7 +54,6 @@ ScreenEdge edgeFor(const base::Rect &bounds, const base::Rect &output)
                                                                             : ScreenEdge::Right;
 }
 
-// The part of the dock's bounds within its edge reach.
 base::Rect reachedBounds(const Window *dock, ScreenEdge edge)
 {
     base::Rect bounds = dock->bounds();
@@ -84,7 +77,6 @@ base::Rect reachedBounds(const Window *dock, ScreenEdge edge)
     return bounds;
 }
 
-// Where the dock is drawn relative to bounds() once it has left the output.
 base::Point hiddenOffset(const base::Rect &bounds, const base::Rect &output, ScreenEdge edge)
 {
     switch (edge) {
@@ -116,10 +108,6 @@ base::Rect revealStrip(const base::Rect &output, ScreenEdge edge)
     return base::Rect();
 }
 
-// The dock plus the gap between it and its edge: crossing that gap on the way
-// in or out must not toggle the dock. Upstream keeps the shelf shown while the
-// cursor is anywhere in its bounds; the gap is a Cutefish addition, since the
-// dock floats a few pixels off the edge.
 base::Rect shownRegion(const base::Rect &bounds, const base::Rect &output, ScreenEdge edge)
 {
     base::Rect region = bounds;
@@ -231,8 +219,6 @@ const DockLayoutManager::Dock *DockLayoutManager::dockFor(const Window *window) 
     return it == m_docks.end() ? nullptr : it->second.get();
 }
 
-// Upstream: WorkspaceController::GetWindowState. The active window decides
-// fullscreen when it is on this output; otherwise the topmost window there.
 const Window *DockLayoutManager::topmostWindowFor(const base::Rect &output) const
 {
     const auto &windows = m_manager->windows();
@@ -287,10 +273,6 @@ bool DockLayoutManager::isLaunchpadShowing(const base::Rect &output) const
     });
 }
 
-// Upstream: ShelfLayoutManager::CalculateShelfVisibility. A fullscreen window
-// gets the dock out of its way whatever the setting; unlike upstream it still
-// comes back from the edge, so the dock is never out of reach. A panel has no
-// setting: fullscreen is the only thing that moves it.
 DockVisibilityState DockLayoutManager::computeVisibility(const Window *dock,
                                                          const base::Rect &output) const
 {
@@ -311,7 +293,6 @@ DockVisibilityState DockLayoutManager::computeVisibility(const Window *dock,
     return DockVisibilityState::Visible;
 }
 
-// Upstream: ShelfLayoutManager::CalculateAutoHideState.
 DockAutoHideState DockLayoutManager::computeAutoHideState(const Window *dock, const Dock &entry,
                                                           const base::Rect &output, bool revealing) const
 {
@@ -324,7 +305,6 @@ DockAutoHideState DockLayoutManager::computeAutoHideState(const Window *dock, co
     if (isLaunchpadShowing(output))
         return DockAutoHideState::Shown;
 
-    // A menu or tooltip of the dock's is being read.
     const auto &children = dock->transientChildren();
     if (std::any_of(children.begin(), children.end(), [](const Window *child) {
             return child->isVisible();
@@ -332,7 +312,6 @@ DockAutoHideState DockLayoutManager::computeAutoHideState(const Window *dock, co
         return DockAutoHideState::Shown;
     }
 
-    // Nothing to make room for.
     if (!hasVisibleWindow(output))
         return DockAutoHideState::Shown;
 
@@ -393,7 +372,6 @@ void DockLayoutManager::enter(Window *dock, Dock &entry)
         slideTo(dock, entry, base::Point());
 }
 
-// Upstream: ShelfLayoutManager::UpdateAutoHideStateNow.
 void DockLayoutManager::updateAutoHideStateNow(Window *dock)
 {
     Dock *entry = dockFor(dock);
@@ -407,7 +385,6 @@ void DockLayoutManager::updateAutoHideStateNow(Window *dock)
         applyAutoHideState(dock, *entry, autoHide);
 }
 
-// Upstream: ShelfLayoutManager::UpdateVisibilityState and UpdateAutoHideState.
 void DockLayoutManager::updateDock(Window *dock, Dock &entry)
 {
     const base::Rect output = m_manager->outputBoundsFor(dock);
@@ -426,12 +403,9 @@ void DockLayoutManager::updateDock(Window *dock, Dock &entry)
         entry.autoHideTimer.start();
     }
 
-    // While the reveal delay runs the pointer may already have moved on from
-    // the strip to where the dock is about to appear.
     const bool revealing =
             entry.autoHide == DockAutoHideState::Shown || entry.autoHideTimer.isActive();
     const DockAutoHideState autoHide = computeAutoHideState(dock, entry, output, revealing);
-    // A change applied below tells the window itself, from the new state.
     const bool applying = autoHide != entry.autoHide
             && (entry.visibility == DockVisibilityState::Visible
                 || (!entry.autoHideTimer.isActive() && autoHide == DockAutoHideState::Hidden));
@@ -440,7 +414,6 @@ void DockLayoutManager::updateDock(Window *dock, Dock &entry)
     if (autoHide == entry.autoHide) {
         if (autoHide == DockAutoHideState::Hidden || entry.pointerOver)
             entry.autoHideTimer.stop();
-        // The dock may have moved or grown while parked off screen.
         if (autoHide == DockAutoHideState::Hidden)
             slideTo(dock, entry, hiddenOffset(reachedBounds(dock, entry.edge), output, entry.edge));
         return;
@@ -470,16 +443,12 @@ void DockLayoutManager::applyAutoHideState(Window *dock, Dock &entry, DockAutoHi
     present(dock, entry);
 }
 
-// The bar along the whole top edge; panels such as notifications only lie
-// there.
 bool DockLayoutManager::isTopBar(const Window *dock, const Dock &entry, const base::Rect &output) const
 {
     return dock->role() == WindowRole::Panel && entry.edge == ScreenEdge::Top
             && dock->bounds().width() >= output.width();
 }
 
-// The window hears where the panel is headed as it sets off, and is pushed
-// down with it frame by frame in present().
 void DockLayoutManager::updateReveal(Window *dock, Dock &entry)
 {
     const base::Rect output = m_manager->outputBoundsFor(dock);
@@ -517,7 +486,6 @@ void DockLayoutManager::slideTo(Window *dock, Dock &entry, const base::Point &of
 {
     if (entry.sliding ? offset == entry.slideTo : offset == entry.offset)
         return;
-    // A reversal mid-slide turns around from where the dock is.
     entry.slideFrom = entry.offset;
     entry.slideStarted = -1;
     entry.sliding = true;

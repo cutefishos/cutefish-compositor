@@ -22,9 +22,6 @@
 
 namespace cutefish::shell {
 
-// One entry of the bar: the user's avatar, or a title in the bar's text.
-// Spaced like the status items on the right; the user's entry reaches the
-// screen edge and mirrors the clock there.
 class AppMenusView::Entry final : public BarItem
 {
 public:
@@ -36,11 +33,7 @@ public:
             setInsets(BarContext::kEdgeMargin - (BarContext::kItemGap - BarContext::kHighlightGap) / 2,
                       BarContext::kHighlightGap / 2);
             setGlyphWidth(BarContext::kIconSize);
-            // The account's colour until the picture is decoded, or where
-            // there is none.
             m_disc = addChild<Disc>();
-            // A circular avatar decoded at its device size, as the Image
-            // with sourceSize and an OpacityMask of a circle.
             m_avatar = addChild<ui::ImageView>();
             m_avatar->setFillMode(ui::ImageView::FillMode::Stretch);
             m_avatar->setMipmap(true);
@@ -79,8 +72,6 @@ public:
     void updateLook()
     {
         if (m_label) {
-            // The application's name stands out from its menus, a step
-            // lighter in black, which carries more weight than white.
             if (m_row.kind == AppMenusModel::Kind::Application)
                 m_label->setWeight(bar()->lightContents() ? 600 : 500);
             m_label->setTextColor(bar()->menuTextColor());
@@ -134,12 +125,10 @@ AppMenusView::AppMenusView(Shell *shell, MenuBarAppMenusHost host)
                                               menuBar ? &menuBar->powerActions() : nullptr);
 
     m_subscriptions.push_back(m_model->switched.connect([this] {
-        // The user's menu is not the application's; it stays.
         if (m_currentIndex > 0)
             close();
     }));
     m_subscriptions.push_back(m_model->rowsChanged.connect([this] { rebuildEntries(); }));
-    // How a menu's shortcut arrives.
     m_subscriptions.push_back(
             m_model->activationRequested.connect([this](size_t row) { open(int(row), true); }));
     m_subscriptions.push_back(m_model->menuClosed.connect([this] { onMenuClosed(); }));
@@ -183,7 +172,6 @@ void AppMenusView::barChanged()
 {
     for (Entry *entry : m_entries)
         entry->updateLook();
-    // The application's name changes weight, and with it width.
     requestLayout();
 }
 
@@ -191,7 +179,6 @@ void AppMenusView::rebuildEntries()
 {
     const std::vector<AppMenusModel::Row> &rows = m_model->rows();
 
-    // The user's entry stays put; the application's are swapped out and in.
     size_t keep = 0;
     while (keep < m_entries.size() && keep < rows.size() && m_entries[keep]->row() == rows[keep]
            && rows[keep].kind == AppMenusModel::Kind::User)
@@ -219,7 +206,6 @@ void AppMenusView::rebuildEntries()
                 m_model->trigger(size_t(index));
             }
         };
-        // While one menu is open, moving onto another entry switches to it.
         entry->onEntered = [this, index] {
             if (m_currentIndex != -1 && m_currentIndex != index)
                 open(index);
@@ -229,7 +215,6 @@ void AppMenusView::rebuildEntries()
     if (!m_entries.empty())
         m_entries.front()->setAvatar(m_userIcon, m_userColor);
 
-    // The open menu stays while its entry does, wherever that went.
     if (m_currentIndex >= 0) {
         const std::optional<size_t> row =
                 m_openMenu && m_openMenu->isOpen() ? m_model->rowOf(m_openMenu) : std::nullopt;
@@ -262,7 +247,6 @@ void AppMenusView::open(int index, bool keyboard)
     ui::Window *window = this->window();
     if (!window)
         return;
-    // A plain action entry is only chosen by a click.
     ui::Menu *menu = m_model->menuAt(size_t(index));
     if (!menu)
         return;
@@ -272,7 +256,6 @@ void AppMenusView::open(int index, bool keyboard)
     if (m_host.closeTrayMenu)
         m_host.closeTrayMenu();
 
-    // Closing the previous menu here is part of the switch, not a dismissal.
     m_switching = true;
     if (m_openMenu && m_openMenu != menu)
         m_openMenu->close();
@@ -283,19 +266,16 @@ void AppMenusView::open(int index, bool keyboard)
     for (size_t i = 0; i < m_entries.size(); ++i)
         m_entries[i]->setChecked(int(i) == m_currentIndex);
 
-    // Its top-left at the plate's left edge, the popup margin under the bar.
     const ui::PointF at = entry->mapToWindow({entry->leftInset(), entry->geometry().height + kPopupMargin});
     menu->setAvailableGeometry(m_host.availableGeometry ? std::optional<ui::RectF>(m_host.availableGeometry())
                                                         : std::nullopt);
-    // Left in the menu and Right on a row without a submenu walk the bar.
     menu->onNavigateLeft = [this] { step(-1); };
     menu->onNavigateRight = [this] { step(1); };
     m_switching = true;
-    // A menu opened again starts afresh.
     menu->close();
     m_switching = false;
-    // From the keyboard or not, no row is lit until a key or the pointer
-    // picks one: the pointer is on the bar.
+    // `keyboard` is ignored: no row is lit until a key or the pointer picks
+    // one.
     (void)keyboard;
     menu->popupAt(window, at);
     if (!menu->isOpen())
@@ -327,7 +307,6 @@ void AppMenusView::onMenuClosed()
 
 void AppMenusView::step(int step)
 {
-    // Plain action entries are passed over.
     const int count = int(m_entries.size());
     for (int offset = 1; offset < count; ++offset) {
         const int index = ((m_currentIndex + step * offset) % count + count) % count;

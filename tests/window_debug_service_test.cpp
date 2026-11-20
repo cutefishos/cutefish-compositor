@@ -113,7 +113,6 @@ TEST_F(WindowDebugServiceTest, ListsTheWindowsBottomToTop)
               editor->bounds());
     EXPECT_EQ(windows[size_t(1)]["appId"].toString(), "loupe");
     EXPECT_EQ(windows[size_t(1)]["id"].toString(), std::to_string(viewer->id()));
-    // Members sorted by name.
     const auto &members = bottom.toObject();
     EXPECT_TRUE(std::is_sorted(members.begin(), members.end(),
                                [](const auto &a, const auto &b) { return a.first < b.first; }));
@@ -168,7 +167,6 @@ TEST_F(WindowDebugServiceTest, FeedsInputOnlyWhenGivenOne)
     EXPECT_EQ(desktop.seat.pressedButtons(), input::NoButton);
 }
 
-// A real session: input only while root's switch file is there.
 TEST_F(WindowDebugServiceTest, OnARealSessionTakesInputOnlyWithRootsFile)
 {
     Desktop desktop;
@@ -180,20 +178,16 @@ TEST_F(WindowDebugServiceTest, OnARealSessionTakesInputOnlyWithRootsFile)
     input_test::TemporaryDirectory directory;
     ASSERT_TRUE(directory.isValid());
 
-    // No file.
     service.setInputGate(directory.filePath("window-debug-input"));
     EXPECT_FALSE(callBool("PointerMotion", 40.0, 30.0));
-    // A file the user made.
     ASSERT_TRUE(input_test::writeFile(directory.filePath("window-debug-input"), ""));
     EXPECT_FALSE(callBool("PointerMotion", 40.0, 30.0));
     EXPECT_FALSE(callBool("Key", uint32_t(30), true));
-    // The user's link to a file of root's.
     std::filesystem::create_symlink("/etc/passwd", directory.filePath("link"));
     service.setInputGate(directory.filePath("link"));
     EXPECT_FALSE(callBool("PointerMotion", 40.0, 30.0));
     EXPECT_EQ(desktop.seat.pointerLocation(), base::PointF());
 
-    // A file root owns and only root writes.
     service.setInputGate("/etc/passwd");
     EXPECT_TRUE(callBool("PointerMotion", 40.0, 30.0));
     EXPECT_EQ(desktop.seat.pointerLocation(), base::PointF(40, 30));
@@ -230,8 +224,7 @@ TEST_F(WindowDebugServiceTest, IntrospectionNamesTheArguments)
     auto pending = proxy.callAsync("Introspect", [&reply](const dbus::Reply &answer) { reply = answer; });
     ASSERT_TRUE(test::runUntil([&] { return reply.has_value(); }));
     const std::string xml = reply->value<std::string>().value_or(std::string());
-    // Parameters carry their names; sd-bus names every argument or none, so
-    // the unnamed result is "result".
+    // sd-bus names every argument or none, so the unnamed result is "result".
     EXPECT_NE(xml.find(R"(<arg type="t" name="id" direction="in"/>)"), std::string::npos) << xml;
     EXPECT_NE(xml.find(R"(<arg type="i" name="height" direction="in"/>)"), std::string::npos);
     EXPECT_NE(xml.find(R"(<arg type="b" name="result" direction="out"/>)"), std::string::npos);

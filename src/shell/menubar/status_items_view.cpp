@@ -14,7 +14,6 @@
 
 namespace cutefish::shell {
 
-// Half the gap between two plates on each side of an item, as the tray's.
 static constexpr double kInset = BarContext::kHighlightGap / 2;
 
 StatusItemsView::StatusItemsView(BarContext *bar, wm::StatusItems *items)
@@ -65,7 +64,6 @@ void StatusItemsView::rebuild()
             slots.push_back(slot);
         }
     }
-    // Slots of items that went or hid; their item, if any, is out of the bar.
     for (StatusItemSlot *gone : m_slots) {
         gone->setItem(nullptr);
         gone->setVisible(false);
@@ -91,8 +89,6 @@ void StatusItemsView::layout()
 
 void StatusItemsView::placeItems()
 {
-    // Each item starts on a whole logical pixel of the window, wherever the
-    // row puts this view.
     const ui::PointF origin = mapToWindow({0, 0});
     double cursor = origin.x;
     const double height = geometry().height;

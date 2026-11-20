@@ -126,7 +126,6 @@ TEST(ScreenTransitionNode, RotationCopiesTheNewContentAndAnimatesBothLayers)
     EXPECT_EQ(calls[0].kind, "fill");
     EXPECT_NE(calls[1].texture, f.outgoing);
     EXPECT_EQ(calls[2].texture, f.outgoing);
-    // The outgoing landscape frame is turned upright over the portrait viewport.
     EXPECT_EQ(calls[1].mapping, Transition::aboutCenter({480, 270}, 20));
     EXPECT_EQ(calls[2].mapping, Transition::aboutCenter({480, 270}, 90));
 
@@ -144,8 +143,6 @@ TEST(ScreenTransitionNode, RotationCopiesTheNewContentAndAnimatesBothLayers)
 
 TEST(ScreenTransitionNode, UnturnedFrameHoldsThenFadesOverTheNewContent)
 {
-    // The startup cover: another DRM master's frame, not turned, held until the
-    // session is ready and then faded out over it.
     Fixture f;
     f.start(0);
     auto calls = f.paint();
@@ -228,7 +225,7 @@ TEST(ScreenTransitionNode, FastOutLinearInMatchesChromium)
 {
     EXPECT_DOUBLE_EQ(Transition::fastOutLinearIn(0), 0);
     EXPECT_DOUBLE_EQ(Transition::fastOutLinearIn(1), 1);
-    // gfx::CubicBezier(0.4, 0, 1, 1) at x = 0.5.
+    // The cubic Bezier (0.4, 0, 1, 1) at x = 0.5.
     EXPECT_NEAR(Transition::fastOutLinearIn(.5), 0.3248, 1e-3);
     double last = 0;
     for (int i = 1; i <= 100; ++i) {

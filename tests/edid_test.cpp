@@ -28,7 +28,6 @@ std::string descriptor(unsigned char tag, const std::string &text)
     return result + padded;
 }
 
-// A 128-byte base block from a Dell monitor, reduced to what the parser reads.
 std::string edid(const std::optional<std::string> &name, bool validChecksum = true)
 {
     std::string block = hex("00ffffffffffff00");
@@ -61,11 +60,9 @@ TEST(Edid, ReadsManufacturerAndMonitorName)
 TEST(Edid, KeyCoversVendorProductSerialOnly)
 {
     EXPECT_EQ(parseEdid(edid("DELL U2720Q")).key, kDellKey);
-    // The name is not part of the identity.
     EXPECT_EQ(parseEdid(edid("Other name")).key, kDellKey);
 }
 
-// The name descriptor is Latin-1; its padding may use the no-break space.
 TEST(Edid, ModelIsLatin1TrimmedAsText)
 {
     EXPECT_EQ(parseEdid(edid("Caf\xe9\xa0")).model, "Caf\xc3\xa9");

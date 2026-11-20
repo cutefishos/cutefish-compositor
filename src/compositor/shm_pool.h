@@ -4,9 +4,6 @@
 //
 // Upstream: chromium/src/components/exo/shared_memory.h
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: base::UnsafeSharedMemoryRegion is replaced by a plain
-// mmap of the client's fd.
 
 #ifndef CUTEFISH_COMPOSITOR_SHM_POOL_H_
 #define CUTEFISH_COMPOSITOR_SHM_POOL_H_
@@ -27,18 +24,16 @@ namespace cutefish::compositor {
 
 class ShmBuffer;
 
-// Why a buffer could not be created, mapped onto the wl_shm errors by the
-// protocol layer.
+// Mapped onto the wl_shm errors by the protocol layer.
 enum class ShmBufferError {
     None,
     InvalidFormat,
-    // Covers stride, dimensions and out-of-pool ranges; wl_shm has no separate
-    // error for the latter two.
+    // wl_shm has no separate error for bad dimensions or out-of-pool ranges.
     InvalidStride,
 };
 
-// The mmapped backing store of a wl_shm_pool. Buffers hold a reference, so a
-// client may destroy the wl_shm_pool while its wl_buffers are still in use.
+// Buffers hold a reference, so a client may destroy the wl_shm_pool while its
+// wl_buffers are in use.
 class ShmPool : public std::enable_shared_from_this<ShmPool>
 {
 public:
@@ -46,25 +41,21 @@ public:
     ShmPool &operator=(const ShmPool &) = delete;
     ~ShmPool();
 
-    // Takes ownership of `fd` in every case, including failure. A regular file
-    // shorter than `size` is rejected here rather than faulting on first read.
+    // Takes ownership of `fd` in every case; a regular file shorter than `size`
+    // is rejected.
     static std::shared_ptr<ShmPool> create(int fd, int32_t size);
 
     // Pools may only grow, which is what the protocol allows.
     bool resize(int32_t newSize);
 
-    // Brackets reads of data(). The client owns the file behind the mapping and
-    // can shrink it at any time, which turns a read into SIGBUS. Between these
-    // calls the fault is caught and the pool swapped for zero pages instead;
-    // endAccess() then returns false and the pool stays dead. Accesses nest,
-    // but only for one pool per thread at a time.
+    // The client can shrink the file at any time; between these calls SIGBUS is
+    // caught, and endAccess() returns false. One pool per thread at a time.
     void beginAccess();
     bool endAccess();
 
     bool faulted() const { return m_faulted != 0; }
 
-    // Creates a buffer covering `size` pixels starting `offset` bytes into the
-    // pool. Returns nullptr and sets `error` when the range is not valid.
+    // Null with `error` set when the range is not valid.
     std::shared_ptr<ShmBuffer> createBuffer(const base::Size &size, int32_t offset, int32_t stride,
                                             render::PixelFormat format, ShmBufferError *error);
 
@@ -72,14 +63,11 @@ public:
 
     size_t size() const { return m_size; }
 
-    // Writes go through the fd rather than the read-only mapping, so a file
-    // the client shrank fails cleanly instead of faulting.
+    // Through the fd, so a file the client shrank fails cleanly instead of
+    // faulting.
     bool write(size_t offset, const void *data, size_t length) const;
 
-    // Writes `rows` rows of `rowBytes`, read `dataStride` apart from `data`,
-    // to rows `stride` apart in the pool. The range is checked once; tightly
-    // packed rows go out in one write, padded ones row by row, leaving the
-    // client's padding bytes alone.
+    // `stride` apart in the pool; the client's padding bytes are left alone.
     bool writeRows(size_t offset, size_t stride, size_t rows, size_t rowBytes,
                    const uint8_t *data, size_t dataStride) const;
 

@@ -15,7 +15,6 @@
 
 namespace cutefish::shell {
 
-// The easing curves the launchpad's animations and transitions use.
 namespace easing {
 
 inline double linear(double t)
@@ -29,7 +28,6 @@ inline double outCubic(double t)
     return u * u * u + 1;
 }
 
-// Out back with an overshoot of 1.70158.
 inline double outBack(double t)
 {
     constexpr double s = 1.70158;
@@ -44,8 +42,6 @@ inline double inOutQuad(double t)
 
 } // namespace easing
 
-// A value moving from one number to another on the window's frames, along
-// one of the curves above.
 class LaunchpadTween
 {
 public:
@@ -55,7 +51,7 @@ public:
     LaunchpadTween(const LaunchpadTween &) = delete;
     LaunchpadTween &operator=(const LaunchpadTween &) = delete;
 
-    // From `from` to `to`; `update` hears each value, the last one `to`.
+    // `update` hears each value, the last one `to`.
     void start(ui::Window *window, double from, double to, std::chrono::milliseconds duration, Curve curve,
                std::function<void(double)> update)
     {
@@ -84,7 +80,6 @@ public:
         m_animation->start();
     }
 
-    // Jumps to the end.
     void finish()
     {
         if (m_animation)
@@ -95,7 +90,6 @@ public:
             m_update(m_to);
     }
 
-    // Leaves the value where it is.
     void stop()
     {
         if (m_animation)
@@ -114,10 +108,6 @@ private:
     bool m_running = false;
 };
 
-// A value pulled onto its target by a critically damped spring on the
-// window's frames: it eases out of rest, and started again towards another
-// target it keeps the speed it has, so a move that changes course bends
-// instead of jerking.
 class LaunchpadSpring
 {
 public:
@@ -125,8 +115,8 @@ public:
     LaunchpadSpring(const LaunchpadSpring &) = delete;
     LaunchpadSpring &operator=(const LaunchpadSpring &) = delete;
 
-    // From `from` to `to`, keeping its speed if already running; `update`
-    // hears each value, the last one `to`.
+    // Keeps its speed if already running; `update` hears each value, the last
+    // one `to`.
     void start(ui::Window *window, double from, double to, std::function<void(double)> update)
     {
         m_value = from;
@@ -147,7 +137,6 @@ public:
         }
     }
 
-    // Jumps to the end.
     void finish()
     {
         stop();
@@ -156,7 +145,6 @@ public:
             m_update(m_to);
     }
 
-    // Leaves the value where it is.
     void stop()
     {
         if (m_driver)
@@ -169,7 +157,7 @@ public:
     double target() const { return m_to; }
 
 private:
-    // Radians per second: a 0.25 s response, nearly still after 0.2 s.
+    // Radians per second.
     static constexpr double kFrequency = 2 * 3.14159265358979 / 0.25;
     static constexpr double kRestDistance = 0.1;
     static constexpr double kRestSpeed = 5.0;
@@ -194,7 +182,6 @@ private:
     protected:
         void tick(uint64_t frameTimeNs) override
         {
-            // The first frame already shows one step of motion.
             const double seconds = m_lastNs ? double(frameTimeNs - m_lastNs) / 1e9 : 1.0 / 60;
             m_lastNs = frameTimeNs;
             m_spring->step(seconds);

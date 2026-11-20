@@ -66,11 +66,8 @@ void DockTooltip::place(const std::string &text, const base::PointF &target, dou
     ui::BubbleShape bubble;
     bubble.radius = theme.mediumRadius;
     bubble.continuousCorners = true;
-    // Beside a side dock the text's height leaves no room for an arrow
-    // between the corners, so the bubble goes without one.
     bubble.arrowEdge = across ? ui::BubbleShape::Edge::None : ui::BubbleShape::Edge::Bottom;
 
-    // The label's size decides the bubble's, before any window is made.
     if (!m_measure) {
         m_measure = m_dock->window()->window()->contentView()->addChild<ui::Label>();
         m_measure->setElide(ui::Label::Elide::None);
@@ -82,8 +79,6 @@ void DockTooltip::place(const std::string &text, const base::PointF &target, dou
                                             across ? 0 : bubble.minimumEdgeLength()));
     const double height = std::ceil(textSize.height + theme.largeSpacing + (across ? 0 : bubble.arrowLength));
 
-    // The bubble, in the dock window's coordinates: beside the dock, centred
-    // on the icon.
     const base::Rect window = m_dock->window()->geometry();
     const Shell::Output *output = m_shell->output({});
     base::Rect available = output ? m_shell->workArea(*output) : base::Rect();
@@ -132,8 +127,6 @@ void DockTooltip::place(const std::string &text, const base::PointF &target, dou
                           textSize.height});
     m_window->show();
 
-    // The glass is the body; the arrow outside it continues the glass, and
-    // the outline follows the whole bubble.
     ShellWindow *popup =
             m_shell->host()->windowFor(static_cast<ui::EmbeddedWindow *>(m_window.get()));
     if (!popup)

@@ -2,9 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// The lock screen's panel drawn by Skia on the renderer's own GL context, into
-// a texture the renderer owns, against the same frame rendered on the CPU.
-
 #include <GLES3/gl3.h>
 #include <gtest/gtest.h>
 
@@ -71,8 +68,6 @@ protected:
 
     double scale() const { return GetParam(); }
 
-    // The panel's texture drawn 1:1 over transparency, as the output's frame
-    // captures it.
     ui::Bitmap drawn(bool dirty)
     {
         renderer->setOutputContext({"out", base::Rect(kLogical), native,
@@ -89,7 +84,6 @@ protected:
         return image.converted(ui::Bitmap::Format::Rgba8888Premultiplied);
     }
 
-    // The panel's last CPU frame.
     ui::Bitmap cpuFrame() const
     {
         return panel->image().converted(ui::Bitmap::Format::Rgba8888Premultiplied);
@@ -136,9 +130,7 @@ protected:
     auth::AuthScreen *view = nullptr;
 };
 
-// Skia's GPU backend antialiases paths its own way: the submit button's
-// 1.5-px arrow is compared on its own, more loosely. Its colour also animates
-// between the frames once there is text to submit.
+// Skia's GPU backend antialiases paths its own way, so the submit arrow is compared on its own, more loosely.
 TEST_P(PanelGpuPixels, MatchesTheCpuFrameWholeAndAfterAChange)
 {
     window->setKeyboardFocus(true);
@@ -163,7 +155,6 @@ TEST_P(PanelGpuPixels, MatchesTheCpuFrameWholeAndAfterAChange)
     ASSERT_EQ(cpu.size(), gpu.size());
     expectClose(cpu, gpu, 32);
 
-    // A typed character repaints only what changed, on top of the last frame.
     ui::KeyEvent key;
     key.key = 'a';
     key.text = "a";
@@ -172,7 +163,6 @@ TEST_P(PanelGpuPixels, MatchesTheCpuFrameWholeAndAfterAChange)
     const ui::Bitmap typed = drawn(true);
     ASSERT_TRUE(panel->lastFrameOnGpu());
     EXPECT_GT(difference(gpu, typed, button, false).worst, 32);
-    // The CPU frame after GPU ones, as a fallback would take it, is the same.
     panel->renderImage();
     expectClose(cpuFrame(), typed, 255);
 }

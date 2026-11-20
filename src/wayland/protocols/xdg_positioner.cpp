@@ -4,9 +4,6 @@
 //
 // Upstream: chromium/src/components/exo/wayland/wayland_positioner.cc
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: integrates the upstream behavior with native
-// compositor types and ownership.
 
 #include "wayland/protocols/xdg_positioner.h"
 
@@ -78,7 +75,6 @@ Direction flip(Direction direction)
     return static_cast<Direction>(-direction);
 }
 
-// The possible/actual positioner adjustments for this window.
 struct ConstraintAdjustment {
     bool flip;
     bool slide;
@@ -93,8 +89,6 @@ ConstraintAdjustment maskToConstraintAdjustment(uint32_t field, uint32_t flipMas
     return {!!(field & flipMask), !!(field & slideMask), !!(field & resizeMask)};
 }
 
-// A 1-dimensional projection of a range, used to solve the positioning problem
-// one axis at a time.
 struct Range1D {
     int32_t start;
     int32_t end;
@@ -104,8 +98,6 @@ struct Range1D {
     int32_t center() const { return std::midpoint(start, end); }
 };
 
-// The range position that results from using exactly the adjustments in
-// `adjustments`.
 Range1D calculate(const ConstraintAdjustment& adjustments, int32_t workSize, Range1D anchorRange,
                   int32_t size, int32_t offset, Direction anchor, Direction gravity)
 {
@@ -158,7 +150,6 @@ Range1D calculate(const ConstraintAdjustment& adjustments, int32_t workSize, Ran
 }
 
 struct IntermediateAdjustmentResult {
-    // Statistics for comparing two placements.
     struct Stats {
         // When false, this result is chosen only if it is the sole
         // unconstrained option.
@@ -170,9 +161,6 @@ struct IntermediateAdjustmentResult {
     ConstraintAdjustment adjustment;
 };
 
-// Which adjustments - subject to being a subset of the allowed ones - give the
-// best range position. This is a 1-dimensional projection of the
-// window-positioning problem.
 std::pair<Range1D, ConstraintAdjustment> determineBestConstraintAdjustment(
     const Range1D& workArea, const Range1D& anchorRange, int32_t size, int32_t offset,
     Direction anchor, Direction gravity, const ConstraintAdjustment& validAdjustments,
@@ -186,10 +174,8 @@ std::pair<Range1D, ConstraintAdjustment> determineBestConstraintAdjustment(
         return {shifted.first.transposed(-shift), shifted.second};
     }
 
-    // Cycle through the available combinations of adjustments and choose the
-    // first one that maximizes the amount of the window visible on screen.
-    // When several tie, the earlier one wins, so the preference order is
-    // flip > slide > resize as the positioner specification requires.
+    // When several tie the earlier one wins, so the preference order is flip > slide > resize, as
+    // the specification requires.
     IntermediateAdjustmentResult best {{/*preferred=*/false, /*constrained=*/true,
                                         /*visibility=*/0},
                                        /*position=*/{0, 0},
@@ -273,11 +259,8 @@ WaylandPositioner::Result WaylandPositioner::calculateBounds(const base::Rect& w
         XDG_POSITIONER_CONSTRAINT_ADJUSTMENT_SLIDE_Y,
         XDG_POSITIONER_CONSTRAINT_ADJUSTMENT_RESIZE_Y);
 
-    // Some adjustments are preferred over others when the orthogonal
-    // anchor+gravity means a slide could occlude the anchor rect, unless it is
-    // occluded already. This stops the common case of a dropdown menu covering
-    // the header it dropped from. Best effort: if nothing fits inside the work
-    // area, the parent may still end up occluded.
+    // A slide that could occlude the anchor rect is avoided unless it is occluded already, so a
+    // dropdown does not cover its header.
     const bool xOccluded = !(m_anchorX == m_gravityX && m_anchorX != kNeutral);
     const bool yOccluded = !(m_anchorY == m_gravityY && m_anchorY != kNeutral);
     const bool avoidYOcclusion = xOccluded && !yOccluded;

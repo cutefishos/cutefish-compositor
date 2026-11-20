@@ -21,29 +21,22 @@ namespace cutefish::shell {
 
 class StatusItemSlot;
 
-// The items applications draw themselves (cutefish_status_item_v1), in the
-// order the window manager keeps, the newest leftmost. Each has a slot as
-// wide as the item plus the gap the bar keeps between plates; the item's
-// surface lies over the slot's plate, on whole logical pixels, and the slot
-// draws the bar's highlight plate under it.
+// Items from cutefish_status_item_v1, in the window manager's order, newest
+// leftmost.
 class StatusItemsView : public ui::View
 {
 public:
     StatusItemsView(BarContext *bar, wm::StatusItems *items);
     ~StatusItemsView() override;
 
-    // Visible slots, left to right.
     int count() const { return int(m_slots.size()); }
     StatusItemSlot *slot(int index) const { return m_slots[size_t(index)]; }
     double preferredWidth() const;
 
-    // The bar's look changed.
     void barChanged();
-    // Lays the slots out again where the row put this view and puts each
-    // item over its slot; the row calls it whenever it moved its views.
+    // The row calls it whenever it moved its views.
     void placeItems();
 
-    // The width the bar should give it changed.
     std::function<void()> onWidthChanged;
 
 protected:
@@ -58,7 +51,6 @@ private:
     base::Subscription m_changed;
 };
 
-// One application item's place in the row.
 class StatusItemSlot : public BarItem
 {
 public:
@@ -66,8 +58,7 @@ public:
 
     wm::StatusItem *item() const { return m_item; }
     void setItem(wm::StatusItem *item) { m_item = item; }
-    // The item's surface in the slot, in slot coordinates: whole logical
-    // pixels in the window.
+    // In slot coordinates, on whole logical pixels in the window.
     ui::RectF itemRect() const;
 
 private:

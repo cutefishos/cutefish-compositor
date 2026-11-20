@@ -20,9 +20,8 @@ class SelectionBridge
 {
 public:
     using Reply = std::function<void(unsigned, std::function<void(void *)>)>;
-    // Dnd bridges XdndSelection. It exports the controller's source like the
-    // others, but an X11 owner is only reported through ownerChanged: an XDND
-    // source announces its types in XdndEnter, not through TARGETS.
+    // An XDND source announces its types in XdndEnter, not TARGETS, so a Dnd owner is only reported
+    // through ownerChanged.
     enum class Kind { Clipboard, Primary, Dnd };
     SelectionBridge(xcb_connection_t *connection, xcb_window_t root,
                     clipboard::SelectionController *controller, Reply reply,
@@ -33,17 +32,14 @@ public:
     void start(uint8_t eventBase);
     bool event(xcb_generic_event_t *event);
 
-    // The window that owns the selection while it is exported.
     xcb_window_t window() const { return m_window; }
 
-    // The current owner's selection timestamp.
     xcb_timestamp_t timestamp() const { return m_timestamp; }
 
     // Changes with every owner; receive() drops a stale generation.
     uint64_t generation() const { return m_generation; }
 
-    // Converts the selection's `target` for the owner at `generation` into fd,
-    // at `time`, or at the owner's timestamp when that is 0.
+    // A `time` of 0 uses the owner's timestamp.
     void receive(xcb_atom_t target, int fd, uint64_t generation,
                  std::function<void(bool)> completion = {}, xcb_timestamp_t time = 0);
 

@@ -15,8 +15,7 @@ class InputManager;
 
 namespace cutefish::wayland {
 
-// Shared inhibition count. Wayland inhibitors and the org.freedesktop.ScreenSaver
-// service (session::ScreenSaverService) acquire it; idle notifications read it.
+// Wayland inhibitors and the org.freedesktop.ScreenSaver service share this count.
 class IdleInhibition
 {
 public:

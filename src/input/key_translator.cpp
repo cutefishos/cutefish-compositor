@@ -19,7 +19,6 @@
 namespace cutefish::input {
 namespace {
 
-// The modifiers held, by role.
 enum Role : uint32_t {
     Command = 1u << 0,
     Option = 1u << 1,
@@ -27,7 +26,6 @@ enum Role : uint32_t {
     Shift = 1u << 3,
 };
 
-// The modifiers sent with a key, by kind.
 enum ModifierKind : uint32_t {
     NoKind = 0,
     CtrlKind = 1u << 0,
@@ -37,13 +35,9 @@ enum ModifierKind : uint32_t {
     Level3Kind = 1u << 4,
 };
 
-// Terminals take their own shortcuts with Ctrl+Shift, leaving Ctrl to the
-// program: copy, paste, new tab, close tab, new window, find, clear.
 constexpr std::array<uint32_t, 7> kTerminalCtrlShiftKeys = {XKB_KEY_c, XKB_KEY_v, XKB_KEY_t, XKB_KEY_w,
                                                            XKB_KEY_n, XKB_KEY_f, XKB_KEY_k};
 
-// Besides the letters, the keys a terminal turns into control characters with
-// Ctrl: Ctrl+[ is Esc and Ctrl+Backslash the quit signal.
 constexpr std::array<uint32_t, 4> kTerminalControlKeys = {XKB_KEY_bracketleft, XKB_KEY_backslash,
                                                          XKB_KEY_bracketright, XKB_KEY_slash};
 
@@ -108,7 +102,6 @@ uint32_t defaultCode(ModifierKind kind)
 
 bool isTerminal(std::string_view applicationId)
 {
-    // Lower-cased application ids and X11 classes, after Toshy's lists.
     static const std::set<std::string, std::less<>> terminals = {
             "cutefish-terminal",
             "alacritty",
@@ -300,7 +293,6 @@ void KeyTranslator::syncModifiers(Timestamp timestamp, const std::set<uint32_t> 
             m_deliver(timestamp, code, false);
         }
     }
-    // In the order the keys went down, then whatever a rule adds.
     std::vector<uint32_t> order;
     const auto add = [&](uint32_t code) {
         if (target.contains(code) && std::find(order.begin(), order.end(), code) == order.end())
@@ -391,15 +383,12 @@ bool KeyTranslator::applyRule(Timestamp timestamp, uint32_t code)
                 != kTerminalCtrlShiftKeys.end()) {
         kinds = CtrlKind | ShiftKind;
     } else if (roles == Command && code >= KEY_1 && code <= KEY_9) {
-        // Terminals pick a tab with Alt+digit. By position, since some layouts
-        // type symbols on the digit row.
+        // By position, since some layouts type symbols on the digit row.
         kinds = AltKind;
     } else if ((keysym >= XKB_KEY_a && keysym <= XKB_KEY_z)
                || std::find(kTerminalControlKeys.begin(), kTerminalControlKeys.end(), keysym)
                        != kTerminalControlKeys.end()) {
-        // As Ctrl these are control characters to the program: Command+D
-        // would end the shell, Command+Z suspend it and Command+Backslash
-        // quit it. Other keys go out.
+        // As Ctrl these would be control characters to the program, such as EOF or SIGQUIT.
         m_presses.emplace(code, Press {0, true});
         return true;
     } else {
@@ -465,8 +454,6 @@ void KeyTranslator::onKey(Timestamp timestamp, uint32_t evdevCode, bool pressed)
     if (press.delivered)
         releaseKey(timestamp, press.delivered);
     if (press.rule) {
-        // Back to what the held keys send: a modifier only the rule wanted
-        // goes, one it lifted stays held back until needed, Shift returns.
         std::set<uint32_t> target = wantedModifiers(passthrough, true);
         for (const uint32_t code : wantedModifiers(passthrough, false)) {
             if (m_deliveredModifiers.contains(code))
@@ -478,7 +465,6 @@ void KeyTranslator::onKey(Timestamp timestamp, uint32_t evdevCode, bool pressed)
 
 void KeyTranslator::flushModifiers(Timestamp timestamp)
 {
-    // A secondary click made of Control+click carries no Ctrl.
     if (m_secondaryClick)
         return;
     syncModifiers(timestamp, wantedModifiers(passthrough(), false));

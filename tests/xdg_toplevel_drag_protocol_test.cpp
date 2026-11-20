@@ -206,7 +206,6 @@ struct Client {
         return buffer;
     }
 
-    // A toplevel that has had its initial configure but no buffer yet.
     Toplevel *makeToplevel(const char *appId = nullptr)
     {
         toplevels.push_back(std::make_unique<Toplevel>());
@@ -364,14 +363,12 @@ protected:
         return index < windows.size() ? windows[index] : nullptr;
     }
 
-    // Maps a 300x200 window at (100, 100) and presses the button over it at
-    // (150, 150), which is where every drag here starts.
+    // Every drag here starts at (150, 150), over a 300x200 window at (100, 100).
     Toplevel *mapSourceWindowAndPress(Client &c, const char *appId = nullptr)
     {
         Toplevel *source = c.makeToplevel(appId);
         c.map(source, base::Size(300, 200));
         check([&] {
-            // Just mapped, so on top.
             windowManager.windows().back()->setBounds(base::Rect(100, 100, 300, 200));
             manager.onPointerMotionAbsolute(at(1), base::PointF(150, 150));
             manager.onPointerButton(at(2), BTN_LEFT, true);
@@ -450,11 +447,9 @@ TEST_F(XdgToplevelDragProtocolTest, ANewWindowMapsUnderThePointerAndStaysWhereIt
             wm::Window *window = windowSized(base::Size(200, 150));
             ASSERT_NE(nullptr, window);
             EXPECT_EQ(base::Rect(130, 140, 200, 150), window->bounds());
-            // A translucent preview, and the window it came out of keeps the keyboard.
             EXPECT_TRUE(window->isDragPreview());
             EXPECT_FALSE(window->isActive());
             EXPECT_FLOAT_EQ(wm::ToplevelDrag::kPreviewOpacity, opacityOf(window));
-            // A thumbnail: 320 wide at most, and never more than half size.
             EXPECT_DOUBLE_EQ(wm::ToplevelDrag::kPreviewMaxScale,
                              static_cast<scene::WindowAnimation *>(window->node())
                                      ->presentationScale());
@@ -466,8 +461,6 @@ TEST_F(XdgToplevelDragProtocolTest, ANewWindowMapsUnderThePointerAndStaysWhereIt
             EXPECT_EQ(base::Rect(230, 190, 200, 150), window->bounds());
         });
         c.sync();
-        // The window under the pointer is the one being dragged; the drop
-        // target is what lies beneath it.
         EXPECT_EQ(origin->surface, c.dragEnterSurface);
 
         check([&] {
@@ -477,13 +470,11 @@ TEST_F(XdgToplevelDragProtocolTest, ANewWindowMapsUnderThePointerAndStaysWhereIt
             wm::Window *window = windowSized(base::Size(200, 150));
             ASSERT_NE(nullptr, window);
             EXPECT_EQ(base::Point(230, 190), window->bounds().topLeft());
-            // Let go, it is a window of its own.
             EXPECT_FALSE(window->isDragPreview());
             EXPECT_TRUE(window->isActive());
             EXPECT_FLOAT_EQ(1, opacityOf(window));
         });
         c.sync();
-        // Nothing took the data, but it was a drop, not a cancel.
         EXPECT_EQ(1, c.dropsPerformed);
         EXPECT_EQ(1, c.cancels);
 
@@ -509,7 +500,6 @@ TEST_F(XdgToplevelDragProtocolTest, AnIconFadesIntoThePreviewAsThePointerMovesOn
         check([&] {
             wm::Window *window = windowSized(base::Size(200, 150));
             ASSERT_NE(nullptr, window);
-            // Only the icon near where the drag started.
             EXPECT_FLOAT_EQ(0, opacityOf(window));
             EXPECT_FLOAT_EQ(1, seat.drag()->iconOpacity());
             const double halfway = wm::ToplevelDrag::kIconDistance + wm::ToplevelDrag::kIconFadeDistance / 2;
@@ -531,8 +521,6 @@ TEST_F(XdgToplevelDragProtocolTest, AnIconFadesIntoThePreviewAsThePointerMovesOn
     });
 }
 
-// Qt maps a pulled-out tab's window at one size and then resizes it while it is
-// dragged; the move must not undo the resize.
 TEST_F(XdgToplevelDragProtocolTest, AnAttachedWindowMayResizeWhileItIsDragged)
 {
     run([&](Client &c) {
@@ -640,7 +628,6 @@ TEST_F(XdgToplevelDragProtocolTest, UnmappingTheWindowDetachesItAndTheDragGoesOn
         xdg_toplevel_drag_v1_attach(drag, detached->toplevel, 20, 10);
         c.map(detached, base::Size(200, 150));
 
-        // Snapping the tab back in: the client unmaps the window it tore off.
         wl_surface_attach(detached->surface, nullptr, 0, 0);
         wl_surface_commit(detached->surface);
         c.sync();
@@ -652,7 +639,6 @@ TEST_F(XdgToplevelDragProtocolTest, UnmappingTheWindowDetachesItAndTheDragGoesOn
             EXPECT_EQ(base::Rect(100, 100, 300, 200), windowAt(0)->bounds());
         });
 
-        // Once unmapped, another toplevel may be attached.
         xdg_toplevel_drag_v1_attach(drag, detached->toplevel, 20, 10);
         c.sync();
         check([&] {
@@ -665,8 +651,6 @@ TEST_F(XdgToplevelDragProtocolTest, UnmappingTheWindowDetachesItAndTheDragGoesOn
     });
 }
 
-// Chrome drags a window by its only tab, starting the drag from that window,
-// and hides it once the tab is merged into another window's tab strip.
 TEST_F(XdgToplevelDragProtocolTest, HidingTheWindowTheDragStartedFromDoesNotEndIt)
 {
     run([&](Client &c) {
@@ -691,7 +675,6 @@ TEST_F(XdgToplevelDragProtocolTest, HidingTheWindowTheDragStartedFromDoesNotEndI
                                   WL_DATA_DEVICE_MANAGER_DND_ACTION_MOVE);
         c.sync();
 
-        // The client keeps the surface of the window it hides, as Chrome does.
         wl_surface_attach(origin->surface, nullptr, 0, 0);
         wl_surface_commit(origin->surface);
         xdg_toplevel_destroy(std::exchange(origin->toplevel, nullptr));
@@ -721,7 +704,6 @@ TEST_F(XdgToplevelDragProtocolTest, HidingTheWindowTheDragStartedFromDoesNotEndI
 TEST_F(XdgToplevelDragProtocolTest, UnmappingADroppedWindowActivatesTheWindowItWasDroppedOn)
 {
     run([&](Client &c) {
-        // The tab goes from the source window into this one, to the right of it.
         Toplevel *target = c.makeToplevel();
         c.map(target, base::Size(300, 200));
         check([&] {
@@ -742,7 +724,6 @@ TEST_F(XdgToplevelDragProtocolTest, UnmappingADroppedWindowActivatesTheWindowItW
         });
         c.sync();
 
-        // The client takes the tab into the window below and lets the dragged one go.
         wl_surface_attach(detached->surface, nullptr, 0, 0);
         wl_surface_commit(detached->surface);
         c.sync();
@@ -770,7 +751,6 @@ TEST_F(XdgToplevelDragProtocolTest, OverAWindowOfItsOwnThatTakesTheDropThePrevie
         xdg_toplevel_drag_v1_attach(drag, detached->toplevel, 20, 10);
         c.map(detached, base::Size(200, 150));
 
-        // Over the window it came from, which takes the tab back.
         ASSERT_EQ(origin->surface, c.dragEnterSurface);
         wl_data_offer_accept(c.dragOffer, c.dragEnterSerial, "application/x-cutefish-tab");
         wl_data_offer_set_actions(c.dragOffer, WL_DATA_DEVICE_MANAGER_DND_ACTION_MOVE,
@@ -780,19 +760,16 @@ TEST_F(XdgToplevelDragProtocolTest, OverAWindowOfItsOwnThatTakesTheDropThePrevie
             EXPECT_FLOAT_EQ(wm::ToplevelDrag::kPreviewOpacity,
                             opacityOf(windowSized(base::Size(200, 150))));
         });
-        // The frame that shows where the tab would go.
         wl_surface_damage(origin->surface, 0, 0, 10, 10);
         wl_surface_commit(origin->surface);
         c.sync();
         check([&] {
             EXPECT_FLOAT_EQ(0, opacityOf(windowSized(base::Size(200, 150))));
-            // Off it, the preview is back at once.
             manager.onPointerMotionAbsolute(at(3), base::PointF(600, 500));
             EXPECT_FLOAT_EQ(wm::ToplevelDrag::kPreviewOpacity,
                             opacityOf(windowSized(base::Size(200, 150))));
             manager.onKey(at(4), KEY_ESC, true);
             manager.onKey(at(5), KEY_ESC, false);
-            // Cancelled, its client takes it back: not drawn meanwhile.
             EXPECT_FLOAT_EQ(0, opacityOf(windowSized(base::Size(200, 150))));
             EXPECT_FALSE(windowSized(base::Size(200, 150))->isActive());
             manager.onPointerButton(at(6), BTN_LEFT, false);
@@ -805,12 +782,9 @@ TEST_F(XdgToplevelDragProtocolTest, OverAWindowOfItsOwnThatTakesTheDropThePrevie
     });
 }
 
-// Attached after the drag docked on it, a window shares the dock watch; its
-// destruction must not leave the drag holding its surface (caught by ASan).
 TEST_F(XdgToplevelDragProtocolTest, AWindowDockedOnThenAttachedAndDestroyedIsLetGo)
 {
     run([&](Client &c) {
-        // Another window of the client, whose subsurface takes the drop.
         Toplevel *target = c.makeToplevel();
         c.map(target, base::Size(300, 200));
         check([&] {
@@ -843,8 +817,6 @@ TEST_F(XdgToplevelDragProtocolTest, AWindowDockedOnThenAttachedAndDestroyedIsLet
                                   WL_DATA_DEVICE_MANAGER_DND_ACTION_MOVE);
         c.sync();
 
-        // The client lets the preview go and attaches the window it is docked
-        // on, then unmaps and destroys that one, all before the pointer moves.
         wl_surface_attach(detached->surface, nullptr, 0, 0);
         wl_surface_commit(detached->surface);
         xdg_toplevel_drag_v1_attach(drag, target->toplevel, 0, 0);
@@ -880,7 +852,6 @@ TEST_F(XdgToplevelDragProtocolTest, AToplevelWhoseSurfaceIsGoneIsNotAttached)
         wl_data_source *source = c.makeSource();
         auto *drag = xdg_toplevel_drag_manager_v1_get_xdg_toplevel_drag(c.dragManager, source);
         xdg_toplevel_drag_v1_attach(drag, gone->toplevel, 0, 0);
-        // Nothing was attached, so another toplevel may be.
         xdg_toplevel_drag_v1_attach(drag, next->toplevel, 0, 0);
         c.sync();
         EXPECT_EQ(0, wl_display_get_error(c.display));
@@ -951,9 +922,7 @@ TEST_F(XdgToplevelDragProtocolTest, DestroyingTheDragBeforeItEndsIsAnError)
 
 TEST_F(XdgToplevelDragProtocolTest, SelfDropReachesDestinationBeforeSourceCompletes)
 {
-    // Chromium can end its nested drag loop on dnd_drop_performed and clear
-    // its same-window target. Deliver the destination drop first so it can
-    // process the data and send finish rather than getting stuck indefinitely.
+    // A client may end its drag loop on dnd_drop_performed, so the destination hears the drop first.
     run([&](Client &c) {
         Toplevel *origin = mapSourceWindowAndPress(c);
         wl_data_source *source = c.makeSource();

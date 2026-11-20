@@ -90,29 +90,22 @@ public:
     }
 
     std::function<void()> lockRequested;
-    // Whether the desktop background is up at the outputs' current size; a
-    // rotation's transition waits for it as for the desktop window.
+    // A rotation's transition waits for it as for the desktop window.
     std::function<bool()> backgroundReady;
     std::function<bool(const std::string &)> capturePending;
-    // The largest scale of the applied displays, reported before the outputs
-    // are re-sent. Xwayland renders at it, and sizes its screen from them.
+    // Reported before the outputs are re-sent; Xwayland renders at it.
     std::function<void(double)> maximumScaleChanged;
-    // A frame reached this output and its KMS state holds nothing but the
-    // compositor's own framebuffer. The session controller needs it per output:
-    // a lock is not complete until every screen has shown the shield with no
-    // application plane left beside it.
+    // A lock is not complete until every output has shown the shield with no
+    // application plane beside it.
     std::function<void(const std::string &)> securelyPresented;
-    // Whether a frame drawn at the given frame time shows the lock transition over.
     std::function<bool(double)> secureContentSettled;
 
-    // The session is blocked. Every output composites, and every commit clears
-    // the application planes of the previous session frame. Applies to outputs
-    // that appear later as well, so a hotplug or a DPMS wake mid-lock comes up
-    // secure rather than inheriting the session's policy.
+    // Applies to outputs that appear later too, so a hotplug or DPMS wake
+    // mid-lock comes up secure.
     void setSecureScanout(bool secure);
     void withdrawSecurePresentation();
 
-    // The night light's tint, for every output and the ones that appear later.
+    // For every output and the ones that appear later.
     void setColorTransform(const render::ColorTransform &transform);
 
     bool isSecureScanout() const { return secureScanout; }
@@ -120,26 +113,19 @@ public:
     // `layers` are what `transition` covers, painted in order.
     void setScreenTransition(scene::ScreenTransitionNode *transition,
                              std::vector<scene::Node *> layers);
-    // Each lit output's frame of what `paint` draws, keyed by output name, as
-    // the desk switch animation starts from.
+    // Keyed by output name.
     std::map<std::string, std::unique_ptr<render::Texture>>
     captureOutputs(const std::function<void(render::Renderer &)> &paint);
 
-    // Called before the first layout is published: the frame each output shows
-    // as the compositor starts, another DRM master's last one, stays in `cover`
-    // over `layers` until `ready` holds, by default once a desktop covers every
-    // output, then fades out. Upstream keeps its BootingAnimationController
-    // widget on top for the same reason: no other UI blinks before the screen
-    // it leads to is ready.
+    // Called before the first layout is published: each output's starting frame
+    // stays in `cover` until `ready` holds, then fades out.
     void setStartupCover(scene::ScreenTransitionNode *cover, std::vector<scene::Node *> layers,
                          std::function<bool()> ready = {});
 
-    // Whether the startup cover still hides the session, or is yet to. It
-    // fades out a still copy, so nothing should move under it meanwhile.
+    // It fades out a still copy, so nothing should move under it meanwhile.
     bool isStartupCoverShowing() const;
 
-    // Blocked outputs carry over the frame they start on as well; for the login
-    // screen, which has no session of its own on screen.
+    // For the login screen, which has no session of its own on screen.
     bool carryOverWhileSecure = false;
 
     using NativeConfigure = std::function<ConfigurationResult(

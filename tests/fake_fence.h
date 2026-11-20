@@ -14,9 +14,7 @@
 
 namespace cutefish::testsupport {
 
-// A pipe read end stands in for a sync_file: poll() reports it unreadable
-// until something is written, which is exactly how an unsignalled fence
-// behaves.
+// A pipe read end stands in for a sync_file: poll() sees it unsignalled until something is written.
 class FakeFence
 {
 public:

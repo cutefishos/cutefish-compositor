@@ -23,20 +23,8 @@ class AppMenuRegistrar;
 class TaskManager;
 class TaskWindows;
 
-// Which application the menu bar belongs to and its menu: the menu bar's
-// non-visual half. The bar shows the user's menu, then title() and the
-// entries of menu(); the user's menu, and Hide, Hide Others and Quit for an
-// application without a menu of its own role, are the view's.
-//
-// A window's main menu (cutefish_main_menu_v1) is ready as soon as it is
-// set; org.gtk.Menus menus, else a com.canonical.dbusmenu export, are
-// imported.
-//
-// Menus are imported as soon as a window or its exporter appears, so that
-// focusing it later finds the menu ready and the bar switches in one step.
-// A switch to an application whose menu is still on its way keeps the
-// previous bar until it arrives or 250 ms pass. Every input is handled on the
-// next turn of the loop, so that a burst becomes one switch.
+// Every input is handled on the next turn of the loop, so that a burst becomes
+// one switch.
 class ApplicationMenu
 {
 public:
@@ -49,29 +37,19 @@ public:
     ApplicationMenu(const ApplicationMenu &) = delete;
     ApplicationMenu &operator=(const ApplicationMenu &) = delete;
 
-    // "Desktop" on the desktop, the active application's name (its entry's,
-    // else its window title), or empty when the bar shows the user's menu
-    // alone.
     const std::string &title() const { return m_title; }
-    // The application's menu, ready to show; null for none.
+    // Null for none.
     compositor::MenuModel *menu() const { return m_menu; }
 
-    // Whether the desktop has the focus, which has no application to quit.
     void setDesktop(bool desktop);
-    // Names the desktop again after the session language changed.
     void retranslate();
 
-    // Quit, Hide and Hide Others of the application the bar names.
     void quitApplication();
     void hideApplication();
     void hideOtherApplications();
 
-    // The bar now belongs to another application, or none: an open menu of
-    // the previous one has to go.
     base::Signal<> switched;
-    // Only the name changed.
     base::Signal<> titleChanged;
-    // The application asks for an entry of its menu to be shown.
     base::Signal<int32_t> activationRequested;
 
 private:
@@ -81,14 +59,13 @@ private:
         std::vector<base::Subscription> subscriptions;
     };
 
-    // The GTK menus when there are any, else the dbusmenu.
     struct Address {
         compositor::GtkMenuAddress gtk;
         std::string service;
         std::string path;
     };
 
-    // Starts with the service and a newline; empty for no menu.
+    // Empty for no menu.
     static std::string importKey(const Address &address);
     Import *importFor(const Address &address);
     Address addressOf(uint64_t window) const;

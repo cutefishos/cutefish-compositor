@@ -2,9 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// A commit is held until the client's GPU has finished writing its buffer, and
-// every later commit in the same surface tree waits behind it.
-
 #include <gtest/gtest.h>
 
 #include <fcntl.h>
@@ -31,7 +28,6 @@ using cutefish::testsupport::FakeFence;
 
 namespace {
 
-// A DMA-BUF-like buffer whose implicit fences the test controls.
 class FencedBuffer final : public Buffer
 {
 public:
@@ -59,8 +55,6 @@ public:
     int signalCount = 0;
 };
 
-// Takes a value as double-buffered role state, and records the value each
-// applied commit installed.
 class RoleObserver final : public SurfaceObserver
 {
 public:
@@ -109,7 +103,6 @@ class CommitReadinessTest : public testing::Test
 protected:
     void SetUp() override { m_surface = m_compositor.createSurface(); }
 
-    // Attaches a buffer whose acquire fence is `fence`, and commits.
     std::shared_ptr<FencedBuffer> commitFenced(Surface *surface, FakeFence &fence)
     {
         auto buffer = std::make_shared<FencedBuffer>();
@@ -134,7 +127,6 @@ TEST_F(CommitReadinessTest, ACommitWaitsForItsAcquireFence)
 
     EXPECT_EQ(nullptr, m_surface->buffer());
     EXPECT_EQ(1u, m_surface->heldCommitCount());
-    // The client handed the buffer over at commit, so it is not released.
     EXPECT_FALSE(buffer->isReleased());
     EXPECT_FALSE(m_surface->hasPendingAttachedBuffer());
 
@@ -193,7 +185,6 @@ TEST_F(CommitReadinessTest, LaterCommitsWaitBehindAHeldOne)
     });
     auto buffer = commitFenced(m_surface.get(), fence);
 
-    // Nothing to wait for, but it must not overtake the first.
     m_surface->damage(base::Rect(0, 0, 8, 8));
     m_surface->requestFrameCallback([this](std::optional<uint32_t> time) {
         m_fired.push_back(time);
@@ -281,7 +272,6 @@ TEST_F(CommitReadinessTest, ASynchronizedChildCommitWaitsForTheParentsHeldCommit
     std::unique_ptr<Surface> child = m_compositor.createSurface();
     std::unique_ptr<SubSurface> sub = SubSurface::create(child.get(), m_surface.get());
 
-    // The child's state is cached before the parent's commit, which applies it.
     FakeFence fence;
     auto childBuffer = std::make_shared<FencedBuffer>();
     child->attach(childBuffer, base::Point());
@@ -293,7 +283,6 @@ TEST_F(CommitReadinessTest, ASynchronizedChildCommitWaitsForTheParentsHeldCommit
     ASSERT_TRUE(waitFor([&] {
         return m_surface->buffer() == parentBuffer;
     }));
-    // Both appear in the same application.
     EXPECT_EQ(childBuffer, child->buffer());
 }
 
@@ -322,8 +311,6 @@ TEST_F(CommitReadinessTest, AWaitingSynchronizedCommitStaysCachedAfterSetDesync)
     std::unique_ptr<Surface> child = m_compositor.createSurface();
     std::unique_ptr<SubSurface> sub = SubSurface::create(child.get(), m_surface.get());
 
-    // As a client resizes a subsurface with its window: a synchronized
-    // commit, the window's commit, set_desync, and the next frame at once.
     FakeFence childFence;
     FakeFence parentFence;
     auto resized = commitFenced(child.get(), childFence);
@@ -337,7 +324,6 @@ TEST_F(CommitReadinessTest, AWaitingSynchronizedCommitStaysCachedAfterSetDesync)
     ASSERT_TRUE(waitFor([&] {
         return child->heldCommitCount() == 2;
     }));
-    // Still synchronized when it applies: cached for the window's commit.
     EXPECT_NE(resized, child->buffer());
     EXPECT_EQ(nullptr, child->buffer());
 
@@ -413,7 +399,6 @@ TEST_F(CommitReadinessTest, AnAcquirePointIsWaitedForUntilItSignals)
     if (!timeline || !timeline->signalEventFd(1).isValid())
         GTEST_SKIP() << "The render node cannot wait on timeline points";
 
-    // Not even submitted yet: a fence for it only comes later.
     auto buffer = std::make_shared<FencedBuffer>();
     m_surface->attach(buffer, base::Point());
     m_surface->setAcquirePoint(timeline, 1);

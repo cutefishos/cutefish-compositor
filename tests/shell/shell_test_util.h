@@ -18,7 +18,6 @@
 
 namespace cutefish::test {
 
-// Installed applications of a test's own, from desktop file text.
 class FakeApplications : public shell::Applications
 {
 public:
@@ -39,7 +38,6 @@ public:
                         + extra);
     }
 
-    // An application bundle outside ~/Applications, as the registry reads one.
     void addBundle(const std::string &path, const std::string &name, const std::string &icon)
     {
         base::DesktopEntry entry;
@@ -62,7 +60,6 @@ public:
         rebuild();
     }
 
-    // Announces a finished scan.
     void scan()
     {
         m_loading = false;
@@ -129,7 +126,6 @@ private:
     bool m_loading = true;
 };
 
-// Application windows of a test's own; requests are recorded.
 class FakeTaskWindows : public shell::TaskWindows
 {
 public:

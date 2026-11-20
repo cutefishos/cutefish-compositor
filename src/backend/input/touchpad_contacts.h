@@ -14,17 +14,14 @@
 
 namespace cutefish::backend {
 
-// The fingers on a touchpad, read from the evdev descriptor libinput already
-// has open. libinput does not hand out a touchpad's contacts; the kernel's
-// multitouch slot state is queried instead, which leaves libinput's event
-// stream untouched.
+// libinput does not hand out a touchpad's contacts, so the kernel's multitouch
+// slots are queried on the fd libinput has open.
 class TouchpadContacts
 {
 public:
     // nullptr when the device has no multitouch slots or no resolution.
     static std::unique_ptr<TouchpadContacts> create(int fd);
 
-    // Notes fingers that came down since the last call.
     void update(input::Timestamp now);
 
     // The fingers down now, palms left out; empty if the device is revoked.

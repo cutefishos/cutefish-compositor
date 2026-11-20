@@ -13,10 +13,6 @@
 
 namespace cutefish::wm {
 
-// Cutefish's shadow policy. Ash's delegate suppresses shadows for windows in
-// overview, in a window-cycle list and in the PIP; Cutefish has none of those,
-// and instead has to answer a question Ash never faces, because ChromeOS has no
-// client-side decoration: whether the client already draws its own exterior.
 class WmShadowControllerDelegate : public ShadowControllerDelegate
 {
 public:

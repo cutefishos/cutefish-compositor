@@ -34,8 +34,6 @@ AppMenusModel::AppMenusModel(Shell *shell, AppMenuRegistrar *registrar, PowerAct
     m_applicationMenu = std::make_unique<ApplicationMenu>(shell->bus(), shell->taskWindows(), shell->tasks(),
                                                           registrar);
     buildUserMenu();
-    // The application entry's menu names the application as it is when it
-    // opens.
     m_applicationRowMenu->onAboutToShow = [this] { fillApplicationMenu(); };
     m_userMenu->onClosed = [this] { menuClosed(); };
     m_applicationRowMenu->onClosed = [this] { menuClosed(); };
@@ -53,8 +51,6 @@ AppMenusModel::AppMenusModel(Shell *shell, AppMenuRegistrar *registrar, PowerAct
         }
     }));
 
-    // ShellState's desktop: no application window has the keyboard and the
-    // launchpad does not cover the desktop.
     TaskWindows &windows = shell->taskWindows();
     m_subscriptions.push_back(windows.activeWindowChanged.connect([this](uint64_t) { updateDesktop(); }));
     m_subscriptions.push_back(windows.windowChanged.connect([this](uint64_t, uint32_t changes) {
@@ -124,8 +120,6 @@ void AppMenusModel::buildUserMenu()
     });
 }
 
-// The user's menu is made again, closed if it was open; the application
-// entry's menu is made as it opens. The applications' own menus are theirs.
 void AppMenusModel::retranslate()
 {
     m_userMenu->close();
@@ -140,8 +134,6 @@ void AppMenusModel::fillApplicationMenu()
     ui::Menu &menu = *m_applicationRowMenu;
     menu.clear();
     ApplicationMenu *application = m_applicationMenu.get();
-    // Quit, Hide and Hide Others are the compositor's; on the desktop there
-    // is nothing to quit or hide.
     const size_t hide = menu.addItem(format(tr("Hide {name}"), {{"name", application->title()}}),
                                      [application] { application->hideApplication(); });
     menu.addItem(tr("Hide Others"), [application] { application->hideOtherApplications(); });
@@ -167,8 +159,6 @@ void AppMenusModel::updateDesktop()
         return;
     m_desktop = desktop;
     m_applicationMenu->setDesktop(desktop);
-    // An application without menus leaves the application menu as it was
-    // (none), so nothing else would take the desktop's menus down.
     updateShown();
 }
 
@@ -198,11 +188,8 @@ void AppMenusModel::updateShown()
     if (m_desktop)
         shown = m_desktopMainMenu.get();
 
-    // ApplicationMenu says switched for any change of application, even to
-    // the same menu; the open menu goes either way.
-    // The previous menu's popups go after the view closed the open one, and
-    // once the model is consistent: closing a menu reaches the window
-    // manager, which may call back into here.
+    // The previous menu's popups go after the view closed the open one: closing
+    // a menu reaches the window manager, which may call back into here.
     std::map<int32_t, std::unique_ptr<MenuPopup>> previous;
     if (shown != m_shown) {
         m_shownSubscriptions.clear();
@@ -220,9 +207,7 @@ void AppMenusModel::watchShown()
 {
     if (!m_shown)
         return;
-    // The bar's entries are the root's children: a new layout of the root or
-    // a change to one of them renames, adds or removes an entry. An
-    // application may rebuild its bar one entry at a time.
+    // An application may rebuild its bar one entry at a time.
     m_shownSubscriptions.push_back(m_shown->menuUpdated.connect([this](int32_t id) {
         if (id == 0)
             scheduleRows();
@@ -247,8 +232,6 @@ void AppMenusModel::updateRows()
     const std::string &title = m_applicationMenu->title();
     if (!title.empty()) {
         rows.push_back({Kind::Application, title, -1});
-        // Top-level menus the application hid have no entry; its own menu
-        // opens from its name.
         if (m_shown) {
             for (int32_t child : m_shown->root().children) {
                 const compositor::MenuItem *item = m_shown->item(child);
@@ -265,8 +248,6 @@ void AppMenusModel::updateRows()
         return;
     const std::vector<Row> previous = std::exchange(m_rows, std::move(rows));
 
-    // Menus of entries that are gone go with them, except an open one whose
-    // entry came back under another id: it shows that one from now on.
     std::vector<std::unique_ptr<MenuPopup>> gone;
     std::map<int32_t, std::unique_ptr<MenuPopup>> carried;
     for (auto it = m_popups.begin(); it != m_popups.end();) {

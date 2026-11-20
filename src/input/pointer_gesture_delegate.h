@@ -4,10 +4,6 @@
 //
 // Upstream: chromium/src/components/exo/pointer_gesture_pinch_delegate.h
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: Exo only has pinch, from aura's gesture recognizer.
-// libinput reports swipe, pinch and hold from the touchpad, with the pinch's
-// translation and rotation, so one delegate covers all three.
 
 #ifndef CUTEFISH_INPUT_POINTER_GESTURE_DELEGATE_H_
 #define CUTEFISH_INPUT_POINTER_GESTURE_DELEGATE_H_
@@ -35,8 +31,7 @@ enum class GestureType {
 struct GestureUpdate {
     // The fingers' motion, accelerated and in logical units.
     base::PointF delta;
-    // The same motion without acceleration, as libinput reports it; see
-    // WmGestureHandler::kMmPerUnacceleratedUnit for what that is on a touchpad.
+    // The same motion without acceleration, as libinput reports it.
     base::PointF unacceleratedDelta;
     // Pinch only: the distance between the fingers relative to the begin,
     // and the rotation since the last update, in degrees clockwise.

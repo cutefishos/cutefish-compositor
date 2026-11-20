@@ -29,8 +29,6 @@ using cutefish::i18n::tr;
 
 namespace cutefish::shell {
 
-// The layout's spacings: icon to text, title to body, text to the buttons
-// (the column's 12 and the button row's top margin 8), between the buttons.
 static constexpr double kIconSize = 48;
 static constexpr double kRowSpacing = 14;
 static constexpr double kTextSpacing = 4;
@@ -102,7 +100,6 @@ void NotRespondingView::layout()
     const double bodyHeight = m_body->heightForWidth(textWidth);
     const double textHeight = titleHeight + kTextSpacing + bodyHeight;
     const double rowHeight = std::max(kIconSize, textHeight);
-    // The row centres the text column; the icon keeps to the top.
     const double textY = kPadding + (rowHeight - textHeight) / 2;
     m_icon->setGeometry({double(kPadding), double(kPadding), kIconSize, kIconSize});
     m_title->setGeometry({textX, textY, textWidth, titleHeight});
@@ -123,8 +120,7 @@ void NotRespondingView::paint(ui::Painter &painter)
 {
     if (m_themeGeneration != ui::Theme::generation())
         applyTheme();
-    // Opaque, as a dialog is; the compositor clips the corners and draws the
-    // outline and the shadow.
+    // Opaque; the compositor clips the corners and draws the outline and the shadow.
     painter.fillRect(localRect(), ui::Theme::current().secondBackground);
 }
 
@@ -170,7 +166,6 @@ int64_t NotRespondingSheets::applicationOf(const wm::Window *window)
 
 void NotRespondingSheets::observe(wm::Window *window)
 {
-    // Only application windows are pinged.
     if (!window || window->isShellWindow() || window->isPopup() || m_observed.count(window))
         return;
     window->addObserver(this);
@@ -188,7 +183,6 @@ bool NotRespondingSheets::prompt(wm::Window *window)
         show(window, application);
         return true;
     }
-    // Another window of the same application: the sheet moves to it.
     if (it->second.parentWindow != window->id())
         hang(it->second, window);
     it->second.window->activate();
@@ -230,7 +224,6 @@ void NotRespondingSheets::show(wm::Window *window, int64_t application)
 void NotRespondingSheets::hang(Sheet &sheet, wm::Window *parent)
 {
     sheet.parentWindow = parent->id();
-    // The parent's output's scale.
     const base::Rect bounds = parent->bounds();
     if (const Shell::Output *output = m_shell->outputAt(bounds.center()))
         sheet.window->setOutput(output->name);
@@ -294,7 +287,6 @@ void NotRespondingSheets::onWindowRemoved(wm::Window *window)
         }
     }
 
-    // A process that is gone can be waited for no longer.
     std::set<int64_t> live;
     for (wm::Window *other : m_shell->windowManager()->windows()) {
         if (other != window && !other->isShellWindow())

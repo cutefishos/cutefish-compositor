@@ -4,11 +4,6 @@
 //
 // Upstream: chromium/src/components/exo/pointer.h
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: integrates the upstream behavior with native
-// compositor types and ownership.
-//
-// Cursor surfaces are composed directly in the scene; drag capture belongs to Seat.
 
 #ifndef CUTEFISH_INPUT_POINTER_H_
 #define CUTEFISH_INPUT_POINTER_H_
@@ -31,14 +26,10 @@ class RelativePointerDelegate;
 struct RelativeMotion;
 class Seat;
 
-// A client pointer, representing one or more physical pointing devices. It
-// owns the pointer focus and the cursor image for its client.
 class Pointer : public compositor::SurfaceObserver
 {
 public:
-    // The delegate outlives the pointer, or destroys itself from
-    // onPointerDestroying(); this mirrors Exo, where the Wayland delegate is
-    // owned by the wl_pointer resource.
+    // The delegate outlives the pointer, or destroys itself from onPointerDestroying().
     Pointer(PointerDelegate* delegate, Seat* seat);
     Pointer(const Pointer&) = delete;
     Pointer& operator=(const Pointer&) = delete;
@@ -46,12 +37,9 @@ public:
 
     PointerDelegate* delegate() const { return m_delegate; }
 
-    // Exo keeps one; the protocol lets a client ask for several.
     void addRelativePointerDelegate(RelativePointerDelegate* delegate);
     void removeRelativePointerDelegate(RelativePointerDelegate* delegate);
 
-    // Exo keeps one pinch delegate; here a client may ask for a swipe, a pinch
-    // and a hold object, or several of each.
     void addGestureDelegate(PointerGestureDelegate* delegate);
     void removeGestureDelegate(PointerGestureDelegate* delegate);
 
@@ -71,17 +59,12 @@ public:
 
     base::Point hotspot() const { return m_hotspot; }
 
-    // wl_pointer.set_cursor. `surface` becomes the pointer image, positioned so
-    // that `hotspot` sits under the pointer location. A null surface hides the
-    // cursor.
+    // `hotspot` sits under the pointer location; a null surface hides the cursor.
     void setCursor(compositor::Surface* surface, const base::Point& hotspot);
 
-    // Drops focus without moving the pointer: the compositor took the pointer
-    // over content of its own, a server-side window frame, and the client must
-    // see a leave rather than stale motion.
+    // Drops focus without moving the pointer, so the client sees a leave rather than stale motion.
     void clearFocus();
 
-    // Called by the Seat.
     void onPointerMotion(Timestamp timestamp, const base::PointF& rootLocation,
                          const RelativeMotion* relative = nullptr);
     void onPointerButton(Timestamp timestamp, const base::PointF& rootLocation,
@@ -101,26 +84,19 @@ public:
     // through compositor decorations or another client under a compositor-owned drag.
     void releasePressedButtons(Timestamp timestamp, ButtonFlags buttons);
 
-    // compositor::SurfaceObserver:
     void onSurfaceDestroying(compositor::Surface* surface) override;
     void onSurfaceCommit(compositor::Surface* surface) override;
 
 private:
-    // The target for a location in output coordinates, with the location
-    // converted into that surface's coordinates. Null if no surface this
-    // pointer may talk to is under the location.
+    // `rootLocation` is in output coordinates. Null if no surface this pointer may talk to is under it.
     compositor::Surface* effectiveTargetForLocation(const base::PointF& rootLocation,
                                                     base::PointF* locationInTarget) const;
 
-    // Resolves the target for `rootLocation` and moves focus if it changed.
-    // Returns the current focus afterwards.
     compositor::Surface* updateFocus(const base::PointF& rootLocation, base::PointF* locationInTarget);
 
     void setFocus(compositor::Surface* surface, const base::PointF& rootLocation,
                   const base::PointF& surfaceLocation);
 
-    // Ends a gesture in progress as cancelled: its surface lost focus or went
-    // away, and the rest of it must not reach another surface.
     void cancelGesture();
 
     void updatePointerSurface(compositor::Surface* surface);
@@ -129,15 +105,12 @@ private:
     bool shouldObserveSurface(compositor::Surface* surface) const;
     void maybeRemoveSurfaceObserver(compositor::Surface* surface);
 
-    // Whether the pointer has effectively not moved, in which case Exo
-    // suppresses the motion event.
     bool checkIfSameLocation(const base::PointF& locationInRoot, const base::PointF& locationInTarget) const;
 
     std::shared_ptr<bool> m_alive = std::make_shared<bool>(true);
     PointerDelegate* m_delegate = nullptr;
     std::vector<RelativePointerDelegate*> m_relativeDelegates;
     std::vector<PointerGestureDelegate*> m_gestureDelegates;
-    // The gesture in progress, which began on the focused surface.
     std::optional<GestureType> m_gesture;
     Seat* m_seat = nullptr;
 

@@ -47,8 +47,6 @@ int vertical(PlacementEdge edge)
     }
 }
 
-// The start of a window of `length` on one axis, the anchor rectangle
-// spanning `anchorStart` to `anchorEnd`.
 int startOnAxis(int anchorStart, int anchorEnd, int anchor, int gravity, int length)
 {
     const int point = anchor < 0 ? anchorStart : anchor > 0 ? anchorEnd : (anchorStart + anchorEnd) / 2;

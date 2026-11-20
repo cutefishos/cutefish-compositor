@@ -180,8 +180,6 @@ TEST_F(GtkShellProtocolTest, NamesTheSurfacesMenus)
             EXPECT_TRUE(found.hasMenus());
         });
 
-        // A well-known name does not say which connection the actions are
-        // on, and a malformed path is no path.
         gtk_surface1_set_dbus_properties(gtkSurface, nullptr, nullptr, "/org/example/menus/menu bar", nullptr,
                                          nullptr, "org.example.Editor");
         client.sync();

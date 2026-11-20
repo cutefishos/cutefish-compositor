@@ -9,7 +9,7 @@
 
 namespace cutefish::shell {
 
-// JavaScript's Math.round: halves go up.
+// Halves round up.
 static int jsRound(double value)
 {
     return int(std::floor(value + 0.5));
@@ -96,7 +96,6 @@ int moveLaunchpadSelection(int selected, int page, int total, int columns, int p
     const int pageStart = page * pageCount;
     const auto pageOf = [pageCount](int index) { return index / pageCount; };
 
-    // A selection paged out of view with the mouse restarts on the visible page.
     if (selected < 0 || pageOf(selected) != page)
         return std::min(pageStart, total - 1);
 
@@ -111,12 +110,10 @@ int moveLaunchpadSelection(int selected, int page, int total, int columns, int p
         if (!atEdge) {
             next = forward ? i + 1 : i - 1;
         } else {
-            // The edge turns the page, keeping the row.
             const int targetPage = forward ? page + 1 : page - 1;
             if (targetPage < 0 || targetPage * pageCount >= total)
                 return -1;
             const int targetStart = targetPage * pageCount;
-            // A shorter page clamps the row first, so the column still lands on its edge.
             const int lastRow = (std::min(total, targetStart + pageCount) - 1 - targetStart) / columns;
             next = std::min(total - 1,
                             targetStart + std::min(row, lastRow) * columns + (forward ? 0 : columns - 1));
@@ -125,7 +122,6 @@ int moveLaunchpadSelection(int selected, int page, int total, int columns, int p
         next = direction == LaunchpadDirection::Up ? i - columns : i + columns;
         if (next < pageStart || next >= pageStart + pageCount)
             return -1;
-        // The last row can be short: land on its last icon.
         const auto rowOf = [pageStart, columns](int n) { return (n - pageStart) / columns; };
         if (next >= total && rowOf(total - 1) > rowOf(i))
             next = total - 1;

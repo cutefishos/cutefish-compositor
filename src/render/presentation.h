@@ -4,8 +4,6 @@
 //
 // Upstream: chromium/src/ui/gfx/presentation_feedback.h
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: callback ownership follows Exo.
 #pragma once
 
 #include <algorithm>
@@ -51,8 +49,8 @@ inline uint32_t refreshInterval(double hz)
     return ns >= 1 && ns <= UINT32_MAX ? uint32_t(ns) : 0;
 }
 
-// Extend only forward deltas smaller than half the counter range. A known
-// modeset starts a new counter epoch; do not manufacture a wrap on reset.
+// A known modeset starts a new counter epoch; do not manufacture a wrap on
+// reset.
 class PresentationSequence
 {
 public:
@@ -88,8 +86,7 @@ private:
     bool m_discontinuity = false;
 };
 
-// One content commit. Applied state and accepted output submissions share it;
-// the last abandoned owner discards it. Completion never releases storage.
+// The last abandoned owner discards it; completion never releases storage.
 class PresentationContent
 {
 public:
@@ -99,7 +96,6 @@ public:
 
     void add(Callback callback) { m_callbacks.push_back(std::move(callback)); }
 
-    // Someone still waits to hear how this content reached the screen.
     bool isPending() const { return !m_callbacks.empty(); }
 
     void complete(const PresentationResult& result)

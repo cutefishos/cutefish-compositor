@@ -45,8 +45,7 @@ public:
                                                            edit.deletion->second);
         if (edit.commit)
             zwp_text_input_v3_send_commit_string(m_resource, edit.commit->c_str());
-        // No preedit is null: GTK takes an empty string as an open composition and
-        // swallows Enter (Ghostty).
+        // No preedit is null: GTK takes an empty string as an open composition and swallows Enter.
         zwp_text_input_v3_send_preedit_string(m_resource,
                                               edit.preedit.empty() ? nullptr
                                                                    : edit.preedit.c_str(),

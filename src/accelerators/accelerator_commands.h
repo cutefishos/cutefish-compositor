@@ -4,10 +4,6 @@
 //
 // Upstream: chromium/src/ash/accelerators/accelerator_commands.h
 // Revision: 8abbac30b9cf2fe976422c58c000c94685648b65
-//
-// Adapted for Cutefish: the commands that have a Cutefish counterpart, with
-// the Shell::Get() singletons replaced by an explicit context. The launchpad
-// lives in the shell process and is reached through the delegate.
 
 #ifndef CUTEFISH_ACCELERATORS_ACCELERATOR_COMMANDS_H_
 #define CUTEFISH_ACCELERATORS_ACCELERATOR_COMMANDS_H_
@@ -39,8 +35,7 @@ struct CommandContext {
 
 namespace commands {
 
-// The window an action applies to: the active one, when it is a visible
-// application window rather than one of the shell's own.
+// The active window, when it is a visible application window.
 wm::Window *targetWindow(const CommandContext &context);
 
 bool canCycleMru(const CommandContext &context);
@@ -54,22 +49,17 @@ bool canToggleShowDesktop(const CommandContext &context);
 void cycleForwardMru(const CommandContext &context);
 void cycleBackwardMru(const CommandContext &context);
 void toggleMaximized(const CommandContext &context);
-// Minimizes the active window; ash's ToggleMinimized restores a minimized top
-// window instead, which cannot be active here.
 void windowMinimize(const CommandContext &context);
-// The application menu's Quit, Hide and Hide Others. Quit waits 100 ms first.
+// Quit waits 100 ms first.
 void quitApplication(const CommandContext &context);
 void hideApplication(const CommandContext &context);
 void hideOtherApplications(const CommandContext &context);
 void toggleFullscreen(const CommandContext &context);
-// Snaps to the requested side, or restores when already snapped there.
 void windowSnap(const CommandContext &context, AcceleratorAction action);
 void closeWindow(const CommandContext &context);
 void moveActiveWindowBetweenDisplays(const CommandContext &context);
 void toggleOverview(const CommandContext &context);
-// Slides the application windows aside to show the desktop, or back.
 void toggleShowDesktop(const CommandContext &context);
-// Desks.
 void activateDesk(const CommandContext &context, bool activateLeft);
 void activateDeskAtIndex(const CommandContext &context, AcceleratorAction action);
 void moveActiveItem(const CommandContext &context, bool goingLeft);
@@ -83,15 +73,12 @@ void takeScreenshot(const CommandContext &context, bool toClipboard);
 void takePartialScreenshot(const CommandContext &context, bool toClipboard);
 void startCaptureMode(const CommandContext &context);
 void stopScreenRecording(const CommandContext &context);
-// So does the clipboard history.
 void toggleClipboardHistory(const CommandContext &context);
-// So does playback.
 void mediaPlayPause(const CommandContext &context);
 void mediaPause(const CommandContext &context);
 void mediaPrevious(const CommandContext &context);
 void mediaNext(const CommandContext &context);
 void mediaStop(const CommandContext &context);
-// The levels belong to the shell too, which shows the change.
 void volumeDown(const CommandContext &context);
 void volumeUp(const CommandContext &context);
 void volumeMuteToggle(const CommandContext &context);

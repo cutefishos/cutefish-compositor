@@ -102,7 +102,6 @@ TEST_F(ApplicationsServiceTest, RepliesOnceEveryApplicationHasQuit)
         EXPECT_TRUE(pending->reply->read(outcome, applicationId));
         EXPECT_EQ(outcome, "quit");
     }
-    // The session ends from here, with the docks still away.
     EXPECT_EQ(ending, std::vector<bool> {true});
 }
 

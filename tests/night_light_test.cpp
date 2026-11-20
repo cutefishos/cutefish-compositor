@@ -1,10 +1,6 @@
 // Copyright 2026 Reion Wong <reionwong@gmail.com>
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-//
-// Modelled on Ash's night_light_controller_unittest.cc, for the part the
-// compositor keeps: the animation and the colour scales. The schedule is
-// cutefish-services' and is tested there.
 
 #include <gtest/gtest.h>
 
@@ -44,7 +40,7 @@ protected:
 
 } // namespace
 
-// Ash's MatrixFromTemperature: red unchanged, blue to 1 - t, green to 1 - t / 2.
+// Red unchanged, blue to 1 - t, green to 1 - t / 2.
 TEST(NightLightScales, BlueGoesFirstAndGreenHalfAsFast)
 {
     EXPECT_TRUE(display::NightLight::transformFor(0).isIdentity());
@@ -85,7 +81,6 @@ TEST_F(NightLightTest, TheStrengthMovesLinearlyOverTheDuration)
     EXPECT_EQ(m_applied.back(), display::NightLight::transformFor(0.8));
 }
 
-// AnimateToNewValue: a new target starts from wherever the animation is.
 TEST_F(NightLightTest, ANewTargetStartsFromTheCurrentStrength)
 {
     m_nightLight.animateTo(1, 1000ms);

@@ -33,8 +33,7 @@ constexpr size_t kMaxMenuItems = 4096;
 class MenuObject;
 class RootModel;
 
-// One cutefish_menu_item_v1. Its MenuItem is kept current, so a model hands
-// out a pointer to it.
+// Its MenuItem is kept current, so a model hands out a pointer to it.
 class ItemObject
 {
 public:
@@ -47,9 +46,7 @@ public:
     void setMenu(MenuObject *menu);
     MenuObject *submenu() const { return m_submenu; }
     void setSubmenu(MenuObject *submenu);
-    // The children, the role and the parent, from the submenu and the menu.
     void updateStructure();
-    // The roots above it heard that its properties changed.
     void changed();
 
 private:
@@ -59,7 +56,6 @@ private:
     MenuObject *m_submenu = nullptr;
 };
 
-// The seat whose input a choice in a menu counts as.
 WaylandSeat *&menuSeat()
 {
     static WaylandSeat *seat = nullptr;
@@ -94,7 +90,6 @@ int32_t nextItemId()
     return next;
 }
 
-// One cutefish_menu_v1.
 class MenuObject
 {
 public:
@@ -118,14 +113,11 @@ public:
     bool ready(uint32_t serial);
     void closed();
 
-    // The model this menu is the root of, made on first use and kept while a
-    // window shows it.
+    // Made on first use and kept while a window shows it.
     std::shared_ptr<RootModel> rootModel();
-    // Its own model and those of the menus above it: they hear the changes.
     std::vector<std::shared_ptr<RootModel>> roots();
     // The id the models know the menu by: its owner's, or 0 at the root.
     int32_t modelId() const;
-    // Its items changed: the item it opens from, or the root, heard.
     void structureChanged();
 
 private:
@@ -137,9 +129,7 @@ private:
     std::set<uint32_t> m_pendingSerials;
 };
 
-// A main menu as the menu bar sees it: the menu's items under the root,
-// their submenus under them. Windows keep it while they show the menu; it
-// clears them when the menu goes.
+// Windows keep it while they show the menu; it clears them when the menu goes.
 class RootModel final : public compositor::MenuModel, public compositor::SurfaceObserver
 {
 public:
@@ -169,7 +159,6 @@ public:
         }
     }
 
-    // The menu is gone: windows showing it show none.
     void detach()
     {
         m_menu = nullptr;
@@ -407,7 +396,6 @@ void MenuObject::structureChanged()
     }
 }
 
-// Whether `menu` is `item`'s menu or one above it.
 bool contains(MenuObject *menu, ItemObject *item)
 {
     for (MenuObject *above = item->menu(); above; above = above->owner() ? above->owner()->menu() : nullptr) {
@@ -431,8 +419,6 @@ std::string escapedTitle(const char *title)
     }
     return escaped;
 }
-
-// cutefish_menu_item_v1
 
 void itemDestroy(wl_client *, wl_resource *resource) { wl_resource_destroy(resource); }
 
@@ -541,8 +527,6 @@ const struct cutefish_menu_item_v1_interface itemImplementation = {
     itemSetKeyEquivalent, itemSetSubmenu,
 };
 
-// cutefish_menu_v1
-
 void menuDestroy(wl_client *, wl_resource *resource) { wl_resource_destroy(resource); }
 
 void menuInsertItem(wl_client *, wl_resource *resource, wl_resource *itemResource, uint32_t index)
@@ -599,8 +583,6 @@ void menuReady(wl_client *, wl_resource *resource, uint32_t serial)
 const struct cutefish_menu_v1_interface menuImplementation = {
     menuDestroy, menuInsertItem, menuRemoveItem, menuSetRole, menuReady,
 };
-
-// cutefish_main_menu_manager_v1
 
 void managerDestroy(wl_client *, wl_resource *resource) { wl_resource_destroy(resource); }
 

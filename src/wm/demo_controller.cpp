@@ -183,7 +183,6 @@ void DemoController::startScript(int stepIntervalMs)
     buildScript();
     CF_INFO(cfCompositor).printf("WM demo script: %zu steps, %d ms apart", m_script.size(),
            stepIntervalMs);
-    // Wait for a client to map something before the first step.
     m_scriptTimer.start(std::chrono::milliseconds(m_scriptIntervalMs));
 }
 
@@ -194,8 +193,6 @@ void DemoController::runNextScriptStep()
         return;
     }
 
-    // Nothing to drive until a client has mapped a window; keep waiting rather
-    // than running the script against nothing.
     if (m_manager->windows().empty()) {
         m_scriptTimer.start(std::chrono::milliseconds(m_scriptIntervalMs));
         return;
@@ -232,12 +229,7 @@ void DemoController::buildScript()
         log("activate");
     });
 
-    // Interactive move, one leg per step so it is visible on screen.
-    //
-    // Every drag is driven by warping the pointer and feeding motion through
-    // InputManager, exactly as libinput would. Calling the handler directly
-    // would leave the physical pointer somewhere else, and the next real motion
-    // event would yank the window over to it.
+    // Drags feed motion through InputManager so the real pointer stays with the window.
     m_script.push_back([this, log] {
         Window* window = scriptTarget();
         if (!window)
@@ -259,7 +251,6 @@ void DemoController::buildScript()
         log("end-move");
     });
 
-    // Interactive resize from the bottom-right corner.
     m_script.push_back([this, log] {
         Window* window = scriptTarget();
         if (!window)

@@ -2,13 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Window manager. Behaviour modelled on chromium/src/ash/wm
-// (window_state_unittest.cc, window_resizer edge cases,
-// workspace_controller_unittest.cc auto placement, window_positioner_unittest.cc,
-// window_modality_controller_unittest.cc) and
-// ui/wm/core/focus_controller_unittest.cc, rewritten against the Cutefish
-// abstractions. No DRM, no GL, no Wayland client.
-
 #include <algorithm>
 #include <optional>
 #include <string>
@@ -119,9 +112,6 @@ protected:
     }
 };
 
-////////////////////////////////////////////////////////////////////////////////
-// Applications: Quit, Hide and Hide Others
-
 TEST_F(WmTest, QuitClosesTheApplicationsWindowsAndTerminatesWhatStaysBehind)
 {
     std::vector<std::string> closed;
@@ -140,8 +130,6 @@ TEST_F(WmTest, QuitClosesTheApplicationsWindowsAndTerminatesWhatStaysBehind)
     Window *browser = make("browser", "browser", 10);
     Window *browser2 = make("browser 2", "Browser", 11);
     Window *prompt = make("prompt", "browser", 10, browser);
-    // An installed web app runs in the browser's process but is its own
-    // application.
     make("web app", "web-app", 10);
 
     std::vector<int64_t> terminated;
@@ -150,17 +138,12 @@ TEST_F(WmTest, QuitClosesTheApplicationsWindowsAndTerminatesWhatStaysBehind)
     });
     manager.setQuitGracePeriod(std::chrono::milliseconds(0));
 
-    // From a dialog, the application is its parent's. Dialogs are left alone,
-    // so a prompt is never answered for the user.
     manager.quitApplication(prompt);
     EXPECT_EQ(std::vector<std::string>({"browser", "browser 2"}),
               closed);
-    // The windows are still up after the grace period: nothing is terminated.
     test::processPendingEvents();
     EXPECT_TRUE(terminated.empty());
 
-    // Once they are gone, a process with no window left is terminated; the one
-    // still running the web app is not.
     for (Window *window : {prompt, browser2, browser})
         manager.destroyWindow(window);
     closed.clear();
@@ -199,7 +182,6 @@ TEST_F(WmTest, QuitLeavesAnApplicationThatQuitsItselfItsWindows)
     });
     manager.setQuitGracePeriod(std::chrono::milliseconds(0));
 
-    // Asked about the application's top-level window, from a dialog too.
     manager.quitApplication(sheet);
     test::processPendingEvents();
     EXPECT_EQ(std::vector<Window *>({editor}), asked);
@@ -220,8 +202,6 @@ TEST_F(WmTest, QuitFollowsTheApplicationsTheShellNames)
                                          closed.push_back(name);
                                      }});
     };
-    // Two programs that give the same application id: the shell tells them
-    // apart by their executables.
     Window *native = make("native", 10);
     make("bundle", 20);
     Window *untold = make("untold", 30);
@@ -237,7 +217,6 @@ TEST_F(WmTest, QuitFollowsTheApplicationsTheShellNames)
     manager.quitApplication(native);
     EXPECT_EQ(std::vector<std::string>({"native"}), closed);
 
-    // A window the shell does not name goes by its application id.
     closed.clear();
     manager.quitApplication(untold);
     EXPECT_EQ(std::vector<std::string>({"native", "bundle", "untold"}), closed);
@@ -283,7 +262,6 @@ TEST_F(QuitAllTest, EndsOnceTheLastApplicationWindowIsGone)
 {
     Window *editor = make("kate", 20);
     Window *player = make("player", 21);
-    // Shell windows are not the user's to quit.
     make("desktop", 22)->setRole(WindowRole::Desktop);
     start();
     EXPECT_EQ(std::vector<std::string>({"kate", "player"}), closed);
@@ -309,7 +287,6 @@ TEST_F(QuitAllTest, APromptIsWaitedForHoweverLongItTakes)
     EXPECT_FALSE(result);
     EXPECT_EQ(1u, closed.size()) << "the prompt is the user's to answer";
 
-    // Saved: the prompt goes, and the window soon after.
     manager.destroyWindow(prompt);
     now += QuitAll::kCancelledAfterMs / 2;
     settle();
@@ -361,7 +338,6 @@ TEST_F(QuitAllTest, AWindowOpenedMeanwhileIsAskedOnce)
     Window *other = make("player", 21);
     settle();
     settle();
-    // The second editor window counts as asked with the first: Quit closed both.
     EXPECT_EQ(std::vector<std::string>({"kate", "kate",
                                     "player"}),
               closed);
@@ -382,7 +358,6 @@ TEST_F(WmTest, HideAndHideOthersActOnWholeApplications)
     };
     Window *editor = make(10, "editor");
     Window *editor2 = make(11, "editor");
-    // Same process, another application id: another application.
     Window *viewer = make(10, "viewer");
     Window *tool = make(0, "tool");
     Window *tool2 = make(0, "Tool");
@@ -401,20 +376,15 @@ TEST_F(WmTest, HideAndHideOthersActOnWholeApplications)
     manager.hideApplication(editor2);
     EXPECT_TRUE(editor->isHidden());
 
-    // With no application to keep, every one is hidden.
     viewer->setHidden(false);
     manager.hideOtherApplications(nullptr);
     EXPECT_TRUE(viewer->isHidden());
 
-    // Showing an application again shows only its windows.
     manager.unhideApplication(editor);
     EXPECT_FALSE(editor->isHidden());
     EXPECT_FALSE(editor2->isHidden());
     EXPECT_TRUE(viewer->isHidden());
 }
-
-////////////////////////////////////////////////////////////////////////////////
-// Unresponsive windows
 
 TEST_F(WmTest, CloseAsksAResponsiveWindowAndKillsAnUnresponsiveOne)
 {
@@ -468,7 +438,6 @@ TEST_F(WmTest, WaitingOnAnUnresponsiveWindowOffersForceQuit)
     });
     manager.activation()->activate(window);
 
-    // Nothing is offered while the window answers.
     window->ping();
     input.onKey(at(1), KEY_A, true);
     input.onKey(at(2), KEY_A, false);
@@ -476,8 +445,6 @@ TEST_F(WmTest, WaitingOnAnUnresponsiveWindowOffersForceQuit)
     EXPECT_EQ(0, prompts);
     EXPECT_EQ(1, closes);
 
-    // A press, a key or a close on a window that stopped answering is the user
-    // waiting on it.
     window->setResponsive(false);
     window->ping();
     EXPECT_EQ(1, prompts);
@@ -489,7 +456,6 @@ TEST_F(WmTest, WaitingOnAnUnresponsiveWindowOffersForceQuit)
     EXPECT_EQ(1, closes);
     EXPECT_EQ(0, kills);
 
-    // With nobody to offer it, closing ends the client.
     manager.setNotRespondingPrompt([](Window *) {
         return false;
     });
@@ -526,14 +492,11 @@ TEST_F(WmTest, ASheetHangsFromItsParentWhereverItGoes)
     manager.setShellMetadata(surface, metadata);
     Window *sheet = manager.createWindow(surface, {.requestedSize = {200, 80}});
 
-    // Centred on the parent, and modal for it.
     EXPECT_EQ(parent, sheet->transientParent());
     EXPECT_EQ(sheet, modalTransient(parent));
     EXPECT_EQ(base::Rect(200, 210, 200, 80), sheet->bounds());
     EXPECT_EQ(StackingLayer::Normal, layerFor(sheet));
 
-    // It follows what the parent shows: until the client draws its new size,
-    // as a hung one never does, its old contents stay where they were.
     parent->setBounds(base::Rect(300, 200, 500, 300));
     EXPECT_EQ(base::Rect(400, 310, 200, 80), sheet->bounds());
     compositor::Surface *parentSurface = parent->rootSurface();
@@ -547,14 +510,12 @@ TEST_F(WmTest, ASheetHangsFromItsParentWhereverItGoes)
     sheet->setBounds(base::Rect(sheet->bounds().topLeft(), base::Size(300, 120)));
     EXPECT_EQ(base::Rect(400, 290, 300, 120), sheet->bounds());
 
-    // Right above the parent whichever window is raised.
     manager.raise(other);
     manager.raise(parent);
     ASSERT_EQ(3u, manager.windows().size());
     EXPECT_EQ(parent, manager.windows()[1]);
     EXPECT_EQ(sheet, manager.windows()[2]);
 
-    // Minimized and restored with it.
     parent->minimize();
     EXPECT_FALSE(sheet->isVisible());
     parent->restore();
@@ -587,9 +548,6 @@ TEST_F(WmTest, ShellWindowsAreNeverPinged)
     panel->ping();
     EXPECT_EQ(0, pings);
 }
-
-////////////////////////////////////////////////////////////////////////////////
-// WindowState
 
 TEST_F(WmTest, NormalToMaximizedUsesTheWorkArea)
 {
@@ -633,7 +591,6 @@ TEST_F(WmTest, MaximizedRestoresToItsPreviousBounds)
 
     EXPECT_EQ(WindowStateType::Normal, window->stateType());
     EXPECT_EQ(base::Rect(100, 100, 300, 200), window->bounds());
-    // Nothing left to restore to, so the bounds are dropped with the history.
     EXPECT_FALSE(window->state()->hasRestoreBounds());
 }
 
@@ -767,7 +724,6 @@ TEST_F(WmTest, AMinimizedWindowIsNotRenderedAndIsNotHitTested)
 
     EXPECT_FALSE(window->node()->isEffectivelyVisible());
     EXPECT_EQ(nullptr, manager.windowAt(base::PointF(50, 50)));
-    // The surface and its buffer are untouched.
     EXPECT_TRUE(window->rootSurface()->isMapped());
     EXPECT_TRUE(window->rootSurface()->hasContents());
 }
@@ -786,12 +742,10 @@ TEST_F(WmTest, AHiddenWindowLeavesTheScreenAndKeepsItsState)
     EXPECT_FALSE(window->isVisible());
     EXPECT_FALSE(window->node()->isEffectivelyVisible());
     EXPECT_EQ(behind, manager.windowAt(base::PointF(50, 50)));
-    // The focus moves on, as it does for a closed window.
     EXPECT_EQ(behind, manager.activation()->activeWindow());
     EXPECT_EQ(WindowStateType::Maximized, window->stateType());
     EXPECT_TRUE(window->rootSurface()->isMapped());
 
-    // Unhiding shows the window as it was, without activating it.
     window->setHidden(false);
     EXPECT_TRUE(window->isVisible());
     EXPECT_EQ(WindowStateType::Maximized, window->stateType());
@@ -805,13 +759,11 @@ TEST_F(WmTest, AHiddenWindowStaysMinimizedUnderneath)
     window->setHidden(true);
     ASSERT_FALSE(window->isVisible());
 
-    // Leaving the minimized state while hidden does not show the window.
     window->restore();
     EXPECT_EQ(WindowStateType::Normal, window->stateType());
     EXPECT_FALSE(window->isVisible());
     window->minimize();
 
-    // Unhiding a minimized window keeps it off screen for the dock.
     window->setHidden(false);
     EXPECT_EQ(WindowStateType::Minimized, window->stateType());
     EXPECT_FALSE(window->isVisible());
@@ -887,9 +839,6 @@ TEST_F(WmTest, ANonResizableWindowDoesNotMaximize)
     EXPECT_EQ(base::Rect(10, 10, 300, 200), window->bounds());
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// Activation
-
 TEST_F(WmTest, TheFirstWindowActivatesOnRequestAndTakesKeyboardFocus)
 {
     Window *window = makeWindow(base::Rect(0, 0, 200, 200));
@@ -913,7 +862,6 @@ TEST_F(WmTest, ActivatingASecondWindowDeactivatesTheFirst)
     EXPECT_FALSE(first->isActive());
     EXPECT_TRUE(second->isActive());
     EXPECT_EQ(second->rootSurface(), seat.focusedSurface());
-    // Activation raises.
     EXPECT_EQ(second, manager.windows().back());
 }
 
@@ -999,7 +947,6 @@ TEST_F(WmTest, MinimizePassesOverTheDockAndLeavesItsSlotAfterwards)
     Window *dock = makeWindow(base::Rect(0, 700, 1000, 100));
     dock->setRole(WindowRole::Dock);
     dock->setFocusPolicy(FocusPolicy::NoFocus);
-    // The dock's tooltip: it stays readable while a window lands under it.
     Window *tip = manager.createWindow(makeSurface(base::Size(100, 40)),
                                        {.type = WindowType::Popup, .transientParent = dock});
     second->activate();
@@ -1023,7 +970,6 @@ TEST_F(WmTest, MinimizePassesOverTheDockAndLeavesItsSlotAfterwards)
     EXPECT_LT(index(first), index(dock));
 
     front->restore();
-    // On its way out of the dock the window is still above it, under its tooltip.
     EXPECT_LT(index(dock), index(front));
     EXPECT_LT(index(front), index(tip));
     EXPECT_EQ(first, manager.activation()->activeWindow());
@@ -1040,7 +986,6 @@ TEST_F(WmTest, AWindowAskingToStayOnTopStacksAboveApplicationsAndBelowTheDock)
     Window *app = makeWindow(base::Rect(0, 0, 400, 300));
     Window *dock = makeWindow(base::Rect(0, 700, 1000, 100));
     dock->setRole(WindowRole::Dock);
-    // The hint arrives before the first commit, so before the window exists.
     compositor::Surface *surface = makeSurface(base::Size(300, 200));
     surface->setAlwaysOnTop(true);
     Window *dialog = manager.createWindow(surface, {.requestedSize = {300, 200}});
@@ -1107,7 +1052,6 @@ TEST_F(WmTest, OnlyAWindowMovingUnderOrAcrossAStillPointerRetargetsIt)
         ++changes;
     });
 
-    // A resize in place leaves the pointer where it was in the window.
     window->setBounds(base::Rect(100, 100, 400, 300));
     EXPECT_EQ(0, changes);
 
@@ -1118,7 +1062,6 @@ TEST_F(WmTest, OnlyAWindowMovingUnderOrAcrossAStillPointerRetargetsIt)
     window->setBounds(base::Rect(500, 400, 400, 300));
     EXPECT_LT(0, changes);
 
-    // Nothing under the pointer changes.
     changes = 0;
     window->setBounds(base::Rect(520, 400, 400, 300));
     EXPECT_EQ(0, changes);
@@ -1142,7 +1085,6 @@ TEST_F(WmTest, ClickingAWindowActivatesItAndFocusesItsSurface)
     EXPECT_EQ(second, manager.activation()->activeWindow());
     EXPECT_EQ(second->rootSurface(), seat.focusedSurface());
 
-    // Clicking the background clears activation.
     input.onPointerButton(at(6), BTN_LEFT, false);
     input.onPointerMotionAbsolute(at(7), base::PointF(800, 700));
     input.onPointerButton(at(8), BTN_LEFT, true);
@@ -1171,7 +1113,6 @@ TEST_F(WmTest, PickingACandidateLeavesTheWindowTypedIntoActive)
     EXPECT_EQ(window, manager.activation()->activeWindow());
     EXPECT_EQ(window->rootSurface(), seat.focusedSurface());
 
-    // Beside the popup the window is pressed as before.
     input.onPointerMotionAbsolute(at(4), base::PointF(200, 150));
     manager.windowAt(base::PointF(200, 150), &hit);
     EXPECT_EQ(window->rootSurface(), hit);
@@ -1179,7 +1120,6 @@ TEST_F(WmTest, PickingACandidateLeavesTheWindowTypedIntoActive)
 
 namespace {
 
-// Hears which points reach a client.
 struct TouchRecorder : input::TouchDelegate {
     std::vector<int32_t> downs;
     void onTouchDestroying(input::Touch *) override { }
@@ -1197,8 +1137,6 @@ struct TouchRecorder : input::TouchDelegate {
 
 } // namespace
 
-// wm::FocusController activates the window a touch press lands on, as it does
-// for a click, and the point itself goes on to the client.
 TEST_F(WmTest, TouchingAWindowActivatesItAndTheClientGetsThePoint)
 {
     Window *first = makeWindow(base::Rect(0, 0, 200, 200));
@@ -1238,12 +1176,8 @@ TEST_F(WmTest, ClickingASubsurfaceActivatesTheOwningRootWindow)
     input.onPointerButton(at(2), BTN_LEFT, true);
 
     EXPECT_EQ(window, manager.activation()->activeWindow());
-    // Keyboard focus lands on the root, never on the subsurface.
     EXPECT_EQ(window->rootSurface(), seat.focusedSurface());
 }
-
-////////////////////////////////////////////////////////////////////////////////
-// Placement
 
 TEST_F(WmTest, TheFirstWindowIsCenteredInTheWorkArea)
 {
@@ -1279,16 +1213,13 @@ TEST(PlacementTest, AnAnchoredWindowGoesNextToItsRectangleAndStaysInTheWorkArea)
     const PlacementAnchor below {base::Rect(700, 12, 0, 0), PlacementEdge::Bottom, PlacementEdge::Bottom};
     EXPECT_EQ(base::Rect(550, 30, 300, 200), placeAtAnchor(base::Size(300, 200), below, workArea));
 
-    // Slid back from the right edge.
     const PlacementAnchor corner {base::Rect(950, 40, 0, 0), PlacementEdge::Bottom, PlacementEdge::Bottom};
     EXPECT_EQ(base::Rect(700, 40, 300, 200), placeAtAnchor(base::Size(300, 200), corner, workArea));
 
-    // A point exactly where the window's top left goes.
     const PlacementAnchor topLeft {base::Rect(100, 300, 0, 0), PlacementEdge::TopLeft,
                                    PlacementEdge::BottomRight};
     EXPECT_EQ(base::Rect(100, 300, 300, 200), placeAtAnchor(base::Size(300, 200), topLeft, workArea));
 
-    // Larger than the work area: shrunk into it.
     EXPECT_EQ(base::Rect(0, 30, 1000, 770), placeAtAnchor(base::Size(1200, 900), below, workArea));
 }
 
@@ -1296,11 +1227,9 @@ TEST(PlacementTest, AnAnchoredWindowFlipsWhenOnlyTheOtherSideHasRoom)
 {
     using compositor::PlacementAnchor;
     using compositor::PlacementEdge;
-    // A bar along the bottom of the screen.
     const base::Rect workArea(0, 0, 1000, 770);
     const PlacementAnchor item {base::Rect(500, 770, 40, 30), PlacementEdge::Bottom, PlacementEdge::Bottom};
     EXPECT_EQ(base::Rect(370, 570, 300, 200), placeAtAnchor(base::Size(300, 200), item, workArea));
-    // Room on neither side: this side, slid in.
     EXPECT_EQ(base::Rect(370, 0, 300, 770), placeAtAnchor(base::Size(300, 770), item, workArea));
 }
 
@@ -1326,7 +1255,6 @@ TEST_F(WmTest, AnAnchoredWindowMapsNextToItsAnchorBeforeItsRestoreId)
     EXPECT_EQ(base::Rect(500, 0, 200, 100), anchored->bounds());
     manager.destroyWindow(anchored);
 
-    // Where the anchored window was left is what the restore id remembers.
     Window *restored = map(false);
     EXPECT_EQ(base::Rect(500, 0, 200, 100), restored->bounds());
 }
@@ -1347,7 +1275,6 @@ TEST_F(WmTest, MovingAWindowOffScreenLeavesAGraspableStrip)
     EXPECT_LT(window->bounds().x(), kOutput.width());
     EXPECT_GT(window->bounds().x() + window->bounds().width(), 0);
 
-    // Never above the work area: the titlebar must stay reachable.
     window->requestBounds(base::Rect(100, -400, 300, 200));
     EXPECT_EQ(0, window->bounds().y());
 }
@@ -1357,8 +1284,6 @@ TEST_F(WmTest, MovingAWindowUnderTheDockKeepsItsStripAboveTheDock)
     manager.setExclusiveZone(this, ScreenEdge::Bottom, 80);
     Window *window = makeWindow(base::Rect(100, 100, 300, 200));
 
-    // The body may slide under the dock, but a strip stays above it: a
-    // window whose only visible part is behind the dock cannot be grabbed.
     window->requestBounds(base::Rect(100, 790, 300, 200));
     EXPECT_EQ(kOutput.height() - 80 - kMinimumOnScreenArea, window->bounds().y());
     EXPECT_GT(window->bounds().y() + window->bounds().height(), kOutput.height() - 80);
@@ -1387,7 +1312,6 @@ TEST_F(WmTest, AWindowAskingToStayAboveTheDockStacksOverItAndMayReachOverItsStri
     EXPECT_LT(index(floating), index(dock));
     EXPECT_LT(index(dock), index(panel));
 
-    // Its size is the client's down to the output's edge, not the work area's.
     panel->requestBounds(base::Rect(100, 30, 300, kOutput.height() - 40));
     EXPECT_EQ(base::Rect(100, 30, 300, kOutput.height() - 40), panel->bounds());
     floating->requestBounds(base::Rect(100, 30, 300, kOutput.height() - 40));
@@ -1405,7 +1329,6 @@ TEST_F(WmTest, ARequestedSizeIsNoTallerThanTheWorkArea)
     manager.setExclusiveZone(this, ScreenEdge::Bottom, 80);
     Window *window = makeWindow(base::Rect(100, 0, 300, 200));
 
-    // Only the position may take a window under the dock, never its size.
     window->requestBounds(base::Rect(100, 0, 300, kOutput.height()));
     EXPECT_EQ(base::Rect(100, 0, 300, kOutput.height() - 80), window->bounds());
 
@@ -1418,7 +1341,6 @@ TEST_F(WmTest, AWindowLeavingFullscreenFitsAWorkAreaThatShrank)
     window->setFullscreen(true);
     ASSERT_EQ(WindowStateType::Fullscreen, window->stateType());
 
-    // The dock reserved its strip while the window was fullscreen.
     manager.setExclusiveZone(this, ScreenEdge::Bottom, 80);
     window->setFullscreen(false);
     EXPECT_EQ(WindowStateType::Normal, window->stateType());
@@ -1426,9 +1348,6 @@ TEST_F(WmTest, AWindowLeavingFullscreenFitsAWorkAreaThatShrank)
 
     manager.clearExclusiveZone(this);
 }
-
-////////////////////////////////////////////////////////////////////////////////
-// Transients
 
 TEST_F(WmTest, SettingAndChangingATransientParent)
 {
@@ -1487,16 +1406,13 @@ TEST_F(WmTest, DestroyingATransientChildDetachesItFromTheParent)
     EXPECT_TRUE(parent->transientChildren().empty());
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// Interactive move
-
 TEST_F(WmTest, AMoveFollowsThePointerDelta)
 {
     Window *window = makeWindow(base::Rect(100, 100, 300, 200));
 
     ASSERT_TRUE(manager.eventHandler()->beginMove(window, base::PointF(150, 120)));
     EXPECT_TRUE(manager.eventHandler()->isDragging());
-    EXPECT_FALSE(window->isResizing()); // A move is not a resize.
+    EXPECT_FALSE(window->isResizing());
 
     manager.eventHandler()->onPointerMotion(base::PointF(200, 170));
     EXPECT_EQ(base::Rect(150, 150, 300, 200), window->bounds());
@@ -1550,7 +1466,6 @@ TEST_F(WmTest, AMaximizedWindowResizedByAnEdgeBecomesNormal)
     window->maximize();
     const base::Rect maximized = window->bounds();
 
-    // It shrinks from the maximized bounds, not from the size it would restore to.
     ASSERT_TRUE(manager.eventHandler()->beginResize(window, ResizeEdge::Right,
                                                     base::PointF(maximized.right() - 1, 400)));
     manager.eventHandler()->onPointerMotion(base::PointF(maximized.right() - 201, 400));
@@ -1611,22 +1526,13 @@ TEST_F(WmTest, MovingUpdatesTheSceneNodePosition)
     manager.eventHandler()->onPointerMotion(base::PointF(200, 170));
 
     EXPECT_EQ(base::Point(150, 150), window->node()->position());
-    // The node keeps the committed buffer's size; resizing the client is
-    // xdg_toplevel's job, not the window manager's.
     EXPECT_EQ(base::Size(300, 200), window->node()->geometry().size());
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// Dragging out of a tiled state, and dragging into one
-
 TEST_F(WmTest, TheEdgeTolerancesFollowTheWorkArea)
 {
-    // Every edge of the work area is an edge of the output, so all three
-    // tolerances apply.
     EXPECT_EQ(base::Rect(32, 8, 936, 792), nonSnapArea(kOutput, kOutput));
 
-    // Behind a dock the tolerance goes away: the pointer has to cross the dock
-    // to reach the edge.
     const base::Rect withLeftDock(60, 0, 940, 800);
     EXPECT_EQ(base::Rect(60, 8, 908, 792), nonSnapArea(withLeftDock, kOutput));
 
@@ -1634,7 +1540,6 @@ TEST_F(WmTest, TheEdgeTolerancesFollowTheWorkArea)
     EXPECT_EQ(SnapType::Secondary, snapTypeAt(base::PointF(980, 400), kOutput, kOutput));
     EXPECT_EQ(SnapType::Maximize, snapTypeAt(base::PointF(500, 4), kOutput, kOutput));
     EXPECT_EQ(SnapType::None, snapTypeAt(base::PointF(500, 400), kOutput, kOutput));
-    // A corner belongs to the side, as it does in Ash.
     EXPECT_EQ(SnapType::Primary, snapTypeAt(base::PointF(4, 2), kOutput, kOutput));
 }
 
@@ -1705,7 +1610,6 @@ TEST_F(WmTest, TheTopEdgeMaximizesOnlyAfterTheDwellRunsOut)
 
     ASSERT_TRUE(manager.eventHandler()->beginMove(window, base::PointF(350, 320)));
     manager.eventHandler()->onPointerMotion(base::PointF(350, 4));
-    // The countdown is running, but nothing has been decided yet.
     EXPECT_EQ(SnapType::None, manager.eventHandler()->snapController()->snapType());
 
     manager.eventHandler()->snapController()->triggerDwellForTesting();
@@ -1718,8 +1622,6 @@ TEST_F(WmTest, TheTopEdgeMaximizesOnlyAfterTheDwellRunsOut)
 
 TEST_F(WmTest, AWindowJustBelowTheTopMaximizesWithoutAFullDragDown)
 {
-    // Grabbed a few pixels under the top edge: far less than Ash's 64px of
-    // vertical travel, which is what made the top so hard to hit.
     Window *window = makeWindow(base::Rect(300, 10, 300, 200));
 
     ASSERT_TRUE(manager.eventHandler()->beginMove(window, base::PointF(350, 20)));
@@ -1753,16 +1655,12 @@ TEST_F(WmTest, AMaximizedWindowShrinksUnderThePointerAndEndsUpNormal)
     window->maximize();
     ASSERT_EQ(base::Rect(0, 0, 1000, 800), window->bounds());
 
-    // Grabbed halfway along the title bar.
     ASSERT_TRUE(manager.eventHandler()->beginMove(window, base::PointF(500, 10)));
     manager.eventHandler()->onPointerMotion(base::PointF(503, 12));
     EXPECT_EQ(base::Rect(0, 0, 1000, 800), window->bounds()) << "below the unmaximize threshold";
 
     manager.eventHandler()->onPointerMotion(base::PointF(500, 300));
-    // Back to the restore size, still grabbed halfway along it.
     EXPECT_EQ(base::Rect(300, 290, 400, 300), window->bounds());
-    // The state machine only follows at the end of the drag, but everything
-    // the client and the decoration see is already the restored window.
     EXPECT_EQ(WindowStateType::Maximized, window->stateType());
     EXPECT_EQ(WindowStateType::Normal, window->presentedStateType());
 
@@ -1788,7 +1686,6 @@ TEST_F(WmTest, EscapeDuringAnUnmaximizeDragLeavesTheWindowMaximized)
     EXPECT_EQ(WindowStateType::Maximized, window->stateType());
     EXPECT_EQ(base::Rect(0, 0, 1000, 800), window->bounds());
     EXPECT_FALSE(window->isRestoringFromDrag());
-    // The bounds it would have gone back to are back as well.
     window->restore();
     EXPECT_EQ(base::Rect(200, 100, 400, 300), window->bounds());
 }
@@ -1806,7 +1703,6 @@ TEST_F(WmTest, AMaximizedWindowDraggedBackToTheTopStaysMaximized)
 
     EXPECT_EQ(WindowStateType::Maximized, window->stateType());
     EXPECT_EQ(base::Rect(0, 0, 1000, 800), window->bounds());
-    // And it still knows where to go back to.
     window->restore();
     EXPECT_EQ(base::Rect(200, 100, 400, 300), window->bounds());
 }
@@ -1878,7 +1774,6 @@ TEST_F(WmTest, TheSnapPreviewIsStackedDirectlyUnderTheDraggedWindow)
 
     scene::Node *preview = manager.dragOverlay();
     ASSERT_NE(nullptr, preview);
-    // Ash's phantom sits inset from where the window will land.
     EXPECT_EQ(base::Rect(8, 8, 484, 784), preview->geometry());
     const auto &order = surfaceContainer->children();
     const auto previewSlot = std::find(order.begin(), order.end(), preview);
@@ -1898,7 +1793,7 @@ TEST_F(WmTest, LeavingATiledStateByHandCrossFades)
     window->maximize();
     auto *animation = dynamic_cast<scene::WindowAnimation *>(window->node());
     ASSERT_NE(nullptr, animation);
-    animation->finish(); // The maximize animation is not what this is about.
+    animation->finish();
 
     ASSERT_TRUE(manager.eventHandler()->beginMove(window, base::PointF(500, 10)));
     manager.eventHandler()->onPointerMotion(base::PointF(503, 12));
@@ -1909,9 +1804,6 @@ TEST_F(WmTest, LeavingATiledStateByHandCrossFades)
     EXPECT_EQ(scene::WindowAnimation::Type::DragBounds, animation->type());
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// Interactive resize
-
 class ResizeTest : public WmTest, public testing::WithParamInterface<std::pair<ResizeEdge, base::Rect>>
 {
 };
@@ -1920,7 +1812,6 @@ TEST_P(ResizeTest, DraggingAnEdgeKeepsTheOppositeOneFixed)
 {
     Window *window = makeWindow(base::Rect(200, 200, 300, 200));
     const base::PointF start(350, 300);
-    // The same drag for every edge; only the edge under test may respond.
     const base::PointF end = start + base::PointF(-40, -30);
 
     ASSERT_TRUE(manager.eventHandler()->beginResize(window, GetParam().first, start));
@@ -1934,7 +1825,6 @@ TEST_P(ResizeTest, DraggingAnEdgeKeepsTheOppositeOneFixed)
 
 INSTANTIATE_TEST_SUITE_P(AllEdges, ResizeTest,
                          testing::Values(
-                                 // dx = -40, dy = -30 from a 300x200 window at (200, 200).
                                  std::make_pair(ResizeEdge::Left, base::Rect(160, 200, 340, 200)),
                                  std::make_pair(ResizeEdge::Right, base::Rect(200, 200, 260, 200)),
                                  std::make_pair(ResizeEdge::Top, base::Rect(200, 170, 300, 230)),
@@ -1954,7 +1844,6 @@ TEST_F(WmTest, ResizingLeftPastTheMinimumWidthPinsTheRightEdge)
     manager.eventHandler()->onPointerMotion(base::PointF(1000, 300));
 
     EXPECT_EQ(base::Size(100, 200), window->bounds().size());
-    // Right edge unmoved at 500.
     EXPECT_EQ(500, window->bounds().x() + window->bounds().width());
 }
 
@@ -2011,20 +1900,17 @@ TEST_F(WmTest, AResizeTakesOneStepPerFrame)
     Window *window = makeWindow(base::Rect(200, 200, 300, 200));
     ASSERT_TRUE(manager.eventHandler()->beginResize(window, ResizeEdge::BottomRight,
                                                     base::PointF(500, 400)));
-    // The first move lands at once; the rest of the frame's wait for it.
     input.onPointerMotionAbsolute(at(1), base::PointF(510, 410));
     EXPECT_EQ(base::Size(310, 210), window->bounds().size());
     input.onPointerMotionAbsolute(at(2), base::PointF(520, 420));
     input.onPointerMotionAbsolute(at(3), base::PointF(530, 430));
     EXPECT_EQ(base::Size(310, 210), window->bounds().size());
-    // The next frame takes only the newest.
     compositor.frameStarted(16);
     EXPECT_EQ(base::Size(330, 230), window->bounds().size());
     compositor.frameStarted(32);
     input.onPointerMotionAbsolute(at(4), base::PointF(540, 440));
     EXPECT_EQ(base::Size(340, 240), window->bounds().size());
     input.onPointerMotionAbsolute(at(5), base::PointF(560, 460));
-    // The drag ends where the pointer last was.
     input.onPointerButton(at(6), BTN_LEFT, false);
     EXPECT_EQ(base::Rect(200, 200, 360, 260), window->bounds());
     EXPECT_FALSE(window->isResizing());
@@ -2036,7 +1922,6 @@ TEST_F(WmTest, TheResizerMathIsIndependentOfTheWindow)
     WindowResizer resizer(window, base::PointF(200, 200), ResizeEdge::TopLeft, kOutput);
 
     EXPECT_EQ(base::Rect(180, 190, 320, 210), resizer.calculateBoundsForDrag(base::PointF(180, 190)));
-    // Nothing was applied.
     EXPECT_EQ(base::Rect(200, 200, 300, 200), window->bounds());
 }
 
@@ -2045,13 +1930,10 @@ TEST_F(WmTest, ADraggedEdgeStopsAtTheWorkArea)
     const base::Rect workArea(0, 30, 1000, 670);
     Window *window = makeWindow(base::Rect(200, 300, 300, 200));
 
-    // The bottom edge stops at the work area's bottom, the dock's top.
     WindowResizer bottom(window, base::PointF(350, 500), ResizeEdge::Bottom, workArea);
     EXPECT_EQ(base::Rect(200, 300, 300, 400), bottom.calculateBoundsForDrag(base::PointF(350, 790)));
-    // The top edge stops below the bar, the bottom edge staying put.
     WindowResizer top(window, base::PointF(350, 300), ResizeEdge::Top, workArea);
     EXPECT_EQ(base::Rect(200, 30, 300, 470), top.calculateBoundsForDrag(base::PointF(350, 0)));
-    // And sideways at the work area's sides.
     WindowResizer right(window, base::PointF(500, 400), ResizeEdge::Right, workArea);
     EXPECT_EQ(base::Rect(200, 300, 800, 200), right.calculateBoundsForDrag(base::PointF(1200, 400)));
     WindowResizer left(window, base::PointF(200, 400), ResizeEdge::Left, workArea);
@@ -2063,13 +1945,9 @@ TEST_F(WmTest, AnEdgeAlreadyPastTheWorkAreaStillGrowsToItsHeight)
     const base::Rect workArea(0, 30, 1000, 670);
     Window *window = makeWindow(base::Rect(200, 600, 300, 200));
 
-    // Pushed under the dock before the drag: only the work area's height limits it.
     WindowResizer bottom(window, base::PointF(350, 800), ResizeEdge::Bottom, workArea);
     EXPECT_EQ(base::Rect(200, 600, 300, 250), bottom.calculateBoundsForDrag(base::PointF(350, 850)));
 }
-
-////////////////////////////////////////////////////////////////////////////////
-// Surface to window mapping and stacking
 
 TEST_F(WmTest, ASubsurfaceResolvesToItsToplevelWindow)
 {
@@ -2099,7 +1977,6 @@ TEST_F(WmTest, RaisingReordersBothTheModelAndTheScene)
 
     EXPECT_EQ(first, manager.windows().back());
     EXPECT_EQ(first->node(), surfaceContainer->children().back());
-    // Overlapping windows: the topmost one wins the hit test.
     EXPECT_EQ(first, manager.windowAt(base::PointF(50, 50)));
 }
 
@@ -2240,14 +2117,6 @@ TEST_F(WmTest, DesktopPopupTreeStaysAboveApplicationsAndBelowDock)
     verifyOrder();
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// Teardown re-entrancy
-//
-// Destroying a window notifies activation, which schedules a repaint. Anything
-// listening to that - the demo controller's window adoption does - runs while the surface's
-// destructor is on the stack, so neither the compositor's surface list nor the
-// manager's window list may be in a half-updated state there.
-
 TEST_F(WmTest, ADyingSurfaceIsNoLongerListedByTheCompositor)
 {
     Window *window = makeWindow(base::Rect(0, 0, 200, 200));
@@ -2283,9 +2152,6 @@ TEST_F(WmTest, AWindowAddedWhileTheActiveOneIsBeingDestroyedDoesNotCorruptTheLis
     first->activate();
     ASSERT_EQ(first, manager.activation()->activeWindow());
 
-    // Adopt a window from the activation change that destroying `first`
-    // causes - the earliest point teardown hands control back out, and what
-    // the demo controller effectively does.
     struct Adopter : ActivationObserver {
         WindowManager *manager = nullptr;
         compositor::Surface *surface = nullptr;
@@ -2359,9 +2225,6 @@ TEST_F(WmTest, ClosingWindowKeepsItsSceneSlotWhenFocusRaisesAnotherWindow)
     EXPECT_LT(position(next->node()), position(background->node()));
     EXPECT_LT(position(background->node()), position(snapshot));
 }
-
-////////////////////////////////////////////////////////////////////////////////
-// Window positioner
 
 TEST_F(WmTest, WindowsOfOneApplicationCascadeFromTheCenter)
 {
@@ -2442,7 +2305,6 @@ TEST_F(WmTest, AWindowWithARestoreIdOpensWhereTheLastOneWasLeft)
     second->requestBounds(base::Rect(600, 500, 300, 200));
     manager.destroyWindow(second);
 
-    // The centre comes back, and the window stays inside the work area.
     Window *third = map(base::Size(600, 500), compositor::ResizeAnchor::Center);
     EXPECT_EQ(base::Rect(400, 300, 600, 500), third->bounds());
 }
@@ -2485,13 +2347,11 @@ TEST_F(WmTest, ARestoreIdIsKeptPerApplicationAndOutput)
     EXPECT_EQ(base::Rect(400, 350, 200, 100), otherId->bounds());
     manager.destroyWindow(otherId);
 
-    // The output it was left on is gone.
     manager.setOutputBounds(base::Rect(0, 0, 1200, 900));
     Window *moved = map("app", "preview");
     EXPECT_EQ(base::Rect(500, 400, 200, 100), moved->bounds());
 }
 
-// Restore ids are the client's to choose, so only so many are remembered.
 TEST_F(WmTest, OnlyTheMostRecentRestoreIdsAreRemembered)
 {
     const auto map = [&](const std::string &restoreId) {
@@ -2510,7 +2370,6 @@ TEST_F(WmTest, OnlyTheMostRecentRestoreIdsAreRemembered)
     leave("kept");
     for (int i = 0; i < 255; ++i) {
         leave("id" + std::to_string(i));
-        // Used again, so it stays while the others push the first one out.
         if (i == 200)
             manager.destroyWindow(map("kept"));
     }
@@ -2529,7 +2388,6 @@ TEST_F(WmTest, TheCascadeFollowsTheMostRecentWindowWhereverItIs)
     Window *second = mapManagedWindow(base::Size(300, 200));
     EXPECT_EQ(base::Rect(42, 52, 300, 200), second->bounds());
 
-    // Minimized windows and dialogs are not followed.
     second->minimize();
     Window *dialog = makeWindow(base::Rect(600, 500, 100, 100));
     dialog->setApplicationId("app");
@@ -2588,9 +2446,6 @@ TEST_F(WmTest, ADialogOfAnAlwaysOnTopWindowStaysAboveIt)
     EXPECT_LT(index(parent), index(dialog));
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// Transient placement
-
 TEST_F(WmTest, ATransientWindowIsCenteredOverItsParent)
 {
     Window *parent = makeWindow(base::Rect(100, 100, 600, 400));
@@ -2628,9 +2483,6 @@ TEST(PlacementTest, TransientPlacementSkipsTheParentsTopInset)
               placement.placeTransient(base::Size(100, 100), base::Rect(0, 0, 400, 300), 60,
                                        base::Rect(0, 0, 1000, 800)));
 }
-
-////////////////////////////////////////////////////////////////////////////////
-// Window modality
 
 TEST_F(WmTest, AModalTransientTakesActivationFromItsParent)
 {
@@ -2767,7 +2619,6 @@ TEST_F(WmTest, APressOnABlockedParentActivatesTheModalAndIsNotDelivered)
     Window *w11 = makeWindow(base::Rect(20, 20, 50, 50));
     Window *w111 = makeWindow(base::Rect(20, 20, 50, 50));
     ASSERT_TRUE(w11->setTransientParent(w1));
-    // A non-modal child of the modal does not lift the block.
     ASSERT_TRUE(w111->setTransientParent(w11));
 
     input.onPointerMotionAbsolute(at(1), base::PointF(10, 10));
@@ -2830,7 +2681,6 @@ TEST_F(WmTest, ABlockedParentGetsNoPointerFocus)
     input.onPointerButton(at(3), BTN_LEFT, false);
     seat.setCompositorCursorShape(input::CursorShape::Text);
 
-    // Over the parent, neither the press nor the cursor shape changes hands.
     input.onPointerMotionAbsolute(at(4), base::PointF(20, 20));
     EXPECT_EQ(input::CursorShape::Text, seat.compositorCursorShape());
     input.onPointerButton(at(5), BTN_LEFT, true);
@@ -2977,7 +2827,6 @@ TEST_F(WmTest, AConsumedPressKeepsItsReleaseForEachButton)
 
     EXPECT_TRUE(manager.onPointerButton(at(1), base::PointF(20, 20), BTN_LEFT, true));
     EXPECT_TRUE(manager.onPointerButton(at(2), base::PointF(20, 20), BTN_RIGHT, true));
-    // The modal is gone before the releases; they stay consumed all the same.
     modal->setModal(false);
     EXPECT_TRUE(manager.onPointerButton(at(3), base::PointF(20, 20), BTN_LEFT, false));
     EXPECT_TRUE(manager.onPointerButton(at(4), base::PointF(20, 20), BTN_RIGHT, false));

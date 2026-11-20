@@ -19,13 +19,11 @@ namespace cutefish::shell {
 class Dock;
 class TaskManager;
 
-// The launchpad as the rest of the session sees it, without its view: its
-// applications, whether it is up, what its icons need to know, and
-// org.cutefish.Launchpad at /Launchpad (show, hide, toggle).
+// Exports org.cutefish.Launchpad at /Launchpad.
 class Launchpad
 {
 public:
-    // `settingsPath` is shell.conf; `dock` may be null.
+    // `dock` may be null.
     Launchpad(base::dbus::Connection *bus, TaskManager &tasks, ApplicationLauncher &launcher, Dock *dock,
               std::string settingsPath);
     ~Launchpad();
@@ -37,7 +35,6 @@ public:
 
     LaunchpadModel &applications() { return m_applications; }
 
-    // The view maps and unmaps itself through these.
     std::function<void()> showWindow;
     std::function<void()> hideWindow;
 
@@ -52,15 +49,12 @@ public:
     void sendToDock(const std::string &desktop);
     void removeFromDock(const std::string &desktop);
 
-    // Every application that opens a window loses its new mark, however it
-    // was started. Those opened before the view loaded wait here.
     std::vector<std::string> takeOpenedApplications();
 
     // A window-level drag can cost the launchpad its activation; while one
     // runs, losing it does not hide the launchpad.
     bool isDragging() const { return m_dragging; }
     void setDragging(bool dragging);
-    // The view lost activation.
     void deactivated();
 
     base::Signal<const std::string &> applicationOpened;

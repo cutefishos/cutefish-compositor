@@ -4,11 +4,6 @@
 
 // Modelled on chromium/src/ash/wm/window_state.{h,cc}, base_state.* and
 // default_state.* (revision 7acd40ddefff49c9d36144999aafdbb674dbd07a).
-//
-// What is taken from Ash: the event-driven state object per window, the
-// save-on-leaving-normal restore bounds, the restore-history stack with its
-// layer ordering, and the two snapped states. What is dropped: floated, pip and
-// pinned, tablet mode, desks and displays.
 
 #ifndef CUTEFISH_WM_WINDOW_STATE_H_
 #define CUTEFISH_WM_WINDOW_STATE_H_
@@ -47,15 +42,9 @@ public:
 
     bool isSnapped() const { return isSnappedStateType(m_type); }
 
-    // Whether this window could take a snapped state at all: a window that is
-    // not resizable, or whose minimum size does not fit in half the work area,
-    // cannot.
     bool canSnap() const;
 
-    // The single entry point for state change.
     void onEvent(const WMEvent& event);
-
-    // --- Restore bounds ---
 
     bool hasRestoreBounds() const { return m_restoreBounds.has_value(); }
     base::Rect restoreBounds() const { return m_restoreBounds.value_or(base::Rect()); }
@@ -63,14 +52,12 @@ public:
     void clearRestoreBounds() { m_restoreBounds.reset(); }
     void saveCurrentBoundsForRestore();
 
-    // The state a Restore event would land in. Normal when there is no history.
+    // Normal when there is no history.
     WindowStateType restoreStateType() const;
 
-    // The dock slot moved: a running minimize lands on the new one.
     void updateMinimizeTarget();
 
 private:
-    // Hands the window's last frame to Window::minimizedSnapshot once rendered.
     void requestMinimizedSnapshot(scene::WindowAnimation* animation);
     void enterState(WindowStateType next);
     void updateBoundsFromState(WindowStateType previous);
@@ -82,8 +69,7 @@ private:
     WindowStateType m_type = WindowStateType::Normal;
     std::optional<base::Rect> m_restoreBounds;
 
-    // Bottom to top. Only states strictly below the current one in the layer
-    // order can be on it, so it never grows past the number of states.
+    // Bottom to top.
     std::vector<WindowStateType> m_restoreHistory;
 };
 

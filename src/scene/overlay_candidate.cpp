@@ -23,9 +23,7 @@ namespace cutefish::scene {
 
 namespace {
 
-// Animations step when they are drawn, and a minimize or close reports its
-// end from there, so one anywhere in the scene keeps composition going even
-// under a fullscreen surface that hides it.
+// An animation steps only when drawn, so one anywhere in the scene keeps composition going.
 bool hasAnimation(const Node &node)
 {
     if (!node.isVisible() && !node.paintsWhenHidden())
@@ -38,9 +36,7 @@ bool hasAnimation(const Node &node)
     });
 }
 
-// A blur reads the buffers under it from the composition target, so no
-// overlay may take one of them away. Under an opaque fullscreen surface it
-// reads nothing anyone sees.
+// A blur reads the buffers under it from the composition target, so no overlay may take one away.
 bool hasBackgroundBlur(const Node &node)
 {
     if (!node.isVisible())
@@ -53,8 +49,6 @@ bool hasBackgroundBlur(const Node &node)
     });
 }
 
-// One painted thing, in paint order. Upstream this is a viz::DrawQuad in an
-// AggregatedRenderPass; here the scene tree is walked directly.
 struct SceneItem {
     base::Rect bounds;
     bool opaque = false;
@@ -70,8 +64,6 @@ void flatten(Node &node, const base::Rect &outputRect, std::vector<SceneItem> &i
 
     const base::Rect bounds = node.absolutePaintBounds().intersected(outputRect);
 
-    // An effect draws its whole subtree itself, so it is one opaque-unknown
-    // blob and nothing inside it can reach a plane.
     if (node.paintsSubtree()) {
         if (!bounds.isEmpty())
             items.push_back(SceneItem {bounds, false, nullptr});
@@ -87,9 +79,6 @@ void flatten(Node &node, const base::Rect &outputRect, std::vector<SceneItem> &i
         item.opaque = content == Node::Content::Opaque;
         if (auto *surface = dynamic_cast<SurfaceNode *>(&node))
             item.presentation = surface->presentationContent();
-        // A partially clipped surface cannot go on a plane as-is, and neither
-        // can one the compositor is fading: both would need a source crop or
-        // blending the planner does not attempt.
         if (bounds == node.absoluteGeometry())
             item.surface = dynamic_cast<SurfaceNode *>(&node);
         if (item.surface && !item.surface->scanoutBuffer())
@@ -97,8 +86,7 @@ void flatten(Node &node, const base::Rect &outputRect, std::vector<SceneItem> &i
         items.push_back(std::move(item));
     };
 
-    // Node::render draws the children marked "below parent", then itself, then
-    // the rest. The flattened order has to match exactly.
+    // Must match Node::render: the children below the parent, the parent, then the rest.
     const auto &children = node.children();
     const size_t split = std::min(node.childrenBelowParent(), children.size());
 
@@ -109,8 +97,6 @@ void flatten(Node &node, const base::Rect &outputRect, std::vector<SceneItem> &i
         flatten(*children[i], outputRect, items);
 }
 
-// The buffer maps one-to-one onto `pixels` of the plane: no plane scaling and
-// no source crop, which is all the planner is willing to ask a plane for.
 bool isUnscaled(const SurfaceNode &surface, const base::Size &pixels)
 {
     const render::ScanoutBuffer *buffer = surface.scanoutBuffer().get();
@@ -139,12 +125,7 @@ OverlayCandidate makeCandidate(SurfaceNode &surface, const base::Rect &bounds, b
     return candidate;
 }
 
-// Port of OverlayStrategyFullscreen::Propose: the topmost visible item may take
-// the primary plane when it covers the whole output opaquely. Everything below
-// it is then invisible by construction, which is the same conclusion upstream
-// reaches through its BlackFullscreenOptimization. `outputRect` is the output
-// in logical coordinates and `outputPixels` its mode: a buffer of the mode's
-// size goes on the plane at any scale, as viz promotes in device space.
+// `outputRect` is in logical coordinates and `outputPixels` is the mode.
 bool proposeFullscreen(std::vector<SceneItem> &items, const base::Rect &outputRect,
                        const base::Size &outputPixels, OverlayPlan &plan)
 {
@@ -161,9 +142,6 @@ bool proposeFullscreen(std::vector<SceneItem> &items, const base::Rect &outputRe
     return plan.primary.isValid();
 }
 
-// Port of OverlayStrategySingleOnTop::Propose: an item nothing above it touches
-// can be lifted onto an overlay plane, because composition below it stays
-// correct and nothing has to blend over it.
 void proposeSingleOnTop(std::vector<SceneItem> &items, size_t maxOverlays, OverlayPlan &plan)
 {
     if (maxOverlays == 0)
@@ -184,7 +162,6 @@ void proposeSingleOnTop(std::vector<SceneItem> &items, size_t maxOverlays, Overl
         promoted.push_back(&item);
     }
 
-    // Ascending z: the lowest promoted item gets the plane nearest the primary.
     std::reverse(promoted.begin(), promoted.end());
     int zOrder = 1;
     for (SceneItem *item : promoted) {
@@ -217,15 +194,12 @@ OverlayPlan proposeOverlays(Node &root, const base::Size &outputSize, size_t max
     if (outputSize.isEmpty() || outputScale <= 0 || hasAnimation(root))
         return plan;
 
-    // The logical extent the scene sees, as OutputScale::logicalSize rounds it.
     const base::Rect outputRect(base::Point(0, 0),
                            base::Size(int(std::ceil(outputSize.width() / outputScale)),
                                  int(std::ceil(outputSize.height() / outputScale))));
     std::vector<SceneItem> items;
     flatten(root, outputRect, items);
 
-    // Fullscreen wins outright: with the primary plane showing a client buffer
-    // there is nothing left for an overlay to sit on top of.
     if (proposeFullscreen(items, outputRect, outputSize, plan))
         return plan;
 

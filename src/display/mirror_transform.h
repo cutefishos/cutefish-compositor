@@ -4,9 +4,6 @@
 //
 // Upstream: chromium/src/ash/display/root_window_transformers.cc
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: maps one logical mirror source through a destination's
-// letterboxed native content rectangle without depending on Aura windows.
 
 #pragma once
 

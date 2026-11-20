@@ -15,7 +15,6 @@ namespace dbus = base::dbus;
 Brightness::Brightness(dbus::Connection *bus)
     : m_proxy(bus, "org.cutefish.Services", "/org/cutefish/Services/Brightness", "org.cutefish.Services.Brightness")
 {
-    // Keys, dimming and the sliders all change it.
     m_changed = m_proxy.onSignal("brightnessChanged", [this](const dbus::Message &) { refresh(); });
     m_owner = followServiceOwner(bus, "org.cutefish.Services", [this] { refresh(); });
 }
@@ -65,8 +64,7 @@ KeyboardBrightness::KeyboardBrightness(dbus::Connection *bus)
 
 void KeyboardBrightness::refresh()
 {
-    // UPower has no such object without a backlight: the call fails and the
-    // keys do nothing.
+    // UPower has no such object without a backlight, so the call fails.
     m_calls.track([&](std::function<void()> finished) {
         return m_proxy.callAsync("GetMaxBrightness", [this, finished](const dbus::Reply &reply) {
             const int32_t maximum = reply.value<int32_t>().value_or(0);

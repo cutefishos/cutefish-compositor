@@ -25,8 +25,7 @@ public:
 
     DrmPropertyMap() = default;
 
-    // Reads all properties of a DRM object. `objectType` is one of
-    // DRM_MODE_OBJECT_*. Returns an empty map on failure.
+    // `objectType` is DRM_MODE_OBJECT_*; empty on failure.
     static DrmPropertyMap fromObject(int fd, uint32_t objectId, uint32_t objectType);
 
     void insert(const std::string& name, uint32_t id, uint64_t value);
@@ -38,7 +37,6 @@ public:
     uint32_t id(const std::string& name) const;
     uint64_t value(const std::string& name, uint64_t fallback = 0) const;
 
-    // Names from `required` that this object does not expose.
     std::vector<std::string> missing(const std::vector<std::string>& required) const;
 
     int size() const { return int(m_properties.size()); }

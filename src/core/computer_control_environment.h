@@ -33,8 +33,6 @@ class WindowManager;
 
 namespace core {
 
-// What of the session an agent is given to drive: the windows, the seat, the
-// input method and the clipboard, behind the controller's Environment.
 struct ComputerControlHosts {
     wm::WindowManager *windowManager = nullptr;
     input::Seat *seat = nullptr;
@@ -44,7 +42,7 @@ struct ComputerControlHosts {
     std::function<wayland::InputMethodManager *()> inputMethod;
     // Whether the process `pid` shows system dialogs the agent must leave alone.
     std::function<bool(int64_t pid)> showsSystemDialogs;
-    // The desktop entry of the application window `id`; empty for none.
+    // Empty for none.
     std::function<std::string(uint64_t id)> windowApplication;
 };
 

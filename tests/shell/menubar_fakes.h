@@ -15,8 +15,6 @@
 
 #include "base/dbus.h"
 
-// A menu exporter and a tray item of a test's own, for the menu bar's
-// backend and view tests.
 namespace cutefish::test {
 
 namespace dbus = base::dbus;
@@ -29,8 +27,7 @@ inline dbus::Variant layout(int32_t id, dbus::VariantMap properties, std::vector
     return dbus::Variant(Layout(id, std::move(properties), std::move(children)));
 }
 
-// A menu exporter of a test's own: the layout is what `layouts` holds for
-// each parent; every call and event is recorded.
+// The layout is what `layouts` holds for each parent.
 class FakeMenuExporter
 {
 public:
@@ -98,8 +95,7 @@ inline dbus::Variant gtkLink(uint32_t group, uint32_t menu)
     return dbus::Variant(std::tuple<uint32_t, uint32_t>(group, menu));
 }
 
-// An org.gtk.Menus exporter of a test's own: Start answers with the menus
-// `menus` holds for the groups asked for; every call is recorded.
+// Start answers with the menus `menus` holds for the groups asked for.
 class FakeGtkMenus
 {
 public:
@@ -140,9 +136,7 @@ public:
     std::vector<std::string> calls;
 };
 
-// An org.gtk.Actions group of a test's own; activations and state changes
-// are recorded as "Activate name", "Activate name 'target'" and
-// "SetState name true".
+// Records "Activate name", "Activate name 'target'" and "SetState name true".
 class FakeGtkActions
 {
 public:
@@ -183,7 +177,6 @@ public:
     std::vector<std::string> calls;
 };
 
-// A tray item of a test's own on another connection.
 class FakeTrayItem
 {
 public:

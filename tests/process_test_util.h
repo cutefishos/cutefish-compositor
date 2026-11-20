@@ -16,11 +16,9 @@
 
 #include "base/process.h"
 
-// Client programs started by tests, on the loop loop_test_util.h runs.
 namespace cutefish::test {
 
-// This process's environment without `removed`, with `added` set over it, as
-// `NAME=value` entries for base::Process::setEnvironment.
+// This process's environment without `removed` and with `added`, as NAME=value entries.
 inline std::vector<std::string> environmentWith(const std::vector<std::string_view> &removed,
                                                 const std::map<std::string, std::string> &added)
 {
@@ -36,7 +34,6 @@ inline std::vector<std::string> environmentWith(const std::vector<std::string_vi
     return result;
 }
 
-// Sets a variable of this process and puts the old value back when it goes.
 class ScopedEnvironmentVariable
 {
 public:
@@ -69,8 +66,7 @@ inline bool contains(std::string_view text, std::string_view part)
     return text.find(part) != std::string_view::npos;
 }
 
-// A program whose output and exit the test reads; killed and waited for when
-// it goes, if still running.
+// Killed and waited for on destruction if still running.
 class ChildProcess
 {
 public:

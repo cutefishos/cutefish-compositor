@@ -7,9 +7,8 @@
 //           chromium/src/ui/ozone/platform/drm/gpu/drm_dumb_buffer.cc
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
 //
-// Adapted for Cutefish: SkBitmap becomes raw premultiplied pixels and the
-// dynamic Intel cursor-size table is omitted; one buffer size is allocated from
-// the device's reported maximum.
+// Adapted for Cutefish: one cursor buffer size from the device maximum instead
+// of the Intel cursor-size table.
 
 #ifndef CUTEFISH_BACKEND_DRM_DRM_CURSOR_H_
 #define CUTEFISH_BACKEND_DRM_DRM_CURSOR_H_
@@ -27,10 +26,6 @@
 
 namespace cutefish::backend {
 
-// The KMS cursor plane for one CRTC.
-//
-// Moving the cursor here costs one ioctl and no repaint, which is the whole
-// point: with the cursor composited, every pointer motion is a full frame.
 class DrmCursor
 {
 public:
@@ -38,29 +33,24 @@ public:
     DrmCursor& operator=(const DrmCursor&) = delete;
     ~DrmCursor();
 
-    // Returns nullptr when the device has no cursor plane or its buffers
-    // cannot be allocated, in which case the caller composites the cursor.
+    // Null when the device has no cursor plane or its buffers cannot be
+    // allocated.
     static std::unique_ptr<DrmCursor> create(DrmDeviceApi* device, uint32_t crtcId);
 
-    // Uploads `pixels`, premultiplied ARGB32 (blue, green, red, alpha in memory).
-    // Returns false when the image is larger than the plane can show; the
-    // caller must then fall back to compositing it.
+    // `pixels` is premultiplied ARGB32; false when the image is larger than the
+    // plane can show.
     bool setImage(const uint8_t* pixels, const base::Size& size, int stride,
                   const base::Point& hotspot);
 
-    // Scales the colour channels of the image the plane shows, for a CRTC that
-    // cannot tint its planes itself; a visible cursor is uploaded again.
     void setTint(const render::ColorTransform& tint);
 
-    // Takes the cursor off the plane. Idempotent.
     void hide();
 
     // `position` is where the hotspot should land, in output pixels.
     void move(const base::Point& position);
 
-    // Whether a page flip on this CRTC has not landed yet. On a device whose
-    // cursor ioctls wait for it, a visible cursor meanwhile only keeps the
-    // newest image and position, which the plane takes once the flip is done.
+    // On a device whose cursor ioctls wait for flips, a visible cursor keeps
+    // only the newest image and position until the flip lands.
     void setFlipPending(bool pending);
 
     bool isVisible() const { return m_visible; }
@@ -79,11 +69,8 @@ private:
     DrmDeviceApi* m_device = nullptr;
     uint32_t m_crtcId = 0;
     base::Size m_size;
-    // Two buffers, so an image change never writes into the one the display is
-    // currently scanning out.
     std::array<Buffer, 2> m_buffers;
     size_t m_front = 0;
-    // The last image, kept to be tinted again.
     std::string m_image;
     base::Size m_imageSize;
     int m_imageStride = 0;
@@ -94,11 +81,8 @@ private:
     bool m_positioned = false;
     bool m_visible = false;
     bool m_flipPending = false;
-    // Held back by a pending flip, still to reach the plane.
     bool m_uploadDeferred = false;
     bool m_moveDeferred = false;
-    // Set once the driver has rejected drmModeSetCursor; retrying every frame
-    // would be pointless.
     bool m_failed = false;
 };
 

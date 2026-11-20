@@ -20,9 +20,6 @@ static double windowScale(const ui::View *view)
     return window ? window->scale() : 1;
 }
 
-// The dot after the icon: six pixels, with the icon's device-pixel parity so
-// both centre on the same line, centred in a slot as tall as the icon
-// without rounding to whole points.
 class StatusIcon::Indicator final : public ui::View
 {
 public:
@@ -184,7 +181,6 @@ double StatusIcon::preferredWidth() const
 
 void StatusIcon::layout()
 {
-    // The dot's size follows the scale.
     ui::LayoutHints dot = m_indicator->layoutHints();
     if (dot.preferredWidth != m_indicator->size()) {
         dot.preferredWidth = m_indicator->size();
@@ -201,7 +197,6 @@ ClockItem::ClockItem(BarContext *bar)
     setInsets(BarContext::kHighlightGap / 2,
               BarContext::kEdgeMargin - (BarContext::kItemGap - BarContext::kHighlightGap) / 2);
     m_label = addChild<BarLabel>();
-    // Figures of one width keep the clock still as the time changes.
     m_label->setFontFeatures({{"tnum", 1}});
     updateLook();
 }

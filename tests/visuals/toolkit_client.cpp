@@ -16,9 +16,7 @@
 
 using namespace cutefish::ui;
 
-// A frameless client-decorated toolkit window, as the session's applications
-// are: its size centred in white, and with --scroll a list that scrolls by 9
-// px every 50 ms, so every frame carries a small damage region.
+// With --scroll a list scrolls by 9 px every 50 ms, so every frame carries a small damage region.
 class Content : public View
 {
 public:

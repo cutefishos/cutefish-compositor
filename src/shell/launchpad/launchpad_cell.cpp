@@ -20,7 +20,6 @@
 
 namespace cutefish::shell {
 
-// How far a press moves before it starts a drag.
 static constexpr double kStartDragDistance = 10;
 
 static int jsRound(double value)
@@ -33,7 +32,6 @@ static double srgbToLinear(double value)
     return value <= 0.04045 ? value / 12.92 : std::pow((value + 0.055) / 1.055, 2.4);
 }
 
-// Ink.on(): white over what white keeps 3:1 contrast with, black otherwise.
 static ui::Color inkOn(ui::Color background, double alpha)
 {
     const double luminance = 0.2126 * srgbToLinear(background.r / 255.0)
@@ -42,7 +40,6 @@ static ui::Color inkOn(ui::Color background, double alpha)
     return (white ? ui::Color {255, 255, 255, 255} : ui::Color {0, 0, 0, 255}).withAlpha(alpha);
 }
 
-// FishUI.IconItem, the only part of the cell that takes the pointer.
 class LaunchpadCell::Icon final : public FileThemeIcon
 {
 public:
@@ -56,7 +53,6 @@ public:
 protected:
     void paint(ui::Painter &painter) override
     {
-        // A folder's preview draws in its place.
         if (!m_cell->isFolder())
             FileThemeIcon::paint(painter);
     }
@@ -68,8 +64,6 @@ private:
     LaunchpadCell *m_cell;
 };
 
-// A folder's icon: a plate holding the first of its applications' icons,
-// three by three. It draws dimmed while the cell is pressed.
 class LaunchpadCell::FolderPreview final : public ui::View
 {
 public:
@@ -97,8 +91,7 @@ public:
         requestLayout();
     }
 
-    // The icon of the folder's application at `index`; null past the
-    // preview's nine.
+    // Null past the preview's nine.
     ui::ThemeIcon *icon(size_t index) const { return index < m_icons.size() ? m_icons[index] : nullptr; }
 
     void updatePressed()
@@ -126,7 +119,6 @@ protected:
     void paint(ui::Painter &painter) override
     {
         const ui::RectF bounds = localRect();
-        // Darkened rather than lightened while pressed.
         const bool dimmed = m_cell->isPressDimmed();
         const ui::Color plate = dimmed ? ui::Color {0, 0, 0, 255} : ui::Color {255, 255, 255, 255};
         painter.drawRoundedRect(bounds, {double(jsRound(bounds.width * 0.22)), 0, ui::Corners::Continuous},
@@ -157,7 +149,6 @@ LaunchpadCell::~LaunchpadCell() = default;
 void LaunchpadCell::setItem(const LaunchpadItem &item)
 {
     if (item.isFolder()) {
-        // The preview stands in for the icon, which only takes the pointer.
         if (!m_preview) {
             m_preview = addChild<FolderPreview>(this);
             requestLayout();
@@ -264,13 +255,10 @@ void LaunchpadCell::setBackdrop(ui::Color color)
 
 void LaunchpadCell::updateMask()
 {
-    // A folder's preview dims itself.
     if (m_preview) {
         m_preview->updatePressed();
         return;
     }
-    // Made on the first press, then only hidden: rasterising it for every
-    // icon would cost each icon twice.
     if (isPressDimmed() && !m_mask) {
         m_mask = addChild<FileThemeIcon>(m_icon->iconName(), m_metrics.iconSize);
         m_mask->setColor(ui::Color {0, 0, 0, 255});
@@ -321,10 +309,8 @@ void LaunchpadCell::playFolderAnimation(bool created)
                             [this](double scale) { m_preview->setTransform({{}, scale}); });
         return;
     }
-    // The application that went in is the folder's last.
     const size_t added = m_childCount - 1;
     m_folderTween.start(window(), 0, 1, kFolderAddedDuration, easing::linear, [this, added](double t) {
-        // Up by 12% and back, exactly at rest at the end.
         const double scale = t < 1 ? 1 + 0.12 * std::sin(std::numbers::pi * t) : 1;
         m_preview->setTransform({{}, scale});
         if (ui::ThemeIcon *icon = m_preview->icon(added))
@@ -340,7 +326,6 @@ ui::Bitmap LaunchpadCell::dragImage(double scale)
             return {};
         return ui::themeIconBitmap(name, m_metrics.iconSize, scale);
     }
-    // Not dimmed by the press the drag starts from.
     const bool pressed = std::exchange(m_pressed, false);
     m_preview->updatePressed();
     ui::Bitmap image = m_preview->grab(scale);
@@ -369,7 +354,6 @@ ui::RectF LaunchpadCell::selectionRect() const
         return {};
     const ui::RectF icon = iconRect();
     const ui::RectF label = labelArea(m_metrics);
-    // Follows the painted text, not the two-line reservation.
     const double contentHeight = m_label->heightForWidth(label.width);
     const double y = std::max(0.0, icon.y - m_metrics.selectionPadding);
     const double height = std::min(m_metrics.cellHeight - y,
@@ -384,7 +368,6 @@ ui::RectF LaunchpadCell::newMarkRect() const
         return {};
     const ui::RectF label = labelArea(m_metrics);
     const double size = std::max(5, jsRound(m_metrics.iconSize * 0.06));
-    // The first line's advance and centre, as onLineLaidOut reports them.
     const std::optional<ui::Label::LineGeometry> line = m_label->lineGeometry(0);
     if (!line)
         return {};
@@ -405,8 +388,6 @@ void LaunchpadCell::layout()
         m_preview->setGeometry(icon);
     updateCountBadge();
     const ui::RectF label = labelArea(m_metrics);
-    // Lines the label's height cannot hold go before the maximum:
-    // with a font taller than 1.3 em the two-line area holds one.
     const double line = m_label->ascent() + m_label->descent();
     m_label->setMaximumLineCount(std::clamp(int(std::floor(label.height / std::max(1.0, line))), 1, 2));
     m_label->setGeometry(label);
@@ -459,7 +440,6 @@ void LaunchpadCell::iconReleased(const ui::PointerEvent &event)
     updateMask();
     if (!wasPressed || m_dragging)
         return;
-    // A click: the release over the icon it pressed.
     const ui::RectF bounds = m_icon->localRect();
     if (event.position.x < bounds.x || event.position.y < bounds.y
         || event.position.x >= bounds.x + bounds.width || event.position.y >= bounds.y + bounds.height)

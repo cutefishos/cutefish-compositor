@@ -11,8 +11,6 @@
 
 namespace cutefish::input {
 
-// An object exported on the session bus under a well-known name of its own,
-// which it gives up when it goes. Add the members to object(), then publish().
 class DBusExport
 {
 public:
@@ -25,11 +23,9 @@ public:
     const base::dbus::Object &object() const { return m_object; }
     base::dbus::Connection *connection() const { return m_connection; }
 
-    // Exports the object, then takes the name without queueing for it.
     // `what` names the service in the warnings.
     bool publish(const char *what);
 
-    // Sends a signal without arguments.
     void emitSignal(const char *member) const;
 
 private:

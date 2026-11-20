@@ -9,8 +9,8 @@ uniform vec4 uClamp;
 // A client shape rasterized over the quad replaces the rounded rectangle.
 uniform sampler2D uShape;
 uniform float uHasShape;
-// A premultiplied tint over the blurred backdrop, then a straight colour
-// blended over that by uFillMode (BackdropBlend; 0 for none).
+// A premultiplied tint, then a straight colour blended over it by uFillMode (0
+// for none).
 uniform vec4 uFillTint;
 uniform float uFillMode;
 uniform vec4 uFillColor;

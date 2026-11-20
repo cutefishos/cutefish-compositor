@@ -93,8 +93,8 @@ bool EglRenderer::initPrograms(const char *fragmentOverride, const char *externa
     if (!external)
         CF_WARNING(cfRender)
                 << "GL_OES_EGL_image_external is unavailable; DMA-BUF buffers cannot be composited";
-    // Blur and glass are effects: a driver that cannot build them still gets a
-    // desktop, drawn without them.
+    // A driver that cannot build blur and glass still gets a desktop without
+    // them.
     auto backdrop = std::make_unique<BackdropFilter>(m_context);
     if (backdrop->initialize(backdropOverride))
         m_backdrop = std::move(backdrop);
@@ -164,8 +164,8 @@ bool EglRenderer::makeContextCurrent()
         return true;
     if (m_lastTarget)
         return makeCurrent(m_lastTarget);
-    // A modeset retires the remembered target before a frame names the next one;
-    // uploads go surfaceless meanwhile, as on Chromium's default offscreen surface.
+    // Uploads go surfaceless between a modeset retiring the target and the next
+    // frame.
     return m_context->makeCurrent();
 }
 
@@ -180,8 +180,8 @@ void EglRenderer::releaseTarget(EglRenderTarget *target)
     clearTextureCache();
     m_current = nullptr;
     m_lastTarget = nullptr;
-    // Left current, the EGLSurface and its GBM colour buffers would live on
-    // past gbm_surface_destroy until the next makeCurrent.
+    // Left current, the EGLSurface and its GBM buffers would outlive
+    // gbm_surface_destroy.
     m_context->makeCurrent();
 }
 
@@ -320,9 +320,8 @@ bool EglRenderer::copyOutputFrame(const base::Size &size)
     return glGetError() == GL_NO_ERROR;
 }
 
-// Whether this GPU renders into a buffer allocated the way a capture client
-// would allocate it: one probe per format, with a linear layout, so a client
-// never learns of a format the frame path would then refuse.
+// One probe per format with a linear layout, so a client never learns of a
+// format the frame path would refuse.
 const DmaBufFormats &EglRenderer::captureDmaBufFormats() const
 {
     if (m_captureFormats)
@@ -382,8 +381,8 @@ const DmaBufFormats &EglRenderer::captureDmaBufFormats() const
 
     for (const uint32_t format : {DRM_FORMAT_ARGB8888, DRM_FORMAT_XRGB8888}) {
         std::vector<uint64_t> modifiers;
-        // Clients that name modifiers (PipeWire consumers such as Sunshine)
-        // never offer INVALID, so an explicit LINEAR is needed to meet them.
+        // Clients that name modifiers never offer INVALID, so an explicit
+        // LINEAR is needed.
         const uint64_t linear = DRM_FORMAT_MOD_LINEAR;
         if (gbm_bo *bo = gbm_bo_create_with_modifiers2(m_device, 16, 16, format, &linear, 1,
                                                        GBM_BO_USE_RENDERING)) {
@@ -392,8 +391,8 @@ const DmaBufFormats &EglRenderer::captureDmaBufFormats() const
                 modifiers.push_back(DRM_FORMAT_MOD_LINEAR);
             gbm_bo_destroy(bo);
         }
-        // Some GBM backends (virgl among them) only allocate through the
-        // flag, and report the result as INVALID.
+        // Some GBM backends, virgl among them, only allocate through the flag
+        // and report INVALID.
         if (gbm_bo *bo = gbm_bo_create(m_device, 16, 16, format,
                                        GBM_BO_USE_RENDERING | GBM_BO_USE_LINEAR)) {
             const uint64_t modifier = gbm_bo_get_modifier(bo);
@@ -518,8 +517,7 @@ void EglRenderer::releaseUnshownBackdrops()
 {
     if (!m_backdrop || !m_backdrop->mayHoldUnshown())
         return;
-    // Frames drawn meanwhile: the delay counts again from now, so nothing
-    // goes while they continue, and no frame reads the clock for it.
+    // Frames drawn meanwhile restart the delay.
     if (m_current || m_framesEnded != m_framesAtRelease) {
         m_framesAtRelease = m_framesEnded;
         m_backdropRelease->start(m_backdropReleaseDelay);
@@ -867,10 +865,8 @@ void EglRenderer::alignTextureDraw(const Texture *texture, const base::RectF &ta
         const auto equalPixel = [](double a, double b) {
             return std::abs(a - b) < 0.001;
         };
-        // A size the client chose in device pixels, like an Xwayland popup,
-        // need not be a whole number of logical units: the rounded logical size
-        // is then a pixel off. Texels still land one per pixel; the last row or
-        // column is repeated from the texture edge, or left out.
+        // A device-pixel size need not be whole logical units, so the last row
+        // or column is repeated or left out.
         const auto nearPixel = [&](double a, double b) {
             return equalPixel(a, std::round(a)) && std::abs(a - b) < 1.001;
         };
@@ -883,14 +879,12 @@ void EglRenderer::alignTextureDraw(const Texture *texture, const base::RectF &ta
                 texelMapping = base::AffineTransform::fromScale(deviceSize.width() / sourceSize.width(),
                                                      deviceSize.height() / sourceSize.height())
                         * mapping;
-            // Like Exo's host origin adjustment, keep native-density texels on physical pixels.
+            // Keeps native-density texels on physical pixels.
             aligned = base::RectF(pixelAligned(target.topLeft()), base::SizeF(deviceSize) / rasterScale());
             return;
         }
-        // A buffer scaled to the output covers every physical pixel its edges
-        // touch, the edge texels clamped over the rest: a surface beside or
-        // above another one (a subsurface over a hole in its parent) leaves
-        // no partly covered pixel row between them.
+        // Covers every physical pixel its edges touch, so adjacent surfaces
+        // leave no partly covered row between them.
         if (mapping.m12() == 0 && mapping.m21() == 0 && target.width() > 0 && target.height() > 0) {
             const base::RectF outer = pixelsAround(target);
             const auto toTarget = base::AffineTransform(outer.width() / target.width(), 0, 0,
@@ -964,8 +958,8 @@ void EglRenderer::drawTextureQuads(GlTexture *glTexture, const TextureQuad *quad
     // An XRGB buffer drawn whole shades to alpha 1; blending it only costs a read.
     const bool opaque = !hasAlpha && (alpha >= 1 || overwriteOpaque)
             && m_roundedClips.empty() && m_outlineWidth <= 0;
-    // Darkened in place, the colour is scaled in the blend stage and alpha stays
-    // 1: a blur reading a pixel left below 1 lets the sharp backdrop through.
+    // Scaled in the blend stage with alpha kept at 1: a blur reading alpha
+    // below 1 lets the sharp backdrop through.
     const bool darkened =
             opaque && alpha < 1 && m_pass.blendMode() != GlRenderPass::BlendMode::Copy;
     const float shaderAlpha = darkened ? 1.0f : alpha;

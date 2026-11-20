@@ -58,7 +58,6 @@ std::string placementKey(const std::string &applicationId, const std::string &re
     return applicationId + '\0' + restoreId;
 }
 
-// The display holding most of the rect, else the one nearest its centre.
 const display::LogicalDisplay *displayAround(const std::vector<display::LogicalDisplay> &displays,
                                              const base::Rect &rect)
 {
@@ -89,8 +88,6 @@ const display::LogicalDisplay *displayAround(const std::vector<display::LogicalD
     return selected;
 }
 
-// The same display in a new layout: the same logical display, or the one now
-// showing it as a mirror.
 const display::LogicalDisplay *successorOf(const std::vector<display::LogicalDisplay> &displays,
                                            const display::LogicalDisplay &previous)
 {
@@ -107,7 +104,6 @@ const display::LogicalDisplay *successorOf(const std::vector<display::LogicalDis
     return nullptr;
 }
 
-// Shrinks the rect to the area where it is larger, then moves it inside.
 base::Rect fitInside(const base::Rect &rect, const base::Rect &area)
 {
     const int width = std::min(rect.width(), area.width());
@@ -119,8 +115,6 @@ base::Rect fitInside(const base::Rect &rect, const base::Rect &area)
     return {x, y, width, height};
 }
 
-// Whether the window's surfaces take the pointer at `location`, as the
-// client's pointer focus is found: through their input region.
 bool takesInputAt(const Window &window, const base::PointF &location)
 {
     compositor::Surface *surface = window.rootSurface();
@@ -177,11 +171,8 @@ void WindowManager::setOutputBounds(const base::Rect &bounds)
         return;
     m_outputBounds = bounds;
     followDisplays();
-    // The reservations are edge thicknesses, so they survive a resolution
-    // change and simply apply to the new output.
     setWorkArea(zonedWorkArea(m_outputBounds, m_outputBounds, {}, true));
-    // With a display manager its displaysChanged follows, once windows are
-    // back on the new outputs.
+    // With a display manager, its displaysChanged follows once windows are on the new outputs.
     if (!m_displayManager)
         notifyOutputsChanged();
 }
@@ -262,8 +253,6 @@ void WindowManager::followDisplays()
             return rect.translated(to->bounds.x() - from->bounds.x(),
                                    to->bounds.y() - from->bounds.y());
         }
-        // A removed display's windows go to the primary, at the same place in
-        // proportion, fitted to its work area.
         const base::Rect &to = fallback.bounds;
         base::Rect moved = rect;
         moved.moveTo(to.x()
@@ -365,9 +354,7 @@ base::Rect WindowManager::workAreaFor(const Window *window, const base::Rect &bo
                     : zonedWorkArea(logical->workArea, logical->bounds, logical->waylandName,
                                     logical->primary);
     }
-    // A shell window places itself and is expected to cover the area it
-    // reserved; confining it to the work area would move the dock off its own
-    // strip. A window kept above the dock may reach over that strip too.
+    // A shell window covers the area it reserved; confining it would move the dock.
     if (window && (window->isShellWindow() || window->isAboveDock()))
         return m_outputBounds;
     return m_workArea;
@@ -587,8 +574,6 @@ void WindowManager::setShellMetadata(compositor::Surface *surface,
         return;
     m_shellMetadata[surface] = metadata;
 
-    // A surface that is already mapped picks the change up immediately; one
-    // that is not gets it in createWindow(), before it is placed or announced.
     if (Window *window = windowForSurface(surface)) {
         if (window->rootSurface() == surface) {
             window->setRole(metadata.role);
@@ -631,7 +616,6 @@ Window *WindowManager::createWindow(compositor::Surface *rootSurface, const Wind
     window->setTransientParent(init.transientParent);
     window->setModal(init.modal);
     if (window->isPopup()) {
-        // The dock's tooltips and menus, including nested ones, appear at once.
         Window *root = window;
         while (hasWindow(root->transientParent()))
             root = root->transientParent();
@@ -641,12 +625,7 @@ Window *WindowManager::createWindow(compositor::Surface *rootSurface, const Wind
         }
     }
 
-    // The shell's metadata is applied before anything else looks at the window:
-    // it decides the stacking layer this window is inserted into, whether it is
-    // decorated, whether it is placed at all, and - because windowAdded is
-    // emitted at the end of this function - whether the task list ever
-    // lists it. Nothing here may be deferred to a signal handler running
-    // after windowAdded.
+    // Applied before anything else looks at the window, and never deferred past windowAdded.
     if (const ShellWindowMetadata *metadata = shellMetadata(rootSurface)) {
         window->setRole(metadata->role);
         window->setFocusPolicy(metadata->focusPolicy);
@@ -660,9 +639,7 @@ Window *WindowManager::createWindow(compositor::Surface *rootSurface, const Wind
     m_stackingOrder.push_back(window);
     insertIntoStackingOrder(window);
 
-    // Before the first placement, so the frame is part of what gets placed
-    // rather than something that grows the window off the work area afterwards.
-    // A shell window is never decorated.
+    // Before the first placement, so the frame is part of what gets placed.
     window->setDecorated(init.decorated && !window->isShellWindow() && !window->isPopup());
 
     base::Size size = init.requestedSize;
@@ -678,7 +655,6 @@ Window *WindowManager::createWindow(compositor::Surface *rootSurface, const Wind
         window->setBounds(base::Rect(base::Point(), size));
         placeSheet(window);
     } else if (metadata && metadata->hasPosition) {
-        // Shell positions bypass the normal window placement policy.
         window->setBounds(base::Rect(metadata->position, size));
         window->setClientPosition(metadata->position);
     } else if (window->isShellWindow()) {
@@ -700,8 +676,7 @@ Window *WindowManager::createWindow(compositor::Surface *rootSurface, const Wind
             window->setBounds(boundsForNewWindow(window, window->bounds()));
     }
 
-    // Onto a desk before anything is drawn or announced: a dialog of a window
-    // on another desk starts out hidden with it.
+    // Before anything is drawn or announced.
     m_desks->onWindowAdded(window);
 
     restackScene();
@@ -757,7 +732,6 @@ void WindowManager::rememberPlacement(const Window *window)
         || window->isPopup() || window->isShellWindow() || window->transientParent()) {
         return;
     }
-    // A maximized or fullscreen window is remembered by where it returns to.
     const WindowState *state = window->state();
     base::Rect bounds = window->bounds();
     if (!state->isNormal()) {
@@ -785,7 +759,6 @@ bool WindowManager::restorePlacement(const Window *window, base::Rect *bounds) c
     const base::Rect &previous = remembered->bounds;
     bounds->moveTopLeft(previous.topLeft());
     if (surface->resizeAnchor() == compositor::ResizeAnchor::Center) {
-        // Halves of the difference, as a client resize around the centre moves it.
         bounds->translate((previous.width() - bounds->width()) / 2,
                           (previous.height() - bounds->height()) / 2);
     }
@@ -802,10 +775,7 @@ void WindowManager::destroyWindow(Window *window)
     if (it == m_windows.end())
         return;
 
-    // Out of both lists before anyone is notified. The notifications below
-    // re-enter this class - dropping activation schedules a repaint - and an
-    // iterator into m_windows would not survive a window being added from
-    // there. Ownership is held locally so the window stays valid meanwhile.
+    // Out of both lists before anyone is notified: the notifications below re-enter this class.
     std::unique_ptr<Window> owned = std::move(*it);
     // While the window still knows its output.
     rememberPlacement(window);
@@ -852,8 +822,6 @@ void WindowManager::insertIntoStackingOrder(Window *window)
     const StackingLayer layer = layerFor(window);
     m_stackingOrder.erase(it);
 
-    // Top of its own layer: the first window of a strictly higher layer is
-    // where it goes.
     const auto target = std::find_if(m_stackingOrder.begin(), m_stackingOrder.end(),
                                      [layer](const Window *other) {
                                          return layerFor(other) > layer;
@@ -863,7 +831,6 @@ void WindowManager::insertIntoStackingOrder(Window *window)
 
 void WindowManager::restackScene()
 {
-    // Keep transient families together, preserving sibling order within each layer.
     std::vector<Window *> ordered;
     std::function<void(Window *)> append = [&](Window *window) {
         ordered.push_back(window);
@@ -937,7 +904,6 @@ void WindowManager::restackScene()
     if (!appendedAuxiliary)
         appendAuxiliary();
 
-    // Closing and minimized snapshots keep their slots while live windows reorder.
     auto order = container->children();
     size_t next = 0;
     for (scene::Node *&node : order) {
@@ -945,9 +911,6 @@ void WindowManager::restackScene()
             node = managedNodes[next++];
     }
 
-    // A dock transition passes over the panels, but not over the dock's own
-    // popups: a tooltip must stay readable while a window flies in under it.
-    // It goes straight above the topmost panel-layer toplevel.
     scene::Node *panelTop = nullptr;
     for (Window *window : m_stackingOrder) {
         if (window->isPopup() || window->state()->isMinimized()
@@ -1036,7 +999,6 @@ void WindowManager::onWindowStackingChanged(Window *window)
 {
     if (!hasWindow(window))
         return;
-    // Its layer may have changed, and with it whether it is on a desk.
     m_desks->updateWindow(window);
     insertIntoStackingOrder(window);
     restackScene();
@@ -1047,8 +1009,6 @@ void WindowManager::onWindowStackingChanged(Window *window)
 void WindowManager::attachSheet(Window *sheet, uint64_t parentId)
 {
     Window *parent = windowById(parentId);
-    // Only an application window has a sheet; another shell surface is no
-    // place to hang one from.
     if (parent == sheet || (parent && (parent->isShellWindow() || parent->isPopup())))
         parent = nullptr;
     sheet->setTransientParent(parent);
@@ -1062,8 +1022,6 @@ void WindowManager::placeSheet(Window *sheet)
     Window *parent = sheet->transientParent();
     if (!hasWindow(sheet) || !hasWindow(parent))
         return;
-    // What the parent shows: a client that has not drawn a new size yet, as a
-    // hung one never does, keeps its old contents where they were.
     const base::Rect bounds = parent->presentedBounds().translated(parent->bounds().topLeft());
     const base::Size size = sheet->bounds().size();
     sheet->setClientPosition(base::Point(bounds.x() + (bounds.width() - size.width()) / 2,
@@ -1098,9 +1056,7 @@ void WindowManager::onWindowTargetBoundsChanged(Window *window, const base::Rect
     if (!m_seat || !hasWindow(window) || !node || !node->isEffectivelyVisible()
         || node->isEventTargetingBlocked())
         return;
-    // As aura's WindowEventDispatcher::OnWindowBoundsChanged: only when the
-    // pointer enters or leaves the bounds, or the bounds move under it. A
-    // resize in place leaves the surface-local location as it was.
+    // Only when the pointer enters or leaves the bounds, or the bounds move under it.
     const base::PointF cursor = m_seat->cursorPosition();
     const base::Point location(static_cast<int>(std::floor(cursor.x())),
                           static_cast<int>(std::floor(cursor.y())));
@@ -1115,7 +1071,7 @@ void WindowManager::setKeyboardGrab(Window *window)
     if (!hasWindow(window) || !window->isVisible() || !allowsActivation())
         return;
     m_keyboardGrab = window;
-    // Borrowed: a keyboard leave would make Qt draw the application inactive.
+    // Borrowed: a keyboard leave would make the client draw itself inactive.
     if (m_seat)
         m_seat->setFocusedSurface(window->rootSurface(), true);
 }
@@ -1162,8 +1118,7 @@ void WindowManager::sendPaste()
     if (!window || window->role() != WindowRole::Normal)
         return;
 
-    // As Ash's SyntheticCtrlV: V where the layout has it, else where a Latin
-    // layout has it, which is where toolkits look for the shortcut's letter.
+    // V where the layout has it, else where a Latin layout has it, as toolkits look for it.
     const std::optional<input::KeyStroke> stroke =
             m_seat->clientXkbTracker()->keyStroke(XKB_KEY_v);
     std::vector<uint32_t> codes {KEY_LEFTCTRL};
@@ -1175,8 +1130,6 @@ void WindowManager::sendPaste()
 
 void WindowManager::activateForPress(Window *window)
 {
-    // A press through the capture interface, as while it counts down, takes
-    // the keyboard back even when the window pressed is already active.
     Window *root = window;
     while (root && root->transientParent())
         root = root->transientParent();
@@ -1218,11 +1171,9 @@ bool WindowManager::belongsToApplication(const Window *candidate, const Window *
         if (!application.empty())
             return m_applicationResolver(candidate) == application;
     }
-    // The application id first, as the dock groups its tasks: an installed web
-    // app shares its browser's process but is an application of its own.
+    // The application id first: an installed web app shares its browser's process.
     if (!window->applicationId().empty())
         return base::strings::equalsIgnoreAsciiCase(candidate->applicationId(), window->applicationId());
-    // With neither an application id nor a process, a window is on its own.
     return window->processId() != 0 && candidate->applicationId().empty()
             && candidate->processId() == window->processId();
 }
@@ -1262,10 +1213,6 @@ void WindowManager::quitApplication(Window *window)
             target->requestClose();
     }
 
-    // A process left with no window at all is terminated: the application
-    // closed its windows but keeps running. One that still shows a window
-    // declined, typically to ask about unsaved changes, or also runs another
-    // application's windows, and is left alone.
     runLater(m_quitGracePeriod, [this, processes] {
         if (!m_terminateProcess)
             return;
@@ -1384,8 +1331,6 @@ void WindowManager::pushPopupGrab(ShellSurface *popup)
         || std::find(m_popupGrabs.begin(), m_popupGrabs.end(), popup) != m_popupGrabs.end()) {
         return;
     }
-    // A grab taken by another client, or by the shell, ends the chain held
-    // now; a chain only ever holds one client's popups.
     while (!m_popupGrabs.empty() && m_popupGrabs.back()->grabClient() != popup->grabClient()) {
         ShellSurface *innermost = m_popupGrabs.back();
         m_popupGrabs.pop_back();
@@ -1412,7 +1357,6 @@ bool WindowManager::isInsidePopupGrabChain(compositor::Surface *surface) const
         surface = surface->parentSurface();
     if (!surface)
         return false;
-    // A popup opened from a grabbing one without a grab of its own is still inside.
     for (ShellSurface *popup : m_popupGrabs) {
         if (popup->rootSurface() == surface || popup->hasPopupDescendant(surface))
             return true;
@@ -1465,14 +1409,11 @@ void WindowManager::updatePopupKeyboard()
     const bool lent = m_popupKeyboardRoot && m_keyboardGrab == m_popupKeyboardRoot;
     m_popupKeyboardRoot = nullptr;
     m_popupKeyboardSurface = nullptr;
-    // Lent from the grab request on, not from the map: a popup that replaces
-    // another in the same request batch keeps the client focused throughout,
-    // and Qt closes every popup of an application that loses the keyboard.
+    // Lent from the grab request on: a client closes all its popups when it loses the keyboard.
     if (root && (!m_keyboardGrab || lent)) {
         setKeyboardGrab(root);
         if (m_keyboardGrab == root) {
             m_popupKeyboardRoot = root;
-            // A client's status item hands the keys to its own popups.
             if (anchor && m_seat) {
                 m_popupKeyboardSurface = anchor;
                 m_seat->setFocusedSurface(anchor, true);
@@ -1485,17 +1426,12 @@ void WindowManager::updatePopupKeyboard()
 
 bool WindowManager::isCaptureWindow(const Window *window) const
 {
-    // Capture mode leaves open menus up so they can be in the picture; a press
-    // on the capture interface is the capture's, not the end of the grab.
     return window && layerFor(window) == StackingLayer::Capture;
 }
 
 void WindowManager::dismissPopupGrabs()
 {
-    // Innermost first, one at a time, each taken out of the list before its
-    // client is told. Dismissing one popup routinely destroys the rest of the
-    // chain, which unregisters them from here; a cached copy of the list would
-    // be full of dangling pointers by the second iteration.
+    // One at a time, each removed before its client is told: dismissing one can destroy the rest.
     CF_DEBUG(cfCompositor) << "dismissing" << m_popupGrabs.size() << "grabbing popup(s)";
     while (!m_popupGrabs.empty()) {
         ShellSurface *innermost = m_popupGrabs.back();
@@ -1550,7 +1486,6 @@ Window *WindowManager::capturableWindowAt(const base::PointF &location) const
 
 Window *WindowManager::modalBlockedWindowAt(const base::PointF &location) const
 {
-    // Hit testing on every motion only pays off while some modal is up.
     const bool anyModal =
             std::any_of(m_stackingOrder.begin(), m_stackingOrder.end(), [](const Window *window) {
                 return isModalInEffect(window);
@@ -1585,12 +1520,9 @@ Window *WindowManager::frameAt(const base::PointF &location, FrameArea *area) co
     if (area)
         *area = FrameArea::None;
 
-    // Server-side frames belong to the session, so a blocked one owns none of
-    // the screen: no move, no resize, no caption button while locked.
     if (!allowsActivation())
         return nullptr;
 
-    // A popup covering a frame receives client input instead of frame actions.
     if (isPopupAt(location))
         return nullptr;
 
@@ -1599,7 +1531,6 @@ Window *WindowManager::frameAt(const base::PointF &location, FrameArea *area) co
         if (!window->isVisible())
             continue;
 
-        // Moved aside, or sliding: the frame's pixels are elsewhere than its bounds.
         const base::Point drawn = location.toPoint() - window->presentationOffset();
         WindowFrame *frame = window->frame();
         if (!window->presentationOffset().isOrigin()) {
@@ -1617,7 +1548,6 @@ Window *WindowManager::frameAt(const base::PointF &location, FrameArea *area) co
                     *area = hitArea;
                 return window;
             }
-            // Inside this window, but in the part the client owns.
             return nullptr;
         }
         if (window->bounds().contains(location.toPoint())
@@ -1657,8 +1587,6 @@ Window *WindowManager::resizeHandleAt(const base::PointF &location, bool touch, 
         const base::Point drawn = location.toPoint() - window->presentationOffset();
         if (WindowFrame *frame = window->frame(); frame && frame->inputBounds().contains(drawn))
             return nullptr;
-        // A window above covers the handles only where it takes the pointer:
-        // the dock's whole width, say, is not its plate.
         if (window->bounds().contains(drawn) && takesInputAt(*window, location)
             && (!window->visualNode() || window->visualNode()->acceptsInput(location)))
             return nullptr;
@@ -1714,21 +1642,14 @@ bool WindowManager::onPointerMotion(input::Timestamp timestamp, const base::Poin
     if (m_eventHandler->onPointerMotion(location))
         return true;
 
-    // A held caption button keeps the pointer until it is released, exactly as
-    // a pressed button does inside a client.
     if (Window *pressed = windowTrackingFramePress()) {
         setFrameHover(pressed);
         return pressed->frame()->onPointerMotion(timestamp, location);
     }
 
-    // A client holding the implicit grab owns the pointer until it releases:
-    // a frame the pointer happens to travel over must not take the motion, nor
-    // change the cursor shape out from under the drag.
     if (m_seat && m_seat->pointerGrabSurface())
         return false;
 
-    // A window blocked by a modal gets no pointer input, not even hover. As in
-    // exo, pointer focus and the cursor stay with whatever had them.
     if (Window *blocked = modalBlockedWindowAt(location)) {
         m_modality.processLocatedEvent(blocked, false);
         setFrameHover(nullptr);
@@ -1737,7 +1658,6 @@ bool WindowManager::onPointerMotion(input::Timestamp timestamp, const base::Poin
 
     ResizeEdge edge = ResizeEdge::None;
     if (resizeHandleAt(location, false, &edge)) {
-        // Compositor-owned pixels, as a frame's are: the client loses the pointer.
         setFrameHover(nullptr);
         if (m_seat) {
             m_seat->setCompositorCursorShape(resizeCursor(edge));
@@ -1754,8 +1674,6 @@ bool WindowManager::onPointerMotion(input::Timestamp timestamp, const base::Poin
     if (!window)
         return false;
 
-    // The pointer is over compositor-owned pixels: whatever client had it must
-    // be told it left, and must not see this motion.
     if (m_seat)
         m_seat->clearPointerFocus();
     window->frame()->onPointerMotion(timestamp, location);
@@ -1773,7 +1691,6 @@ bool WindowManager::onPointerButton(input::Timestamp timestamp, const base::Poin
             m_consumedButtons.insert(code);
         return consumed;
     }
-    // Drags and caption buttons still need to see the release they end on.
     const bool consumed = handlePointerButton(timestamp, location, code, false);
     return m_consumedButtons.erase(code) > 0 || consumed;
 }
@@ -1794,7 +1711,6 @@ bool WindowManager::handlePointerButton(input::Timestamp timestamp, const base::
     if (!pressed)
         return false;
 
-    // Further buttons pressed during a client's implicit grab belong to it.
     if (m_seat && m_seat->pointerGrabSurface())
         return false;
 
@@ -1806,8 +1722,6 @@ bool WindowManager::handlePointerButton(input::Timestamp timestamp, const base::
         Window *target = windowAt(location, &hit, nullptr);
         if (!isInsidePopupGrabChain(hit) && !isCaptureWindow(target) && !isPopupGrabAnchor(hit)
             && !isPopupGrabMenuBar(target)) {
-            // The press belongs to the grab, not to whatever is underneath,
-            // except on the bar a status item's popups hang from.
             const bool reachesBar = pressReachesPopupGrabRoot(target);
             dismissPopupGrabs();
             if (!reachesBar)
@@ -1820,8 +1734,6 @@ bool WindowManager::handlePointerButton(input::Timestamp timestamp, const base::
         return true;
     }
 
-    // A press on a window moved aside brings them all back, that one in
-    // front, and goes no further.
     if (m_showDesktop->isActive()) {
         Window *window = drawnWindowAt(location);
         if (window && m_showDesktop->isMovedAside(window)) {
@@ -1841,11 +1753,9 @@ bool WindowManager::handlePointerButton(input::Timestamp timestamp, const base::
     }
 
     if (Window *window = frameAt(location)) {
-        // Activation first: a press on a frame raises its window, whatever the
-        // press then does.
+        // Activation first: a press on a frame raises its window.
         activateForPress(window);
-        // Activation runs client-visible code, which can take the window with
-        // it; the frame is only touched again once the window is still here.
+        // Activation runs client-visible code, which can destroy the window.
         if (!hasWindow(window))
             return true;
         window->ping();
@@ -1856,20 +1766,15 @@ bool WindowManager::handlePointerButton(input::Timestamp timestamp, const base::
         return true;
     }
 
-    // Click to activate. The hit surface may be a subsurface; activation always
-    // lands on the window that owns the root of the hierarchy.
     Window *window = windowAt(location);
     activateForPress(window);
-    // A press is where a stalled client gets noticed, so each one pings it.
     if (window && hasWindow(window))
         window->ping();
-    // The press itself still belongs to the client.
     return false;
 }
 
 bool WindowManager::onTouchDown(input::Timestamp timestamp, int32_t id, const base::PointF &location)
 {
-    // A window drag, pointer or touch, owns the seat until it ends.
     if (m_eventHandler->isDragging())
         return true;
 
@@ -1903,8 +1808,6 @@ bool WindowManager::onTouchDown(input::Timestamp timestamp, int32_t id, const ba
         return true;
     }
 
-    // A touch activates the window it lands on, as wm::FocusController does
-    // on a touch press, frame or client area alike.
     if (Window *window = frameAt(location)) {
         activateForPress(window);
         if (!hasWindow(window))
@@ -1926,8 +1829,7 @@ bool WindowManager::onTouchDown(input::Timestamp timestamp, int32_t id, const ba
 bool WindowManager::onTouchMotion(input::Timestamp timestamp, int32_t id,
                                   const base::PointF &location)
 {
-    // Checked before the frame: a point the frame started a drag with moves
-    // the window from then on.
+    // Before the frame: a touch that started a drag moves the window from then on.
     if (m_eventHandler->onTouchMotion(id, location))
         return true;
     const auto it = m_frameTouches.find(id);
@@ -1982,11 +1884,8 @@ bool WindowManager::onPointerAxisStop(input::Timestamp, const base::PointF &loca
 
 bool WindowManager::onKey(input::Timestamp, uint32_t evdevCode, bool pressed)
 {
-    // A blocked session has no interactive drag to feed and no shortcut of its
-    // own; the key belongs to the lock screen.
     if (!allowsActivation())
         return false;
-    // Typing is waiting on the window as much as a press is.
     if (pressed && !m_keyboardGrab) {
         if (Window *active = m_activation.activeWindow())
             active->ping();
@@ -1995,15 +1894,12 @@ bool WindowManager::onKey(input::Timestamp, uint32_t evdevCode, bool pressed)
         return false;
     if (pressed)
         m_eventHandler->onKeyPressed(evdevCode);
-    // The whole key stream belongs to the drag: a client must never see a
-    // release whose press it did not get.
+    // A client must never see a release whose press it did not get.
     return true;
 }
 
 void WindowManager::onWindowActivated(Window *gainedActive, Window *)
 {
-    // A picker or a popup gives the keyboard up to whatever is activated while
-    // it is up, an application started from the dock for one.
     if (m_keyboardGrab
         && (m_keyboardGrab->role() == WindowRole::Picker || m_keyboardGrab == m_popupKeyboardRoot))
         m_keyboardGrab = nullptr;

@@ -4,9 +4,6 @@
 //
 // Upstream: chromium/src/components/exo/pointer.cc
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: integrates the upstream behavior with native
-// compositor types and ownership.
 
 #include "input/pointer.h"
 
@@ -26,8 +23,7 @@ namespace cutefish::input {
 
 namespace {
 
-// Exo's kLocatedEventEpsilonSquared, in the same units: locations closer than
-// this are the same location as far as the client is concerned.
+// Locations closer than this are the same location as far as the client is concerned.
 constexpr double kLocatedEventEpsilonSquared = 1.0 / (2000.0 * 2000.0);
 
 bool sameLocation(const base::PointF &a, const base::PointF &b)
@@ -123,8 +119,7 @@ void Pointer::setCursor(compositor::Surface *surface, const base::Point &hotspot
         m_seat->notifyCursorChanged();
 }
 
-// Adapted from Exo Pointer::SetCursorType: replace any surface cursor and
-// ignore requests outside pointer focus. Protocol serial validation is external.
+// Protocol serial validation is up to the caller.
 void Pointer::setCursorShape(CursorShape shape)
 {
     if (!m_focusSurface || (m_hasCursorRequest && m_cursorShape == shape))
@@ -161,7 +156,6 @@ void Pointer::updateCursor()
     if (!m_cursorSurface)
         return;
 
-    // The hotspot is the point of the cursor image that sits under the pointer.
     const base::PointF topLeft = m_cursorPosition - base::PointF(m_hotspot);
     const base::Point position(static_cast<int>(std::lround(topLeft.x())),
                           static_cast<int>(std::lround(topLeft.y())));
@@ -192,9 +186,7 @@ void Pointer::maybeRemoveSurfaceObserver(compositor::Surface *surface)
 compositor::Surface *Pointer::effectiveTargetForLocation(const base::PointF &rootLocation,
                                                          base::PointF *locationInTarget) const
 {
-    // A press holds the pointer for the surface it was delivered to, so motion
-    // that leaves the surface still reports locations in that surface - which
-    // is how a drag started inside a client keeps working outside it.
+    // A press holds the pointer for its surface, so a drag keeps reporting locations outside it.
     if (compositor::Surface *grab = m_seat->pointerGrabSurface()) {
         if (!grab->isMapped() || !m_delegate || !m_delegate->canAcceptPointerEventsForSurface(grab)
             || !m_seat->allowsFocus(grab)) {
@@ -222,7 +214,6 @@ void Pointer::setFocus(compositor::Surface *surface, const base::PointF &rootLoc
     cancelGesture();
     const bool cursorOwned = m_hasCursorRequest;
     m_deliveredButtons = NoButton;
-    // First a leave for the surface losing focus.
     if (m_focusSurface) {
         if (m_delegate) {
             m_delegate->onPointerLeave(m_focusSurface);
@@ -239,7 +230,6 @@ void Pointer::setFocus(compositor::Surface *surface, const base::PointF &rootLoc
         maybeRemoveSurfaceObserver(old);
     }
 
-    // Then an enter for the surface gaining it.
     if (surface) {
         if (m_delegate) {
             m_delegate->onPointerEnter(surface, surfaceLocation, m_seat->pressedButtons());
@@ -292,9 +282,7 @@ void Pointer::onPointerMotion(Timestamp timestamp, const base::PointF &rootLocat
     base::PointF locationInTarget;
     compositor::Surface *focus = updateFocus(rootLocation, &locationInTarget);
 
-    // The enter event already carried this location, so an immediately
-    // following motion for the same point is suppressed. Sampled before
-    // m_locationInRoot is advanced.
+    // Sampled before m_locationInRoot is advanced.
     const bool sameLocation = checkIfSameLocation(rootLocation, locationInTarget);
 
     // The cursor follows the physical pointer even while it is over nothing

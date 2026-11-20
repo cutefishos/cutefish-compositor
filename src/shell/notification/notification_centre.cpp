@@ -31,13 +31,11 @@ using cutefish::i18n::trn;
 
 namespace cutefish::shell {
 
-// PanelStyle.tileColor: the cards' plates.
 static ui::Color cardColor()
 {
     return ui::color(toolkit::CompositorColor::NotificationCentreCard);
 }
 
-// PanelStyle.tileInkColor: what the cards read as, opaque, for their ink.
 static ui::Color cardInkColor()
 {
     return ui::Theme::current().secondBackground;
@@ -48,8 +46,7 @@ static double smallSpacing()
     return ui::Theme::current().smallSpacing;
 }
 
-// On whole device pixels while gliding, so text lands on the same subpixel
-// phase every frame and draws from its cached coverage.
+// Whole device pixels while gliding, so text draws from its cached coverage.
 static double pixelAligned(const Tween &tween)
 {
     if (!tween.isTicking() || !tween.window())
@@ -58,16 +55,11 @@ static double pixelAligned(const Tween &tween)
     return std::round(tween.value() * scale) / scale;
 }
 
-// "%n more notification(s)".
 static std::string moreText(int count)
 {
     return trn("{n} more notification", "{n} more notifications", count);
 }
 
-// ---------------------------------------------------------------------------
-// Row
-
-// The row's sliding part: the peeking strips of a stack and the card's frame.
 class NotificationCentre::Row::Content : public ui::View
 {
 public:
@@ -79,8 +71,6 @@ public:
 protected:
     void paint(ui::Painter &painter) override
     {
-        // Only the strip below the card is drawn, so the translucent plates
-        // never overlap one another.
         const double width = geometry().width;
         const double frame = m_row->frameHeight();
         const ui::RoundedShape shape {kRadius, 0, ui::themeCorners()};
@@ -103,7 +93,6 @@ private:
     Row *m_row;
 };
 
-// The card's plate, its contents clipped to its own rect.
 class CardFrame : public ui::View
 {
 public:
@@ -162,7 +151,6 @@ NotificationCentre::Row::Row(NotificationCentre *centre, ui::Window *window)
     m_goneTimer.setInterval(kDismissFade);
     m_goneTimer.onTimeout = [this] {
         gone = true;
-        // Faded out: the layout closes the gap.
         m_centre->relayout();
     };
 }
@@ -173,7 +161,6 @@ void NotificationCentre::Row::setNotification(const Notification &notification, 
 {
     m_notification = notification;
     m_groupKey = notification.groupKey();
-    // The centre shows neither actions nor progress.
     Notification shown = notification;
     shown.actions.clear();
     shown.value = -1;
@@ -186,7 +173,6 @@ int NotificationCentre::Row::peekCount() const
     return isStacked() ? std::min(stackCount, 2) : 0;
 }
 
-// The cards are as wide as the list less its insets.
 static constexpr double kCardWidth = NotificationCentre::kWidth - NotificationCentre::kInset * 2;
 
 double NotificationCentre::Row::contentHeight() const
@@ -231,8 +217,6 @@ void NotificationCentre::Row::apply(bool animated)
     const std::chrono::milliseconds fade = dismissing ? kDismissFade : kMotionDuration;
     m_opacity.setDuration(fade);
     m_scale.setDuration(fade);
-    // Hidden, the content sits just above the row, behind the card before
-    // it, so showing it slides it down out of the stack.
     m_contentY.setTarget(shown || dismissing ? 0 : -contentHeight(), animated);
     m_opacity.setTarget(shown ? 1 : 0, animated);
     m_scale.setTarget(shown ? 1 : dismissing ? 0.92 : 0.94, animated);
@@ -275,7 +259,6 @@ void NotificationCentre::Row::placeContent()
     ui::Transform transform;
     if (scale != 1) {
         transform.scale = scale;
-        // Scaled about the bottom centre rather than the centre.
         if (m_bottomOrigin)
             transform.translation = {0, height / 2 * (1 - scale)};
     }
@@ -284,9 +267,6 @@ void NotificationCentre::Row::placeContent()
     m_card->setGeometry({0, 0, width, m_card->implicitHeight(width)});
     m_content->requestPaint();
 }
-
-// ---------------------------------------------------------------------------
-// GroupHeader
 
 NotificationCentre::GroupHeader::GroupHeader(NotificationCentre *centre, ui::Window *window, std::string groupKey)
     : m_centre(centre)
@@ -330,8 +310,6 @@ double NotificationCentre::GroupHeader::targetHeight() const
 void NotificationCentre::GroupHeader::setShown(bool shown)
 {
     m_shown = shown;
-    // A faded header still sits over the stack that took its place:
-    // disabled, it leaves the pointer to the stack.
     setEnabled(shown);
     m_opacity.setTarget(shown ? 1 : 0, m_centre->m_motion);
     place();
@@ -376,11 +354,6 @@ void NotificationCentre::GroupHeader::layout()
                           size.height});
 }
 
-// ---------------------------------------------------------------------------
-// List and window content
-
-// The scrolled content: rows and headers where the layout pass put them,
-// as tall as the animated bottom of the list plus the bottom margin.
 class NotificationCentre::List : public ui::View
 {
 public:
@@ -427,7 +400,6 @@ protected:
                             clear->buttonHeight()});
 
         ui::Label *title = m_centre->m_title;
-        // The status panels' title size.
         title->setFontSize(10.5 * 4 / 3);
         const ui::SizeF size = title->sizeHint();
         title->setGeometry({kInset, top + (kHeaderHeight - size.height) / 2,
@@ -461,9 +433,6 @@ private:
     uint64_t m_theme = 0;
 };
 
-// ---------------------------------------------------------------------------
-// NotificationCentre
-
 NotificationCentre::NotificationCentre(Shell *shell, NotificationHistory &history, NotificationBanners &banners)
     : m_shell(shell)
     , m_history(history)
@@ -477,7 +446,6 @@ NotificationCentre::NotificationCentre(Shell *shell, NotificationHistory &histor
     m_removalTimer.setSingleShot(true);
     m_removalTimer.setInterval(kRemovalDelay);
     m_removalTimer.onTimeout = [this] { commitRemovals(); };
-    // Relative times go stale while it is open.
     m_timeTimer.setInterval(std::chrono::minutes(1));
     m_timeTimer.onTimeout = [this] { m_history.updateTime(); };
 
@@ -489,7 +457,6 @@ NotificationCentre::NotificationCentre(Shell *shell, NotificationHistory &histor
     m_subscriptions.push_back(shell->windowManager()->outputsChanged.connect([this] {
         if (!m_open || !m_parent)
             return;
-        // The work area changed under it: as tall as the new one.
         const Placement placement = placementFor(m_parent, m_placedGeometry.topLeft());
         if (placement.geometry.size() != m_geometry.size()) {
             m_geometry = placement.geometry;
@@ -557,7 +524,6 @@ void NotificationCentre::open(ShellWindow *parent, const base::Point &position)
     m_placedGeometry = base::Rect(position, base::Size(1, 1));
 
     m_open = true;
-    // With the centre open the user is looking at every notification already.
     m_banners.setBannersSuppressed(true);
     m_history.updateTime();
     m_scroll->setScrollPosition({0, 0});
@@ -582,8 +548,6 @@ void NotificationCentre::close()
 
 void NotificationCentre::onHidden()
 {
-    // Everything folds back up while hidden, with no motion, so the next
-    // opening shows the settled list straight away.
     m_motion = false;
     m_motionTimer.stop();
     if (m_removalTimer.isActive()) {
@@ -598,8 +562,6 @@ void NotificationCentre::onHidden()
     pruneHeaders();
 }
 
-// The list stays as it is, open or not: the labels, the stacks' counts and
-// the relative times are taken again. The clear buttons follow on their own.
 void NotificationCentre::retranslate()
 {
     if (!m_window)
@@ -659,7 +621,6 @@ void NotificationCentre::build(const Placement &placement)
 
     m_window->onCloseRequested = [this] { close(); };
     m_window->addShortcut(0, ui::key::Escape, [this] { close(); });
-    // A press anywhere backs every armed clear button out but the one under it.
     m_window->onPointerPressed = [this](ui::PointF position, ui::MouseButton) { disarmClears(position); };
 
     resetRows();
@@ -674,8 +635,6 @@ void NotificationCentre::applyGlass()
     window->setBackgroundBlur(base::Rect(0, 0, m_geometry.width(), m_geometry.height()), int(kRadius),
                               dark ? popupGlass(0.17, 0.17, 0.19, 0.6) : popupGlass(1, 1, 1, 0.6));
 }
-
-// --- The model's rows -------------------------------------------------------
 
 NotificationCentre::Row *NotificationCentre::makeRow(int index)
 {
@@ -737,11 +696,8 @@ void NotificationCentre::resetRows()
     scheduleLayout();
 }
 
-// --- Layout -----------------------------------------------------------------
-
 void NotificationCentre::scheduleLayout()
 {
-    // Once, after what is going on now.
     if (m_layoutScheduled)
         return;
     m_layoutScheduled = true;
@@ -757,8 +713,6 @@ void NotificationCentre::relayout()
 {
     if (!m_window)
         return;
-    // Rows only ever move towards the targets set here, so every row,
-    // header and the scroll extent start and land together.
     if (m_inLayout) {
         m_layoutDirty = true;
         return;
@@ -774,7 +728,6 @@ void NotificationCentre::relayout()
 
 void NotificationCentre::layoutPass()
 {
-    // `live` rows stay; `present` ones still take space, fading ones included.
     std::map<std::string, int> live;
     std::map<std::string, int> present;
     for (Row *row : m_rows) {
@@ -784,8 +737,6 @@ void NotificationCentre::layoutPass()
             ++present[row->groupKey()];
     }
 
-    // Rows glide only where they can be seen; the rest go straight to where
-    // they end, so a long group opens at the cost of the cards in view.
     const double viewTop = m_scroll->scrollPosition().y;
     const double viewBottom = viewTop + m_scroll->geometry().height;
 
@@ -802,7 +753,6 @@ void NotificationCentre::layoutPass()
 
         if (!leads.count(key)) {
             leads[key] = false;
-            // The header keeps its slot until its rows have faded.
             if (isExpanded(key) && present[key] > 1) {
                 GroupHeader *header = headerFor(key);
                 header->setAppName(row->notification().appName);
@@ -820,7 +770,6 @@ void NotificationCentre::layoutPass()
         if (lead)
             leads[key] = true;
 
-        // A row on its way out keeps looking as it did when it left.
         if (!row->dismissing) {
             row->lead = lead;
             row->groupExpanded = expanded;
@@ -841,8 +790,6 @@ void NotificationCentre::layoutPass()
             header->setShown(false);
     }
 
-    // Later rows pass behind earlier ones as they slide in and out; headers
-    // above them all.
     for (auto it = m_rows.rbegin(); it != m_rows.rend(); ++it)
         m_list->raiseChild(*it);
     for (GroupHeader *header : m_headers)
@@ -901,11 +848,8 @@ void NotificationCentre::beginMotion(std::chrono::milliseconds duration)
     m_motionTimer.start(interval);
 }
 
-// Rows animate out first and leave the model only once they take no
-// space, so the removal itself moves nothing.
 void NotificationCentre::dismissRows(const std::function<bool(const Row &)> &predicate)
 {
-    // Fade in place, then close the gap: the removal timer covers both.
     beginMotion(kRemovalDelay + std::chrono::milliseconds(50));
     for (Row *row : m_rows) {
         if (!row->dismissing && predicate(*row)) {

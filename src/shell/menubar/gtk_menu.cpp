@@ -16,7 +16,6 @@ namespace dbus = base::dbus;
 static constexpr const char *kMenusInterface = "org.gtk.Menus";
 static constexpr const char *kActionsInterface = "org.gtk.Actions";
 
-// "<Primary><Shift>z" as {"Control", "Shift", "z"}.
 static std::vector<std::vector<std::string>> shortcutOf(const std::string &accelerator)
 {
     std::vector<std::string> keys;
@@ -207,7 +206,6 @@ void GtkMenu::start(int exporter, std::vector<uint32_t> requested)
                             m_menus[{exporter, group, menu}] = std::move(entries);
                         }
                     }
-                    // A group that failed shows as empty.
                     m_loaded[exporter].insert(groups.begin(), groups.end());
                     subscribeLinks(exporter, linked);
                     if (initial)
@@ -269,7 +267,6 @@ void GtkMenu::onMenusChanged(int exporter, const dbus::Message &message)
         return;
     std::vector<Entry> linked;
     for (const auto &[group, menu, position, removed, added] : changes) {
-        // A menu new to a group already loaded arrives whole, as an insertion.
         auto it = m_menus.find({exporter, group, menu});
         if (it == m_menus.end()) {
             if (!loaded(exporter, group))
@@ -345,9 +342,9 @@ const GtkMenu::Action *GtkMenu::findAction(const std::string &name) const
     return it == group->second.end() ? nullptr : &it->second;
 }
 
-// As GTK's own menus show an item: an action whose parameter type does not
-// match the target is disabled; a target with a state makes a radio item,
-// a boolean state without one a check item.
+// An action whose parameter type does not match the target is disabled; a
+// target with a state is a radio item, a boolean state without one a check
+// item.
 void GtkMenu::applyAction(compositor::MenuItem &item, const Entry &entry, const Target &target) const
 {
     if (target.action.empty())
@@ -388,7 +385,6 @@ void GtkMenu::flatten(int exporter, uint32_t group, uint32_t menu, const std::st
         return;
 
     const auto addSeparator = [&](const std::string &separatorKey) {
-        // The bar has no lines between its entries.
         if (parent == 0 || items.size() >= kMaxItems)
             return;
         compositor::MenuItem separator;
@@ -470,7 +466,6 @@ void GtkMenu::rebuild()
     }
     flatten(kMenuBar, 0, 0, {}, "m", 0, 0, items, targets);
 
-    // A new entry shows with its parent's update.
     std::vector<int32_t> updated;
     std::vector<int32_t> changed;
     for (const auto &[id, item] : items) {
@@ -503,8 +498,6 @@ void GtkMenu::refresh(int32_t id)
     prepare(id);
 }
 
-// The whole tree is kept current, so a submenu is ready once its group is
-// in; one still on its way reports when it lands.
 void GtkMenu::prepare(int32_t id)
 {
     const auto it = m_items.find(id);

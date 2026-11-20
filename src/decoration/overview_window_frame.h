@@ -11,8 +11,6 @@ namespace cutefish::decoration {
 
 class Theme;
 
-// Every overview window has the corners, the shadow and the outline of a
-// window in its normal state, the shadow of the active one.
 scene::OverviewWindowFrame overviewWindowFrame(const Theme *theme);
 
 } // namespace cutefish::decoration

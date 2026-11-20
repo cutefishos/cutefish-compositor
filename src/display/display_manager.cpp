@@ -4,9 +4,6 @@
 //
 // Upstream: chromium/src/ui/display/manager/display_manager.cc
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: publish validated value snapshots as one batch and
-// centralize logical-display selection and coordinate lookup.
 
 #include "display/display_manager.h"
 
@@ -40,8 +37,8 @@ int64_t intersectionArea(const base::Rect &left, const base::Rect &right)
     return intersection.isEmpty() ? 0 : int64_t(intersection.width()) * intersection.height();
 }
 
-// The centre as it has always been taken: the middle of the first and last
-// pixel, rounded towards zero, so an even width leans left.
+// The middle of the first and last pixel, rounded towards zero, so an even
+// width leans left.
 base::PointF pixelCenter(const base::Rect &rect)
 {
     const int64_t right = int64_t(rect.x()) + rect.width() - 1;
@@ -49,7 +46,6 @@ base::PointF pixelCenter(const base::Rect &rect)
     return base::PointF(double((rect.x() + right) / 2), double((rect.y() + bottom) / 2));
 }
 
-// The largest size of the same aspect ratio as `size` that fits in `bounds`.
 base::SizeF fittedInside(const base::SizeF &size, const base::SizeF &bounds)
 {
     if (size.width() == 0 || size.height() == 0)
@@ -341,9 +337,8 @@ DisplayManager::touchscreenToGlobal(const base::PointF &normalized) const
 {
     if (!m_applied || m_applied->logicalDisplays.empty())
         return std::nullopt;
-    // ash's TouchDeviceManager, reduced to its first rules: the touchscreen is
-    // the internal panel's when that panel is shown, else the only display's,
-    // else the primary's.
+    // The touchscreen is the internal panel's when shown, else the only
+    // display's, else the primary's.
     const DisplaySnapshot *panel = nullptr;
     for (const DisplaySnapshot &physical : m_applied->physicalDisplays) {
         if (physical.connectionType == DisplayConnectionType::Internal
@@ -368,9 +363,8 @@ DisplayManager::touchscreenToGlobal(const base::PointF &normalized) const
     const auto mapping = mappingFor(panel->sessionId);
     if (!mapping)
         return std::nullopt;
-    // The glass spans the panel's native mode. A smaller mode on an internal
-    // panel goes through the GPU's panel fitter, which keeps the mode's aspect
-    // ratio (amdgpu's and i915's default) and centres it between black bars.
+    // A smaller mode on an internal panel is scaled by the panel fitter,
+    // keeping its aspect ratio and centring it.
     const base::Size pixels = panel->currentMode->pixelSize;
     const base::SizeF glass = panel->connectionType == DisplayConnectionType::Internal
                     && panel->nativeMode
@@ -381,8 +375,6 @@ DisplayManager::touchscreenToGlobal(const base::PointF &normalized) const
     const base::PointF onShown(
             std::clamp((normalized.x() * glass.width() - shown.x()) / shown.width(), 0.0, 1.0),
             std::clamp((normalized.y() * glass.height() - shown.y()) / shown.height(), 0.0, 1.0));
-    // The mode's pixels are where the mapping's transform starts; it takes
-    // rotation and mirror letterboxing from there.
     const base::PointF native(onShown.x() * (pixels.width() - 1e-3),
                          onShown.y() * (pixels.height() - 1e-3));
     return mapping->transform().nativeToLogical(native);

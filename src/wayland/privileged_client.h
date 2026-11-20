@@ -13,18 +13,8 @@
 
 namespace cutefish::wayland {
 
-// The privilege boundary for the private shell protocols.
-//
-// Exactly one wl_client at a time is trusted: the file manager's desktop, called
-// the shell here. It is not recognised by uid, by pid or by anything else it
-// could claim about itself: the session hands the compositor one end of a
-// socketpair it created, the compositor turns that fd into a wl_client with
-// wl_client_create(), and *that* client object is the trusted one. Nothing that
-// connects to the public socket can become it.
-//
-// A global registered here is invisible to every other client - the filter runs
-// before wl_registry.global is sent - and its bind handler must check
-// isTrusted() as well, so a stale or forged bind cannot slip through.
+// Trusted is the wl_client made from the session's socketpair fd, never a client of the public socket.
+// Private globals are filtered from other registries, and their bind handlers must check isTrusted() too.
 class PrivilegedClients
 {
 public:
@@ -34,23 +24,17 @@ public:
     ~PrivilegedClients();
     void shutdown();
 
-    // Takes ownership of `fd` and makes the resulting connection the trusted
-    // shell, replacing any previous one. Returns null and closes `fd` on
-    // failure.
+    // Takes ownership of `fd`. Returns null and closes `fd` on failure.
     wl_client *adoptShellConnection(int fd);
 
     wl_client *shellClient() const { return m_shell.client; }
 
     bool isTrusted(const wl_client *client) const { return client && client == m_shell.client; }
 
-    // A connection for a capture helper the compositor starts, such as the
-    // screen recorder: the client on one end of a new socketpair may capture,
-    // as long as it lasts, whatever executable runs on the other. Returns that
-    // other end for the caller to hand to the helper and close, or -1.
+    // Returns the other end of a new capture socketpair for the caller to hand to the helper and close, or -1.
     int createCaptureConnection();
     bool isCaptureConnection(const wl_client *client) const;
 
-    // Globals only the trusted shell may see or bind.
     void addPrivateGlobal(wl_global *global);
     void addRestrictedGlobal(wl_global *global, std::function<bool(const wl_client *)> authorize);
     void removeRestrictedGlobal(wl_global *global);
@@ -64,7 +48,6 @@ private:
         TrustedConnection *connection;
     };
 
-    // One adopted connection: the client and its destroy listener.
     struct TrustedConnection {
         wl_client *client = nullptr;
         const char *label = "";

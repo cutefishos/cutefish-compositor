@@ -4,11 +4,6 @@
 //
 // Upstream: chromium/src/components/exo/wayland/zwp_pointer_constraints.cc
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: confinement, set_region and set_cursor_position_hint,
-// which Exo leaves unsupported, are implemented; Xwayland confines the pointer
-// for grabs and locks it to emulate XWarpPointer. Exo asks its security
-// delegate whether a window may lock; any client may here.
 
 #include "wayland/protocols/zwp_pointer_constraints.h"
 
@@ -60,7 +55,6 @@ public:
 
     void setPendingHint(const base::PointF &hint) { m_pendingHint = hint; }
 
-    // input::PointerConstraintDelegate:
     Kind kind() const override { return m_kind; }
 
     void onConstraintActivated() override
@@ -103,7 +97,6 @@ public:
         return m_hint;
     }
 
-    // compositor::SurfaceObserver:
     void onSurfaceDestroying(compositor::Surface *surface) override
     {
         surface->removeSurfaceObserver(this);
@@ -153,9 +146,6 @@ std::optional<base::Region> regionFromResource(wl_client *client, wl_resource *r
     return result;
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// zwp_locked_pointer_v1_interface:
-
 void locked_pointer_destroy(wl_client *, wl_resource *resource)
 {
     wl_resource_destroy(resource);
@@ -180,9 +170,6 @@ const struct zwp_locked_pointer_v1_interface locked_pointer_implementation = {
         locked_pointer_destroy, locked_pointer_set_cursor_position_hint,
         locked_pointer_set_region};
 
-////////////////////////////////////////////////////////////////////////////////
-// zwp_confined_pointer_v1_interface:
-
 void confined_pointer_destroy(wl_client *, wl_resource *resource)
 {
     wl_resource_destroy(resource);
@@ -199,9 +186,6 @@ const struct zwp_confined_pointer_v1_interface confined_pointer_implementation =
         confined_pointer_destroy,
         confined_pointer_set_region,
 };
-
-////////////////////////////////////////////////////////////////////////////////
-// zwp_pointer_constraints_v1_interface:
 
 void pointer_constraints_destroy(wl_client *, wl_resource *resource)
 {

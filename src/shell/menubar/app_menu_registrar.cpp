@@ -97,7 +97,6 @@ std::string AppMenuRegistrar::pathForPid(uint32_t pid) const
 
 void AppMenuRegistrar::registerWindow(const std::string &sender, uint32_t windowId, const std::string &path)
 {
-    // A path is what the menu needs; an empty one is bad dbusmenu use.
     if (path.empty() || sender.empty())
         return;
 
@@ -116,8 +115,6 @@ void AppMenuRegistrar::registerWindow(const std::string &sender, uint32_t window
         }));
     }
 
-    // The process id comes back from the bus; the registration is announced
-    // with it in place.
     const dbus::Proxy bus(m_bus, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus");
     m_calls.track([&](std::function<void()> finished) {
         return bus.callAsync(

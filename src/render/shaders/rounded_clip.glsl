@@ -36,7 +36,6 @@ float roundedDistance(vec2 p, vec4 bounds, vec2 radius) {
         return (l - 1.0) * l / length(q / r);
     }
     float l = pow(dot(q * q, q), 1.0 / 3.0);
-    // Normalize the cubic superellipse gradient to physical pixel distances.
     return (l - 1.0) * l * l / length(q * q / r);
 }
 
@@ -52,7 +51,6 @@ float tangentCoverage(vec2 p, vec4 bounds, vec2 radius, float inset, float pixel
     vec2 extent = abs(normal) * (0.5 * pixelSize);
     float a = max(extent.x, extent.y);
     float b = min(extent.x, extent.y);
-    // Integrate the tangent half-plane over a square output pixel.
     if (b < 0.001)
         return clamp(0.5 + t / (2.0 * a), 0.0, 1.0);
     float u = abs(t);
@@ -72,7 +70,6 @@ float roundedCoverage(vec2 p, vec4 bounds, vec2 radius, float inset) {
     vec2 corner = abs(p - bounds.xy - bounds.zw * 0.5) - bounds.zw * 0.5 + r;
     if (min(r.x, r.y) <= 0.0 || min(corner.x, corner.y) < -0.5)
         return tangentCoverage(p, bounds, radius, inset, 1.0);
-    // Integrate four subpixel tangents to follow curvature within the output pixel.
     return 0.25 * (
         tangentCoverage(p + vec2(-0.25, -0.25), bounds, radius, inset, 0.5) +
         tangentCoverage(p + vec2( 0.25, -0.25), bounds, radius, inset, 0.5) +

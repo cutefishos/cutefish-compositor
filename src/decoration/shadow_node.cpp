@@ -30,9 +30,6 @@ bool operator==(const Corners &a, const Corners &b)
 
 } // namespace
 
-////////////////////////////////////////////////////////////////////////////////
-// ShadowNode:
-
 ShadowNode::ShadowNode(const Theme *theme)
     : scene::Node("shadow")
     , m_theme(theme)
@@ -48,7 +45,6 @@ void ShadowNode::update(const base::Rect &content, wm::ShadowElevation elevation
 
     const ShadowGeometry geometry(content.size(), radius, m_theme->metrics().shadowFor(elevation),
                                   1, corners, silhouette);
-    // An elevation with no style, or a window too small for one, draws nothing.
     const bool visible =
             elevation != wm::ShadowElevation::None && !geometry.paintBounds().isEmpty();
 
@@ -61,14 +57,13 @@ void ShadowNode::update(const base::Rect &content, wm::ShadowElevation elevation
     m_margins = visible ? geometry.margins() : base::Insets();
 
     // Hide before the geometry shrinks, so the repaint still covers what the
-    // shadow used to reach; show only once the new geometry is in place.
+    // shadow used to reach.
     if (!visible)
         setVisible(false);
     // Relative to the window node, whose geometry is the outer window bounds.
     setGeometry(content.marginsAdded(m_margins));
     if (visible)
         setVisible(true);
-    // An elevation change alone moves neither, so ask for the repaint here.
     notifyChanged();
 }
 
@@ -87,16 +82,12 @@ void ShadowNode::paint(render::Renderer &renderer, const base::Rect &bounds) con
     const ShadowGeometry geometry(m_content.size(), m_radius,
                                   m_theme->metrics().shadowFor(m_elevation),
                                   int(std::ceil(renderer.rasterScale())), m_corners, m_silhouette);
-    // paintShadow's target rects are already offset by the margins, so it wants
-    // the window's own top-left, not the node's.
+    // paintShadow's target rects are already offset by the margins.
     const base::PointF surface(bounds.origin() + m_surfaceOrigin);
     paintShadow(renderer, geometry,
                 bounds.origin() + base::Point(m_margins.left(), m_margins.top()), 1,
                 renderer.pixelAligned(surface) - surface);
 }
-
-////////////////////////////////////////////////////////////////////////////////
-// Shadow:
 
 Shadow::Shadow(wm::Window *window, Theme *theme)
     : m_window(window)
@@ -128,9 +119,6 @@ void Shadow::setElevation(wm::ShadowElevation elevation)
 
 void Shadow::setContentBounds(const base::Rect &bounds)
 {
-    // Only the size changes what is drawn; the origin comes from the window
-    // node this one hangs off. The node ignores a call that changes nothing,
-    // so every controller notification can refresh the silhouette cheaply.
     m_contentBounds = bounds;
     updateNode();
 }
@@ -152,20 +140,16 @@ void Shadow::updateNode()
 {
     if (!m_node)
         return;
-    // exo synchronizes shadow bounds with the frame that carries the matching
-    // content (ShellSurfaceBase::OnSurfaceCommit allocates a new
-    // LocalSurfaceId when they change). Cutefish gets the same guarantee by
-    // sizing the shadow from what the window has actually presented, so it can
-    // never hug an edge the client has not reached yet.
+    // Sized from the presented bounds, so it never hugs an edge the client has
+    // not reached yet.
     base::Rect content = m_window->presentedBounds();
     m_node->setSurfaceOrigin(m_window->frameInsets().topLeft() + m_window->surfaceOrigin());
     if (m_window->role() == wm::WindowRole::Dock && m_window->rootSurface()) {
-        // The dock surface includes transparent space outside its rounded panel,
-        // which its glass covers exactly.
+        // The dock surface includes transparent space outside its rounded
+        // panel.
         const base::Rect glass = m_window->rootSurface()->backgroundBlurRect();
         Corners corners;
         if (!glass.isEmpty()) {
-            // Where the glass runs past the surface it is cut there, square.
             const bool left = glass.left() >= content.left();
             const bool right = glass.right() <= content.right();
             const bool top = glass.top() >= content.top();
@@ -177,7 +161,6 @@ void Shadow::updateNode()
         return;
     }
     const auto visual = wm::WindowVisualController::evaluate(*m_window, m_theme->visualStyle());
-    // A client-drawn outline casts the shadow instead of the surface rectangle.
     if (!visual.outlinePath.isEmpty()) {
         const ui::Path &outline = visual.outlinePath;
         content = ui::toBase(outline.boundingRect()).toEnclosingRect();
@@ -185,8 +168,6 @@ void Shadow::updateNode()
                        outline.translated(-content.x(), -content.y()));
         return;
     }
-    // So does a glass body inside a larger surface: the transparent room around
-    // it, as a banner keeps for the close button on its corner, casts nothing.
     if (!visual.outlineShape.bounds.isEmpty()) {
         content = visual.outlineShape.bounds.toEnclosingRect();
         m_node->update(content, m_elevation, Corners::all(),
@@ -201,9 +182,6 @@ void Shadow::updateNode()
                        : int(visual.shape.radius));
     m_node->update(content, m_elevation, Corners::all(), radius);
 }
-
-////////////////////////////////////////////////////////////////////////////////
-// ShadowProvider:
 
 ShadowProvider::ShadowProvider(Theme *theme)
     : m_theme(theme)

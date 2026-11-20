@@ -4,9 +4,6 @@
 //
 // Upstream: chromium/src/ash/display/cros_display_config.h
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: fixed D-Bus tuples replace Ash service and Mojo
-// types while preserving capability-rich display descriptions.
 
 #pragma once
 

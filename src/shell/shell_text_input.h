@@ -12,22 +12,19 @@ namespace cutefish::shell {
 
 class ShellWindow;
 
-// The shell's text fields on the input-method relay: one more adapter next
-// to text-input-v3 and v1, as exo's TextInput and Ash's views share one
-// ui::InputMethod. The keyboard-focused shell window's focused text view
-// enables it; the input method's edits go back to that window.
+// The shell's text fields on the input-method relay, next to text-input-v3 and
+// v1.
 class ShellTextInput final : public wayland::TextInput
 {
 public:
     explicit ShellTextInput(wayland::InputMethodRelay *relay);
     ~ShellTextInput() override;
 
-    // The toolkit's textInputChanged(); null disables.
+    // A null `state` disables.
     void update(ShellWindow *window, const ui::TextInputState *state, bool fromInputMethod);
 
     void windowDestroying(ShellWindow *window);
 
-    // wayland::TextInput:
     bool attached() const override { return m_window != nullptr; }
     bool ownsSurface(const compositor::Surface *surface) const override;
     void sendEdit(const wayland::TextInputEdit &edit) override;

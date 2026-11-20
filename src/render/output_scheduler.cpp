@@ -26,9 +26,8 @@ OutputScheduler::Time OutputScheduler::drawPoint(Time slot) const
 
 OutputScheduler::Duration OutputScheduler::budget() const
 {
-    // A full repaint after cheap frames is begun as early as the last one
-    // needed, not as late as they allowed: its first frame would miss, and
-    // the doubling after that comes a refresh too late.
+    // A full repaint after cheap frames starts as early as the last one needed,
+    // or its first frame would miss.
     if (!m_fullDemand)
         return drawBudget();
     const Duration slowest = fullRepaintDrawTime();
@@ -63,7 +62,6 @@ void OutputScheduler::request(Reason reason, bool fullRepaint)
     if (m_requested != m_consumed)
         ++m_stats.coalesced;
     ++m_requested;
-    // Full demand joining cheaper demand moves its draw point earlier.
     if (fullRepaint && !m_fullDemand && m_state == State::Scheduled)
         m_state = State::Idle;
     m_fullDemand = m_fullDemand || fullRepaint;
@@ -74,13 +72,11 @@ void OutputScheduler::schedule()
 {
     if (m_state != State::Idle || m_requested == m_consumed)
         return;
-    // As viz's DisplayScheduler: demand that arrives before the draw point
-    // waits for it, so what clients commit early in the refresh still makes
-    // it; later demand is drawn at once.
+    // Demand before the draw point waits for it; later demand is drawn at once.
     const Time now = m_now();
     m_deadline = std::max(now, drawPoint(m_next));
-    // A full repaint starting from idle past the draw point would miss the
-    // vblank anyway: begun at the next one, it shows its own slot, not a stale one.
+    // A full repaint from idle past the draw point would miss the vblank, so it
+    // starts at the next one.
     if (m_vblank && m_fullDemand && m_next < slotAt(now)
         && now > drawPoint(slotAt(now)) + kWakeupSlack) {
         m_deadline = drawPoint(slotAt(now) + m_period);
@@ -88,7 +84,6 @@ void OutputScheduler::schedule()
     m_state = State::Scheduled;
 }
 
-// Re-evaluates the throttle whenever the pending queue or its limit changed.
 void OutputScheduler::settle()
 {
     if (m_state != State::Idle && m_state != State::FlipPending)
@@ -148,8 +143,8 @@ uint64_t OutputScheduler::begin()
     m_frame = ++m_serial;
     m_state = State::Rendering;
     if (m_vblank) {
-        // A wakeup up to kWakeupSlack short of a draw point on the vblank
-        // itself still draws for the slot it was scheduled in, not the last one.
+        // A wakeup up to kWakeupSlack early still draws for the slot it was
+        // scheduled in.
         m_frameTime = slotAt(std::max(now, m_deadline));
     } else {
         // Preserve the nominal phase for ordinary jitter; skip all missed slots.
@@ -190,9 +185,8 @@ bool OutputScheduler::complete(uint64_t frame, std::optional<Time> presented)
     }
     const auto now = m_now();
     const Time landed = presented && *presented <= now ? *presented : now;
-    // A queued frame waits for the flip ahead of it. Counted as a miss, that
-    // wait keeps the budget at the full period, where every frame is begun at
-    // the vblank, queues, and misses again.
+    // A queued frame waits for the flip ahead of it; counting that as a miss
+    // would pin the budget at the full period.
     Time expected = m_pending.front().aimed;
     if (m_pending.front().queued && m_landed)
         expected = std::max(expected, *m_landed + m_period);
@@ -203,22 +197,15 @@ bool OutputScheduler::complete(uint64_t frame, std::optional<Time> presented)
     else if (missed)
         ++m_stats.lateDemand;
     if (presented && *presented <= now) {
-        // Frames drawn to a stamped flip are begun a budget before the vblank;
-        // a late one moves them earlier, down to the vblank itself, and on-time
-        // ones win the time back over about twenty frames, as every commit waits
-        // for the draw point meanwhile. One
-        // begun past its draw point, as late demand is, says nothing about it,
-        // nor does one that took longer than it was given: drawn() has already
-        // moved the draw point early enough for it, and doubling on top kept
-        // frames begun near the vblank for seconds after a single slow one.
+        // A late frame moves the draw point earlier and on-time ones win it
+        // back over about twenty frames; frames begun late or slower than their
+        // budget do not count.
         const Pending &front = m_pending.front();
         const bool overran = front.took && *front.took + kLatchMargin > front.budget;
         if (missed && front.punctual && !overran)
             m_lateBudget = std::min(m_period, drawBudget() * 2);
         else if (m_lateBudget > m_period / 3)
             m_lateBudget = std::max(m_period / 3, m_lateBudget - m_period / 30);
-        // Lay the slots on the display's own vblank, as viz feeds presentation
-        // feedback back into its DelayBasedTimeSource timebase.
         m_vblank = *presented;
         m_next = slotAt(m_next + m_period / 2);
         // A frame that waited for a late one is drawn for the slot it landed in.
@@ -235,9 +222,7 @@ bool OutputScheduler::behindPendingFrame(Time now) const
 {
     if (!m_vblank || m_pending.empty())
         return false;
-    // A frame begun now aims at the vblank ending its slot. One still pending
-    // past its own vblank, or aimed at that one, takes it first; this frame
-    // would land a refresh late, and every frame begun before it lands too.
+    // A pending frame past its own vblank, or aimed at it, takes it first.
     const Time aimed = m_pending.back().aimed;
     return aimed <= now || aimed > slotAt(now) + m_period / 2;
 }
@@ -250,9 +235,7 @@ void OutputScheduler::drawn(uint64_t frame, Time done)
     if (it == m_pending.end() || done < it->began)
         return;
     it->took = done - it->began;
-    // Past viz's fixed third: a GPU clocked down for a light load takes longer
-    // than that over a full-screen frame, and every frame it overran was a
-    // refresh lost. The draw point moves early enough for the slowest recent one.
+    // The draw point moves early enough for the slowest recent frame.
     m_drawTimes.push_back(done - it->began);
     if (m_drawTimes.size() > kDrawTimeWindow)
         m_drawTimes.pop_front();

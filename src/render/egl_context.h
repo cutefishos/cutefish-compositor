@@ -17,8 +17,7 @@ namespace cutefish::render {
 class EglRenderTarget;
 class EglDisplay;
 
-// Whether the space-separated `list` names `extension` whole. Asked on every
-// render pass, so without splitting the list into allocations each time.
+// Called on every render pass, so it does not allocate.
 bool hasExtension(std::string_view list, std::string_view extension);
 
 class EglContext

@@ -4,9 +4,6 @@
 //
 // Upstream: chromium/src/components/exo/wayland/serial_tracker.cc
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: integrates the upstream behavior with native
-// compositor types and ownership.
 
 #include "serial_tracker.h"
 
@@ -20,7 +17,6 @@ namespace cutefish::wayland {
 
 namespace {
 
-// Number of previous events to retain information about.
 constexpr uint32_t kMaxEventsTracked = 1024;
 
 } // namespace
@@ -94,17 +90,13 @@ uint32_t SerialTracker::nextSerial(EventType type)
 std::optional<SerialTracker::EventType> SerialTracker::eventType(uint32_t serial) const
 {
     if (m_maxEvent < m_minEvent) {
-        // The valid range has partially overflowed the 32 bit space, so we
-        // should only reject if the serial number is in neither the upper nor
-        // lower parts of the space.
+        // The valid range wrapped around the 32-bit space.
         if (!((serial < m_maxEvent) || (serial >= m_minEvent))) {
             CF_WARNING(cfWayland) << "No event type for serial" << serial
                                   << "- it is in the void range";
             return std::nullopt;
         }
     } else {
-        // Normal, non-overflowed case. Reject the serial number if it isn't in
-        // the interval.
         if (!((serial < m_maxEvent) && (serial >= m_minEvent))) {
             CF_WARNING(cfWayland) << "No event type for serial" << serial
                                   << "- it is outside of the range";

@@ -5,11 +5,7 @@
 // Upstream: chromium/src/ash/wm/desks/desk.h
 // Revision: 8abbac30b9cf2fe976422c58c000c94685648b65
 //
-// Adapted for Cutefish: a desk owns no container. Its windows keep their
-// places in the window manager's one stacking order, and a desk that is not
-// active hides them with Window::setDeskHidden, as upstream hides its
-// containers. Metrics, saved desks, coral and per-user state are not carried
-// over.
+// Adapted for Cutefish: a desk owns no container; Window::setDeskHidden hides its windows.
 
 #ifndef CUTEFISH_WM_DESKS_DESK_H_
 #define CUTEFISH_WM_DESKS_DESK_H_
@@ -31,11 +27,10 @@ public:
     Desk &operator=(const Desk &) = delete;
     ~Desk();
 
-    // Stable for the desk's lifetime and never reused, as upstream's uuid.
+    // Stable for the desk's lifetime and never reused.
     uint32_t id() const { return m_id; }
 
-    // The roots of the transient trees on this desk, in the order they came.
-    // Their transient descendants go wherever the root goes.
+    // Transient roots in the order they came; their descendants go wherever the root goes.
     const std::vector<Window *> &windows() const { return m_windows; }
 
     bool contains(const Window *window) const;
@@ -47,19 +42,13 @@ public:
 
     bool isActive() const { return m_active; }
 
-    // Shows this desk's windows. With `updateWindowActivation`, the one most
-    // recently used before the user left the desk becomes active again.
     void activate(bool updateWindowActivation);
 
-    // Hides this desk's windows; the active one among them loses activation.
     void deactivate(bool updateWindowActivation);
 
-    // Upstream MoveWindowsToDesk, for removing this desk: every window goes to
-    // `target` below the windows already there, and last in the MRU order, since
-    // the user is done with this desk.
     void moveWindowsToDesk(Desk *target);
 
-    // Moves the transient tree of `window`, which must be on this desk.
+    // `window` must be on this desk.
     void moveWindowToDesk(Window *window, Desk *target);
 
 private:

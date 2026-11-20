@@ -32,7 +32,6 @@ NotificationSettings::NotificationSettings(Applications &applications, std::stri
 {
     m_load = runOnFileThread([path = m_path] { return load(path); },
                              [this](Stored stored) {
-                                 // A change made while the file was read stays.
                                  for (auto &[key, application] : stored.applications)
                                      m_entries.try_emplace(key, std::move(application));
                                  if (!m_ready)
@@ -44,7 +43,6 @@ NotificationSettings::NotificationSettings(Applications &applications, std::stri
                                  applicationsChanged();
                              });
 
-    // Installing or removing an application changes which ones are listed.
     m_applicationsChanged = m_applications.changed.connect([this] { applicationsChanged(); });
 }
 
@@ -120,16 +118,12 @@ std::vector<NotificationSettings::Application> NotificationSettings::application
 {
     std::vector<Application> list;
 
-    // An uninstalled application keeps its mode, in case it comes back.
     for (const auto &[key, stored] : m_entries) {
         const DesktopEntryPtr entry = m_applications.byId(key);
         if (!entry || entry->hidden)
             continue;
 
         Application application = stored;
-        // The desktop entry follows the current language and icon. A
-        // NoDisplay helper's Name is often technical, so its sender's own
-        // name stays.
         if (!entry->noDisplay)
             application.name = entry->name;
         if (!entry->icon.empty())
@@ -153,7 +147,6 @@ bool NotificationSettings::isInstalled(const std::string &key) const
     return entry && !entry->hidden;
 }
 
-// Keys are desktop ids or application names, which may hold a '/'.
 std::string NotificationSettings::applicationGroup(const std::string &key)
 {
     return "Notifications/Applications/" + base::url::percentEncoded(key);

@@ -22,31 +22,23 @@
 namespace cutefish::scene {
 
 // Coverage history follows cc/trees/damage_tracker at Chromium 7acd40ddefff.
-// Each output owns a history, including contributors outside its last damage.
 class DamageTracker
 {
 public:
-    // With `rootIsViewport`, the root's own geometry and revision are what
-    // the viewport accounts for, as for a window whose texture spans it: a
-    // move or a change of its own is not damage, only its children's are.
+    // With `rootIsViewport`, only changes to the root's children are damage.
     explicit DamageTracker(bool rootIsViewport = false)
         : m_rootIsViewport(rootIsViewport)
     {
     }
 
-    // Tracks only the root's children in [begin, end), for a tree drawn up to
-    // a sibling that draws over the rest. Needs a root that is the viewport.
+    // Needs a root that is the viewport.
     void setChildRange(size_t begin, size_t end)
     {
         m_childBegin = begin;
         m_childEnd = end;
     }
 
-    // A blur reads what lies behind it. `backdropChanged`, when given, takes
-    // a blur's surface and sampled region and returns what of that changed
-    // where the tree tracked here does not reach, as for a window drawn
-    // offscreen over the output: none, a part redone from the blur's kept
-    // result, or all of it to draw the blur again whole.
+    // Returns what changed behind a blur's sampled region outside the tracked tree.
     using BackdropChanged = std::function<base::Rect(uint64_t, const base::Rect &)>;
     base::Region update(const Node &root, const base::Rect &viewport, double scale = 1,
                    uint32_t transform = 0, const BackdropChanged &backdropChanged = {})
@@ -63,9 +55,7 @@ public:
         return frame.damage;
     }
 
-    // Whether update() would find anything to repaint, leaving the history be.
-    // An output asks this before it draws; the collection is kept for the
-    // update() that follows, unless a node changes in between.
+    // Leaves the history be; the collection is kept for the next update() unless a node changes.
     bool hasDamage(const Node &root, const base::Rect &viewport, double scale = 1,
                    uint32_t transform = 0) const
     {
@@ -74,10 +64,6 @@ public:
         return !m_cached->frame.damage.isEmpty();
     }
 
-    // What the blurs found in the last update() read, for the repaint to cover
-    // whole wherever it reaches one. For a blur `kept` says the renderer draws
-    // again from a result kept from the last pass, only what redoing the part
-    // its changed backdrop reaches reads, if anything.
     std::vector<base::Rect> samples(const std::function<bool(uint64_t)> &kept = {}) const
     {
         std::vector<base::Rect> result;
@@ -90,7 +76,6 @@ public:
         return result;
     }
 
-    // The blurs drawn again from what they kept, by the damage id of their surface.
     std::vector<render::KeptBackdrop> freshBackdrops(const std::function<bool(uint64_t)> &kept) const
     {
         std::vector<render::KeptBackdrop> result;
@@ -110,15 +95,10 @@ private:
     struct Blur {
         base::Rect sampled;
         uint64_t owner;
-        // Whether it is redone whole: it moved, or what it reads changed
-        // where a redo of only part of it cannot account for.
         bool stale;
-        // How far a backdrop change reaches through it, redone in part.
         render::BackdropReach reach;
-        // What changed of its backdrop, and what redoing that part reads.
         base::Rect changed;
         base::Rect read;
-        // What changed of its backdrop where the tree does not reach.
         base::Rect outside;
     };
 
@@ -143,18 +123,13 @@ private:
         }
     };
 
-    // Bounds are kept relative to the viewport's origin: an output's viewport
-    // stays put, while a window texture's moves with the window, whose subtree
-    // then reads as unchanged, the way a cc render surface's damage is tracked
-    // in the surface's own space and not the target's.
+    // Bounds are kept relative to the viewport's origin.
     Frame collect(const Node &root, const base::Rect &viewport, double scale, uint32_t transform,
                   const BackdropChanged &backdropChanged) const
     {
         Frame frame;
         bool filtered = false;
         const base::Point origin = viewport.topLeft();
-        // Damage in drawing order, with each blur where it is drawn: only what
-        // is drawn before a blur changes what it reads, as in cc's tracker.
         struct Step {
             base::Region damage;
             base::Rect blurred;
@@ -189,17 +164,13 @@ private:
                                   .translated(node.absolutePosition() - origin);
             }
             frame.history.emplace(node.damageId(), current);
-            // Filter inputs and transformed subtrees need complete source pixels,
-            // but only on the outputs they draw on.
             filtered |= node.requiresFullRepaint() && absolute.intersects(viewport);
-            // A blur drawn again from scratch reads everything behind it again.
             const bool redrawsChildren =
                     redrawn || (&node != &root && node.redrawsSubtree(viewport, scale));
             const size_t split = std::min(node.childrenBelowParent(), children.size());
             for (size_t i = 0; i < split; ++i)
                 self(self, *children[i], changed, redrawsChildren);
             const auto *surface = dynamic_cast<const SurfaceNode *>(&node);
-            // The second stage reads what the children below drew too.
             if (surface && surface->hasSubsurfaceBlur()) {
                 if (transform != 0 || scale <= 0) {
                     filtered |= absolute.intersects(viewport);
@@ -221,7 +192,6 @@ private:
                 if (transform != 0 || scale <= 0) {
                     filtered |= absolute.intersects(viewport);
                 } else {
-                    // Every blur input, including the outward-rounded sample halo.
                     const int halo = render::kBackdropBlurSupport + int(std::ceil(2 / scale));
                     const base::Rect sampled = absolute.adjusted(-halo, -halo, halo, halo);
                     const base::Point position = node.absolutePosition();
@@ -244,7 +214,6 @@ private:
         };
         visit(visit, root, false, false);
         base::Region &damage = frame.damage;
-        // A node gone from the tree is taken as drawn below everything.
         for (const auto &[id, previous] : m_history)
             if (!frame.history.contains(id))
                 damage += previous.bounds;
@@ -295,7 +264,6 @@ private:
         if (!invertible)
             return bounds;
         base::Region result;
-        // Linear sampling can change neighboring pixels beyond the damaged texel.
         for (const base::Rect &rect : damage.intersected(bounds)) {
             const base::RectF source = toBuffer.mapRect(base::RectF(rect)).adjusted(-1, -1, 1, 1);
             result += toSurface.mapRect(source).toEnclosingRect().intersected(bounds);

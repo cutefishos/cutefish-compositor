@@ -17,7 +17,6 @@ class TextField;
 
 namespace cutefish::shell {
 
-// What the pairing dialog shows and answers: bluez::Manager's pairing prompt.
 class PairingAgent
 {
 public:
@@ -32,11 +31,7 @@ public:
     virtual void respondPairing(bool accept, const std::string &code) = 0;
 };
 
-// The Bluetooth pairing dialog: answers the session's BlueZ agent,
-// for pairings any application starts and for requests a device makes on
-// its own. A code to compare or type on the device, a PIN or passkey field,
-// the manager's error, and Decline/Cancel beside Confirm, Pair or Allow;
-// display-only requests have no primary button.
+// Display-only requests have no primary button.
 class BluetoothPairingDialog final : public SecretDialog
 {
 public:

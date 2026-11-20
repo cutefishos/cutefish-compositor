@@ -13,12 +13,8 @@
 
 namespace cutefish::shell {
 
-// The session's own services (org.cutefish.Services and its Battery,
-// Brightness, Language, Appearance objects) start after the compositor and
-// are not D-Bus activatable: a client's first read fails and nothing tells it
-// to read again. `appeared` runs each time `name` gets an owner, so the
-// client reads then. System services (UPower, power profiles, accounts,
-// BlueZ, Privacy) are activatable and need none of this.
+// The session's services are not D-Bus activatable and start after the
+// compositor: `appeared` runs each time `name` gets an owner.
 inline base::dbus::NameWatch followServiceOwner(base::dbus::Connection *bus, const std::string &name,
                                                 std::function<void()> appeared)
 {

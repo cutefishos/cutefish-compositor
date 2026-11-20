@@ -18,12 +18,8 @@ namespace cutefish::shell {
 
 class TaskManager;
 
-// Applications that keep running without a window, as those built for that
-// model do: each owns org.cutefish.Application.<id> on the session bus for
-// as long as it runs. Its object at /org/cutefish/Application, interface
-// org.cutefish.Application, holds the AppId its windows carry and whether it
-// ShowsInDock, and quits on Quit(). Applications are named as the task
-// manager names them: by desktop id, else by app id.
+// Each owns org.cutefish.Application.<id> on the session bus while it runs;
+// /org/cutefish/Application holds its AppId and ShowsInDock.
 class RunningApplications
 {
 public:
@@ -31,25 +27,19 @@ public:
     static constexpr const char *kPath = "/org/cutefish/Application";
     static constexpr const char *kInterface = "org.cutefish.Application";
 
-    // `bus` may be null: nothing runs then. The task manager must outlive
-    // this.
+    // `bus` may be null; `tasks` must outlive this.
     RunningApplications(base::dbus::Connection *bus, TaskManager &tasks);
     ~RunningApplications();
 
     RunningApplications(const RunningApplications &) = delete;
     RunningApplications &operator=(const RunningApplications &) = delete;
 
-    // The applications that run and show in the dock, in the order they
-    // were found.
     std::vector<std::string> applications() const;
     bool showsInDock(const std::string &application) const;
     // Null for an application no desktop entry claims.
     DesktopEntryPtr entry(const std::string &application) const;
-    // Asks every instance of the application to quit; returns whether there
-    // were any.
     bool quit(const std::string &application) const;
 
-    // The application started or stopped showing in the dock.
     base::Signal<const std::string &> changed;
 
 private:
@@ -57,7 +47,6 @@ private:
         std::string appId;
         int64_t pid = 0;
         bool showsInDock = false;
-        // Until both its properties and its process are known.
         int pending = 2;
         std::string application;
         DesktopEntryPtr entry;
@@ -69,7 +58,6 @@ private:
     void add(const std::string &name);
     void remove(const std::string &name);
     void readProperties(Instance &instance, const base::dbus::VariantMap &properties);
-    // Names it again from its app id and process, as a window of it would be.
     void resolve(const std::string &name);
     void announce(const std::string &before, const std::string &after);
 

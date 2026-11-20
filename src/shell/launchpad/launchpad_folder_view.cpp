@@ -24,10 +24,7 @@
 namespace cutefish::shell {
 
 static const ui::Color kWhite {255, 255, 255, 255};
-// The folder's name against an application's label.
 static constexpr double kNameScale = 2.0;
-// As the grid's pages: the slide, the drag threshold, and the speed past
-// which a released flick turns the page.
 static constexpr std::chrono::milliseconds kSlideDuration {300};
 static constexpr double kFlickThreshold = 10;
 static constexpr double kFlickVelocity = 400;
@@ -37,8 +34,6 @@ static int jsRound(double value)
     return int(std::floor(value + 0.5));
 }
 
-// The folder's name over its applications, edited in place. Return keeps
-// the edit, Escape drops it and closes the folder.
 class LaunchpadFolderView::NameField final : public ui::TextField
 {
 public:
@@ -52,7 +47,6 @@ public:
         setMaximumLength(64);
     }
 
-    // The name as it was when the editing began.
     std::string original;
 
 protected:
@@ -65,7 +59,6 @@ protected:
     {
         switch (event.key) {
         case ui::key::Escape:
-            // The name as it was, and the folder closes.
             setText(original);
             m_owner->dismiss();
             return true;
@@ -83,8 +76,6 @@ private:
     LaunchpadFolderView *m_owner;
 };
 
-// The panel the applications sit on; it grows and shrinks about its centre.
-// A drag on its background pages.
 class LaunchpadFolderView::Panel final : public ui::View
 {
 public:
@@ -99,7 +90,6 @@ public:
 protected:
     void pointerPress(const ui::PointerEvent &event) override
     {
-        // A press on the panel ends the editing.
         if (m_owner->m_name->hasFocus())
             m_owner->m_view->setFocus();
         if (event.button == ui::MouseButton::Left)
@@ -132,9 +122,7 @@ LaunchpadFolderView::LaunchpadFolderView(LaunchpadView *view, LaunchpadModel &mo
     , m_wheelReset(core::mainLoop())
 {
     setName("launchpad-folder");
-    // The pages slide in layers of their own, which go above whatever is
-    // painted flat; the folder's layer comes after theirs. It also fades as
-    // one.
+    // Layered, so the folder goes above the pages' own layers.
     setLayered(true);
     setVisible(false);
     m_wallpaperChanged = m_wallpaper.changed.connect([this] { requestPaint(); });
@@ -189,7 +177,6 @@ void LaunchpadFolderView::dismiss()
     const bool focused = m_name->hasFocus();
     commitName();
     m_closing = true;
-    // Nothing in it takes the pointer while it shrinks.
     setEnabled(false);
     if (focused)
         m_view->setFocus();
@@ -211,7 +198,6 @@ void LaunchpadFolderView::setProgress(double progress)
 {
     m_progress = progress;
     setOpacity(progress);
-    // From the icon's size and place to the panel's.
     const ui::RectF panel = panelRect();
     if (panel.width <= 0)
         return;
@@ -272,8 +258,6 @@ void LaunchpadFolderView::sync()
 
     std::set<std::string> present;
     m_order.clear();
-    // The cells a reorder displaces slide as the grid's do; new ones appear
-    // in place.
     const bool animate = m_view->animatesReorder();
     for (size_t i = 0; i < folder->children.size(); ++i) {
         const LaunchpadItem &item = folder->children[i];
@@ -328,7 +312,6 @@ void LaunchpadFolderView::commitName()
     if (m_folder.empty())
         return;
     const std::string name(base::strings::trimmed(m_name->text()));
-    // A folder keeps a name.
     if (name.empty()) {
         m_name->setText(m_name->original);
         return;
@@ -351,7 +334,6 @@ int LaunchpadFolderView::columns() const
 int LaunchpadFolderView::visibleRows() const
 {
     const int rows = std::max(1, (int(m_order.size()) + columns() - 1) / columns());
-    // A row of the grid stays clear for the name and the margins.
     return std::clamp(rows, 1, std::max(1, m_metrics.rows - 1));
 }
 
@@ -405,7 +387,6 @@ ui::RectF LaunchpadFolderView::panelRect() const
     const double width = columns() * m_metrics.cellWidth + 2 * padding();
     const double height = visibleRows() * m_metrics.cellHeight + 2 * padding();
     const base::Rect grid = m_metrics.gridArea;
-    // The name above the panel and the dots below it are centred with it.
     const double group = titleHeight() + height + indicatorHeight();
     return {double(grid.x() + jsRound((grid.width() - width) / 2)),
             double(grid.y() + jsRound((grid.height() - group) / 2)) + titleHeight(), width, height};
@@ -430,7 +411,6 @@ ui::RectF LaunchpadFolderView::cellRect(int index) const
 int LaunchpadFolderView::indexAt(ui::PointF position) const
 {
     const ui::RectF grid = gridRect();
-    // The page shown, where it is in its slide.
     const double x = position.x + m_contentX - m_currentPage * m_panel->geometry().width;
     if (x < grid.x || x >= grid.right() || position.y < grid.y || position.y >= grid.bottom())
         return -1;
@@ -445,7 +425,6 @@ int LaunchpadFolderView::edgeAt(ui::PointF position) const
     const ui::RectF panel = panelRect();
     if (!panel.contains(position))
         return 0;
-    // The room beside the outer columns' icons.
     const double side = padding() + (m_metrics.cellWidth - m_metrics.iconSize) / 2.0;
     if (position.x < panel.x + side)
         return m_currentPage > 0 ? -1 : 0;
@@ -467,7 +446,6 @@ std::vector<ui::PointF> LaunchpadFolderView::indicatorDots() const
 
 void LaunchpadFolderView::layout()
 {
-    // The panel's place follows the name's baseline, which its height sets.
     m_name->setGeometry({0, 0, double(m_metrics.searchFieldWidth), nameHeight()});
     const ui::RectF panel = panelRect();
     const double nameWidth = std::min(panel.width, double(m_metrics.searchFieldWidth));
@@ -482,7 +460,6 @@ void LaunchpadFolderView::layout()
     if (!m_slide.isRunning() && !m_swiping && !m_flicking)
         m_contentX = m_currentPage * panel.width;
     placeCells();
-    // The panel's size may have changed under a running growth.
     setProgress(m_progress);
 }
 
@@ -502,10 +479,8 @@ void LaunchpadFolderView::placeCells()
         if (!cell)
             continue;
         const ui::PointF slot = slotPosition(int(i));
-        // Pages off the panel take no pointer.
         cell->setVisible(slot.x > -m_metrics.cellWidth && slot.x < width);
-        // A cell already sliding to its slot keeps sliding: a layout must
-        // not cut a reorder's animation short.
+        // A layout must not cut a running reorder animation short.
         cell->moveTo(slot, cell->isMoving());
     }
 }
@@ -618,7 +593,6 @@ void LaunchpadFolderView::panelMoved(ui::PointF position)
         m_slide.stop();
         m_pressContentX = m_contentX + dx;
     }
-    // Past either end the pages follow at half the rate.
     double x = m_pressContentX - dx;
     const double maximum = (pageTotal() - 1) * panelRect().width;
     if (x < 0)
@@ -647,7 +621,6 @@ void LaunchpadFolderView::panelReleased(ui::PointF position)
         if (seconds > 0)
             velocity = (position.x - x0) / seconds;
     }
-    // At most one page from where the press started.
     int page = nearestPage();
     const int from = std::clamp(int(std::lround(m_pressContentX / std::max(1.0, panelRect().width))), 0,
                                 pageTotal() - 1);
@@ -658,12 +631,10 @@ void LaunchpadFolderView::panelReleased(ui::PointF position)
 
 void LaunchpadFolderView::handleWheel(const ui::ScrollEvent &event)
 {
-    // Wheels count down as angleDelta counts up.
     const double delta = event.value120Y != 0 ? -event.value120Y : -event.value120X;
     if (delta == 0)
         return;
     m_wheelReset.start();
-    // Nothing pages until the slide has finished.
     if (m_slide.isRunning() || m_swiping || m_flicking) {
         m_wheelAccumulated = 0;
         return;
@@ -679,8 +650,6 @@ void LaunchpadFolderView::handleWheel(const ui::ScrollEvent &event)
 
 void LaunchpadFolderView::paint(ui::Painter &painter)
 {
-    // The launchpad's own backdrop, so the grid does not show through the
-    // panel, a shade darker.
     const ui::RectF bounds = localRect();
     m_wallpaper.paint(painter, bounds);
     painter.fillRect(bounds, ui::Color {0, 0, 0, 38});
@@ -694,7 +663,6 @@ void LaunchpadFolderView::pointerPress(const ui::PointerEvent &event)
 
 bool LaunchpadFolderView::scroll(const ui::ScrollEvent &event)
 {
-    // The folder's pages turn; the grid's behind never do.
     if (event.precise || event.stop) {
         if (!m_scroller && window()) {
             m_scroller = std::make_unique<ui::Scroller>(window(), static_cast<ui::Scroller::Target *>(this));

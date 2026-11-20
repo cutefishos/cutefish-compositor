@@ -76,7 +76,6 @@ TEST(GlTextureUsageTest, CountsTheLiveTexturesBySizeOwnerAndKind)
     const GlTextureUsage before = GlTexture::usage();
     auto icon = std::make_unique<GlTexture>(0, base::Size(64, 64));
     icon->label = "icon";
-    // The same label from another copy of the literal counts with it.
     static const char kIcon[] = "icon";
     auto second = std::make_unique<GlTexture>(0, base::Size(32, 32));
     second->label = kIcon;
@@ -103,7 +102,6 @@ TEST(GlTextureUsageTest, CountsTheLiveTexturesBySizeOwnerAndKind)
         return large.size == base::Size(2048, 1024) && large.mipmapped && !std::strcmp(large.label, "picture");
     }));
 
-    // Gone from the middle of the list, the rest still counts.
     second.reset();
     usage = GlTexture::usage();
     EXPECT_EQ(before.owned.textures + 3, usage.owned.textures);
@@ -240,7 +238,6 @@ TEST_F(RenderInternals, RenderToImageReadsUprightPixelsAndKeepsTheFrame)
 
 TEST_F(RenderInternals, APartialUploadTakesOnlyItsDamageFromPaddedRows)
 {
-    // Eight pixels a row, ten apart, the way clients pad their rows.
     constexpr int stride = 10 * 4;
     std::vector<uint8_t> red(stride * 4), blue(stride * 4);
     for (size_t i = 0; i < red.size(); i += 4) {
@@ -273,7 +270,6 @@ TEST_F(RenderInternals, TransformedTextureKeepsAFrameUprightAcrossOutputRotation
     auto texture = renderer->createTexture({2, 1}, pixels);
     ASSERT_TRUE(texture);
     const base::RectF viewport(10, 20, 32, 32);
-    // A frame captured unrotated, turned by the difference as ScreenTransitionNode does.
     for (const auto &[transform, degrees] : {std::pair {1u, 90}, {2u, -180}, {3u, -90}}) {
         renderer->setOutputContext({"test", base::Rect(10, 20, 32, 32), {32, 32}, 1, transform, 1});
         base::AffineTransform turn;
@@ -374,8 +370,6 @@ TEST_F(RenderInternals, CachedBackdropMasksAndScratchMatchAFreshDraw)
     EXPECT_EQ(glGetError(), GL_NO_ERROR);
 }
 
-// Frames of blurs that keep their backdrops, as the scene draws them, then
-// none: what the screen no longer shows goes once frames have stopped.
 class BackdropRelease : public RenderInternals
 {
 protected:
@@ -398,7 +392,6 @@ protected:
         RenderInternals::TearDown();
     }
 
-    // An output large enough that blurs apart get textures of their own.
     std::unique_ptr<EglRenderTarget> makeTarget()
     {
         const EGLint attributes[] = {EGL_WIDTH, layout.width(), EGL_HEIGHT, layout.height(), EGL_NONE};
@@ -414,7 +407,6 @@ protected:
         base::Rect lens;
     };
 
-    // The pass `scope` holding `blurs`, over two colours.
     void paint(uint64_t scope, const std::vector<Blur> &blurs)
     {
         std::vector<KeptBackdrop> fresh;
@@ -439,7 +431,6 @@ protected:
         renderer->endFrame();
     }
 
-    // As frame(), and what it drew.
     ui::Bitmap capturedFrame(EglRenderTarget *into, uint64_t scope, const std::vector<Blur> &blurs)
     {
         EXPECT_TRUE(renderer->beginFrame(into));
@@ -448,10 +439,8 @@ protected:
         return image;
     }
 
-    // Long enough for a release that does not come.
     void idle() { test::runFor(std::chrono::milliseconds(80)); }
 
-    // Until a release leaves this much, for when one is due.
     bool waitForHolding(size_t scratch, size_t masks)
     {
         return test::runUntil([&] { return holding().scratch == scratch && holding().masks == masks; });
@@ -470,7 +459,6 @@ TEST_F(BackdropRelease, TexturesOfASurfaceThatWentAreReleasedOnceFramesStop)
     EXPECT_EQ(holding().scratch, 1u);
     EXPECT_EQ(holding().masks, 1u);
     EXPECT_FALSE(EglRendererTestAccess::backdropReleaseArmed(*renderer));
-    // Its pass is drawn without it: the surface is gone.
     frame(output.get(), 1, {});
     EXPECT_EQ(holding().kept, 0u);
     EXPECT_TRUE(EglRendererTestAccess::backdropReleaseArmed(*renderer));
@@ -481,8 +469,6 @@ TEST_F(BackdropRelease, TexturesOfASurfaceThatWentAreReleasedOnceFramesStop)
 
 TEST_F(BackdropRelease, TexturesOfShownSurfacesStayThroughIdle)
 {
-    // Kept results are drawn again unchanged: no frame uses the textures, yet
-    // the surfaces are still shown.
     frame(output.get(), 1, {{7, {10, 10, 40, 24}}});
     for (int i = 0; i < 3; ++i)
         frame(output.get(), 1, {{7, {10, 10, 40, 24}}});
@@ -494,7 +480,6 @@ TEST_F(BackdropRelease, TexturesOfShownSurfacesStayThroughIdle)
 
 TEST_F(BackdropRelease, ASetSharedWithAShownSurfaceStays)
 {
-    // Plain blurs of one size share a set.
     glass.enabled = false;
     frame(output.get(), 1, {{7, {10, 10, 40, 24}}, {8, {150, 180, 40, 24}}});
     EXPECT_EQ(holding().scratch, 1u);
@@ -510,7 +495,6 @@ TEST_F(BackdropRelease, ABlurThatKeepsNothingAgesByFramesOnly)
     frame(output.get(), 1, {{0, {10, 10, 40, 24}}});
     frame(output.get(), 1, {{7, {150, 180, 60, 40}}});
     frame(output.get(), 1, {});
-    // The keyless blur's set and mask stay; the other surface's go.
     EXPECT_TRUE(waitForHolding(1, 1));
 }
 
@@ -524,7 +508,6 @@ TEST_F(BackdropRelease, AnOutputThatStillShowsItsSurfaceKeepsItsTextures)
     frame(output.get(), 1, {});
     EXPECT_TRUE(waitForHolding(1, 1));
     EXPECT_EQ(holding().kept, 1u);
-    // The second output's blur draws from what it kept.
     frame(second.get(), 2, {{8, {150, 180, 60, 40}}});
     EXPECT_EQ(holding().scratch, 1u);
     renderer->releaseTarget(second.get());
@@ -532,12 +515,9 @@ TEST_F(BackdropRelease, AnOutputThatStillShowsItsSurfaceKeepsItsTextures)
 
 TEST_F(BackdropRelease, NothingGoesWhileFramesContinue)
 {
-    // A delay well apart from the frames' spacing, so a late frame does not
-    // read as idle.
     EglRendererTestAccess::setBackdropReleaseDelay(*renderer, std::chrono::milliseconds(200));
     frame(output.get(), 1, {{7, {10, 10, 40, 24}}});
     frame(output.get(), 1, {});
-    // Frames past two delays, fewer than ageing by frames drops after.
     for (int i = 0; i < 25; ++i) {
         test::runFor(std::chrono::milliseconds(20));
         frame(output.get(), 1, {});
@@ -547,8 +527,6 @@ TEST_F(BackdropRelease, NothingGoesWhileFramesContinue)
     EXPECT_TRUE(waitForHolding(0, 0));
 }
 
-// Released between frames with nothing current, as the compositor's context
-// is then; the surface coming back draws as it first did.
 TEST_F(BackdropRelease, AReleaseOutsideAFrameLeavesTheNextDrawAsAFreshOne)
 {
     const std::vector<Blur> blurs {{7, {10, 10, 40, 24}}, {8, {150, 180, 60, 40}}};
@@ -582,7 +560,6 @@ TEST_F(RenderInternals, APartialPassRedrawsOnlyItsRectAndKeepsTheRest)
     ASSERT_TRUE(renderer->renderToTexture(texture, bounds, [&] {
         renderer->fillRect(bounds, {1, 0, 0, 1});
     }));
-    // The top right quarter only, which also pins the bottom-up row order.
     ASSERT_TRUE(renderer->renderToTexture(texture, bounds, base::Rect(18, 20, 8, 4), [&] {
         renderer->fillRect(bounds, {0, 0, 1, 1});
     }));
@@ -598,10 +575,6 @@ TEST_F(RenderInternals, APartialPassRedrawsOnlyItsRectAndKeepsTheRest)
     EXPECT_EQ(glGetError(), GL_NO_ERROR);
 }
 
-// A nested pass gives back the target it drew over: framebuffer, viewport and
-// scissor, with the renderer's own geometry and presentation state. Every
-// draw sets its program, textures, blend and attributes itself, so a pass
-// neither reads nor restores those.
 TEST_F(RenderInternals, NestedPassAndExceptionRestoreGeometryPresentationAndTarget)
 {
     PresentationSubmission submission;
@@ -665,9 +638,7 @@ TEST_F(RenderInternals, NestedPassAndExceptionRestoreGeometryPresentationAndTarg
     renderer->presentationSubmission = nullptr;
 }
 
-// A pixel transfer buffer left bound would turn the pass's uploads and
-// readbacks into buffer offsets, so a pass drops both bindings. The array
-// buffer and attributes beyond GlProgram::kAttributeCount are never touched.
+// A pixel transfer buffer left bound turns uploads and readbacks into buffer offsets.
 TEST_F(RenderInternals, ReadbackUnbindsTransferBuffersAndKeepsForeignState)
 {
     if (!renderer->glesVersion().starts_with("OpenGL ES 3"))
@@ -830,7 +801,6 @@ TEST_F(RenderInternals, AMarkTellsWhenTheGpuGotPastTheFrame)
     const auto slack = std::chrono::milliseconds(2);
     EXPECT_GE(*drawn, before - slack);
     EXPECT_LE(*drawn, after + slack);
-    // Outside a frame there is nothing to mark.
     renderer->cancelFrame();
     EXPECT_FALSE(renderer->markDrawn().isValid());
     EXPECT_EQ(glGetError(), GL_NO_ERROR);
@@ -892,7 +862,6 @@ TEST(EglExtensions, WholeNamesOnlyAsTheSplitListWould)
         if (name.empty())
             continue;
         EXPECT_TRUE(context->supportsGl(name.c_str())) << name;
-        // A prefix of a name is not that name, unless it is one itself.
         const std::string prefix = name.substr(0, name.size() - 1);
         EXPECT_EQ(std::find(names.begin(), names.end(), prefix) != names.end(),
                   context->supportsGl(prefix.c_str()))

@@ -11,17 +11,13 @@
 
 namespace cutefish::shell {
 
-// Whether a signal comes from a service. sd-bus cannot check a match rule's
-// well-known sender name itself, so once the bus delivers a signal for one
-// rule of a connection, every rule with the same path and interface sees it:
-// two players or menus exporting the same path would hear each other. This
-// follows the name's owner and lets through only what it sent.
+// sd-bus cannot match a well-known sender name, so rules with the same path and
+// interface hear each other's signals.
 class SenderFilter
 {
 public:
     SenderFilter(base::dbus::Connection *bus, const std::string &service)
     {
-        // A unique name is its own owner.
         if (service.starts_with(':')) {
             m_owner = service;
             return;

@@ -65,7 +65,6 @@ protected:
     input_test::TemporaryDirectory directory;
 };
 
-// A cursor sink that keeps a copy of the last image.
 class CopyingSink : public render::CursorSink
 {
 public:
@@ -93,7 +92,6 @@ TEST(CursorTheme, ReadsPixelsHotspotAndDelay)
     EXPECT_EQ(frames[0].image.pixel(1, 0), 0xffabcdefu);
     EXPECT_EQ(frames[0].hotspot, base::Point(1, 0));
     EXPECT_EQ(frames[0].delayMs, 37);
-    // The size the file has, for one it does not.
     int nominal = 0;
     EXPECT_EQ(cursor::readXCursor(cursorFile(), 30, &nominal).size(), 1u);
     EXPECT_EQ(nominal, 24);
@@ -180,8 +178,6 @@ TEST(CursorScene, PhysicalPositionAndOverrideUseIndependentClientLayer)
 
 TEST(CursorScene, AHeldCursorLeavesThePlaneAloneUntilReleased)
 {
-    // A compositor starting up keeps off the plane, where the previous one's
-    // cursor still is, until its displays settle; then it takes it over once.
     class Sink : public render::CursorSink
     {
     public:
@@ -223,7 +219,6 @@ TEST(CursorScene, AHeldCursorLeavesThePlaneAloneUntilReleased)
     cursor.setHeld(false);
     EXPECT_EQ(sink.images, 1);
     EXPECT_EQ(sink.hides, 0);
-    // What the takeover adds to the old image's corner is what the plane takes off.
     EXPECT_EQ(cursor.deviceHotspot(), sink.hotspot);
     ASSERT_FALSE(sink.moves.empty());
     EXPECT_TRUE(base::fuzzyCompare(sink.moves.back(), base::PointF(100, 90)));
@@ -279,7 +274,6 @@ TEST_F(CursorSearchTest, AShapeIsReadOncePerThemeAndSize)
     ASSERT_TRUE(cursor.isHardware());
     EXPECT_EQ(sink.image.pixel(0, 0), 0xff123456u);
     write("First", char(0x9a));
-    // A shape not shown yet is read now; one shown before is not read again.
     seat.setCompositorCursorShape(input::CursorShape::Pointer);
     EXPECT_EQ(sink.image.pixel(0, 0), 0xff12349au);
     seat.setCompositorCursorShape(input::CursorShape::Default);

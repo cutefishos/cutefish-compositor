@@ -33,8 +33,7 @@ public:
 
     std::shared_ptr<Texture> import(const DmaBufAttributes &attributes);
 
-    // The EGLImage for `attributes`, or EGL_NO_IMAGE_KHR; the caller destroys
-    // it with eglDestroyImageKHR.
+    // Or EGL_NO_IMAGE_KHR; the caller destroys it with eglDestroyImageKHR.
     EGLImageKHR createImage(const DmaBufAttributes &attributes) const;
 
 private:

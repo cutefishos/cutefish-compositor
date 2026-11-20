@@ -20,10 +20,6 @@ namespace cutefish::wm {
 class Window;
 class WindowManager;
 
-// Before the session ends, every application is asked to quit as Quit asks one,
-// and the session waits for them. An application asking about unsaved work is
-// waited for however long the user takes; one that dismissed its prompt and kept
-// its window cancelled, and one that neither closes nor asks stopped responding.
 class QuitAll
 {
 public:
@@ -35,11 +31,9 @@ public:
 
     struct Result {
         Outcome outcome = Outcome::Quit;
-        // The application that kept the session from ending.
         std::string applicationId;
     };
 
-    // How long a window may stay after its prompt closed, time enough to save.
     static constexpr int kCancelledAfterMs = 2000;
     static constexpr int kUnresponsiveAfterMs = 10000;
 
@@ -50,7 +44,6 @@ public:
 
     bool isRunning() const { return static_cast<bool>(m_done); }
 
-    // Looks at the windows again. Runs on a timer and on every window removed.
     void update();
 
 private:

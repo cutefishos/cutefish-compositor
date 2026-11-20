@@ -1,5 +1,3 @@
-# The dock without its view: its applications, pins, minimized windows,
-# trash and settings, and org.cutefish.Dock.
 add_library(cutefish-shell-dock STATIC
     dock.cpp
     dock.h

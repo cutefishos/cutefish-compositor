@@ -22,9 +22,7 @@ class Process;
 
 namespace cutefish::wayland {
 
-// Runs the selected input method on a Wayland connection the compositor
-// creates, like the Xwayland child; that connection is the only one allowed to
-// act as the input method. A lost connection is restarted with backoff.
+// Its connection is the only one allowed to act as the input method.
 class InputMethodLauncher
 {
 public:
@@ -43,7 +41,6 @@ public:
     {
         m_environment = std::move(environment);
     }
-    // Starts the current command again, with the current environment.
     void restart();
 
     void setRestartDelay(int milliseconds) { m_restartDelay = milliseconds; }
@@ -73,7 +70,6 @@ private:
     DestroyListener m_destroy {};
     std::vector<std::string> m_command;
     std::vector<std::string> m_environment = childEnvironment();
-    // Every process started and not yet ended, the current one among them.
     std::vector<std::unique_ptr<Child>> m_children;
     base::Process *m_process = nullptr;
     base::Timer m_restartTimer;

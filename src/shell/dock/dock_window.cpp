@@ -46,7 +46,6 @@ namespace cutefish::shell {
 
 namespace {
 
-// The launchpad's own D-Bus service, org.cutefish.Launchpad.
 void callLaunchpad(base::dbus::Connection *bus, const char *method)
 {
     if (!bus)
@@ -55,17 +54,11 @@ void callLaunchpad(base::dbus::Connection *bus, const char *method)
                                  method));
 }
 
-// The dock's glass, by the GlassTint slider:
-// 0 is More Clear, 1 More Tinted, 0.5 the default.
 constexpr double kPace[] = {0.000, 0.048, 0.116, 0.174, 0.249, 0.314, 0.361,
                             0.398, 0.435, 0.469, 0.500, 0.587, 0.630, 0.666,
                             0.701, 0.739, 0.781, 0.827, 0.879, 0.931, 1.000};
 
-// Under Reduce Transparency the light dock sits a shade below the window
-// background, which alone reads too bright on the desktop.
 constexpr double kOpaqueLightShade = 1.06;
-// And it alone still blurs: widely, under a tint that leaves little of the
-// wallpaper's detail to compete with the icons.
 constexpr double kOpaqueBlurSigma = 30;
 constexpr double kOpaqueTintAlpha = 0.7;
 
@@ -80,7 +73,6 @@ double glassAmount(double tint)
     return kPace[i] + (x - i) * (kPace[i + 1] - kPace[i]);
 }
 
-// A monotone cubic through the More Clear, default and More Tinted values.
 double glassBlend(double amount, double clearValue, double defaultValue, double tintedValue)
 {
     const double d0 = 2.0 * (defaultValue - clearValue);
@@ -98,7 +90,6 @@ double glassBlend(double amount, double clearValue, double defaultValue, double 
             + (3.0 * t2 - 2.0 * t3) * y1 + (t3 - t2) * m1;
 }
 
-// A thumbnail is fitted into its slot, and so is the window landing on it.
 base::Rect fitToWindow(const base::Rect &slot, const base::Rect &window)
 {
     if (slot.isEmpty() || window.isEmpty())
@@ -109,7 +100,6 @@ base::Rect fitToWindow(const base::Rect &slot, const base::Rect &window)
     const double height = window.height() * scale;
     const double x = slot.x() + slot.width() / 2.0 - width / 2;
     const double y = slot.y() + slot.height() / 2.0 - height / 2;
-    // The smallest whole-pixel rect that contains it.
     const int left = int(std::floor(x));
     const int top = int(std::floor(y));
     const base::Rect aligned(left, top, int(std::ceil(x + width)) - left,
@@ -128,7 +118,6 @@ int deviceStep(double scale)
     return 1;
 }
 
-// A rounded rect as a region, row by row, as a filled polygon covers pixels.
 base::Region roundedRegion(const base::Rect &rect, double radius)
 {
     base::Region region;
@@ -151,8 +140,6 @@ base::Region roundedRegion(const base::Rect &rect, double radius)
 
 } // namespace
 
-// The magnification's frames: at most one layout a frame, from the latest
-// pointer.
 class DockWindow::MagnificationFrames final : public ui::FrameClient
 {
 public:
@@ -179,7 +166,6 @@ private:
     DockWindow *m_dock;
 };
 
-// The window's content: the dividers, drawn here, and the icons as children.
 class DockWindow::Panel final : public ui::View
 {
 public:
@@ -192,7 +178,6 @@ public:
 protected:
     void hoverChanged() override
     {
-        // Leaving the dock itself takes the tooltip down at once.
         if (!isHovered()) {
             m_dock->hideTooltip();
             m_dock->pointerLeft();
@@ -201,7 +186,6 @@ protected:
 
     void hoverMove(const ui::PointerEvent &event) override { m_dock->pointerMoved(event); }
 
-    // A theme change lays every window out again.
     void layout() override
     {
         if (m_dock->m_glassDark != ui::Theme::current().darkMode
@@ -226,8 +210,6 @@ protected:
         draw(m_dock->trailingDivider(), m_dock->m_trailingOpacity);
     }
 
-    // The whole window takes drags: the application area, and the icons
-    // that react to one hovering them.
     bool canDrop(const ui::DropOffer &) const override { return true; }
 
     void dragEnter(const ui::DragEvent &event) override
@@ -271,7 +253,6 @@ DockWindow::DockWindow(Shell *shell, std::unique_ptr<Dock> dock)
     ui::Window *window = m_window->window();
     m_applications = std::make_unique<DockPresentation>(window);
     m_minimized = std::make_unique<DockPresentation>(window);
-    // Not for minimized windows, which fly into their slots themselves.
     m_applications->setOpensForNewIcons(true);
     m_applications->onChanged = [this] { layoutItems(); };
     m_minimized->onChanged = [this] { layoutItems(); };
@@ -320,7 +301,6 @@ DockWindow::DockWindow(Shell *shell, std::unique_ptr<Dock> dock)
     m_subscriptions.push_back(drag->returned.connect([this] {
         if (!m_drag || !m_drag->returning)
             return;
-        // Revealed whole in the open slot, where the compositor's copy waits.
         finishIconDrag();
         m_releaseReturn = true;
         m_panel->requestPaint();
@@ -354,7 +334,6 @@ DockWindow::DockWindow(Shell *shell, std::unique_ptr<Dock> dock)
         for (const auto &[id, icon] : m_applicationIcons)
             icon->setCount(m_shell->badges().count(id));
     }));
-    // What is there when the dock first appears is shown at once; later changes animate.
     m_subscriptions.push_back(applications.loaded.connect([this] {
         rebuild();
         resize(false);
@@ -384,8 +363,6 @@ DockWindow::DockWindow(Shell *shell, std::unique_ptr<Dock> dock)
     m_subscriptions.push_back(m_dock->trash().emptyChanged.connect([this] { rebuild(); }));
     m_subscriptions.push_back(ui::Application::instance()->languageChanged.connect([this] { retranslate(); }));
     m_subscriptions.push_back(m_shell->outputsChanged.connect([this] { resize(false); }));
-    // A side dock is centred in the work area, which other panels' zones and
-    // its own former bottom zone change after it was placed.
     m_subscriptions.push_back(m_shell->windowManager()->exclusiveZonesChanged.connect([this] {
         if (windowRect(windowThickness()) != m_windowRect)
             resize(false);
@@ -400,7 +377,6 @@ DockWindow::DockWindow(Shell *shell, std::unique_ptr<Dock> dock)
         updateMinimizeTargets();
     }));
     m_subscriptions.push_back(windows.windowChanged.connect([this](uint64_t, uint32_t changes) {
-        // The target is fitted to the window's shape and follows its state.
         if (changes & (kGeometryChange | kStateChange | kSkipTaskbarChange))
             updateMinimizeTargets();
     }));
@@ -452,7 +428,6 @@ base::Rect DockWindow::primaryGeometry() const
 
 double DockWindow::cornerRadius() const
 {
-    // From the panel as drawn, which is between two sizes while it resizes.
     const bool bottom = m_dock->settings().direction() == DockSettings::Bottom;
     const double thickness = bottom ? m_restPanelRect.height() : m_restPanelRect.width();
     return (thickness > 0 ? thickness : m_metrics.thickness()) * 28.0 / 86.0;
@@ -467,12 +442,10 @@ base::Rect DockWindow::windowRect(int thickness) const
     const base::Rect available = m_shell->workArea(*output);
     const DockSettings &settings = m_dock->settings();
     const bool bottom = settings.direction() == DockSettings::Bottom;
-    // The window's content is drawn from its far side and its start, which
-    // land on the same device pixel fractions in whole device steps, so the
-    // panel keeps its device pixels whatever the window's size.
+    // Whole device steps keep the panel's device pixels whatever the window's
+    // size.
     const int step = deviceStep(output->scale);
     const int margins = settings.magnification() ? 0 : edgeGap() / step * step;
-    // Magnified, the row may run off the ends: the window reaches them.
     const int length = (bottom ? screen.width() : available.height()) - 2 * margins;
     const int across = windowAcross(thickness);
     switch (settings.direction()) {
@@ -494,8 +467,6 @@ int DockWindow::windowThickness() const
     const DockSettings &settings = m_dock->settings();
     if (!settings.magnification())
         return restWindowThickness();
-    // From the screen edge: the dot area, the largest icon the setting can
-    // grow to, so moving it leaves the window, and its bounce.
     const DockMetrics metrics = DockMetrics::forIconSize(windowIconSize());
     const int magnified = metrics.dotAreaSize()
             + std::max(metrics.iconSize, DockSettings::kLargestMagnifiedIconSize)
@@ -505,17 +476,12 @@ int DockWindow::windowThickness() const
 
 int DockWindow::restWindowThickness() const
 {
-    // Past the panel's far side, the room a launching icon bounces into.
     const DockMetrics metrics = DockMetrics::forIconSize(windowIconSize());
     return metrics.thickness() + metrics.bounceRoom();
 }
 
 int DockWindow::windowIconSize() const
 {
-    // The icons as fitted, so a setting that changes nothing drawn leaves the
-    // window too: at a fractional scale its far edge would land on another
-    // pixel fraction and move the panel by a device pixel. Still as large as
-    // the icons a resize starts from.
     return std::max(m_metrics.iconSize, int(std::ceil(m_fromMetrics.iconSize)));
 }
 
@@ -531,7 +497,6 @@ int DockWindow::magnifiedReach() const
 
 int DockWindow::windowAcross(int thickness) const
 {
-    // The window reaches the screen edge, so the gap under the panel is the dock's.
     const Shell::Output *output = m_shell->output({});
     const int step = output ? deviceStep(output->scale) : 1;
     return (thickness + edgeGap() + step - 1) / step * step;
@@ -549,8 +514,6 @@ render::GlassParams DockWindow::glass() const
     const auto component = [](double v) {
         return glassFixed(std::round(std::clamp(v, 0.0, 1.0) * 65535.0) / 65535.0);
     };
-    // Under Reduce Transparency the dock is the window background over a wide
-    // blur, whatever the glass slider says, with no refraction.
     if (render::opaqueBackdrop()) {
         const ui::Color background = ui::Theme::current().background;
         const double shade = dark ? 1.0 : kOpaqueLightShade;
@@ -575,11 +538,9 @@ render::GlassParams DockWindow::glass() const
     // The glass blur kernel is 30 device pixels wide; a larger sigma truncates.
     glass.blurSigma = glassFixed(blend(0.6, 1.0, 8.0));
     glass.displacement = glassFixed(blend(36.0, 36.0, 0.0));
-    // A colour split along the lip reads as a rainbow fringe next to the rim.
     glass.chroma = 0;
     glass.saturation = glassFixed(blend(1.4, 1.3, 1.0));
     glass.rim = glassFixed(1.0);
-    // A grey tint as premultiplied value and alpha, blended apart.
     const double alpha = dark ? blend(0.12, 0.29, 0.50) : blend(0.16, 0.25, 0.53);
     const double value = (dark ? blend(0.046, 0.110, 0.190) : blend(0.060, 0.150, 0.530)) / alpha;
     glass.tintRed = glass.tintGreen = glass.tintBlue = component(value);
@@ -643,7 +604,6 @@ void DockWindow::rebuild()
         icon->setCount(m_shell->badges().count(item.id));
         icons[item.id] = icon;
     }
-    // Icons that left stay while they shrink away; layoutItems() drops them.
     for (const auto &[key, icon] : m_applicationIcons) {
         if (!icons.contains(key))
             icons[key] = icon;
@@ -664,8 +624,6 @@ void DockWindow::rebuild()
             icon->setWindowId(entry.id);
             icon->setDraggable(true);
         }
-        // Its window can go before its row does; what leaves is still the
-        // thumbnail it was.
         if (m_shell->taskWindows().window(entry.id)) {
             const std::string iconName = minimized.iconName(row);
             icon->setIcon(iconName.empty() ? "application-x-desktop" : iconName);
@@ -703,15 +661,13 @@ void DockWindow::updateMetrics(bool animate)
     };
 
     DockMetrics metrics = DockMetrics::forIconSize(settings.iconSize());
-    // Not enough room for every icon and the room at the ends: shrink until
-    // the dock fits, keeping the paddings in proportion with the icons.
     while (output && !fits(metrics) && metrics.iconSize > 1)
         metrics = DockMetrics::forIconSize(metrics.iconSize - 1);
 
     animate = animate && m_applications->animationsEnabled();
     const bool changed = metrics != m_metrics;
     if (changed) {
-        // As drawn now, taken before the models restart the resize.
+        // Taken before the models restart the resize.
         m_fromEnds = m_metrics.iconSize + 2 * m_metrics.lengthPadding;
         m_fromMetrics = animate ? m_drawn : DrawnDockMetrics::of(metrics);
         m_metrics = metrics;
@@ -736,7 +692,6 @@ void DockWindow::resize(bool animate)
     const Shell::Output *output = m_shell->output({});
     if (output)
         m_window->setOutput(output->name);
-    // Hidden and revealed as far as the dock reaches without magnification.
     m_window->setEdgeReach(settings.magnification() ? windowAcross(restWindowThickness()) : 0);
     m_windowRect = windowRect(windowThickness());
     if (!m_windowRect.isEmpty())
@@ -751,15 +706,12 @@ void DockWindow::resize(bool animate)
 
 double DockWindow::place(double position, double rest) const
 {
-    // DockLayout::snap: moving in whole device pixels from where it comes to
-    // rest, so it lands there while still moving rather than stepping on.
     const double ratio = pixelRatio();
     return rest + std::round((position - rest) * ratio) / ratio;
 }
 
 void DockWindow::updateLayoutStart()
 {
-    // DockLayout::update.
     const double ends = [this] {
         const double target = m_metrics.iconSize + 2 * m_metrics.lengthPadding;
         if (m_fromEnds < 0)
@@ -774,7 +726,6 @@ void DockWindow::updateLayoutStart()
         return std::floor((m_surfaceLength - length) / 2);
     };
     if (resting != m_restingLength || m_surfaceLength != m_restingSurface) {
-        // Heading somewhere new: the offset travels there as the length does.
         m_fromLength = m_length;
         m_fromBias = m_restingLength < 0 ? restingStart(resting) - (m_surfaceLength - resting) / 2
                                          : m_bias;
@@ -782,7 +733,6 @@ void DockWindow::updateLayoutStart()
         m_restingLength = resting;
         m_restingSurface = m_surfaceLength;
     }
-    // A full dock barely changes length as its icons resize: the offset follows the resize.
     const double resize = m_applications->resizeProgress();
     const double distance = m_restingLength - m_fromLength;
     const double progress = resize < 1                ? resize
@@ -803,7 +753,6 @@ void DockWindow::layoutItems()
     const bool bottom = direction == DockSettings::Bottom;
     const bool left = direction == DockSettings::Left;
 
-    // Everything between two sizes while icons come or go on a full dock.
     m_drawn = DrawnDockMetrics::blend(m_fromMetrics, DrawnDockMetrics::of(m_metrics),
                                       m_applications->resizeProgress());
     const double drawnThickness = std::round(m_drawn.thickness);
@@ -823,7 +772,6 @@ void DockWindow::layoutItems()
             : base::Rect(left ? gap : farSide - int(drawnThickness), panelStart,
                          int(drawnThickness), panelEnd - panelStart);
 
-    // The content's origin along the dock, and an item's across from the panel's far side.
     const double origin = m_drawn.lengthPadding + m_start - panelStart;
     const double layoutOrigin = m_start + m_drawn.lengthPadding;
     const double settledStart = std::floor((m_surfaceLength - m_restingLength) / 2);
@@ -833,14 +781,10 @@ void DockWindow::layoutItems()
     };
     const double across = bottom ? farPadding : left ? gap + dotArea : farPadding;
 
-    // Last, everything along the dock as laid out is drawn magnified; the
-    // icons' hit areas reach across the band tracked while magnified.
     const double slotsStart = layoutOrigin - m_drawn.iconGap / 2;
     const double slotsEnd = m_start + m_length - m_drawn.lengthPadding + m_drawn.iconGap / 2;
     const DockMagnification field = magnification(slotsStart, slotsEnd);
     const int rasterSize = field.isIdentity() ? 0 : magnifiedIconSize();
-    // As far as the largest magnified size reaches, so moving the setting
-    // leaves the icons where they are; input stops at the tracked band.
     const int reach = m_dock->settings().magnification()
             ? std::max(0, DockSettings::kLargestMagnifiedIconSize - m_metrics.iconSize)
             : 0;
@@ -849,7 +793,6 @@ void DockWindow::layoutItems()
         return field.map(panelAlong + position) - panelAlong;
     };
 
-    // An item's slot in panel coordinates from its position along the content.
     const auto slotRect = [&](double position) {
         const double start = origin + position;
         if (bottom)
@@ -868,14 +811,11 @@ void DockWindow::layoutItems()
         ui::RectF iconRect = restIcon;
         double magnified = 1;
         if (!field.isIdentity()) {
-            // The icon centred in its slot as drawn takes all of the slot's
-            // growth; the gap keeps its rest width.
             const double restStart = bottom ? rest.x : rest.y;
             const double restLength = bottom ? rest.width : rest.height;
             const double start = drawnAlong(restStart);
             const double length = drawnAlong(restStart + restLength) - start;
             magnified = (length - m_drawn.iconGap) / itemSize;
-            // Past the radius only rounding tells the two lengths apart.
             if (std::abs(magnified - 1) < 1e-9)
                 magnified = 1;
             if (bottom) {
@@ -914,8 +854,6 @@ void DockWindow::layoutItems()
             icon->setDotRect({iconRect.x + itemSize + dotGap, iconRect.y + (itemSize - dot) / 2, dot, dot});
     };
 
-    // Out of the layout, above the icons that close up under it, where it was
-    // last placed.
     const auto leave = [&](DockIcon *icon, double opacity) {
         if (m_leavingIcons.insert(icon).second)
             m_panel->raiseChild(icon);
@@ -975,9 +913,6 @@ void DockWindow::layoutItems()
         if (!icon)
             continue;
         windows.insert(id);
-        // A window that flies in arrives in its slot itself and becomes its
-        // thumbnail whole; one shown again from hidden is revealed like an
-        // icon, and a closed one fades out where it was.
         const auto state = m_minimizedStates.find(id);
         const bool landed = state == m_minimizedStates.end() || state->second.landed;
         if (entry.leaving) {
@@ -1014,8 +949,6 @@ void DockWindow::layoutItems()
                       + itemGrowth,
               1, 1);
 
-    // The dividers: 48/86 of the thickness, centred across the panel, in the
-    // middle of their gap with the leading edge half a pixel before it.
     const double lineLength = std::round(drawnThickness * 48 / 86);
     const double lineAcross = std::round((drawnThickness - lineLength) / 2);
     const double middle = (m_drawn.separatorExtent - m_drawn.iconGap) / 2 - 0.5;
@@ -1038,15 +971,12 @@ void DockWindow::layoutItems()
     m_panel->requestPaint();
     base::Rect drawnPanel = panel;
     if (!field.isIdentity()) {
-        // Each end as far from the slots as at rest, past the window where the
-        // row runs off it. The glass takes whole pixels.
         const int start = int(std::lround(field.map(slotsStart) - (slotsStart - panelStart)));
         const int end = int(std::lround(field.map(slotsEnd) + (panelEnd - slotsEnd)));
         drawnPanel = bottom ? base::Rect(start, panel.y(), end - start, panel.height())
                             : base::Rect(panel.x(), start, panel.width(), end - start);
     }
     updatePanelRects(panel, drawnPanel);
-    // Landed windows follow their sliding thumbnails.
     updateMinimizeTargets();
     if (m_tooltipOwner)
         showTooltip(m_tooltipOwner);
@@ -1118,11 +1048,9 @@ DockMagnification DockWindow::magnification(double slotsStart, double slotsEnd) 
         return {};
     const double size = m_drawn.iconSize;
     const double peak = std::max(size, double(m_dock->settings().magnifiedIconSize())) / size;
-    // The slot's peak, so that its icon alone grows `peak` times.
     const double icon = m_metrics.iconSize;
     const double gap = m_drawn.iconGap;
     const double slotPeak = (peak * icon + gap) / (icon + gap);
-    // Over the padding at an end, the end slot grows from that end.
     const double focus = std::clamp(m_magnifier.focus(), slotsStart, slotsEnd);
     return DockMagnification(focus, m_magnifier.amount(), slotPeak, icon + gap);
 }
@@ -1148,8 +1076,8 @@ void DockWindow::resumeMagnification(bool tracking)
 {
     if (!m_magnifier.isEnabled())
         return;
-    // The seat's pointer: a grab may have kept the dock from hearing it
-    // leave or come back.
+    // A grab may have kept the dock from hearing the pointer leave or come
+    // back.
     input::Seat *seat = m_shell->seat();
     const base::PointF location = seat->pointerLocation() - base::PointF(m_windowRect.topLeft());
     const base::Point point(int(std::floor(location.x())), int(std::floor(location.y())));
@@ -1191,7 +1119,6 @@ void DockWindow::updateGlass()
 {
     if (m_drawnPanelRect.isEmpty())
         return;
-    // GlassEffect's radius: whole pixels, at most half the region.
     const double radius = std::min(cornerRadius(),
                                    double(std::min(m_drawnPanelRect.width(), m_drawnPanelRect.height())) / 2);
     m_glassDark = ui::Theme::current().darkMode;
@@ -1205,8 +1132,6 @@ void DockWindow::updateStrut()
     const Shell::Output *output = m_shell->output({});
     if (!output)
         return;
-    // The reserved strip runs from the screen edge to the far side of the
-    // dock, so it covers the dock plus its edge gap, and a pixel more.
     const int thickness = m_metrics.thickness() + edgeGap() + 1;
     wm::ScreenEdge edge = wm::ScreenEdge::Bottom;
     switch (settings.direction()) {
@@ -1279,7 +1204,6 @@ void DockWindow::updateMinimizeTargets()
     TaskWindows &windows = m_shell->taskWindows();
     MinimizedWindows &minimized = m_dock->minimizedWindows();
     const bool area = m_dock->settings().minimizedArea();
-    // Every window aims at the trash's place, where the next thumbnail opens.
     const base::Rect next = minimizedSlot(minimized.count(), minimized.count() + 1);
     for (uint64_t id : windows.windows()) {
         const TaskWindow *window = windows.window(id);
@@ -1287,7 +1211,6 @@ void DockWindow::updateMinimizeTargets()
             continue;
         base::Rect target;
         if (!area) {
-            // Into its application's icon, which it also restores from.
             const std::string application = m_dock->applications().appIdForWindow(id);
             target = next;
             for (const DockPresentation::Entry &entry : m_applications->entries()) {
@@ -1302,11 +1225,8 @@ void DockWindow::updateMinimizeTargets()
             if (entry == entries.end() || !icon)
                 continue;
             if (!entry->landed) {
-                // Still flying: aimed at where its slot comes to rest, not at
-                // the slot opening under it, which would move the landing.
                 target = minimizedSlot(int(entry - entries.begin()), minimized.count());
             } else {
-                // Landed: follows its thumbnail, which it restores from.
                 const ui::RectF rect = icon->restIconRect();
                 target = base::Rect(int(std::lround(rect.x)), int(std::lround(rect.y)), int(rect.width),
                                     int(rect.height));
@@ -1349,7 +1269,6 @@ void DockWindow::iconHovered(DockIcon *icon, bool hovered)
 
 void DockWindow::showTooltip(DockIcon *icon)
 {
-    // A menu holds the interaction while it is open.
     if (m_menuOpen || icon->toolTipText().empty())
         return;
     m_tooltipOwner = icon;
@@ -1362,8 +1281,6 @@ void DockWindow::showTooltip(DockIcon *icon)
 
 double DockWindow::farSide(DockIcon *icon) const
 {
-    // Tracked, clear of the icon fully magnified, so it stays put as the size
-    // changes; otherwise of the icon as drawn.
     const bool full = m_magnifier.isEnabled() && (m_magnifier.isTracking() || m_magnifier.isHeld());
     const double reach = full ? magnifiedReach() : 0;
     const ui::RectF rest = icon->restIconRect();
@@ -1387,7 +1304,6 @@ void DockWindow::iconBounced(DockIcon *icon)
         showTooltip(icon);
 }
 
-// Menus are made when they open: an open one closes.
 void DockWindow::retranslate()
 {
     if (m_menu)
@@ -1434,7 +1350,6 @@ void DockWindow::iconMenuRequested(DockIcon *icon)
     switch (icon->kind()) {
     case DockIcon::Kind::Application: {
         const std::string id = icon->key();
-        // The launchpad has no menu.
         if (id == DockModel::kLaunchpadId)
             return;
         DockModel &model = m_dock->applications();
@@ -1452,14 +1367,12 @@ void DockWindow::iconMenuRequested(DockIcon *icon)
             const size_t index = menu->addItem(window.title.empty() ? item.visibleName : window.title,
                                                [&model, id = window.id] { model.activateWindow(id); });
             menu->setItemChecked(index, window.active);
-            // A long title is elided instead of widening the menu.
             menu->setItemMaximumWidth(index, 320);
         }
         if (!windows.empty())
             menu->addSeparator();
         if (dockMenu && addDockMenuEntries(*menu, dockMenu, 0))
             menu->addSeparator();
-        // A missing bundle keeps its place until it is unpinned.
         if (item.pinnable() || (item.missing && item.isPinned)) {
             const bool pinned = item.isPinned;
             menu->addItem(pinned ? tr("Remove from Dock") : tr("Keep in Dock"), [&model, id, pinned] {
@@ -1511,8 +1424,7 @@ void DockWindow::prepareDockMenu(const std::string &id, const std::shared_ptr<co
     dockMenu->prepare(0);
 }
 
-// The application's entries under `id` as rows, a submenu for each entry
-// that opens one; true when there were any.
+// True when there were any.
 bool DockWindow::addDockMenuEntries(ui::Menu &menu, const std::shared_ptr<compositor::MenuModel> &model, int32_t id)
 {
     const compositor::MenuItem *parent = model->item(id);
@@ -1566,14 +1478,9 @@ void DockWindow::popupMenu(DockIcon *icon, std::unique_ptr<ui::Menu> menu)
         if (!icon)
             return;
         icon->setMenuOpen(false);
-        // Back over the icon it was opened from: its tooltip again.
         if (icon->isPointerOver())
             showTooltip(icon);
     };
-    // DockItem.popupMenu(): the arrow at the icon's centre, the menu a
-    // small spacing off the panel's or the magnified icon's far side,
-    // starting at the icon's leading side and pulled back only as far as the
-    // arrow needs.
     const DockSettings::Direction direction = m_dock->settings().direction();
     const ui::RectF slot = icon->geometry();
     const ui::RectF rect = icon->magnifiedIconRect();
@@ -1607,7 +1514,6 @@ void DockWindow::popupMenu(DockIcon *icon, std::unique_ptr<ui::Menu> menu)
         origin.x = std::min(iconStart.x, centre.x - inset);
     else
         origin.y = std::min(iconStart.y, centre.y - inset);
-    // Held as it is drawn now while the menu is open.
     m_magnifier.setHeld(true);
     m_menu->popupAt(window, {std::round(origin.x), std::round(origin.y)});
     m_menuOpen = m_menu->isOpen();
@@ -1624,7 +1530,6 @@ void DockWindow::iconDragRequested(DockIcon *icon)
     if (m_drag || icon->kind() == DockIcon::Kind::Trash)
         return;
     hideTooltip();
-    // Drag.onDragStarted: the press no longer dims it.
     icon->releasePress();
     double scale = 1;
     ui::Bitmap image = iconImage(icon, &scale);
@@ -1658,7 +1563,6 @@ void DockWindow::iconDragRequested(DockIcon *icon)
 
 ui::Bitmap DockWindow::iconImage(DockIcon *icon, double *scale) const
 {
-    // The icon as drawn in its slot at the press.
     *scale = pixelRatio();
     const ui::Image window = m_window->window()->grab();
     const ui::RectF slot = icon->geometry();
@@ -1704,7 +1608,6 @@ void DockWindow::onDragStarted()
         return;
     DockIcon *icon = applicationIcon(m_drag->key);
     drag->setPlainIdleCursor(true);
-    // The icon is held at its centre, and goes back to its slot.
     drag->setReturnsHome(true);
     if (icon)
         drag->setHome(iconCentre(icon));
@@ -1721,7 +1624,6 @@ void DockWindow::onDragMoved(const base::PointF &location)
     const int row = model.indexOf(m_drag->key);
     if (row < 0 || !model.at(row).isPinned || model.at(row).fixed)
         return;
-    // It stops removing nearer than it starts, so it does not flicker at the line.
     const double distance = distanceOffDock(location);
     const double thickness = m_metrics.thickness();
     if (distance > thickness * 1.5)
@@ -1747,7 +1649,6 @@ void DockWindow::onDragEnded()
     if (own)
         hideTooltip();
     if (own && drag->isReturning()) {
-        // Nothing took it: the slot opens again under the icon on its way back.
         m_drag->removes = false;
         m_drag->returning = true;
         const DockModel &model = m_dock->applications();
@@ -1756,7 +1657,6 @@ void DockWindow::onDragEnded()
     } else if (own) {
         finishIconDrag();
     } else if (!m_drag && m_applications->isDragging()) {
-        // The launchpad's drag ended without a drop on the dock.
         m_applications->endDrag();
     }
     resetDropTarget();
@@ -1881,7 +1781,6 @@ uint32_t DockWindow::dropAt(const ui::PointF &position)
                     if (model.insert(*m_drop.desktopId, row, m_applications->draggedRow()))
                         action = ui::MoveAction;
                 } else if (m_drop.pinned && m_drop.offer) {
-                    // Dropped before its desktop id was read: pinned once it is.
                     m_drop.offer->read(kDesktopMime, [this, alive = m_alive, row,
                                                       existing = m_applications->draggedRow()](std::string data) {
                         const std::string id(base::strings::trimmed(data));
@@ -1937,11 +1836,9 @@ void DockWindow::setDropHovered(DockIcon *icon)
         return;
     switch (icon->kind()) {
     case DockIcon::Kind::Trash:
-        // Any drag over it, as its DropArea took any.
         icon->setDropHover(true);
         break;
     case DockIcon::Kind::Application: {
-        // Held over a running application, a dragged file raises its window.
         const DockModel &model = m_dock->applications();
         const int row = model.indexOf(icon->key());
         if (row >= 0 && !model.at(row).fixed && !m_drop.application && !m_drop.window)
@@ -1988,8 +1885,6 @@ DockIcon *DockWindow::iconAt(const ui::PointF &position) const
 
 bool DockWindow::inApplicationArea(const ui::PointF &position) const
 {
-    // From the panel's start through the applications and half a divider,
-    // across the whole window.
     const bool bottom = m_dock->settings().direction() == DockSettings::Bottom;
     const double along = bottom ? position.x : position.y;
     const double origin = m_start + m_drawn.lengthPadding;
@@ -1999,8 +1894,6 @@ bool DockWindow::inApplicationArea(const ui::PointF &position) const
 
 void DockWindow::anchorApplicationArea()
 {
-    // Where position 0 is drawn, compensating for the length still to come
-    // as the centred panel grows or shrinks.
     m_drop.referenceOrigin = m_start + m_drawn.lengthPadding
             - (m_applications->targetLength() + m_applications->targetTrailingExtent() - m_applications->length()
                - m_applications->trailingExtent())
@@ -2011,7 +1904,6 @@ void DockWindow::anchorApplicationArea()
 
 void DockWindow::enterApplicationArea()
 {
-    // What the drag carries must be known first; the launchpad's is read.
     if ((m_drop.application && !m_drop.appId) || (m_drop.desktop && !m_drop.desktopId))
         return;
     const std::string appId = m_drop.appId.value_or(std::string());
@@ -2052,14 +1944,9 @@ void DockWindow::updateDropSlot()
     const int pins = model.pinnedCount() - (source >= 0 && source < model.pinnedCount() ? 1 : 0);
     const int pinGap = m_applications->placeholder() >= 0 && m_applications->placeholderPinned() ? 1 : 0;
     const double externalShift = external ? pitch / 2 : 0;
-    // The reference was anchored with the dragged icon's own slot open, or none
-    // for a drag from elsewhere; the centred dock is drawn half a slot along
-    // for each slot fewer open now.
     const int anchoredSlots = source >= 0 ? 1 : 0;
     const int openSlots = m_applications->placeholder() >= 0 ? 1 : 0;
     const double drawnShift = (anchoredSlots - openSlots) * pitch / 2;
-    // One that can only be pinned takes the whole divider gap; one that can
-    // go either way changes sides at the line.
     const bool pinsOnly = m_drop.sourcePinned || external;
     const double divider = pinsOnly ? separatorExtent : (separatorExtent - iconGap) / 2;
     const double boundary = (pins + pinGap) * pitch + divider + drawnShift;

@@ -83,7 +83,6 @@ ui::Color on(ui::Color background, double alpha)
 ui::Color shade(ui::Color base, double amount)
 {
     const double target = isDark(base) ? 1.0 : 0.0;
-    // A 16-bit component and the 8 bits drawn round the same way.
     const auto towards = [amount, target](uint8_t channel) {
         const double value = channel / 255.0;
         return uint8_t(std::lround((value + (target - value) * amount) * 255));
@@ -101,7 +100,6 @@ ui::RectF parityPlate(const ui::RectF &slot, double glyph, double scale)
 
 void paintTile(ui::Painter &painter, const ui::RectF &rect)
 {
-    // The window's corner style, so the curves stay concentric.
     painter.drawOuterShadow(rect, kTileRadius, ui::themeCorners(), kTileShadowSigma,
                             dark() ? rgba(0, 0, 0, 0.24) : rgba(0, 0, 0, 0.08), {0, kTileShadowOffset});
     painter.fillRoundedRect(rect, kTileRadius, tileColor(), ui::themeCorners());

@@ -2,9 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// The OSD and the dock as the compositor draws them: their windows, places,
-// glass, input and behaviour, headless on a fake renderer.
-
 #include <chrono>
 #include <cmath>
 
@@ -89,8 +86,6 @@ public:
 
 constexpr uint32_t kIconColor = 0xff3366cc;
 
-// Starts a drag of `data` in `mime` on a press, as the launchpad or the file
-// manager would.
 class DragSourceView final : public ui::View
 {
 public:
@@ -178,7 +173,6 @@ protected:
         input.onPointerButton(at(ms + 1), button, false);
     }
 
-    // An icon's centre on the screen.
     static base::PointF centreOf(shell::DockWindow *dock, shell::DockIcon *icon)
     {
         const base::Rect window = dock->window()->geometry();
@@ -196,8 +190,6 @@ protected:
         return ids;
     }
 
-    // Presses at `from` and moves past the drag distance to `to`, on the
-    // loop turn the drag starts on.
     void beginDrag(int ms, const base::PointF &from, const base::PointF &to)
     {
         move(ms, from.x(), from.y());
@@ -209,7 +201,6 @@ protected:
 
     void release(int ms) { input.onPointerButton(at(ms), BTN_LEFT, false); }
 
-    // Frames until the dock's magnification rests.
     void settleMagnification(shell::DockWindow *dock)
     {
         ASSERT_TRUE(test::runUntil([&] {
@@ -219,14 +210,12 @@ protected:
         frame();
     }
 
-    // Where the dock as tracked takes the pointer, in its window.
     static bool takesInput(shell::DockWindow *dock, const base::Point &point)
     {
         const auto &region = dock->window()->surface()->inputRegion();
         return region && region->contains(point);
     }
 
-    // A window of the shell's own the external drags start from.
     std::unique_ptr<shell::ShellWindow> sourceWindow(const std::string &mime, const std::string &data,
                                                      DragSourceView **view)
     {
@@ -267,7 +256,7 @@ TEST_F(ShellComponentsTest, TheOsdShowsTopCentreBelowTheBarAndGoes)
     auto *osd = shell->addComponent(std::make_unique<shell::Osd>(shell.get(), std::move(levels)));
     EXPECT_FALSE(osd->isShown());
 
-    // Ash's 4 % steps: 0.36 is step 9, up is 0.40.
+    // 4 % steps: 0.36 is step 9, up is 0.40.
     osd->volumeUp();
     ASSERT_TRUE(osd->isShown());
     wm::Window *window = osd->window()->wmWindow();
@@ -275,12 +264,10 @@ TEST_F(ShellComponentsTest, TheOsdShowsTopCentreBelowTheBarAndGoes)
     EXPECT_EQ(wm::WindowRole::Osd, window->role());
     EXPECT_EQ(wm::FocusPolicy::NoFocus, window->focusPolicy());
     EXPECT_EQ(base::Rect(580, kMenuBar + 6, 280, 54), window->bounds());
-    // Clicks go through.
     ASSERT_TRUE(osd->window()->surface()->inputRegion());
     EXPECT_TRUE(osd->window()->surface()->inputRegion()->isEmpty());
     EXPECT_NEAR(0.40, values->m_volume, 1e-9);
     EXPECT_NEAR(0.40, osd->track()->position(), 1e-9);
-    // The first level after showing snaps.
     EXPECT_NEAR(0.40, osd->track()->drawnPosition(), 1e-9);
     EXPECT_EQ(shell::shellDataFile("audio-volume-medium-symbolic.svg"), osd->track()->icon());
     EXPECT_TRUE(osd->window()->surface()->glass().enabled);
@@ -288,7 +275,6 @@ TEST_F(ShellComponentsTest, TheOsdShowsTopCentreBelowTheBarAndGoes)
     EXPECT_EQ(18, osd->window()->surface()->backgroundBlurRadius());
     frame();
 
-    // Muted shows at zero with the muted icon; down while muted only shows.
     osd->toggleMute();
     EXPECT_TRUE(values->m_muted);
     EXPECT_EQ(0, osd->track()->position());
@@ -300,13 +286,11 @@ TEST_F(ShellComponentsTest, TheOsdShowsTopCentreBelowTheBarAndGoes)
     osd->brightnessUp();
     EXPECT_EQ(shell::Osd::Kind::Brightness, osd->kind());
     EXPECT_EQ(69, values->m_brightness);
-    // A backlight of three levels steps by one.
     osd->keyboardBrightnessUp();
     EXPECT_EQ(2, values->m_keyboard);
     values->keyboardChangedByFirmware();
     EXPECT_EQ(shell::Osd::Kind::KeyboardBrightness, osd->kind());
 
-    // Gone 1.5 s after the last key.
     test::runFor(std::chrono::milliseconds(1700));
     EXPECT_FALSE(osd->isShown());
     EXPECT_EQ(nullptr, osd->window()->wmWindow());
@@ -323,7 +307,6 @@ TEST_F(ShellComponentsTest, TheOsdVolumeUpKeepsAVolumeAboveNormal)
     EXPECT_NEAR(1.5, values->m_volume, 1e-9);
     EXPECT_EQ(1, osd->track()->position());
 
-    // Down still steps from where it is.
     osd->volumeDown();
     EXPECT_NEAR(1.48, values->m_volume, 1e-9);
 
@@ -339,7 +322,6 @@ TEST_F(ShellComponentsTest, TheOsdServesOrgCutefishOsd)
     FakeLevels *values = levels.get();
     shell::ShellEnvironment environment {&compositor, &manager, &seat,
                                          base::dbus::Connection::session(core::mainLoop())};
-    // A shell of its own on the session bus.
     shell.reset();
     shell = std::make_unique<shell::Shell>(environment);
     auto *osd = shell->addComponent(std::make_unique<shell::Osd>(shell.get(), std::move(levels)));
@@ -353,8 +335,6 @@ TEST_F(ShellComponentsTest, TheOsdServesOrgCutefishOsd)
     EXPECT_EQ(shell::shellDataFile("microphone-muted.svg"), osd->track()->icon());
 }
 
-// As CompositorShell starts them: the components, then their names and objects
-// on the session connection.
 TEST_F(ShellComponentsTest, TheOsdAndTheDockServeTheirNames)
 {
     base::dbus::Connection *bus = base::dbus::Connection::session(core::mainLoop());
@@ -407,11 +387,8 @@ TEST_F(ShellComponentsTest, TheDockSitsAlongTheBottomOnItsGlassAndReservesItsStr
     ASSERT_NE(nullptr, window);
     EXPECT_EQ(wm::WindowRole::Dock, window->role());
     EXPECT_EQ(wm::FocusPolicy::NoFocus, window->focusPolicy());
-    // The strip along the whole edge, 86 thick at the default icon size,
-    // reaching over its 5 px gap to the edge and 3 past the far side for
-    // the 19 a launching icon bounces.
+    // 86 thick, over the 5 px gap to the edge and 3 past the far side for the bounce.
     EXPECT_EQ(base::Rect(5, 960 - 86 - 5 - 3, 1430, 94), window->bounds());
-    // From the screen edge to the far side, and 2 more.
     EXPECT_EQ(base::Rect(0, kMenuBar, 1440, 960 - kMenuBar - 92), manager.workAreaFor(nullptr));
 
     // Launchpad and two pins a pitch of 70 each, the divider's 24, then the
@@ -424,7 +401,6 @@ TEST_F(ShellComponentsTest, TheDockSitsAlongTheBottomOnItsGlassAndReservesItsStr
     EXPECT_EQ(3, panel.y());
     EXPECT_EQ(panel.translated(5, 960 - 86 - 5 - 3), dock->primaryGeometry());
 
-    // The glass: the default tint's values, rounded to 16 bits, then wl_fixed.
     const compositor::Surface *surface = dock->window()->surface();
     EXPECT_EQ(panel, surface->backgroundBlurRect());
     EXPECT_EQ(28, surface->backgroundBlurRadius());
@@ -436,8 +412,6 @@ TEST_F(ShellComponentsTest, TheDockSitsAlongTheBottomOnItsGlassAndReservesItsStr
     EXPECT_FLOAT_EQ(shell::glassFixed(1.3), glass.saturation);
     EXPECT_NEAR(0.6, glass.tintRed, 1.0 / 256);
     EXPECT_NEAR(0.25, glass.tintAlpha, 1.0 / 256);
-    // Under Reduce Transparency it alone still blurs, widely, under the window
-    // background, whatever the slider says.
     render::setOpaqueBackdrop(render::Color {0.9f, 0.9f, 0.9f, 1});
     ui::Theme::setCurrent(ui::Theme::current());
     EXPECT_TRUE(test::runUntil([this, surface] {
@@ -446,7 +420,6 @@ TEST_F(ShellComponentsTest, TheDockSitsAlongTheBottomOnItsGlassAndReservesItsStr
     }));
     EXPECT_FLOAT_EQ(30.0f, surface->glass().blurSigma);
     EXPECT_NEAR(0.7, surface->glass().tintAlpha, 1.0 / 256);
-    // A shade below it in light mode.
     EXPECT_NEAR(ui::Theme::current().background.r / 255.0 / 1.06, surface->glass().tintRed, 1.0 / 256);
     EXPECT_NEAR(ui::Theme::current().background.b / 255.0 / 1.06, surface->glass().tintBlue, 1.0 / 256);
     EXPECT_FLOAT_EQ(0.0f, surface->glass().displacement);
@@ -458,24 +431,20 @@ TEST_F(ShellComponentsTest, TheDockSitsAlongTheBottomOnItsGlassAndReservesItsStr
         return !surface->glass().ignoresOpaqueBackdrop;
     }));
     EXPECT_NEAR(0.25, surface->glass().tintAlpha, 1.0 / 256);
-    // Input only on the rounded panel.
     ASSERT_TRUE(surface->inputRegion());
     EXPECT_TRUE(surface->inputRegion()->contains(base::Point(panel.x() + panel.width() / 2, panel.y() + 2)));
     EXPECT_FALSE(surface->inputRegion()->contains(base::Point(panel.x(), panel.y())));
     EXPECT_FALSE(surface->inputRegion()->contains(base::Point(2, 40)));
     EXPECT_FALSE(surface->inputRegion()->contains(base::Point(panel.x() + panel.width() / 2, panel.y() - 1)));
-    // And on the gap under it, where the icon above still has the pointer.
     EXPECT_TRUE(surface->inputRegion()->contains(base::Point(panel.x(), 92)));
     EXPECT_FALSE(surface->inputRegion()->contains(base::Point(panel.x() - 1, 92)));
     EXPECT_EQ(91.0, dock->icons()[1]->geometry().height);
 
-    // Icons in order along the panel, each slot a pitch of 70 on.
     const auto icons = dock->icons();
     ASSERT_EQ(4u, icons.size());
     for (size_t i = 1; i + 1 < icons.size(); ++i)
         EXPECT_EQ(70, icons[i]->geometry().x - icons[i - 1]->geometry().x);
     EXPECT_EQ(shell::DockIcon::Kind::Trash, icons.back()->kind());
-    // The divider after the pins: its line centred in the gap, 48 long, 19 down.
     EXPECT_EQ(19, dock->divider().y());
     EXPECT_EQ(48, dock->divider().height());
 }
@@ -503,8 +472,6 @@ TEST_F(ShellComponentsTest, ALaunchingDockIconBouncesOnceIntoItsRoomWithItsToolt
     ASSERT_NE(nullptr, popup);
     const base::Rect tip = popup->geometry();
 
-    // Straight up from the screen edge, as high as the room past the panel
-    // allows, and down to rest; the tooltip rides along.
     const auto started = std::chrono::steady_clock::now();
     icon->bounce();
     double highest = 0;
@@ -536,7 +503,6 @@ TEST_F(ShellComponentsTest, TheDockFollowsRunningApplicationsAndTakesClicks)
     shell::DockIcon *icon = dock->applicationIcon("terminal");
     EXPECT_TRUE(icon->isRunning());
     EXPECT_FALSE(dock->applicationIcon("files")->isRunning());
-    // It grows out of its centre.
     bool grew = false;
     ASSERT_TRUE(test::runUntil([&] {
         frame();
@@ -556,7 +522,6 @@ TEST_F(ShellComponentsTest, TheDockFollowsRunningApplicationsAndTakesClicks)
     }));
     EXPECT_TRUE(grew);
     EXPECT_TRUE(icon->isDotShown());
-    // A running application past the pins brings the trailing divider.
     test::runFor(std::chrono::milliseconds(400));
     frame();
     EXPECT_FALSE(dock->trailingDivider().isEmpty());
@@ -567,7 +532,6 @@ TEST_F(ShellComponentsTest, TheDockFollowsRunningApplicationsAndTakesClicks)
         return base::PointF(window.x() + slot->geometry().x + rect.x + rect.width / 2,
                             window.y() + slot->geometry().y + rect.y + rect.height / 2);
     };
-    // Hovering shows its name; the next icon takes the tooltip over.
     const base::PointF terminalCentre = centre(icon);
     move(1, terminalCentre.x(), terminalCentre.y());
     ASSERT_TRUE(dock->tooltip()->isShown());
@@ -581,8 +545,6 @@ TEST_F(ShellComponentsTest, TheDockFollowsRunningApplicationsAndTakesClicks)
     const base::PointF filesCentre = centre(dock->applicationIcon("files"));
     move(2, filesCentre.x(), filesCentre.y());
     EXPECT_EQ("Files", dock->tooltip()->text());
-    // The popup is the bubble, centred over its icon and just above the dock,
-    // and the next icon moves it rather than making another.
     EXPECT_EQ(popup, tip());
     const base::Rect filesTip = popup->geometry();
     EXPECT_NE(terminalTip.x(), filesTip.x());
@@ -591,13 +553,10 @@ TEST_F(ShellComponentsTest, TheDockFollowsRunningApplicationsAndTakesClicks)
     EXPECT_LT(filesTip.width(), 120);
     EXPECT_LT(filesTip.y() + filesTip.height(), window.y() + dock->panelRect().y());
 
-    // A click on a running application shows its window.
     click(3, terminalCentre.x(), terminalCentre.y(), BTN_LEFT);
     ASSERT_FALSE(windows->requests.empty());
     EXPECT_EQ("activate " + std::to_string(id), windows->requests.back());
 
-    // The right button opens its menu: the window, then Pin and Quit; the
-    // tooltip goes and the icon stays dimmed while it is open.
     click(4, terminalCentre.x(), terminalCentre.y(), BTN_RIGHT);
     ui::Menu *menu = dock->openMenu();
     ASSERT_NE(nullptr, menu);
@@ -606,8 +565,6 @@ TEST_F(ShellComponentsTest, TheDockFollowsRunningApplicationsAndTakesClicks)
     menu->close();
     EXPECT_FALSE(icon->isDimmed());
 
-    // Gone, it fades out above the dock where it was while the dock closes
-    // up, then leaves.
     ASSERT_TRUE(test::runUntil([&] {
         frame();
         return !dock->applicationPresentation()->isRunning();
@@ -659,12 +616,10 @@ TEST_F(ShellComponentsTest, AnApplicationsCountSitsOnItsIconsCorner)
     shell::CountBadge *badge = files->countBadge();
     EXPECT_EQ("7", badge->text());
     EXPECT_EQ(nullptr, dock->applicationIcon("terminal")->countBadge());
-    // A circle a third of the icon high, 4 past the icon's top and right edges.
     const ui::RectF icon = files->iconRect();
     EXPECT_EQ(ui::RectF(icon.x + icon.width + 4 - 18, icon.y - 4, 18, 18), badge->geometry());
     frame();
 
-    // Two digits widen it into a pill, "99+" a little more; its corner stays.
     client.sendLauncherEntry("application://files.desktop", dbus::VariantMap {{"count", dbus::Variant(int64_t(42))}});
     ASSERT_TRUE(test::runUntil([badge] { return badge->count() == 42; }));
     EXPECT_EQ("42", badge->text());
@@ -701,11 +656,9 @@ TEST_F(ShellComponentsTest, ADismissedMenuGivesTheTooltipBack)
         ASSERT_NE(nullptr, dock->openMenu());
         frame();
         if (round == 0) {
-            // Escape, as the capture script's settle() does.
             input.onKey(at(t + 5), KEY_ESC, true);
             input.onKey(at(t + 6), KEY_ESC, false);
         } else {
-            // A press elsewhere.
             click(t + 5, 700, 300, BTN_LEFT);
         }
         test::processPendingEvents();
@@ -733,9 +686,6 @@ TEST_F(ShellComponentsTest, TheDockMagnifiesUnderThePointerAndKeepsItsRestGeomet
     }));
     frame();
 
-    // Room for the largest magnified icon, 128, and its bounce past the dot
-    // area, and along the whole edge; hidden and shown as far as the dock
-    // reaches without it.
     wm::Window *window = dock->window()->wmWindow();
     const int across = 16 + 128 + 19 + 5;
     EXPECT_EQ(base::Rect(0, 960 - across, 1440, across), window->bounds());
@@ -760,7 +710,6 @@ TEST_F(ShellComponentsTest, TheDockMagnifiesUnderThePointerAndKeepsItsRestGeomet
     const base::PointF centre = centreOf(dock, files);
     const base::Rect bounds = window->bounds();
     const int above = rest.y() - 20;
-    // Above the dock at rest, the pointer is not the dock's.
     EXPECT_FALSE(takesInput(dock, {int(centre.x()) - bounds.x(), above}));
     EXPECT_TRUE(takesInput(dock, {int(centre.x()) - bounds.x(), rest.y() + 2}));
 
@@ -769,8 +718,6 @@ TEST_F(ShellComponentsTest, TheDockMagnifiesUnderThePointerAndKeepsItsRestGeomet
     ASSERT_TRUE(dock->magnifier().isTracking());
     EXPECT_EQ(1, dock->magnifier().amount());
 
-    // The icon under the pointer at the magnified size, its edge-facing side
-    // and its centre where they were; the neighbours less, falling off.
     const ui::RectF magnified = files->magnifiedIconRect();
     EXPECT_NEAR(96, magnified.width, 1e-6);
     EXPECT_NEAR(centre.x(), bounds.x() + files->geometry().x + magnified.x + magnified.width / 2, 1e-6);
@@ -782,7 +729,6 @@ TEST_F(ShellComponentsTest, TheDockMagnifiesUnderThePointerAndKeepsItsRestGeomet
     EXPECT_GT(terminalIcon->magnification(), 1);
     EXPECT_LT(terminalIcon->magnification(), files->magnification());
     EXPECT_LT(dock->trashIcon()->magnification(), terminalIcon->magnification());
-    // Only the icons grow: the gap between them stays as at rest.
     const auto drawnIcon = [](shell::DockIcon *icon) {
         const ui::RectF rect = icon->magnifiedIconRect();
         return ui::RectF {icon->geometry().x + rect.x, icon->geometry().y + rect.y, rect.width, rect.height};
@@ -791,45 +737,36 @@ TEST_F(ShellComponentsTest, TheDockMagnifiesUnderThePointerAndKeepsItsRestGeomet
     EXPECT_EQ(16, restGap);
     for (size_t i = 1; i < 3; ++i)
         EXPECT_NEAR(restGap, drawnIcon(icons[i]).x - drawnIcon(icons[i - 1]).right(), 1e-9) << i;
-    // Each pin's slot as drawn is its hit area, across the band tracked now.
     for (size_t i = 1; i < 3; ++i)
         EXPECT_NEAR(icons[i - 1]->geometry().x + icons[i - 1]->geometry().width, icons[i]->geometry().x, 1e-9);
     EXPECT_EQ(slots[1].y, files->geometry().y);
 
-    // The panel grows along its length only, its glass with it.
     const base::Rect drawn = dock->drawnPanelRect();
     EXPECT_LT(drawn.x(), rest.x());
     EXPECT_GT(drawn.right(), rest.right());
     EXPECT_EQ(rest.y(), drawn.y());
     EXPECT_EQ(rest.height(), drawn.height());
     EXPECT_EQ(drawn, dock->window()->surface()->backgroundBlurRect());
-    // Each end as far from its end slot as at rest, to the glass's whole pixels.
     EXPECT_NEAR(slots[0].x - rest.x(), launchpad->geometry().x - drawn.x(), 0.5);
     EXPECT_NEAR(rest.right() - slots.back().right(), drawn.right() - icons.back()->geometry().right(), 0.5);
 
-    // What the session is told stays at rest.
     EXPECT_EQ(rest, dock->panelRect());
     EXPECT_EQ(primary, dock->primaryGeometry());
     EXPECT_EQ(target, dock->minimizeTarget(id));
     EXPECT_EQ(base::Rect(0, kMenuBar, 1440, 960 - kMenuBar - 92), manager.workAreaFor(nullptr));
 
-    // Tracked, the band reaches as far as the magnified icons do.
     EXPECT_TRUE(takesInput(dock, {int(centre.x()) - bounds.x(), above}));
     EXPECT_EQ(rest.y() - (96 - 54), dock->window()->surface()->inputRegion()->boundingRect().y());
 
-    // The tooltip clears the magnified icon.
     ASSERT_TRUE(dock->tooltip()->isShown());
     shell::ShellWindow *tip = shell->host()->windowFor(static_cast<ui::EmbeddedWindow *>(dock->tooltip()->window()));
     ASSERT_NE(nullptr, tip);
     EXPECT_LE(tip->geometry().bottom(), bounds.y() + files->geometry().y + magnified.y);
-    // Clear of the full magnified size: it stays at that height as sizes change.
     const int tipBottom = tip->geometry().bottom();
     move(2, centre.x() + 20, centre.y());
     settleMagnification(dock);
     EXPECT_LT(files->magnifiedIconRect().width, 96);
     EXPECT_EQ(tipBottom, tip->geometry().bottom());
-    // Magnified, the artwork is never at a scale of exactly 1, which would
-    // land it on whole device pixels.
     move(3, centre.x(), centre.y());
     settleMagnification(dock);
     for (const auto &child : files->children()) {
@@ -837,7 +774,6 @@ TEST_F(ShellComponentsTest, TheDockMagnifiesUnderThePointerAndKeepsItsRestGeomet
             EXPECT_NE(1, child->transform().scale);
     }
 
-    // Up into that band it stays; past it, it fades out to the rest layout.
     move(2, centre.x(), bounds.y() + above);
     frame();
     EXPECT_TRUE(dock->magnifier().isTracking());
@@ -854,7 +790,6 @@ TEST_F(ShellComponentsTest, TheDockMagnifiesUnderThePointerAndKeepsItsRestGeomet
         EXPECT_EQ(1, icons[i]->magnification()) << i;
     }
 
-    // Over the padding at an end, that end stays and its slot grows from it.
     move(4, bounds.x() + rest.x() + 2, centre.y());
     settleMagnification(dock);
     ASSERT_TRUE(dock->magnifier().isTracking());
@@ -866,7 +801,6 @@ TEST_F(ShellComponentsTest, TheDockMagnifiesUnderThePointerAndKeepsItsRestGeomet
     settleMagnification(dock);
     EXPECT_EQ(rest, dock->drawnPanelRect());
 
-    // Coming back from above, only the dock at rest takes it up.
     move(6, centre.x(), bounds.y() + above);
     frame();
     EXPECT_FALSE(dock->magnifier().isTracking());
@@ -900,18 +834,14 @@ TEST_F(ShellComponentsTest, MagnifiedIconsKeepTheRestGapAndFarIconsStayAsTheyAre
     settleMagnification(dock);
     ASSERT_EQ(1, dock->magnifier().amount());
     EXPECT_NEAR(96, icons[2]->magnifiedIconRect().width, 1e-6);
-    // Along the pins, magnified or not, the same gap between icons.
     for (size_t i = 1; i < 8; ++i)
         EXPECT_NEAR(restGap, drawnIcon(icons[i]).x - drawnIcon(icons[i - 1]).right(), 1e-9) << i;
-    // Four slots and more away, the icons keep their size.
     for (size_t i = 6; i < icons.size(); ++i) {
         EXPECT_EQ(1, icons[i]->magnification()) << i;
         EXPECT_EQ(rest[i].width, drawnIcon(icons[i]).width) << i;
     }
 }
 
-// A full dock's rest size is the same whatever the magnification, with room
-// at each end for its end icons to grow into.
 TEST_F(ShellComponentsTest, AFullDockKeepsRoomAtItsEndsAndRunsOffMagnifiedMidRow)
 {
     std::string pins = "files, terminal";
@@ -954,8 +884,6 @@ TEST_F(ShellComponentsTest, AFullDockKeepsRoomAtItsEndsAndRunsOffMagnifiedMidRow
         return drawnStart(icon) + icon->magnifiedIconRect().width;
     };
 
-    // At twice the fitted size, anywhere over the first or the last item,
-    // its icon is on screen.
     int t = 1;
     for (shell::DockIcon *icon : {icons.front(), icons.back()}) {
         const ui::RectF slot = icon->restGeometry();
@@ -969,7 +897,6 @@ TEST_F(ShellComponentsTest, AFullDockKeepsRoomAtItsEndsAndRunsOffMagnifiedMidRow
         }
     }
 
-    // Mid-dock, at the largest size, both ends run off, the panel with them.
     dock->dock().settings().setMagnifiedIconSize(128);
     settle();
     const double middle = icons[12]->restGeometry().x + icons[12]->restGeometry().width / 2;
@@ -983,12 +910,8 @@ TEST_F(ShellComponentsTest, AFullDockKeepsRoomAtItsEndsAndRunsOffMagnifiedMidRow
     EXPECT_GE(dock->drawnPanelRect().right(), length);
 }
 
-// A full dock's icons are fitted to the screen, so a larger size setting
-// changes nothing drawn, at a fractional scale too, and nothing jumps where
-// the setting passes the magnified size.
 TEST_F(ShellComponentsTest, AFullDockStaysPutWhileTheSizeSettingChangesNothingFitted)
 {
-    // A shell of its own, which learns the scale as it starts.
     compositor.setOutputScale(*compositor::OutputScale::fromNumerator(210));
     shell.reset();
     shell::ShellEnvironment environment {&compositor, &manager, &seat};
@@ -1042,7 +965,6 @@ TEST_F(ShellComponentsTest, AFullDockStaysPutWhileTheSizeSettingChangesNothingFi
         settle();
         unchanged("size " + std::to_string(size));
     }
-    // So does the magnified size, which leaves the fitted icons as they are.
     for (const int size : {103, 102, 105, 104, 64, 101, 128, 104}) {
         dock->dock().settings().setMagnifiedIconSize(size);
         settle();
@@ -1051,8 +973,6 @@ TEST_F(ShellComponentsTest, AFullDockStaysPutWhileTheSizeSettingChangesNothingFi
     dock->dock().settings().setMagnifiedIconSize(500);
     EXPECT_EQ(shell::DockSettings::kLargestMagnifiedIconSize, dock->dock().settings().magnifiedIconSize());
 
-    // Off and on again the window changes, but its start and far side keep
-    // their device pixel fractions, and the icons stay where they are.
     const auto fraction = [](double logical) {
         const double device = logical * 1.75;
         return device - std::floor(device);
@@ -1117,13 +1037,11 @@ TEST_F(ShellComponentsTest, AnOpenMenuHoldsTheMagnification)
         ui::Menu *menu = dock->openMenu();
         ASSERT_NE(nullptr, menu) << round;
         EXPECT_TRUE(dock->magnifier().isHeld());
-        // The menu clears the icon as drawn.
         shell::ShellWindow *popup = shell->host()->windowFor(static_cast<ui::EmbeddedWindow *>(menu->window()));
         ASSERT_NE(nullptr, popup);
         frame();
         EXPECT_LE(popup->geometry().bottom(), bounds.y() + slot.y + magnified.y);
 
-        // Away from the dock, everything stays as it was while the menu is open.
         move(t + 3, round == 0 ? 700 : terminalCentre.x(), round == 0 ? 300 : terminalCentre.y());
         for (int i = 0; i < 20; ++i) {
             frame();
@@ -1139,13 +1057,11 @@ TEST_F(ShellComponentsTest, AnOpenMenuHoldsTheMagnification)
         EXPECT_FALSE(dock->magnifier().isHeld());
         settleMagnification(dock);
         if (round == 0) {
-            // Closed with the pointer gone: it fades out.
             EXPECT_FALSE(dock->magnifier().isTracking());
             EXPECT_EQ(0, dock->magnifier().amount());
             EXPECT_EQ(1, files->magnification());
             EXPECT_FALSE(takesInput(dock, {int(filesCentre.x()) - bounds.x(), above}));
         } else {
-            // Closed over the terminal: on from there.
             EXPECT_TRUE(dock->magnifier().isTracking());
             EXPECT_EQ(1, dock->magnifier().amount());
             EXPECT_NEAR(96, terminal->magnifiedIconRect().width, 1e-6);
@@ -1186,12 +1102,10 @@ TEST_F(ShellComponentsTest, ADraggedIconMovesAmongThePinsAndOffTheDockUnpins)
     input::DragController *drag = seat.drag();
     const base::PointF files = centreOf(dock, dock->applicationIcon("files"));
     const base::PointF terminal = centreOf(dock, dock->applicationIcon("terminal"));
-    // The launchpad stays where it is.
     beginDrag(1, centreOf(dock, dock->applicationIcon(shell::DockModel::kLaunchpadId)), {files.x(), files.y() - 40});
     EXPECT_FALSE(drag->active());
     release(5);
 
-    // The terminal held before the files: its slot closes, one opens there.
     beginDrag(10, terminal, {terminal.x(), terminal.y() - 30});
     ASSERT_TRUE(drag->active());
     EXPECT_EQ(dock->window()->surface(), drag->origin());
@@ -1211,8 +1125,6 @@ TEST_F(ShellComponentsTest, ADraggedIconMovesAmongThePinsAndOffTheDockUnpins)
     EXPECT_FALSE(presentation->isDragging());
     EXPECT_FALSE(icon->isDragHidden());
 
-    // Held off the dock by more than one and a half thicknesses it fades,
-    // and is unpinned where it is let go.
     ASSERT_TRUE(test::runUntil([&] {
         frame();
         return !presentation->isRunning();
@@ -1228,7 +1140,6 @@ TEST_F(ShellComponentsTest, ADraggedIconMovesAmongThePinsAndOffTheDockUnpins)
 
 TEST_F(ShellComponentsTest, AnIconThatFinishedLeavingIsAnnouncedOnTheFrameThatDropsIt)
 {
-    // Driven by hand, at chosen frame times.
     class Presentation : public shell::DockPresentation
     {
     public:
@@ -1245,9 +1156,8 @@ TEST_F(ShellComponentsTest, AnIconThatFinishedLeavingIsAnnouncedOnTheFrameThatDr
     presentation.setKeys({"files"});
     ASSERT_EQ(2u, presentation.entries().size());
 
-    // The first frame backdates the start by one interval. The quintic ease
-    // reaches its end in floating point a fraction of a millisecond early,
-    // so the last frame moves nothing; it still drops the icon and says so.
+    // The quintic ease reaches its end a fraction of a millisecond early, so the last
+    // frame moves nothing.
     const auto ns = [](double ms) { return uint64_t(ms * 1e6); };
     const double start = 1000 - shell::DockPresentation::kFrameIntervalMs;
     presentation.tick(ns(1000));
@@ -1281,8 +1191,6 @@ TEST_F(ShellComponentsTest, ALeavingIconFadesWhereItIs)
         return shell::DockPresentation::Entry {};
     };
 
-    // Taken out of the middle, it fades in its slot as the dock shrinks and
-    // the next icon slides over it.
     presentation.setKeys({"files", "editor"});
     const double terminalAt = presentation.position(entry("terminal"));
     presentation.tick(ns(1000));
@@ -1320,7 +1228,6 @@ TEST_F(ShellComponentsTest, ANewIconGrowsAndFadesInShortlyAfterItsSlotStartsOpen
         return shell::DockPresentation::Entry {};
     };
 
-    // Hidden while its slot, opening more gently than other changes, starts.
     presentation.setKeys({"files", "editor", "terminal"});
     const double start = 1000 - shell::DockPresentation::kFrameIntervalMs;
     const double reveal = start + shell::DockPresentation::kRevealDelayMs;
@@ -1330,7 +1237,6 @@ TEST_F(ShellComponentsTest, ANewIconGrowsAndFadesInShortlyAfterItsSlotStartsOpen
     EXPECT_EQ(0, presentation.iconScale(entry("terminal")));
     EXPECT_GT(presentation.length(), 2 * 70);
 
-    // Then its size and opacity grow together on OutQuint.
     double last = 0;
     for (double ms = 1000.0 / 60; ms < shell::DockPresentation::kRevealDurationMs - 10; ms += 1000.0 / 60) {
         presentation.tick(ns(reveal + ms));
@@ -1348,7 +1254,6 @@ TEST_F(ShellComponentsTest, ANewIconGrowsAndFadesInShortlyAfterItsSlotStartsOpen
     EXPECT_EQ(1, presentation.iconScale(entry("terminal")));
     EXPECT_FALSE(presentation.isRunning());
 
-    // One taken out while it grows fades out from the opacity it had.
     presentation.setKeys({"files", "editor", "calendar"});
     presentation.tick(ns(2000));
     presentation.tick(ns(2000 + shell::DockPresentation::kRevealDelayMs + 30));
@@ -1365,13 +1270,11 @@ TEST_F(ShellComponentsTest, ADraggedIconNothingTakesGoesBackToItsSlot)
     auto *dock = openDock("[Dock]\nPinned=files, terminal\n");
     input::DragController *drag = seat.drag();
     const base::PointF files = centreOf(dock, dock->applicationIcon("files"));
-    // Not far enough off the dock to unpin, over nothing that takes it.
     beginDrag(1, files, {files.x(), files.y() - 30});
     ASSERT_TRUE(drag->active());
     move(10, files.x(), files.y() - 100);
     release(11);
     EXPECT_FALSE(drag->active());
-    // With no icon to slide, it is home at once and shown in its slot again.
     EXPECT_FALSE(dock->isDraggingIcon());
     EXPECT_FALSE(dock->applicationIcon("files")->isDragHidden());
     EXPECT_FALSE(dock->applicationPresentation()->isDragging());
@@ -1385,7 +1288,6 @@ TEST_F(ShellComponentsTest, TheLastPinTakenOffTheDockOpensItsSlotAgainWhereItWas
     const base::PointF terminal = centreOf(dock, dock->applicationIcon("terminal"));
     shell::DockPresentation *presentation = dock->applicationPresentation();
 
-    // Off the dock its slot closes and the dock shrinks.
     beginDrag(1, terminal, {terminal.x(), terminal.y() - 30});
     ASSERT_TRUE(drag->active());
     move(10, terminal.x(), terminal.y() - 200);
@@ -1394,13 +1296,11 @@ TEST_F(ShellComponentsTest, TheLastPinTakenOffTheDockOpensItsSlotAgainWhereItWas
         return presentation->placeholder() < 0 && !presentation->isRunning();
     }));
 
-    // Back where it was, its slot opens again.
     move(20, terminal.x(), terminal.y());
     EXPECT_TRUE(test::runUntil([&] { return presentation->placeholder() == 2; }));
     EXPECT_TRUE(presentation->placeholderPinned());
     EXPECT_TRUE(drag->targetAcceptsDrop());
 
-    // And over the divider gap, up to the trash.
     move(30, terminal.x(), terminal.y() - 200);
     ASSERT_TRUE(test::runUntil([&] {
         frame();
@@ -1424,7 +1324,6 @@ TEST_F(ShellComponentsTest, EscapeLeavesThePinsAsTheyWere)
     const base::PointF terminal = centreOf(dock, dock->applicationIcon("terminal"));
     shell::DockPresentation *presentation = dock->applicationPresentation();
 
-    // Held before the files, then off the dock far enough to unpin.
     beginDrag(1, terminal, {terminal.x(), terminal.y() - 30});
     ASSERT_TRUE(drag->active());
     move(10, files.x() - 20, files.y());
@@ -1456,7 +1355,6 @@ TEST_F(ShellComponentsTest, TheLaunchpadsDragPinsWhereItIsDropped)
     beginDrag(1, {50, 10}, {terminal.x(), terminal.y() - 300});
     ASSERT_TRUE(drag->active());
     move(10, terminal.x() - 20, terminal.y());
-    // The desktop id is read from the drag before a slot opens.
     shell::DockPresentation *presentation = dock->applicationPresentation();
     ASSERT_TRUE(test::runUntil([&] {
         move(11, terminal.x() - 21, terminal.y());
@@ -1471,7 +1369,6 @@ TEST_F(ShellComponentsTest, TheLaunchpadsDragPinsWhereItIsDropped)
     EXPECT_EQ(ui::MoveAction, view->finished.back());
     EXPECT_FALSE(presentation->isDragging());
 
-    // Dropped nowhere on the dock: the dock is as it was.
     beginDrag(20, {50, 10}, {terminal.x(), terminal.y() - 300});
     move(30, terminal.x() - 20, terminal.y());
     test::runFor(std::chrono::milliseconds(50));
@@ -1497,7 +1394,6 @@ TEST_F(ShellComponentsTest, AShellDragShowsItsIcon)
     ASSERT_NE(nullptr, icon);
     EXPECT_TRUE(icon->isEffectivelyVisible());
     EXPECT_EQ(base::Rect(396, 296, 8, 8), icon->geometry());
-    // The picture the view gave, not an empty or a transparent one.
     auto *texture = dynamic_cast<testsupport::FakeTexture *>(icon->texture());
     ASSERT_NE(nullptr, texture);
     ASSERT_EQ(base::Size(8, 8), texture->size());
@@ -1576,7 +1472,6 @@ TEST_F(ShellComponentsTest, MinimizedWindowsSwapUnderADragAndTheirBadgeFadesIn)
         return dock->minimizedIcon(ids[0]) && dock->minimizedIcon(ids[1]) && minimized.entries()[0].landed
                 && minimized.entries()[1].landed && !dock->minimizedPresentation()->isRunning();
     }));
-    // Landed: the badge fades in over 140 ms rather than at once.
     shell::DockIcon *first = dock->minimizedIcon(ids[0]);
     ASSERT_TRUE(first->hasThumbnail());
     ASSERT_TRUE(test::runUntil([&] {
@@ -1620,8 +1515,6 @@ TEST_F(ShellComponentsTest, AMinimizedWindowClosedUnderADragLeavesNothingHovered
                 && minimized.entries()[1].landed && !dock->minimizedPresentation()->isRunning();
     }));
 
-    // Held over the second, which closes before the swap: its icon goes
-    // while the drag still rests where it was.
     const base::PointF from = centreOf(dock, dock->minimizedIcon(ids[0]));
     const base::PointF to = centreOf(dock, dock->minimizedIcon(ids[1]));
     beginDrag(1, from, {from.x(), from.y() - 30});
@@ -1660,8 +1553,6 @@ TEST_F(ShellComponentsTest, AClosedMinimizedWindowFadesOutAsItsThumbnail)
     ASSERT_TRUE(icon->hasThumbnail());
     const std::string iconName = icon->iconName();
 
-    // Its image and its application go with the window, before the dock lets
-    // the slot go: what leaves is still the thumbnail, not a stand-in icon.
     windows->m_snapshots.erase(id);
     windows->remove(id);
     bool faded = false;
@@ -1690,22 +1581,17 @@ TEST_F(ShellComponentsTest, AMinimizingWindowAimsAtWhereItsThumbnailComesToRest)
     const base::Rect aimed = dock->minimizeTarget(id);
     ASSERT_FALSE(aimed.isEmpty());
 
-    // The slot opens and the dock recentres under the flying window without
-    // moving where it lands.
     windows->change(id, [](shell::TaskWindow &w) { w.minimized = true; }, shell::kStateChange);
     bool opening = false;
     ASSERT_TRUE(test::runUntil([&] {
         frame();
         EXPECT_EQ(dock->minimizeTarget(id), aimed);
-        // The window itself is what flies in; the slot only opens.
         if (shell::DockIcon *icon = dock->minimizedIcon(id))
             EXPECT_EQ(icon->presentationOpacity(), 0);
         opening = opening || dock->minimizedPresentation()->isRunning();
         return opening && !dock->minimizedPresentation()->isRunning();
     }));
 
-    // Landed, it becomes its thumbnail whole, which follows the slot and sits
-    // where it was aimed.
     windows->minimizeLanded(id);
     frame();
     ASSERT_TRUE(dock->dock().minimizedWindows().entries()[0].landed);
@@ -1714,7 +1600,6 @@ TEST_F(ShellComponentsTest, AMinimizingWindowAimsAtWhereItsThumbnailComesToRest)
     EXPECT_EQ(icon->presentationScale(), 1);
     EXPECT_EQ(dock->minimizeTarget(id), aimed);
 
-    // Restored, the window flies out of the slot itself.
     windows->change(id, [](shell::TaskWindow &w) { w.minimized = false; }, shell::kStateChange);
     frame();
     EXPECT_EQ(icon->presentationOpacity(), 0);
@@ -1738,7 +1623,6 @@ TEST_F(ShellComponentsTest, AClosedShellWindowLeavesTheSceneWithTheNextFrame)
     panels.clear();
     test::processPendingEvents();
     frame();
-    // Each window's node stays until a frame collects it.
     EXPECT_EQ(before + 3, surfaceContainer->children().size());
 
     ASSERT_TRUE(scene.hasDamage(renderer.outputContext()));

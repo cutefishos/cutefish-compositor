@@ -18,10 +18,7 @@ static constexpr int kSampleWidth = 256;
 // Foliage, rock and other fine texture sit above this; skies, water and flat
 // artwork far below.
 static constexpr double kBusyDetail = 8.0;
-// The dark gradient lifts light contents, so a busy strip keeps them up to a
-// lighter average than a smooth one.
 static constexpr double kBusyLightForegroundLuminance = 0.45;
-// Dark contents on a smooth background this light need no gradient.
 static constexpr double kPaleLuminance = 0.6;
 
 double BarBackdrop::relativeLuminance(double red, double green, double blue)
@@ -38,7 +35,7 @@ bool BarBackdrop::prefersWhite(double luminance)
     return 1.05 / (luminance + 0.05) >= 3.0;
 }
 
-// qGray: (11 r + 16 g + 5 b) / 32.
+// (11 r + 16 g + 5 b) / 32.
 static int grey(uint32_t pixel)
 {
     return int((((pixel >> 16) & 0xff) * 11 + ((pixel >> 8) & 0xff) * 16 + (pixel & 0xff) * 5) / 32);

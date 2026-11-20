@@ -29,12 +29,9 @@ public:
     DemoController(WindowManager* manager, input::InputManager* input);
     ~DemoController() override;
 
-    // Runs the whole window-manager API as a timed sequence instead of waiting
-    // for keys, so the hardware run can be driven over SSH. Each step logs what
-    // it did; the harness checks the log.
+    // Each step logs what it did; the harness checks the log.
     void startScript(int stepIntervalMs = 700);
 
-    // input::EventSink: shortcuts first, then the window manager's own policy.
     bool onPointerMotion(input::Timestamp timestamp, const base::PointF &location) override;
     bool onPointerButton(input::Timestamp timestamp, const base::PointF &location,
                          uint32_t evdevButton, bool pressed) override;
@@ -53,8 +50,7 @@ private:
 
     void buildScript();
     void runNextScriptStep();
-    // The window the script drives. Re-validated each step, because a client
-    // may exit underneath it.
+    // Re-validated each step, because a client may exit underneath it.
     Window* scriptTarget();
 
     WindowManager* m_manager = nullptr;

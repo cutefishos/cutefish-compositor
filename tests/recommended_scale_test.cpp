@@ -41,34 +41,22 @@ double scale(DisplayConnectionType type, base::Size pixels, base::Size mm)
 TEST(RecommendedScale, InternalPanelsFollowChromiumDensities)
 {
     constexpr auto internal = DisplayConnectionType::Internal;
-    // 15.6" 1080p, 141 dpi.
     EXPECT_EQ(scale(internal, {1920, 1080}, {344, 194}), 1.0);
-    // 13.3" 1080p, 166 dpi.
     EXPECT_EQ(scale(internal, {1920, 1080}, {294, 165}), 1.25);
-    // 13" 2160x1440, 200 dpi: Chromium's 1.6.
     EXPECT_EQ(scale(internal, {2160, 1440}, {275, 183}), 1.75);
-    // 13.5" 2256x1504, 201 dpi: Chromium's 1.6.
     EXPECT_EQ(scale(internal, {2256, 1504}, {285, 190}), 1.75);
-    // 13.3" 2560x1600, 227 dpi: Chromium's 1.777.
     EXPECT_EQ(scale(internal, {2560, 1600}, {286, 179}), 1.75);
-    // 14" 2880x1800, 242 dpi.
     EXPECT_EQ(scale(internal, {2880, 1800}, {302, 189}), 2.0);
-    // 13.4" 3840x2400, 336 dpi: Chromium's 2.666.
     EXPECT_EQ(scale(internal, {3840, 2400}, {290, 181}), 2.5);
 }
 
 TEST(RecommendedScale, ExternalMonitorsAllowForViewingDistance)
 {
     constexpr auto external = DisplayConnectionType::External;
-    // 27" 1440p, 109 dpi.
     EXPECT_EQ(scale(external, {2560, 1440}, {597, 336}), 1.0);
-    // 32" 4K, 137 dpi.
     EXPECT_EQ(scale(external, {3840, 2160}, {708, 398}), 1.25);
-    // 27" 4K, 163 dpi.
     EXPECT_EQ(scale(external, {3840, 2160}, {597, 336}), 1.5);
-    // 24" 4K, 184 dpi.
     EXPECT_EQ(scale(external, {3840, 2160}, {527, 296}), 1.75);
-    // 27" 5K, 218 dpi.
     EXPECT_EQ(scale(external, {5120, 2880}, {597, 336}), 2.0);
 }
 

@@ -24,29 +24,21 @@
 
 namespace cutefish::shell {
 
-// How long a press is held before it counts as press-and-hold.
 static constexpr std::chrono::milliseconds kPressAndHold {800};
-// How far a press moves before it starts a drag.
 static constexpr double kStartDragDistance = 10;
-// A launch bounces the whole hop whether or not the application is up sooner:
-// a quick rise that hangs at the top, then a fall that speeds up and eases
-// into the landing.
 static constexpr double kBounceRiseMs = 300;
 static constexpr double kBounceFallMs = 370;
-// The fall's timing curve, a cubic Bezier from (0, 0) to (1, 1).
 static constexpr double kFallX1 = 0.5;
 static constexpr double kFallY1 = 0;
 static constexpr double kFallX2 = 0.3;
 static constexpr double kFallY2 = 1;
 
-// The cubic Bezier timing curve through (x1, y1) and (x2, y2), at `x`.
 static double cubicBezier(double x1, double y1, double x2, double y2, double x)
 {
     const auto at = [](double p1, double p2, double t) {
         const double u = 1 - t;
         return 3 * u * u * t * p1 + 3 * u * t * t * p2 + t * t * t;
     };
-    // x rises monotonically with the curve's parameter: bisect for it.
     double low = 0;
     double high = 1;
     for (int i = 0; i < 40; ++i) {
@@ -56,7 +48,7 @@ static double cubicBezier(double x1, double y1, double x2, double y2, double x)
     return at(y1, y2, (low + high) / 2);
 }
 
-// Of the bounce height, `ms` into the bounce; negative once it is over.
+// Negative once the bounce is over.
 static double bounceLift(double ms)
 {
     if (ms < kBounceRiseMs) {
@@ -69,8 +61,6 @@ static double bounceLift(double ms)
     return -1;
 }
 
-// The launch bounce, stepped on the dock's frames as its transitions are, the
-// first frame already one interval in.
 class DockIcon::Bounce final : public ui::FrameClient
 {
 public:
@@ -110,8 +100,6 @@ private:
     double m_startMs = -1;
 };
 
-// The launchpad's artwork, an SVG drawn at the icon's device size as
-// FishUI's IconItem renders a file.
 class DockIcon::SvgFace final : public ui::View
 {
 public:
@@ -132,7 +120,6 @@ protected:
     {
         if (m_file.empty())
             return;
-        // On whole device pixels, as FishUI's IconItem puts its pixmap.
         const ui::Rect device = painter.snappedRect(localRect());
         const double scale = painter.scale();
         const ui::PointF offset = painter.offset();
@@ -146,7 +133,6 @@ private:
     std::optional<ui::Color> m_tint;
 };
 
-// A minimized window's image, fitted into the view.
 class DockIcon::ThumbnailFace final : public ui::View
 {
 public:
@@ -162,8 +148,6 @@ private:
     DockIcon *m_icon;
 };
 
-// A pressed thumbnail: its fitted shape and the badge in black, as one layer
-// at 0.5 so where they overlap is no darker.
 class DockIcon::ThumbnailMask final : public ui::View
 {
 public:
@@ -209,7 +193,6 @@ DockIcon::DockIcon(DockWindow *dock, Kind kind)
     m_holdTimer.onTimeout = [this] {
         if (!m_pressed || m_pressedButton != int(ui::MouseButton::Left))
             return;
-        // MouseArea drops the click that would follow the release.
         m_held = true;
         m_dock->iconMenuRequested(this);
     };
@@ -285,8 +268,6 @@ void DockIcon::updateFace()
 
 void DockIcon::updateMask()
 {
-    // Made on the first press, then only hidden, never destroyed. The
-    // trash dims the same way while a drag hovers it.
     const bool dimmed = (isDimmed() || m_dropHover) && m_thumbnail.isNull();
     if (dimmed && m_iconIsFile && !m_svgMask) {
         m_svgMask = addChild<SvgFace>();
@@ -342,7 +323,6 @@ void DockIcon::setThumbnail(const ui::Bitmap *thumbnail, double aspect)
             }
         }
     }
-    // Under the badge.
     if (!m_thumbnail.isNull() && !m_thumbnailFace)
         m_thumbnailFace = addChild<ThumbnailFace>(this);
     if (!m_thumbnail.isNull() && !m_badge)
@@ -359,7 +339,6 @@ void DockIcon::setBadgeOpacity(double opacity)
         return;
     m_badgeTarget = opacity;
     if (!m_badgeSet) {
-        // The first value is set at once, not animated.
         m_badgeSet = true;
         m_badgeOpacity = opacity;
         applyBadgeOpacity();
@@ -391,7 +370,7 @@ void DockIcon::setIconRect(const ui::RectF &rect)
 {
     m_iconRect = rect;
     const ui::RectF art = artworkRect();
-    // From the artwork's size to the magnified icon's; exactly 1 at rest.
+    // Exactly 1 at rest.
     const double magnified = magnifiedIconRect().width / art.width;
     const ui::Transform transform = artworkTransform(art, m_scale * magnified);
     for (ui::View *face : {static_cast<ui::View *>(m_themeFace), static_cast<ui::View *>(m_svgFace),
@@ -466,8 +445,6 @@ ui::RectF DockIcon::artworkRect() const
         return m_iconRect;
     const ui::RectF drawn = magnifiedIconRect();
     const double size = m_magnification > 1 ? std::max<double>(m_rasterSize, m_iconRect.width) : m_iconRect.width;
-    // Around the magnified icon's centre, its top left on whole device
-    // pixels in the window, where the artwork's raster lands exactly.
     const double ratio = m_dock->window()->scale();
     const ui::PointF origin = mapToWindow({0, 0});
     const auto snap = [&](double centre, double offset) {
@@ -486,8 +463,6 @@ ui::Transform DockIcon::artworkTransform(const ui::RectF &rect, double scale) co
                              (scale - 1) * (rect.y + rect.height / 2 - (art.y + art.height / 2))};
     transform.translation += bounceOffset();
     if (m_magnification > 1) {
-        // Magnified, the artwork's centre goes exactly to the icon's, which
-        // a scale of exactly 1 would put on whole device pixels.
         const ui::RectF drawn = magnifiedIconRect();
         transform.translation += ui::PointF {drawn.x + drawn.width / 2 - (art.x + art.width / 2),
                                              drawn.y + drawn.height / 2 - (art.y + art.height / 2)};
@@ -508,13 +483,11 @@ void DockIcon::prepareMagnifiedSize(int size)
     if (size <= 0 || m_iconName.empty())
         return;
     if (!m_iconIsFile) {
-        // The pressed look tints the same raster.
         FileThemeIcon::preload({m_iconName}, size, scale);
         if (m_kind == Kind::Minimized)
             FileThemeIcon::preload({m_iconName}, int(std::round(size * 0.42)), scale);
         return;
     }
-    // Drawing the artwork once at that size caches its raster.
     for (const std::optional<ui::Color> tint : {std::optional<ui::Color>(), std::optional(ui::Color {0, 0, 0, 255})}) {
         SvgFace face;
         face.setFile(m_iconName);
@@ -548,7 +521,6 @@ void DockIcon::placeCountBadge()
     raiseChild(m_countBadge);
     const ui::RectF art = artworkRect();
     m_countBadge->setIconRect(art);
-    // Scaled with the icon about the icon's centre.
     m_countBadge->setTransform(
             artworkTransform(m_countBadge->geometry(), m_scale * magnifiedIconRect().width / art.width));
     m_countBadge->setOpacity(m_opacity);
@@ -665,17 +637,13 @@ void DockIcon::pointerRelease(const ui::PointerEvent &event)
     const bool inside = localRect().contains(event.position);
     const bool held = std::exchange(m_held, false);
     m_dragArmed = false;
-    // A right click opens the menu from the click; the menu then holds the dim.
     if (inside && !held && event.button == ui::MouseButton::Right)
         m_dock->iconMenuRequested(this);
-    // A right click hands the dim to the menu it opened.
     m_pressed = false;
     m_pressedButton = -1;
     updateMask();
     if (inside && !held && event.button != ui::MouseButton::Right)
         m_dock->iconClicked(this, int(event.button));
-    // The press took the tooltip down with the window's popups; one still
-    // hovering gets it back.
     if (m_hovered && !m_menuOpen)
         m_dock->iconHovered(this, true);
 }
@@ -691,8 +659,8 @@ void DockIcon::paint(ui::Painter &painter)
 
 ui::RectF DockIcon::thumbnailRect(const ui::RectF &slot) const
 {
-    // Fitted the way the compositor fits the window landing here, to whole
-    // pixels, so the two line up exactly.
+    // Fits as the compositor fits the window landing here, so the two line up
+    // exactly.
     const bool wide = m_thumbnailAspect > slot.width / std::max(1.0, slot.height);
     const double fitWidth = wide ? slot.width : slot.height * m_thumbnailAspect;
     const double fitHeight = wide ? slot.width / m_thumbnailAspect : slot.height;

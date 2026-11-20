@@ -54,22 +54,16 @@ void WmGestureHandler::onGestureUpdate(input::Timestamp timestamp,
 {
     if (m_scroll.ignored)
         return;
-    // The fingers left the start at the previous event: a started animation
-    // gets it as a first sample, so a flick that libinput reports past the
-    // threshold in one event still lets go at speed.
     const double previousTimeMs = std::exchange(m_scroll.timeMs, milliseconds(timestamp));
     const base::PointF delta = update.unacceleratedDelta * kMmPerUnacceleratedUnit;
     m_scroll.scrollX += delta.x();
     m_scroll.scrollY += delta.y();
 
-    // Update the continuous animation if it has already been started,
-    // otherwise start it once it passes the threshold.
     if (m_scroll.horizontalContinuousGestureStarted) {
         m_desks->updateSwipeAnimation(catchUp(delta.x()) / kSwipeLengthPerDeskMm,
                                       milliseconds(timestamp));
         return;
     }
-    // Fingers moving up bring the overview in.
     if (m_scroll.verticalContinuousGestureStarted) {
         m_overview->updateSwipe(-catchUp(delta.y()) / kOverviewSwipeLengthMm,
                                 milliseconds(timestamp));
@@ -95,14 +89,9 @@ void WmGestureHandler::onGestureUpdate(input::Timestamp timestamp,
                                 milliseconds(timestamp));
         return;
     }
-    // The overview on its way in or out lands where it was heading, and the
-    // desks switch from there.
     if (m_overview && m_overview->isTransitioning())
         m_overview->completeTransition();
-    // Fingers moving right bring the desk on the left in.
     if (!m_desks->startSwipeAnimation(/*moveLeft=*/m_scroll.scrollX > 0)) {
-        // On the lock screen, with a single desk, or while an animation from
-        // another source runs.
         m_scroll.ignored = true;
         return;
     }
@@ -115,9 +104,6 @@ void WmGestureHandler::onGestureUpdate(input::Timestamp timestamp,
 
 double WmGestureHandler::catchUp(double delta)
 {
-    // The distance that went into the threshold moves the content too, so it
-    // ends up under the fingers: at first as fast again as they move, easing
-    // off to their speed. Fingers moving back make up nothing.
     const double owed = m_scroll.owed;
     if (owed == 0 || delta * owed <= 0)
         return delta;

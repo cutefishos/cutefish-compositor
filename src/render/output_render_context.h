@@ -4,9 +4,6 @@
 //
 // Upstream: chromium/src/ash/display/root_window_transformers.cc
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: describe one pass over the shared logical scene
-// without creating an Aura root window per output.
 
 #pragma once
 

@@ -26,9 +26,7 @@
 
 namespace cutefish::shell {
 
-// The contents of a shell window's surface: a texture the toolkit rendered
-// into, sampled where it is, as a DMA-BUF client buffer is. It holds no
-// pixels of its own and owes no release to anybody.
+// Holds no pixels of its own and owes no release to anybody.
 class PanelBuffer final : public compositor::Buffer
 {
 public:
@@ -50,7 +48,6 @@ private:
     std::shared_ptr<render::Texture> m_texture;
 };
 
-// A picture in memory, as a client's shm buffer would hold it: the cursor's.
 class BitmapBuffer final : public compositor::Buffer
 {
 public:
@@ -70,7 +67,6 @@ private:
 
 namespace {
 
-// Far past any screen, and small enough that positions inside stay in range.
 constexpr int kUnbounded = 1 << 24;
 
 int roundEdge(double value)
@@ -138,8 +134,8 @@ ShellWindow::ShellWindow(ShellWindow *parent, ui::EmbeddedWindow *popup)
     m_shellSurface->setPopup(parent->m_shellSurface.get(), bounds);
     const std::shared_ptr<bool> alive = m_alive;
     m_shellSurface->setCloseCallback([this, alive] {
-        // popup_done: the grab was broken, by a press outside the chain. The
-        // toolkit closes the whole chain from its root, innermost first.
+        // popup_done: a press outside the chain broke the grab; the toolkit
+        // closes the chain from its root.
         if (!*alive)
             return;
         if (ShellWindow *root = this->root(); root && root->m_window)
@@ -291,7 +287,6 @@ void ShellWindow::setPosition(const base::Point &position)
 
 void ShellWindow::setSize(const base::Size &size)
 {
-    // A popup's size is its toolkit window's, through place().
     if (size == m_size || isPopup() || !m_window)
         return;
     m_size = size;
@@ -336,7 +331,6 @@ void ShellWindow::setCursor(std::optional<Cursor> cursor)
     if (cursor && !cursor->image.isNull()) {
         if (!m_cursorSurface) {
             m_cursorSurface = m_shell->compositor()->createSurface();
-            // Off the scene until the pointer takes it, as a client's cursor.
             m_cursorSurface->reparentNode(nullptr);
         }
         const bool same = m_cursor && m_cursor->image == cursor->image && m_cursor->scale == cursor->scale;
@@ -378,8 +372,6 @@ void ShellWindow::hide()
     if (!m_shown)
         return;
     m_shown = false;
-    // The toolkit closes its popups, which the host then lets go of; any
-    // left are unmapped with the window.
     if (!isPopup() && m_window)
         m_window->closePopups();
     for (ShellWindow *popup : std::vector<ShellWindow *>(m_popups))
@@ -406,8 +398,6 @@ void ShellWindow::setPopupBounds(const base::Rect &bounds)
 {
     m_position = m_parent->m_shellSurface->absoluteOrigin() + bounds.topLeft();
     updateScale();
-    // A size other than the popup's own resizes it, as the positioner's
-    // resize adjustment allows.
     {
         m_placing = true;
         m_window->setPopupGeometry(
@@ -470,7 +460,6 @@ void ShellWindow::produceFrame(render::Renderer &renderer, uint64_t frameTimeNs)
         m_surface->attach(m_buffer, {});
     } else {
         m_buffer->setTexture(std::move(texture));
-        // The same buffer again: its texture changed where the damage says.
         m_surface->attach(m_buffer, {});
         for (const base::Rect &rect : m_texture->lastDamage())
             m_surface->damageBuffer(rect);
@@ -518,8 +507,6 @@ void ShellWindow::updateScale()
 {
     if (!m_window)
         return;
-    // A popup takes the scale of the output it lands on, as a client's
-    // popup is told its output's.
     const Shell::Output *output = m_metadata.outputName.empty() || isPopup()
             ? m_shell->outputAt(m_position)
             : m_shell->output(m_metadata.outputName);
@@ -604,8 +591,8 @@ base::Rect ShellWindow::placePopup(const ui::PopupPlacement &placement,
     }
     positioner.setAdjustment(adjustment);
     positioner.setOffset(base::Point(roundEdge(placement.offset.x), roundEdge(placement.offset.y)));
-    // As xdg_surface.get_popup does: the work area in the parent's window
-    // geometry coordinates.
+    // The work area in the parent's window geometry coordinates, as
+    // xdg_surface.get_popup uses.
     base::Rect workArea = m_shell->windowManager()->workAreaFor(nullptr);
     workArea.translate(-m_parent->m_shellSurface->absoluteOrigin());
     // The positioner adjusts a popup that allows nothing anyway once it does

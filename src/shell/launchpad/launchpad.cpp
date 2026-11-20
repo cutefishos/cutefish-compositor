@@ -33,7 +33,6 @@ Launchpad::Launchpad(base::dbus::Connection *bus, TaskManager &tasks, Applicatio
     if (m_tasks.isReady())
         noteRunning();
 
-    // Opened applications lose their new mark.
     m_subscriptions.push_back(applicationOpened.connect(
             [this](const std::string &desktopId) { m_applications.clearNewInstalled({desktopId}); }));
 }

@@ -63,8 +63,8 @@ void PowerActions::cancel()
     m_clear.start(std::chrono::nanoseconds(0));
 }
 
-// Nothing to wait for: the session first quits every application, however
-// long that takes, and carries on instead if one of them keeps it.
+// Nothing to wait for: the session quits every application first, however long
+// that takes.
 void PowerActions::callSession(const char *method)
 {
     if (!m_session.send(method))

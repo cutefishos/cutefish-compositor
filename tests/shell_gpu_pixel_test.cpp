@@ -2,10 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// The shell's windows rendered by Skia on the renderer's own GL context, all
-// in the one pass an output frame starts with, and shown through their
-// surfaces' textures.
-
 #include <functional>
 
 #include <gtest/gtest.h>
@@ -101,8 +97,6 @@ protected:
 
     double scale() const { return GetParam(); }
 
-    // One output frame: the shell's pass, the surfaces' textures, then each
-    // window's surface drawn where it is.
     ui::Bitmap frame()
     {
         renderer->setOutputContext({"out", kOutput, native, scale(), 0, ++frameCount});
@@ -173,8 +167,6 @@ TEST_P(ShellGpuPixels, WindowsRenderOnTheGpuInOnePassAndOnlyWhatChanged)
     EXPECT_EQ(0xff0000ffu, pixelAt(image, {350, 125}));
     EXPECT_EQ(0u, pixelAt(image, {250, 20}));
 
-    // One window changed: rendered alone, into the same texture, the other
-    // kept as it was.
     osdFill->setColor(ui::Color::rgb(0x00ff00));
     image = frame();
     ASSERT_EQ(1u, shell->renderer()->lastPass().size());
@@ -183,8 +175,6 @@ TEST_P(ShellGpuPixels, WindowsRenderOnTheGpuInOnePassAndOnlyWhatChanged)
     EXPECT_EQ(0xff00ff00u, pixelAt(image, {350, 125}));
     EXPECT_EQ(0xffff0000u, pixelAt(image, {100, 20}));
 
-    // A new size takes a new texture in the middle of the pass; the batch
-    // around the other window's render survives it.
     osd.setSize(base::Size(120, 60));
     osdFill->setColor(ui::Color::rgb(0xffffff));
     panel.window()->contentView()->requestPaint();
@@ -196,7 +186,6 @@ TEST_P(ShellGpuPixels, WindowsRenderOnTheGpuInOnePassAndOnlyWhatChanged)
 
 TEST_P(ShellGpuPixels, APopupGrowingInItsOwnFrameShowsItsNewSizeInThatFrame)
 {
-    // Runs once on the next frame of its window.
     class Step : public ui::FrameClient
     {
     public:
@@ -237,8 +226,6 @@ TEST_P(ShellGpuPixels, APopupGrowingInItsOwnFrameShowsItsNewSizeInThatFrame)
     EXPECT_EQ(0xff0000ffu, pixelAt(image, {150, 50}));
     EXPECT_EQ(0u, pixelAt(image, {150, 90}));
 
-    // Its own animation grows it, recolours it and moves its glass, as a
-    // status panel's height does: all of it in this frame, drawn once.
     Step step(popup.get());
     step.onTick = [&] {
         popup->resize({100, 80});

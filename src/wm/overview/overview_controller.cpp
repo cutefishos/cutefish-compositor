@@ -50,8 +50,6 @@ double distance(const base::PointF &a, const base::PointF &b)
     return std::hypot(a.x() - b.x(), a.y() - b.y());
 }
 
-// A preview takes the pointer on its right and bottom edges too; a rect of
-// no width and no height takes nothing.
 bool containsWithEdges(const base::RectF &rect, const base::PointF &point)
 {
     if (rect.width() == 0 && rect.height() == 0)
@@ -169,8 +167,6 @@ void OverviewController::buildBars()
     m_barDesks.clear();
     for (const auto &output : m_manager->outputAreas()) {
         const base::Rect work = output.workArea.isEmpty() ? output.bounds : output.workArea;
-        // The panels along the top edge give way to the overview; the
-        // previews keep half the margin they had below them.
         const int top = output.bounds.top();
         const double margin = std::round((work.top() - top + kBarPadding) / 2.0);
         scene::OverviewDeskBarNode::Bar bar;
@@ -184,7 +180,6 @@ void OverviewController::buildBars()
             return count * width + (count - 1) * kBarSpacing
                     + (canAdd ? kBarSpacing + newDesk : 0);
         };
-        // Eight desks side by side still fit a narrow output.
         const double room = work.width() - 2 * kMargin;
         if (total() > room && total() > 0) {
             const double shrink = room / total();
@@ -233,7 +228,6 @@ void OverviewController::arrangeDraggedDesk()
     std::vector<base::RectF> slots;
     for (const auto &desk : bar.desks)
         slots.push_back(desk.bounds);
-    // Along the bar only, from the first place to the last.
     const double x = std::round(std::clamp(m_pointer.x() - m_deskDrag->grab, slots.front().x(),
                                            slots.back().x()));
     const double center = x + slots[size_t(from)].width() / 2;
@@ -276,8 +270,6 @@ void OverviewController::rebuild(bool animate, bool keepPlaces)
         for (const Item &item : m_items)
             kept[item.window] = item.bounds;
     }
-    // A press stays with the window or the desk it went down on, wherever
-    // that is now; with it gone, the press is too.
     Window *pressedWindow = nullptr;
     Desk *pressedDesk = nullptr;
     if (m_press) {
@@ -319,8 +311,6 @@ void OverviewController::rebuild(bool animate, bool keepPlaces)
         std::vector<Window *> onOutput;
         std::vector<base::Rect> rects;
         for (Window *window : roots) {
-            // Each window is laid out on the output that has its centre, or
-            // the nearest one.
             const base::Point centre = centerPixel(window->bounds());
             const bool here = output.bounds.contains(centre)
                     || (std::none_of(outputs.begin(), outputs.end(),
@@ -403,7 +393,6 @@ void OverviewController::updateNodes(bool animate)
     for (const Item &item : m_items) {
         scene::OverviewNode::Item node;
         node.windows.push_back(animationOf(item.window));
-        // Its dialogs and other transient windows come along, above it.
         for (Window *window : windows) {
             if (window != item.window && window->isVisible() && transientRoot(window) == item.window
                 && animationOf(window))
@@ -458,10 +447,8 @@ void OverviewController::updateChrome()
     m_node->setChrome({m_hovered, m_selected});
     if (!m_bar)
         return;
-    // A window dragged over the bar shows where it would drop.
     const Hit target = m_dragged >= 0 ? hitTest(m_pointer) : m_barHover;
     const bool closable = m_dragged < 0 && canCloseDesks();
-    // A desk pressed dims while the pointer or touch is still on it.
     const Hit pressedOn =
             m_press && m_dragged < 0 && !m_deskDrag && m_press->hit.type == Hit::Type::Desk
             ? hitTest(m_press->touch ? m_touchLocation : m_pointer)
@@ -525,8 +512,6 @@ bool OverviewController::acceptsPresses() const
 
 void OverviewController::landDeskSwitch()
 {
-    // A desk switch still sliding, whose frames would cover the overview,
-    // lands at once: the overview starts from the desk it was heading to.
     if (DeskAnimationBase *animation = m_manager->desks()->animation())
         animation->finishNow();
     if (m_node)
@@ -537,8 +522,6 @@ void OverviewController::onOutputsChanged()
 {
     if (!isActive() || !m_node)
         return;
-    // A drag or press is aimed at the old layout; the bars and previews have
-    // the old outputs' shapes.
     m_press.reset();
     m_dragged = -1;
     m_deskDrag.reset();
@@ -548,7 +531,6 @@ void OverviewController::onOutputsChanged()
     rebuild(false);
     if (m_bar)
         m_bar->invalidatePreviews();
-    // What lies under the pointer is found again by a synthesized motion.
     m_manager->pointerTargetsChanged();
 }
 
@@ -562,13 +544,11 @@ void OverviewController::activateForExit(Window *window)
     if (m_manager->hasWindow(window))
         m_manager->activation()->activate(window);
     m_activating = false;
-    // Raised to the top it draws over the rest; its place and the others' stay.
     rebuild(true, true);
 }
 
 void OverviewController::begin()
 {
-    // The overview lays windows out from their bounds; none stays aside.
     if (ShowDesktopController *showDesktop = m_manager->showDesktop())
         showDesktop->exitImmediately();
     m_hovered = m_selected = m_dragged = -1;
@@ -582,7 +562,6 @@ void OverviewController::begin()
     m_node->jumpTo(0);
     if (m_bar)
         m_bar->invalidatePreviews();
-    // What the pointer was over gets a leave, as the overview takes it.
     takePointer();
     if (input::Seat *seat = m_manager->seat()) {
         seat->setCursorOverride(input::CursorShape::Default);
@@ -619,7 +598,6 @@ void OverviewController::finish()
         m_bar->setContent({}, {});
     }
     releasePointer();
-    // The windows are where they were: whatever is under the pointer enters.
     m_manager->pointerTargetsChanged();
 }
 
@@ -649,8 +627,7 @@ bool OverviewController::enter()
         return false;
     if (m_state == State::Entering || m_state == State::Shown)
         return true;
-    // The overview would take the pointer from under the drag, which would
-    // then go on without a button held once it leaves.
+    // Taking the pointer from under a window drag would leave the drag without a held button.
     if (m_manager->eventHandler()->draggedWindow())
         return false;
     m_manager->dismissPopupGrabs();
@@ -702,8 +679,6 @@ bool OverviewController::startSwipe(bool upward)
     if (m_state == State::Hidden)
         begin();
     cancelPress();
-    // Fingers down over a window take the overview away to it; it rides on
-    // top of the rest meanwhile.
     const int target = m_hovered >= 0 ? m_hovered : m_selected;
     m_swipeTarget = !upward && m_state == State::Shown && target >= 0
             ? m_items[target].window
@@ -744,9 +719,6 @@ OverviewController::Hit OverviewController::hitTest(const base::PointF &location
     Hit hit;
     if (!isActive())
         return hit;
-    // The panels, the dock and whatever else is above the desk stay usable,
-    // server-side frames too, which windowAt() does not see. Floating windows
-    // fade away instead.
     const auto aboveDesk = [](const Window *window) {
         return window && layerFor(window) > StackingLayer::AlwaysOnTop
                 && layerFor(window) != StackingLayer::AboveDock;
@@ -755,7 +727,6 @@ OverviewController::Hit OverviewController::hitTest(const base::PointF &location
         hit.type = Hit::Type::Panel;
         return hit;
     }
-    // On the way in, what is under the pointer is where it is drawn now.
     const bool moving = m_state != State::Shown && m_node;
     const double progress = moving ? std::clamp(m_node->progress(), 0.0, 1.0) : 1;
     for (size_t bar = 0; bar < m_bars.size(); ++bar) {
@@ -800,7 +771,6 @@ void OverviewController::setHover(const Hit &hit)
     const bool onBar = hit.type == Hit::Type::Desk || hit.type == Hit::Type::DeskClose
             || hit.type == Hit::Type::NewDesk;
     m_barHover = onBar ? hit : Hit();
-    // The pointer takes over from the keyboard.
     if (m_hovered >= 0)
         m_selected = -1;
     updateChrome();
@@ -819,8 +789,6 @@ void OverviewController::move(const base::PointF &location)
     if (m_press && m_dragged < 0 && m_press->hit.type == Hit::Type::Item
         && m_state == State::Shown && distance(location, m_press->location) >= kDragThreshold) {
         m_dragged = m_press->hit.index;
-        // Pressed while the window was still on its way, the grab point may
-        // lie off it now.
         const base::RectF &bounds = m_items[m_dragged].bounds;
         const base::PointF grab = m_press->location - bounds.topLeft();
         m_dragOffset = base::PointF(std::clamp(grab.x(), 0.0, bounds.width()),
@@ -861,14 +829,12 @@ base::RectF OverviewController::draggedBounds(const base::PointF &location) cons
         const auto &bar = m_bars[index];
         if (!bar.output.contains(location.toPoint()) || full.isEmpty())
             continue;
-        // It shrinks from where it sits in the overview up to the bar.
         const double barHeight = bar.bounds.height();
         const double start = item.bounds.top() + m_dragOffset.y();
         const double reach = start - bar.bounds.bottom();
         const double distance = std::max(0.0, location.y() - bar.bounds.bottom());
         if (distance >= reach && reach > 0)
             break;
-        // On the bar, the window at the bar's share of the output's height.
         const base::SizeF window = item.window->bounds().size();
         base::SizeF onBar = window * (barHeight / std::max(1, bar.output.height()));
         const double minimum = barHeight * kMinimumSideOnBar;
@@ -881,7 +847,6 @@ base::RectF OverviewController::draggedBounds(const base::PointF &location) cons
         size = full + (onBar - full) * t;
         break;
     }
-    // Held at the same share of its size as where it was grabbed.
     const base::PointF grab(m_dragOffset.x() / full.width(), m_dragOffset.y() / full.height());
     return base::RectF(location - base::PointF(grab.x() * size.width(), grab.y() * size.height()), size);
 }
@@ -901,7 +866,6 @@ void OverviewController::release(const base::PointF &location)
         drop(location);
         return;
     }
-    // A button acts when let go of over itself; moved off, the press is dropped.
     const Hit over = hitTest(location);
     if (press.hit.type != Hit::Type::Item
         && (over.type != press.hit.type || over.index != press.hit.index
@@ -915,9 +879,6 @@ void OverviewController::release(const base::PointF &location)
     case Hit::Type::Desk:
         if (press.hit.bar < int(m_barDesks.size())
             && press.hit.index < int(m_barDesks[press.hit.bar].size())) {
-            // A desk takes the overview away to it, as Escape does. Another
-            // one slides in on the strip, which starts from the overview, while
-            // the desk bar goes and the panels come back.
             Desk *desk = m_barDesks[press.hit.bar][press.hit.index];
             if (!desk || desk == desks->activeDesk()) {
                 exit();
@@ -933,7 +894,6 @@ void OverviewController::release(const base::PointF &location)
         }
         break;
     case Hit::Type::DeskClose:
-        // Its windows go to the desk beside it.
         if (canCloseDesks() && press.hit.bar < int(m_barDesks.size())
             && press.hit.index < int(m_barDesks[press.hit.bar].size())) {
             if (Desk *desk = m_barDesks[press.hit.bar][press.hit.index])
@@ -947,8 +907,6 @@ void OverviewController::release(const base::PointF &location)
         break;
     case Hit::Type::Panel:
         break;
-    // The bar's empty space is the overview's background, as in Ash, whose
-    // desk bar lets a press through.
     case Hit::Type::Bar:
     case Hit::Type::None:
         exit();
@@ -980,7 +938,6 @@ void OverviewController::dropDesk()
     const int from = desks->deskIndex(drag.desk);
     if (from >= 0 && drag.target >= 0)
         desks->reorderDesk(from, drag.target);
-    // Into its place, or back to it when the desks could not be reordered.
     buildBars();
     updateChrome();
 }
@@ -988,8 +945,6 @@ void OverviewController::dropDesk()
 void OverviewController::drop(const base::PointF &location)
 {
     Window *window = m_items[m_dragged].window;
-    // The node keeps drawing it where it was let go, which is where it
-    // heads home from.
     m_dragged = -1;
     const Hit target = hitTest(location);
     DesksController *desks = m_manager->desks();
@@ -1000,8 +955,6 @@ void OverviewController::drop(const base::PointF &location)
         desk = m_barDesks[target.bar][target.index];
     else if (target.type == Hit::Type::NewDesk && desks->canCreateDesks())
         desk = desks->newDesk(DesksCreationRemovalSource::Button);
-    // Back to its place, unless it goes to another desk, which lays the rest
-    // out without it.
     if (!desk || desk == desks->activeDesk()
         || !desks->moveWindowFromActiveDeskTo(window, desk)) {
         rebuild(true);
@@ -1022,7 +975,6 @@ void OverviewController::moveSelection(int dx, int dy)
         return;
     const int from = m_selected >= 0 ? m_selected : m_hovered;
     if (from < 0) {
-        // The window used last comes first.
         Window *active = m_manager->activation()->activeWindow();
         m_selected = int(m_items.size()) - 1;
         for (size_t index = 0; index < m_items.size(); ++index) {
@@ -1070,7 +1022,6 @@ bool OverviewController::onPointerMotion(input::Timestamp timestamp, const base:
         }
         return m_next && m_next->onPointerMotion(timestamp, location);
     }
-    // The dock's auto-hide watches every motion.
     m_manager->pointerMoved(location);
     takePointer();
     if (!m_press || !m_press->touch)
@@ -1117,8 +1068,6 @@ bool OverviewController::onPointerAxisStop(input::Timestamp timestamp, const bas
 
 bool OverviewController::onKey(input::Timestamp timestamp, uint32_t evdevCode, bool pressed)
 {
-    // A key held since before the overview, such as the shortcut's modifier,
-    // goes up where it went down.
     if (!pressed) {
         if (!m_keys.erase(evdevCode))
             return m_next && m_next->onKey(timestamp, evdevCode, pressed);
@@ -1210,9 +1159,6 @@ void OverviewController::onWindowActivated(Window *gainedActive, Window *lostAct
 {
     if (m_state == State::Hidden || m_activating || !gainedActive)
         return;
-    // Activation moving on from a window that closed, or to a window of the
-    // desk switched to, leaves the overview up; anything else the user
-    // brought up - a dock task, the launchpad, a dialog - ends it.
     if (lostActive && !m_manager->hasWindow(lostActive))
         return;
     if (m_manager->desks()->areDesksBeingModified())
@@ -1240,8 +1186,6 @@ void OverviewController::onDeskReordered(int, int)
 
 void OverviewController::onDeskActivationChanged(const Desk *, const Desk *)
 {
-    // The desk switch slides frames of the overview; the ending one has to
-    // show the new desk's windows already in place.
     if (isActive())
         rebuild(false);
 }

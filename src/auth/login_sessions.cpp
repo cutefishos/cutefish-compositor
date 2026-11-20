@@ -74,7 +74,6 @@ bool executableExists(const std::string &program)
     return !base::paths::findExecutable(program).empty();
 }
 
-// The file name without its last extension.
 std::string completeBaseName(const std::string &path)
 {
     std::string name = std::filesystem::path(path).filename().string();
@@ -136,7 +135,6 @@ bool readEntry(const std::string &path, LoginSession *session)
     return !session->command.empty();
 }
 
-// The directory's visible *.desktop files, sorted by name.
 std::vector<std::string> desktopFiles(const std::string &directory)
 {
     std::vector<std::string> files;
@@ -240,7 +238,6 @@ std::vector<std::string> findLoginUsers()
             const std::vector<std::string> fields = base::strings::splitWhitespace(line);
             if (fields.size() != 2)
                 continue;
-            // toUInt(): zero for anything that is not a whole number.
             const uid_t value = base::strings::toNumber<uid_t>(fields[1]).value_or(0);
             if (fields[0] == "UID_MIN")
                 minimum = value;

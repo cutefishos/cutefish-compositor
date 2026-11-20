@@ -13,11 +13,7 @@
 
 namespace cutefish::shell {
 
-// The Options menu and what the capture interface remembers, in the
-// [Screenshot] group of shell.conf.
-// Pictures and recordings have separate destinations; only pictures can go
-// to the clipboard. Rectangles are base::Settings rect values. Read on
-// the file thread; the defaults stand until isReady().
+// Read on the file thread; the defaults stand until isReady().
 class CaptureSettings
 {
 public:
@@ -38,16 +34,15 @@ public:
     const std::string &videoDestination() const { return m_videoDestination; }
     void setVideoDestination(const std::string &destination);
 
-    // Where a picture or a recording is written; empty for the clipboard.
+    // Empty for the clipboard.
     std::string imageFolder() const;
     std::string videoFolder() const;
 
     const std::string &customImageFolder() const { return m_customImageFolder; }
     const std::string &customVideoFolder() const { return m_customVideoFolder; }
-    // Other Location: the folder becomes the destination.
     void setCustomFolder(bool video, const std::string &folder);
 
-    // Seconds before a capture; zero for none.
+    // Zero for none.
     int timer() const { return m_timer; }
     void setTimer(int seconds);
 
@@ -63,20 +58,17 @@ public:
     bool rememberSelection() const { return m_rememberSelection; }
     void setRememberSelection(bool remember);
 
-    // The last selected portion, in global logical coordinates, and the mode
-    // the toolbar was last left in.
+    // In global logical coordinates.
     base::Rect lastSelection() const { return m_lastSelection; }
     void setLastSelection(const base::Rect &selection);
     int lastType() const { return m_lastType; }
     int lastSource() const { return m_lastSource; }
     void setLastMode(int type, int source);
 
-    // Where the toolbar was last dragged to, in global logical coordinates;
-    // empty while it has never been moved.
+    // In global logical coordinates; empty while it has never been moved.
     base::Rect toolbarGeometry() const { return m_toolbarGeometry; }
     void setToolbarGeometry(const base::Rect &geometry);
 
-    // A value the Options menu shows changed, or the file was read.
     base::Signal<> changed;
 
     struct Values {
@@ -91,7 +83,6 @@ public:
         bool rememberSelection = true;
         base::Rect lastSelection;
         base::Rect toolbarGeometry;
-        // Image and Region: a picture of a portion.
         int lastType = 0;
         int lastSource = 2;
     };

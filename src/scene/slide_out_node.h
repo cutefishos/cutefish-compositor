@@ -17,9 +17,6 @@
 
 namespace cutefish::scene {
 
-// Copies of windows sent to another desk, each sliding off its output towards
-// that desk and then dropped. Upstream recreates the window's layers and
-// animates the old ones; here a frame of the window per output stands in.
 class SlideOutNode : public Node
 {
 public:
@@ -27,8 +24,7 @@ public:
 
     explicit SlideOutNode(std::function<int64_t()> clock = {});
 
-    // `frames` show the window alone, over each output's whole viewport. It
-    // leaves `output` past its left edge, or past its right edge.
+    // `frames` show the window alone over each output's whole viewport.
     void slideOut(DeskSwitchNode::Frames frames, const base::Rect &window, const base::Rect &output,
                   bool goingLeft);
 

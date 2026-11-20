@@ -248,8 +248,6 @@ TEST_F(WindowVisualPixelTest, OwnershipAndOnePhysicalHairlineAtEveryScale)
                         return roundToInt(255 * (color.r * color.a + background * (1 - color.a)));
                     };
                     const auto &highlight = state.highlightColor;
-                    // The highlight is the outermost physical pixel of the shape; fractional
-                    // boundaries distribute its coverage.
                     EXPECT_NEAR(pixel(image, x, t),
                                 blend(highlight, mode == Mode::ServerFrame ? 1 : client), 1);
                     EXPECT_NEAR(pixel(image, l, y), blend(highlight, client), 1);
@@ -257,19 +255,15 @@ TEST_F(WindowVisualPixelTest, OwnershipAndOnePhysicalHairlineAtEveryScale)
                         EXPECT_NEAR(pixel(image, r - 1, y), blend(highlight, client), 1);
                     if (std::fmod(bounds.height() * scale, 1.) == 0)
                         EXPECT_NEAR(pixel(image, x, b - 1), blend(highlight, client), 1);
-                    // Client pixels start right after it; nothing wider is drawn inside.
                     EXPECT_NEAR(pixel(image, l + 1, y), client * 255, 1);
                     EXPECT_NEAR(pixel(image, r - 3, y), client * 255, 1);
                     EXPECT_NEAR(pixel(image, x, b - 3), client * 255, 1);
                     EXPECT_NEAR(pixel(image, x, t + 1),
                                 mode == Mode::ServerFrame ? 255 : client * 255, 1);
-                    // The dark outline lies just outside, over the desktop and shadow.
                     EXPECT_NEAR(pixel(image, l - 1, y),
                                 blend(state.outlineColor, pixel(bare, l - 1, y) / 255.f), 1);
                     EXPECT_NEAR(pixel(image, x, t - 1),
                                 blend(state.outlineColor, pixel(bare, x, t - 1) / 255.f), 1);
-                    // All four corners expose the desktop plus exterior shadow, never square client
-                    // pixels.
                     for (auto corner :
                          {base::Point(l, t), base::Point(r - 1, t), base::Point(l, b - 1),
                           base::Point(r - 1, b - 1)})
@@ -446,7 +440,6 @@ TEST_F(WindowVisualPixelTest, FloatingExteriorsRestoreAfterTiledStates)
                     window->snapSecondary();
                 auto state = wm::WindowVisualController::evaluate(*window);
                 if (tiled != 1) {
-                    // Maximized and snapped keep the floating look.
                     EXPECT_GT(state.shape.radius, 0);
                     EXPECT_TRUE(state.drawOutline);
                     EXPECT_TRUE(state.clipContent);
@@ -577,10 +570,8 @@ TEST_F(WindowVisualPixelTest, BlurredShellSurfacesAndPopupsOutlineTheirRoundedBo
     EXPECT_NEAR(pixel(image, 90, 130), blend(state.highlightColor, 0.5f), 1);
     EXPECT_NEAR(pixel(image, 91, 130), 128, 1);
     EXPECT_NEAR(pixel(image, 85, 130), 128, 1);
-    // Damage has to reach the outline outside the body.
     EXPECT_TRUE(window->visualNode()->absolutePaintBounds().contains(base::Rect(89, 99, 102, 62)));
 
-    // A glass rim is the edge, so the outline goes transparent and keeps its shape.
     render::GlassParams glass;
     glass.enabled = true;
     glass.rim = 1;
@@ -594,7 +585,6 @@ TEST_F(WindowVisualPixelTest, BlurredShellSurfacesAndPopupsOutlineTheirRoundedBo
     surface->setGlass({});
     surface->commit();
 
-    // A square blur is not a floating body; the client keeps its own edge.
     surface->setBackgroundBlur({10, 20, 100, 60}, 0);
     surface->commit();
     EXPECT_FALSE(wm::WindowVisualController::evaluate(*window, style).drawOutline);
@@ -769,7 +759,6 @@ TEST_F(WindowVisualPixelTest, ShapedPopupBlursOutlinesAndShadowsItsOwnOutline)
             return base::Point(int((origin.x() + x) * scale), int((origin.y() + y) * scale));
         };
         renderer->clear({1, 1, 1, 1});
-        // Dark patches: blurred away inside the shape, untouched outside it.
         renderer->fillRect({origin.x() + 49, origin.y() + 55, 3, 18}, {0, 0, 0, 1});
         renderer->fillRect({origin.x() + 112, origin.y() + 62, 6, 6}, {0, 0, 0, 1});
         window->node()->render(*renderer);
@@ -777,7 +766,6 @@ TEST_F(WindowVisualPixelTest, ShapedPopupBlursOutlinesAndShadowsItsOwnOutline)
         EXPECT_GT(pixel(image, device(50.5, 63).x(), device(50.5, 63).y()), 200) << scale;
         EXPECT_LT(pixel(image, device(50.5, 71.5).x(), device(50.5, 71.5).y()), 10) << scale;
         EXPECT_LT(pixel(image, device(115, 65).x(), device(115, 65).y()), 10) << scale;
-        // The hairline follows the arrow's slanted side.
         int darkest = 255;
         for (int x = device(52, 64).x(); x <= device(58, 64).x(); ++x)
             darkest = std::min(darkest, pixel(image, x, device(52, 64).y()));
@@ -857,8 +845,6 @@ TEST_F(WindowVisualPixelTest, AnimationUsesOnePhysicalOutlineAndClipsSquareOldSn
             const int x = roundToInt(sample.bounds.center().x() * scale);
             const int y = std::floor(sample.bounds.y() * scale);
             const int left = std::floor(sample.bounds.x() * scale);
-            // The square corners round off and the outline fades in as the
-            // window reaches its normal state.
             const double progress =
                     (sample.bounds.width() - from.width()) / (to.width() - from.width());
             if (elapsed == 0)
@@ -873,7 +859,6 @@ TEST_F(WindowVisualPixelTest, AnimationUsesOnePhysicalOutlineAndClipsSquareOldSn
             for (int row = std::max(0, y - 2); row <= y + 3; ++row)
                 blueCoverage += pixel(image, x, row, 2);
             EXPECT_NEAR(blueCoverage, outlineChannel * progress, 2);
-            // Red comes only from the outline above the final green-content frame.
             if (elapsed == 400) {
                 EXPECT_NEAR(pixel(image, x, y - 1), outlineChannel, 1);
                 EXPECT_EQ(pixel(image, x, y), 0);
@@ -891,9 +876,6 @@ TEST_F(WindowVisualPixelTest, AnimationUsesOnePhysicalOutlineAndClipsSquareOldSn
     }
 }
 
-// A window whose content changes frame after frame skips its snapshot and is
-// drawn straight to the output; the two must not differ by a pixel, or every
-// periodic snapshot frame would flicker.
 TEST_F(WindowVisualPixelTest, DrawingDirectlyMatchesTheSnapshotAtEveryScale)
 {
     for (double scale : {1., 1.25, 1.5, 1.75, 2.}) {
@@ -902,9 +884,7 @@ TEST_F(WindowVisualPixelTest, DrawingDirectlyMatchesTheSnapshotAtEveryScale)
         WindowScene model;
         auto *window = model.window(Mode::ServerFrame, {0.2f, 0.4f, 0.8f, 1});
         ASSERT_NE(window, nullptr);
-        // A fractional device position, where a resampled snapshot would show.
         window->setBounds({base::Point(81, 83), window->bounds().size()});
-        // One-pixel stripes, which any resampling blurs.
         const auto stripes = [&] {
             const base::Size size(160, 120);
             std::vector<uint8_t> bytes(size.width() * size.height() * 4, 255);
@@ -948,7 +928,6 @@ TEST_F(WindowVisualPixelTest, MaximizedSsdHasNoSideOrBottomFrame)
     static_cast<scene::WindowAnimation *>(window->node())->finish();
     paint(model, window, {1, 0, 1, 1});
     const auto image = pixels();
-    // The content reaches the outline, which a maximized window keeps.
     for (int x : {2, width - 3}) {
         EXPECT_EQ(pixel(image, x, height / 2), 0);
         EXPECT_EQ(pixel(image, x, height / 2, 2), 0);
@@ -996,7 +975,6 @@ TEST_F(WindowVisualPixelTest, ShapedGlassPopupOutlineMeetsSnappedBodyAtFractiona
 {
     const double scale = 1.5;
     renderer->setRasterScale(scale);
-    // An odd logical position lands the popup on half a physical pixel.
     for (int x : {20, 21}) {
         WindowScene model;
         ASSERT_NE(model.window(Mode::ServerExterior, {0.5f, 0.5f, 0.5f, 1}), nullptr);
@@ -1023,8 +1001,6 @@ TEST_F(WindowVisualPixelTest, ShapedGlassPopupOutlineMeetsSnappedBodyAtFractiona
         window->node()->render(*renderer);
         const auto image = pixels();
 
-        // The body starts where the surface is snapped; the hairline is the
-        // one pixel outside it, darker than the shadow beyond.
         const int left = roundToInt(origin.x() * scale);
         const int top = roundToInt(origin.y() * scale);
         const int row = int((origin.y() + 30) * scale);

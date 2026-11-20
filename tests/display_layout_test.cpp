@@ -4,8 +4,6 @@
 //
 // Upstream: chromium/src/ui/display/display_layout_unittest.cc
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: uses opaque IDs, base geometry, and strict graph errors.
 
 #include <gtest/gtest.h>
 

@@ -4,9 +4,6 @@
 //
 // Upstream: chromium/src/ash/accelerators/ash_accelerator_configuration.cc
 // Revision: 8abbac30b9cf2fe976422c58c000c94685648b65
-//
-// Adapted for Cutefish: integrates the upstream behavior with native
-// compositor types and ownership.
 
 #include "accelerators/accelerator_configuration.h"
 
@@ -59,8 +56,7 @@ uint32_t modifiersFromJson(const base::json::Value::Array &names)
     return modifiers;
 }
 
-// Keys sorted at every level, as the file has always had them; overrides read from
-// the file keep their own order otherwise.
+// Keys sorted at every level, as the file has always had them.
 base::json::Value sortedKeys(const base::json::Value &value)
 {
     if (value.isArray()) {
@@ -201,7 +197,6 @@ void AcceleratorConfiguration::initialize(std::span<const AcceleratorData> accel
     m_defaultIdToAccelerators.clear();
 
     setLookupMaps(accelerators, m_defaultIdToAccelerators, m_defaultAcceleratorsToId);
-    // Actions without a default are still actions the user can bind.
     for (const AcceleratorAction action : allAcceleratorActions()) {
         m_defaultIdToAccelerators.try_emplace(toActionId(action));
         m_idToAccelerators.try_emplace(toActionId(action));
@@ -297,7 +292,6 @@ AcceleratorConfigResult AcceleratorConfiguration::restoreDefault(AcceleratorActi
         return AcceleratorConfigResult::NotFound;
 
     std::vector<Accelerator> &acceleratorsForId = current->second;
-    // Clear the reverse mapping first.
     for (const Accelerator &accelerator : acceleratorsForId) {
         const AcceleratorAction *found = m_acceleratorToId.find(accelerator);
         if (!found || toActionId(*found) != id)
@@ -564,10 +558,8 @@ bool AcceleratorConfiguration::hasOverride(AcceleratorActionId id, const Acceler
     return false;
 }
 
-// A default that was moved to another action was not recorded as removed from
-// its own, so the override file says nothing about it once the user takes it
-// away from the new owner again. The running state has to follow the file and
-// give it back, unless the user had disabled it on its own action.
+// A default moved to another action and taken away from it again goes back to its
+// own action, unless the user disabled it there.
 void AcceleratorConfiguration::restoreDefaultOwner(const Accelerator &accelerator)
 {
     const auto owner = idForDefaultAccelerator(accelerator);

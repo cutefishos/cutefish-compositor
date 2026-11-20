@@ -14,17 +14,8 @@ class EventLoop;
 
 namespace cutefish::wayland {
 
-// The compositor end of a persistent control channel the session holds open.
-//
-// The session, not the compositor, launches its privileged clients: for every
-// launch and relaunch it creates a Wayland socketpair, passes one end here over
-// SCM_RIGHTS, and gives the other to the new process (the file manager's
-// daemon, as `--desktop-socket <fd>`). The compositor turns the fd it receives
-// into a trusted wl_client. Nothing about the client's identity is taken on
-// trust from the client itself.
-//
-// The channel is a plain SOCK_STREAM UNIX socket. It carries file descriptors
-// and nothing else.
+// A SOCK_STREAM UNIX socket over which the session passes, by SCM_RIGHTS, one end of each
+// socketpair it gives a privileged client; it carries file descriptors and nothing else.
 class ShellControlChannel
 {
 public:
@@ -34,12 +25,9 @@ public:
     ShellControlChannel &operator=(const ShellControlChannel &) = delete;
     ~ShellControlChannel();
 
-    // Binds and listens on `path`, removing a stale socket left by a previous
-    // compositor. Returns false and logs on failure; the compositor runs on
-    // without a shell in that case.
+    // Removes a stale socket left by a previous compositor. Returns false and logs on failure.
     bool listen(const std::string &path);
 
-    // A new Wayland connection fd for the trusted client this channel serves.
     // The receiver takes ownership of `fd`.
     std::function<void(int fd)> connectionReceived;
 

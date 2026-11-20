@@ -23,7 +23,6 @@
 
 namespace cutefish::shell {
 
-// A SHA-256 in hex, as keys and body file names are.
 static bool isBodyName(const std::string &name)
 {
     return name.size() == 64
@@ -34,7 +33,6 @@ namespace fs = std::filesystem;
 
 static constexpr const char *kIndexName = "index.json";
 static constexpr const char *kUriList = "text/uri-list";
-// Password managers mark their copies with it.
 static constexpr const char *kPasswordHint = "x-kde-passwordManagerHint";
 
 static const std::vector<std::string> &textTypes()
@@ -169,8 +167,7 @@ ClipboardStore::~ClipboardStore()
 
 std::string ClipboardStore::defaultDirectory()
 {
-    // Not ~/.config/cutefish/clipboard-history, an older history in another
-    // format, which is left alone: its files are neither read nor removed.
+    // An older history in ~/.config/cutefish/clipboard-history is left alone.
     return base::paths::dataHome() + "/cutefish/clipboard-history";
 }
 

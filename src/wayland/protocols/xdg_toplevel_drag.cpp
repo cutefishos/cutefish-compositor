@@ -19,9 +19,6 @@ namespace cutefish::wayland {
 
 namespace {
 
-////////////////////////////////////////////////////////////////////////////////
-// xdg_toplevel_drag_v1_interface:
-
 void drag_destroy(wl_client *, wl_resource *resource)
 {
     if (getUserDataAs<wm::ToplevelDrag>(resource)->isDragging()) {
@@ -51,9 +48,6 @@ const struct xdg_toplevel_drag_v1_interface drag_implementation = {
         drag_destroy,
         drag_attach,
 };
-
-////////////////////////////////////////////////////////////////////////////////
-// xdg_toplevel_drag_manager_v1_interface:
 
 void manager_destroy(wl_client *, wl_resource *resource)
 {

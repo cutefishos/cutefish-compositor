@@ -27,9 +27,6 @@ double pointerSpeed(const AccelerationPoints &curve, double countsPerMs)
 
 TEST(PointerAcceleration, FollowsTheParametricCurve)
 {
-    // The default curve worked by hand from its parameters, for a hand speed
-    // on each segment: the polynomial (1 and 4 in/s, standardized 1.34 and
-    // 5.36), the tangent line (8 in/s) and the square root (16 in/s).
     EXPECT_NEAR(pointerGain(1, 0), 389, 4);
     EXPECT_NEAR(pointerGain(4, 0), 886, 9);
     EXPECT_NEAR(pointerGain(8, 0), 1504, 15);
@@ -38,13 +35,8 @@ TEST(PointerAcceleration, FollowsTheParametricCurve)
 
 TEST(PointerAcceleration, SlowMotionIsPreciseAndAFlickCrossesTheScreen)
 {
-    // A crawl moves a couple of hundred pixels per inch of hand travel, a
-    // flick well over a thousand, and the gain climbs between them without a
-    // step, across the joins between segments too.
     EXPECT_LT(pointerGain(0.25, 0), 300);
     EXPECT_GT(pointerGain(12, 0), 1500);
-    // Past the square root join the gain eases off again while the pointer
-    // still speeds up: a flick goes far without running away.
     double previousGain = pointerGain(0.01, 0);
     double previousSpeed = 0;
     for (double v = 0.05; v <= 20; v += 0.05) {
@@ -76,13 +68,9 @@ TEST(PointerAcceleration, TheSliderPicksAGentlerOrSteeperCurve)
 
 TEST(PointerAcceleration, EachSliderStepIsATableEntry)
 {
-    // The first step is the linear entry: the same gain at every speed.
     EXPECT_NEAR(pointerGain(0.5, -1), 240, 1);
     EXPECT_NEAR(pointerGain(4, -1), 240, 1);
-    // The fifth, one sixth above the default, is the 0.875 entry, worked by
-    // hand at 1 in/s: 179.1 * (0.95 * 1.34 + (0.88 * 1.34)^2 + (0.15 * 1.34)^3).
     EXPECT_NEAR(pointerGain(1, 1.0 / 6), 478, 5);
-    // Halfway between two steps is halfway between their entries.
     EXPECT_GT(pointerGain(1, 1.0 / 12), pointerGain(1, 0));
     EXPECT_LT(pointerGain(1, 1.0 / 12), pointerGain(1, 1.0 / 6));
 }

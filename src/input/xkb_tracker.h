@@ -4,14 +4,6 @@
 //
 // Upstream: chromium/src/components/exo/xkb_tracker.h
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: integrates the upstream behavior with native
-// compositor types and ownership.
-//
-// Adaptation: Exo derives xkb modifier state from ui::EventFlags through
-// ui::XkbModifierConverter. Cutefish is the one processing the physical key
-// stream, so it drives xkb_state_update_key directly and lets xkbcommon own
-// latch, lock and group bookkeeping.
 
 #ifndef CUTEFISH_INPUT_XKB_TRACKER_H_
 #define CUTEFISH_INPUT_XKB_TRACKER_H_
@@ -33,7 +25,6 @@ struct KeyStroke {
     std::vector<uint32_t> modifiers;
 };
 
-// Owns the xkb context, keymap and state used by every wl_keyboard.
 class XkbTracker
 {
 public:
@@ -42,35 +33,25 @@ public:
     XkbTracker &operator=(const XkbTracker &) = delete;
     ~XkbTracker();
 
-    // Recompiles the keymap for the given layout, e.g. "us" or "de-neo".
-    // Everything after the first '-' is the variant, matching
-    // ui::XkbKeyboardLayoutEngine::ParseLayoutName; an empty name is the
-    // built-in default. Returns false and keeps the previous keymap if the new
-    // one does not compile. The new state starts with nothing pressed, and only
-    // Caps Lock and Num Lock carry over.
+    // Everything after the first '-' is the variant; an empty name is the built-in default.
+    // Returns false and keeps the previous keymap on failure; only Caps Lock and Num Lock carry over.
     bool updateKeyboardLayout(const std::string &name);
 
-    // Feeds one physical key transition into the xkb state machine.
     void updateKey(uint32_t evdevCode, bool pressed);
 
-    // The keysym for an evdev code under the current keymap and state.
     uint32_t keysym(uint32_t evdevCode) const;
 
-    // The keysym at the base shift level of the active layout, lower-cased:
-    // what ui::KeyboardCode is to Ash accelerators. Shift+1 is "1", not "!".
+    // Lower-cased, at the base shift level of the active layout: Shift+1 is "1", not "!".
     uint32_t baseKeysym(uint32_t evdevCode) const;
 
-    // How to type `keysym` under the current keymap, layout and locks, using
-    // Shift and the layout's AltGr at most; fewest modifiers first. Nothing
-    // when the layout has no key for it.
+    // Uses Shift and the layout's AltGr at most, fewest modifiers first; nothing when no key types it.
     std::optional<KeyStroke> keyStroke(uint32_t keysym) const;
 
     // Whether a modifier is depressed or latched, ignoring locks: Caps Lock
     // does not make Ctrl+A a different accelerator.
     bool modifierPressed(const char *name) const;
 
-    // The layout name updateKeyboardLayout() was last given; empty for the
-    // built-in default.
+    // Empty for the built-in default.
     const std::string &layoutName() const { return m_layoutName; }
     bool keyRepeats(uint32_t evdevCode) const;
 

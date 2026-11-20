@@ -19,15 +19,12 @@ namespace cutefish::shell {
 class Applications;
 class TaskManager;
 
-// The notifications component without its views: the
-// org.freedesktop.Notifications server, the banners on screen, the history,
-// the per-application settings, and org.cutefish.Notification at
-// /Notification, which Settings and the session call.
+// Exports org.cutefish.Notification at /Notification, which Settings and the
+// session call.
 class Notifications
 {
 public:
     struct Files {
-        // shell.conf
         std::string settings;
         std::string history;
         std::string images;

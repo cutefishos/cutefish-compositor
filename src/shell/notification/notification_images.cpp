@@ -66,8 +66,6 @@ namespace notification_images {
 
 std::string defaultDirectory()
 {
-    // A directory of its own: ~/.cache/cutefish/notifications, an older
-    // cache, is left alone.
     return base::paths::cacheHome() + "/cutefish/notification-images";
 }
 
@@ -86,8 +84,6 @@ std::string save(const std::string &directory, const ui::Bitmap &image)
 
     std::error_code error;
     fs::create_directories(directory, error);
-    // The pictures show what the notifications said: only the user may list
-    // or read them.
     if (chmod(directory.c_str(), 0700) != 0)
         return {};
 
@@ -126,7 +122,6 @@ void prune(const std::string &directory, const std::vector<std::string> &keep)
         if (!item.is_regular_file(typeError))
             continue;
         const std::string path = item.path().string();
-        // Only what save() writes: a UUID and ".png".
         const std::string name = item.path().filename().string();
         if (name.size() != 36 + 4 || name.compare(36, 4, ".png") != 0
             || !base::Uuid::parse(name.substr(0, 36)))

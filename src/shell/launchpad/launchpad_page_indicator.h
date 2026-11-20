@@ -13,12 +13,9 @@
 
 namespace cutefish::shell {
 
-// A row of round dots, the current page's lit; a press or a drag over a dot
-// picks its page. It shows only for more than one page.
 class LaunchpadPageIndicator final : public ui::View
 {
 public:
-    // The padding around the dots.
     static constexpr double kPadding = 6;
 
     LaunchpadPageIndicator();
@@ -28,7 +25,6 @@ public:
     void setDotSize(double size);
     void setDots(int count, int current, bool animate);
 
-    // The indicator's own size, padding included.
     ui::SizeF implicitSize() const;
     ui::RectF dotRect(int index) const;
 
@@ -41,7 +37,6 @@ protected:
 
 private:
     double spacing() const;
-    // The dot under the pointer, its spacing shared with its neighbours.
     void pick(ui::PointF position);
 
     double m_dotSize = 0;

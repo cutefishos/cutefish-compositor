@@ -2,12 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// xdg-decoration over a real libwayland connection.
-//
-// The window-manager side of the frame is covered by decoration_test.cpp; what
-// is asserted here is the protocol: the negotiation, its errors, and what the
-// compositor's window ends up looking like as a result.
-
 #include <atomic>
 #include <chrono>
 #include <functional>
@@ -177,8 +171,7 @@ struct Client {
         zxdg_toplevel_decoration_v1_add_listener(window->decoration, &decorationListener, window);
     }
 
-    // The whole handshake, with the decoration negotiated before the first
-    // buffer as the protocol requires.
+    // The decoration is negotiated before the first buffer, as the protocol requires.
     XdgWindow* makeDecoratedToplevel(const base::Size& size, bool serverSide = true)
     {
         XdgWindow* window = makeToplevel();
@@ -340,9 +333,6 @@ protected:
     }
 };
 
-////////////////////////////////////////////////////////////////////////////////
-// The registry and the negotiation
-
 TEST_F(XdgDecorationProtocolTest, TheRegistryListsTheDecorationManager)
 {
     run([&](Client& c) {
@@ -359,7 +349,6 @@ TEST_F(XdgDecorationProtocolTest, TheCompositorConfiguresServerSideByDefault)
         c.addDecoration(window);
         c.sync();
 
-        // The mode is configured before the client may attach anything.
         ASSERT_EQ(1u, window->decorationConfigures.size());
         EXPECT_EQ(uint32_t(ZXDG_TOPLEVEL_DECORATION_V1_MODE_SERVER_SIDE), window->lastMode());
         EXPECT_TRUE(window->surfaceConfigures.empty());
@@ -421,9 +410,7 @@ TEST_F(XdgDecorationProtocolTest, SwitchingModeConfiguresTheDecorationAndThenThe
         c.sync();
 
         EXPECT_EQ(uint32_t(ZXDG_TOPLEVEL_DECORATION_V1_MODE_CLIENT_SIDE), window->lastMode());
-        // Exactly one xdg_surface.configure follows the mode change.
         EXPECT_EQ(configures + 1, window->surfaceConfigures.size());
-        // The client area did not move, so the size it is asked for is the same.
         EXPECT_EQ(base::Size(400, 300), window->toplevelConfigures.back());
 
         check([&] {
@@ -460,7 +447,6 @@ TEST_F(XdgDecorationProtocolTest, DestroyingTheDecorationObjectGivesTheFrameUp)
         zxdg_toplevel_decoration_v1_destroy(window->decoration);
         window->decoration = nullptr;
         c.sync();
-        // The protocol drops the frame at the next commit.
         check([&] {
             EXPECT_NE(nullptr, onlyWindow()->frame());
         });
@@ -485,16 +471,12 @@ TEST_F(XdgDecorationProtocolTest, AMaximizedServerSideToplevelIsAskedForTheWorkA
 
         xdg_toplevel_set_fullscreen(window->toplevel, nullptr);
         c.sync();
-        // Fullscreen has no frame at all.
         EXPECT_EQ(kOutput.size(), window->toplevelConfigures.back());
         check([&] {
             EXPECT_TRUE(onlyWindow()->frameInsets().isNull());
         });
     });
 }
-
-////////////////////////////////////////////////////////////////////////////////
-// Protocol errors
 
 TEST_F(XdgDecorationProtocolTest, ATopLevelMayOnlyHaveOneDecorationObject)
 {
@@ -550,9 +532,6 @@ TEST_F(XdgDecorationProtocolTest, DestroyingTheToplevelBeforeItsDecorationIsAnEr
     });
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// Lifetime
-
 TEST_F(XdgDecorationProtocolTest, ADecoratedClientCanBeTornDownInAnyOrder)
 {
     run([&](Client& c) {
@@ -560,8 +539,7 @@ TEST_F(XdgDecorationProtocolTest, ADecoratedClientCanBeTornDownInAnyOrder)
         check([&] {
             EXPECT_NE(nullptr, onlyWindow()->frame());
         });
-        // The client disconnects with the decoration still up; the run()
-        // epilogue is what checks nothing was left behind.
+        // The run() epilogue checks that nothing was left behind.
         (void)window;
     });
 }

@@ -30,16 +30,12 @@ namespace cutefish::shell {
 
 class TaskManager;
 
-// The menu bar without its views: the tray and its watcher, the AppMenu
-// registrar, the media player, battery, brightness and power profiles, the
-// power actions, the clock's format, which controls the bar shows, and
-// org.cutefish.MenuBar at /MenuBar.
+// Exports org.cutefish.MenuBar at /MenuBar.
 class MenuBar
 {
 public:
-    // The controls the user can put on or take off the bar (MenuBar/ShowWiFi,
-    // ShowBattery, ShowSound and ShowBluetooth in shell.conf); all but
-    // Bluetooth are shown by default.
+    // MenuBar/ShowWiFi, ShowBattery, ShowSound and ShowBluetooth in shell.conf;
+    // all but Bluetooth are shown by default.
     enum class Control {
         WiFi,
         Battery,
@@ -47,7 +43,7 @@ public:
         Bluetooth,
     };
 
-    // `settingsPath` is shell.conf; `tasks` may be null.
+    // `tasks` may be null.
     MenuBar(base::dbus::Connection *sessionBus, base::dbus::Connection *systemBus, TaskManager *tasks,
             std::string settingsPath);
     ~MenuBar();
@@ -55,8 +51,7 @@ public:
     MenuBar(const MenuBar &) = delete;
     MenuBar &operator=(const MenuBar &) = delete;
 
-    // org.cutefish.MenuBar, org.kde.StatusNotifierWatcher and
-    // com.canonical.AppMenu.Registrar; false when one is taken.
+    // False when one of the names is taken.
     bool registerServices();
 
     SystemTrayModel &systemTray() { return m_tray; }
@@ -71,17 +66,13 @@ public:
     // LC_TIME: the region the system was installed with would otherwise pick
     // its words.
     const std::string &timeLocale() const { return m_timeLocale; }
-    // A format string for base::Locale(timeLocale()).toString().
     const std::string &timeFormat() const { return m_timeFormat; }
-    // The session's 24-hour choice, else the region's clock.
     bool twentyFourTime() const { return m_twentyFourTime; }
 
     base::Signal<> timeFormatChanged;
 
     bool isControlShown(Control control) const;
     void setControlShown(Control control, bool shown);
-    // "wifi", "battery", "sound" or "bluetooth", as org.cutefish.MenuBar
-    // names them.
     static std::optional<Control> controlFromName(const std::string &name);
 
     base::Signal<> controlsChanged;
@@ -108,7 +99,6 @@ private:
     base::Job m_language;
     base::Job m_controlsLoad;
     std::array<bool, kControlCount> m_controlShown {true, true, true, false};
-    // Controls set while the file was read, which keep their new state.
     std::array<bool, kControlCount> m_controlSet {};
     bool m_twentyFourTime = false;
     std::string m_timeLocale;

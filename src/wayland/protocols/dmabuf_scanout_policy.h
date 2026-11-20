@@ -15,11 +15,6 @@ namespace cutefish::wayland {
 
 class DmaBufFeedbackManager;
 
-// Which surfaces get a scanout tranche in their linux-dmabuf feedback: the
-// root surface of every fullscreen window, which is what the overlay planner
-// can put straight on the primary plane. Exo's surface feedback listens to the
-// shell surface's fullscreen state for the same reason.
-//
 // Must be destroyed before the WindowManager it observes.
 class DmaBufScanoutPolicy : public wm::WindowObserver
 {
@@ -27,7 +22,6 @@ public:
     DmaBufScanoutPolicy(DmaBufFeedbackManager* manager, wm::WindowManager* windowManager);
     ~DmaBufScanoutPolicy() override;
 
-    // --- wm::WindowObserver ---
     void onWindowStateTypeChanged(wm::Window* window, wm::WindowStateType oldType) override;
 
 private:

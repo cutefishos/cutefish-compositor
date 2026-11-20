@@ -9,11 +9,8 @@
 
 namespace cutefish::shell {
 
-// The launchpad's layout: every metric a
-// fraction of the surface, clamped at both ends, in logical pixels.
+// In logical pixels.
 struct LaunchpadMetrics {
-    // Room the launchpad leaves for other panels: the dock on its edge and a
-    // constant 8 at the top.
     struct Margins {
         int top = 8;
         int left = 0;
@@ -40,8 +37,6 @@ struct LaunchpadMetrics {
     int indicatorDotSize = 0;
     int notFoundPixelSize = 0;
 
-    // The content box: the search row at its top, the indicator row at its
-    // bottom, the grid area between them.
     base::Rect content;
     base::Rect searchRow;
     base::Rect gridArea;
@@ -49,7 +44,7 @@ struct LaunchpadMetrics {
 
     int columns = 1;
     int rows = 1;
-    // Icons per page, never zero.
+    // Never zero.
     int pageCount = 1;
     static constexpr double kContentWidthRatio = 0.86;
     int cellWidth = 64;
@@ -62,9 +57,8 @@ struct LaunchpadMetrics {
     int selectionWidth = 0;
     int selectionPadding = 0;
 
-    // The grid of a page, centred in the grid area.
     base::Rect pageGrid() const;
-    // The cell of an index within its page, in surface coordinates.
+    // In surface coordinates.
     base::Rect cellRect(int indexInPage) const;
     int pagesFor(int count) const { return count > 0 ? (count + pageCount - 1) / pageCount : 0; }
 
@@ -78,9 +72,8 @@ enum class LaunchpadDirection {
     Down,
 };
 
-// AllAppsView.moveSelection(): the selection after an arrow key, or -1 to
-// leave it. `selected` is an index into the whole list (-1 for none), `page`
-// the page shown.
+// -1 leaves the selection as it is; `selected` indexes the whole list, -1 for
+// none.
 int moveLaunchpadSelection(int selected, int page, int total, int columns, int pageCount,
                            LaunchpadDirection direction);
 

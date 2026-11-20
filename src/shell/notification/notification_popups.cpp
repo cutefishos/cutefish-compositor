@@ -22,14 +22,11 @@
 
 namespace cutefish::shell {
 
-// The plate the card reads as (its fallback colour): its ink.
 static ui::Color bannerSurface()
 {
     return ui::color(toolkit::CompositorColor::NotificationBannerSurface);
 }
 
-// The window's content: the card over the whole banner, and the glass
-// following the theme.
 class NotificationPopups::Banner::Content : public ui::View
 {
 public:
@@ -124,7 +121,6 @@ void NotificationPopups::Banner::setNotification(const Notification &notificatio
             || notification.value != m_notification.value;
     m_notification = notification;
     m_card->setNotification(notification);
-    // A replacement starts the countdown over.
     if (restart && m_timerRunning)
         m_timer.start(timeout());
     updateTimer();
@@ -134,7 +130,6 @@ void NotificationPopups::Banner::setNotification(const Notification &notificatio
 
 std::chrono::milliseconds NotificationPopups::Banner::timeout() const
 {
-    // Critical notifications and a timeout of 0 stay until dismissed.
     if (m_notification.urgency >= 2 || m_notification.timeout == 0)
         return std::chrono::milliseconds(0);
     if (m_notification.timeout > 0)
@@ -154,7 +149,6 @@ int NotificationPopups::Banner::height() const
 
 void NotificationPopups::Banner::updateTimer()
 {
-    // A timer that runs again starts from its full interval.
     const bool running = m_shown && timeout().count() > 0 && !m_card->isHovered();
     if (running == m_timerRunning)
         return;
@@ -180,7 +174,6 @@ void NotificationPopups::Banner::place(const base::Point &position)
         m_window->setSize(base::Size(kWidth, m_height));
         updateGlass();
     }
-    // A banner coming on screen starts in its slot; the rest glide.
     if (!m_shown)
         m_placed = false;
     m_stack = position;
@@ -215,7 +208,6 @@ NotificationPopups::NotificationPopups(Shell *shell, NotificationBanners &model)
     m_subscriptions.push_back(model.dataChanged.connect([this](int first, int last) { update(first, last); }));
     m_subscriptions.push_back(model.rowMoved.connect([this](int, int) { reset(); }));
     m_subscriptions.push_back(model.modelReset.connect([this] { reset(); }));
-    // The work area moves with the menu bar and the dock.
     m_subscriptions.push_back(shell->windowManager()->outputsChanged.connect([this] { schedulePositioning(); }));
     reset();
 }
@@ -279,12 +271,10 @@ void NotificationPopups::positionPopups()
 
     int y = area.y() + kEdgeDistance;
     int shown = 0;
-    // Newest on top, pushing the older ones down.
     for (auto it = m_banners.rbegin(); it != m_banners.rend(); ++it) {
         Banner *banner = it->get();
         const int height = banner->height();
         const int x = area.x() + area.width() - kEdgeDistance - kWidth;
-        // Never more than 60 % of the screen, but always at least one banner.
         const bool fits = y + height <= area.y() + area.height() * kMaximumScreenFill;
         if (shown > 0 && !fits) {
             banner->setShown(false);

@@ -10,7 +10,6 @@ namespace cutefish::accelerators {
 
 namespace {
 
-// Calls without waiting for the answer.
 template<typename... Args>
 void call(const char *service, const char *path, const char *method, const Args &...arguments)
 {

@@ -17,11 +17,8 @@
 
 namespace cutefish::computer_control {
 
-// Asks the user through cutefish-services' permission prompt, kind
-// "computer-control". Any session client can own a bus name first, so the
-// owner's process has to be one that shows system dialogs, and the prompt goes
-// to that owner's unique name. An application in `remembered` is allowed
-// without asking, and the prompt offers to add the one asking now.
+// Any session client can own a bus name first, so the owner's process must show
+// system dialogs, and the prompt goes to the owner's unique name.
 class PermissionConsent
 {
 public:
@@ -33,9 +30,7 @@ public:
     PermissionConsent &operator=(const PermissionConsent &) = delete;
     ~PermissionConsent();
 
-    // Environment::askConsent. Must outlive the questions it asks.
-    // `appId` is the desktop entry of the agent's application, for the
-    // prompt's icon; empty when it has none.
+    // Must outlive the questions it asks. `appId` is empty when the agent has none.
     std::function<void()> ask(const std::string &agentName, int64_t pid, const std::string &appId,
                               std::function<void(ConsentResult)> answer);
 

@@ -4,9 +4,6 @@
 //
 // Upstream: chromium/src/components/exo/keyboard_delegate.h
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: integrates the upstream behavior with native
-// compositor types and ownership.
 
 #ifndef CUTEFISH_INPUT_KEYBOARD_DELEGATE_H_
 #define CUTEFISH_INPUT_KEYBOARD_DELEGATE_H_
@@ -23,14 +20,11 @@ class Surface;
 
 namespace cutefish::input {
 
-// Handles events on keyboards in context-specific ways.
 class KeyboardDelegate
 {
 public:
     virtual ~KeyboardDelegate() = default;
 
-    // Whether `surface` is a valid target for this keyboard, e.g. because it is
-    // owned by the same client.
     virtual bool canAcceptKeyboardEventsForSurface(compositor::Surface* surface) const = 0;
 
     // Keyed by physical evdev code.

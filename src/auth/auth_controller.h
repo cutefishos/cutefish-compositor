@@ -55,18 +55,14 @@ public:
 
     bool canSelectUser() const { return m_mode == Login; }
 
-    // Lock only: off for a user who has no password to give, as on the live
-    // medium. Enter then unlocks, and the backend is never asked.
+    // Lock only: off for a user who has no password, as on the live medium.
     bool passwordRequired() const { return m_mode == Login || m_passwordRequired; }
     void setPasswordRequired(bool required) { m_passwordRequired = required; }
 
-    // Login only: the accounts to log in as, by display name, and which one.
-    // With a single account there is nothing to pick; with none found the
-    // name is typed instead.
+    // Login only.
     std::vector<std::string> userNames() const;
-    // Their login names, in the same order.
     std::vector<std::string> userLogins() const { return m_users; }
-    // Their pictures, in the same order; empty where an account has none.
+    // Empty where an account has none.
     std::vector<std::string> userIcons() const { return m_userIcons; }
     int userIndex() const;
     void setUserIndex(int index);
@@ -74,8 +70,7 @@ public:
     bool typesUserName() const { return m_mode == Login && m_users.empty(); }
     void setUsers(std::vector<std::string> users);
 
-    // Login only: the wayland-sessions the login can start, and which one.
-    // Choosing a user picks the session that user logged in with last.
+    // Login only.
     std::vector<std::string> sessionNames() const;
     int sessionIndex() const { return m_sessionIndex; }
     void setSessionIndex(int index);
@@ -87,10 +82,7 @@ public:
     void start();
     // Wipes the password it is given once it holds it as a Secret.
     void authenticate(std::string password);
-    // Without a password required: succeeds as an accepted password does.
     void unlockWithoutPassword();
-    // Back to Idle: clears the error. Called when the user
-    // starts typing again after a rejection.
     void reset();
 
     base::Signal<> stateChanged;
@@ -98,10 +90,8 @@ public:
     base::Signal<> sessionChanged;
     base::Signal<> sessionsChanged;
     base::Signal<> usersChanged;
-    // The credential was rejected. The view shakes and clears its field; it
-    // does not decide anything about the session.
     base::Signal<> authenticationFailed;
-    // The backend confirmed, and has been told to proceed. Emitted once.
+    // Emitted once.
     base::Signal<> authenticationSucceeded;
 
 private:
@@ -126,13 +116,10 @@ private:
     std::vector<LoginSession> m_sessions;
     int m_sessionIndex = -1;
     bool m_passwordRequired = true;
-    // accept() is irreversible - it unlocks the session or starts one - so it
-    // is guarded rather than merely called from a single place.
+    // accept() is irreversible, so it is guarded.
     bool m_accepted = false;
     std::vector<base::Subscription> m_backendSubscriptions;
 
-    // The accounts service's record of each account shown. Only it knows the
-    // picture chosen last: a copy it made of an earlier one stays on disk.
     struct WatchedAccount
     {
         std::unique_ptr<accounts::UserAccount> account;

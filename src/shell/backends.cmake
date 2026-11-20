@@ -1,5 +1,3 @@
-# The shell's backends, one static library per component: models and D-Bus
-# services without views, on the toolkit and the framework's plain clients.
 find_package(CutefishClients REQUIRED COMPONENTS upower powerprofiles audio networkmanager)
 
 add_subdirectory(src/shell/common)

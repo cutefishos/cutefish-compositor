@@ -4,9 +4,6 @@
 //
 // Upstream: chromium/src/components/exo/wayland/wl_seat.h
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: integrates the upstream behavior with native
-// compositor types and ownership.
 
 #ifndef CUTEFISH_WAYLAND_PROTOCOLS_WL_SEAT_H_
 #define CUTEFISH_WAYLAND_PROTOCOLS_WL_SEAT_H_
@@ -30,13 +27,11 @@ input::Pointer* pointerFromResource(wl_resource* resource);
 
 class SerialTracker;
 
-// Exo binds at WL_TOUCH_SHAPE_SINCE_VERSION; we go on to version 8 for
-// wl_pointer.axis_value120. Version 9's axis_relative_direction needs the
-// device's natural-scroll setting.
+// Version 8 for wl_pointer.axis_value120; version 9's axis_relative_direction needs the device's
+// natural-scroll setting.
 constexpr uint32_t kWlSeatVersion = 8;
 
-// The data every wl_seat resource binds against. Owned by the caller, which
-// must keep it alive for as long as the display.
+// Owned by the caller, which must keep it alive for as long as the display.
 struct WaylandSeat : input::SeatObserver {
     WaylandSeat(input::Seat* seat, SerialTracker* serialTracker);
     ~WaylandSeat() override;

@@ -4,9 +4,6 @@
 //
 // Upstream: chromium/src/components/exo/wayland/wl_shm.h
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: integrates the upstream behavior with native
-// compositor types and ownership.
 
 #ifndef CUTEFISH_WAYLAND_PROTOCOLS_WL_SHM_H_
 #define CUTEFISH_WAYLAND_PROTOCOLS_WL_SHM_H_
@@ -29,14 +26,10 @@ constexpr uint32_t kWlShmVersion = 1;
 // that a client destroying wl_buffer while it is committed cannot dangle.
 using BufferRef = std::shared_ptr<compositor::Buffer>;
 
-// Returns the buffer behind a wl_buffer resource, or nullptr for a null
-// resource.
+// Null for a null resource.
 BufferRef bufferFromResource(wl_resource* resource);
 
-// Installs `implementation` and takes ownership of `buffer` for the wl_buffer
-// resource. Also clears the buffer's release callback when the resource dies:
-// a Buffer can outlive its wl_buffer - the display may still be scanning it
-// out - and must not then send a release event to a resource that is gone.
+// Also clears the buffer's release callback when the resource dies, since a Buffer can outlive its wl_buffer.
 void setBufferImplementation(wl_resource* resource, const void* implementation, BufferRef buffer);
 
 wl_global* createShmGlobal(wl_display* display, compositor::Compositor* compositor);

@@ -9,16 +9,11 @@
 
 namespace cutefish::shell::clock_format {
 
-// The menu bar clock's format, as base::Locale::toString takes it: the
-// weekday, abbreviated month, day and time in the order and words CLDR gives
-// the locale (an ICU id, "zh_Hant_SG"), without the commas of its
-// written-out form ("Sat Sep 26 1:40 PM").
 std::string pattern(const std::string &localeName, bool twentyFourHour);
 
-// From a CLDR (ICU) pattern; empty when it has a field that format cannot show.
+// Empty when the pattern has a field that format cannot show.
 std::string toLocaleFormat(const std::string &icuPattern);
 
-// A base::Locale::toString format with a seconds field outside its quotes.
 bool showsSeconds(const std::string &format);
 
 } // namespace cutefish::shell::clock_format

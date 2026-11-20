@@ -2,10 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// The window overview against the window manager: entering and leaving by the
-// shortcut and by three fingers, the input it takes and leaves, clicking,
-// closing and dragging windows, and the desk bar. No DRM, no GL.
-
 #include <linux/input-event-codes.h>
 
 #include <algorithm>
@@ -81,7 +77,6 @@ public:
         paint();
         if (!texture || texture->size() != rect.size())
             texture = std::make_unique<FrameTexture>(rect.size());
-        // What the texture holds, for reading the draw order of cached windows.
         for (size_t i = before; i < calls.size(); ++i) {
             if (calls[i].texture)
                 contents[texture.get()] = calls[i].texture;
@@ -178,7 +173,6 @@ protected:
         flush();
     }
 
-    // Draws until the overview has come to rest.
     void settle()
     {
         paint();
@@ -217,7 +211,6 @@ protected:
         return -1;
     }
 
-    // Whether the last paint drew the window's client content anywhere.
     bool drewContentOf(const Window *window) const
     {
         const render::Texture *texture = window->rootSurface()->node()->texture();
@@ -254,8 +247,6 @@ TEST_F(OverviewTest, TheShortcutBringsItInAndTakesItAway)
     settle();
     EXPECT_EQ(State::Shown, overview->state());
 
-    // Both, apart, below the desk bar and inside the work area, smaller than
-    // they are.
     ASSERT_EQ(2u, overview->items().size());
     const base::RectF a = placeOf(first);
     const base::RectF b = placeOf(second);
@@ -266,7 +257,6 @@ TEST_F(OverviewTest, TheShortcutBringsItInAndTakesItAway)
         EXPECT_TRUE(base::RectF(kOutput).contains(place));
         EXPECT_LT(place.width(), 500);
     }
-    // Where they were relative to each other.
     EXPECT_LT(a.left(), b.left());
 
     overview->toggle();
@@ -275,7 +265,6 @@ TEST_F(OverviewTest, TheShortcutBringsItInAndTakesItAway)
     EXPECT_EQ(State::Hidden, overview->state());
     EXPECT_FALSE(node->isActive());
     EXPECT_TRUE(overview->items().empty());
-    // Nothing changed hands.
     EXPECT_EQ(second, active());
 }
 
@@ -300,14 +289,12 @@ TEST_F(OverviewTest, ThePointerAndTheKeysAreTheOverviewsWhileItIsUp)
     EXPECT_FALSE(overview->onKey(at(now), KEY_A, false));
 
     show();
-    // The window gets neither motion nor keys.
     EXPECT_TRUE(overview->onPointerMotion(at(now), placeOf(window).center()));
     EXPECT_EQ(0, overview->hovered());
     EXPECT_TRUE(overview->onKey(at(now), KEY_A, true));
     EXPECT_TRUE(overview->onKey(at(now), KEY_A, false));
 
     overview->exit();
-    // On its way out the windows have their input again.
     EXPECT_FALSE(overview->onPointerMotion(at(now), base::PointF(300, 300)));
     EXPECT_FALSE(overview->onKey(at(now), KEY_A, true));
     EXPECT_FALSE(overview->onKey(at(now), KEY_A, false));
@@ -330,7 +317,6 @@ TEST_F(OverviewTest, ThePanelsAndTheDockKeepTheirInput)
     EXPECT_FALSE(overview->onPointerButton(at(now), base::PointF(500, 770), BTN_LEFT, true));
     EXPECT_FALSE(overview->onPointerButton(at(now), base::PointF(500, 770), BTN_LEFT, false));
     EXPECT_EQ(State::Shown, overview->state());
-    // Off the dock, the overview has it again.
     EXPECT_TRUE(overview->onPointerMotion(at(now), base::PointF(500, 600)));
 }
 
@@ -353,7 +339,6 @@ TEST_F(OverviewTest, FloatingWindowsFadeAwayAndLeaveItTheInput)
     settle();
     overview->advance(double(now));
     EXPECT_EQ(0.f, opacity());
-    // Not in the overview, and the pointer over it is the overview's.
     ASSERT_EQ(1u, overview->items().size());
     EXPECT_EQ(window, overview->items().front().window);
     EXPECT_NE(OverviewController::Hit::Type::Panel, overview->hitTest(base::PointF(450, 300)).type);
@@ -375,7 +360,6 @@ TEST_F(OverviewTest, ThePanelsGiveWayAsItComesIn)
     layout.advance(double(now + DockLayoutManager::kSlideDurationMs));
     ASSERT_EQ(base::Point(), panel->presentationOffset());
 
-    // Off the top edge with the overview's progress.
     ASSERT_TRUE(overview->enter());
     paint();
     layout.advance(double(now) + scene::OverviewNode::kTransitionDurationMs / 2);
@@ -386,9 +370,7 @@ TEST_F(OverviewTest, ThePanelsGiveWayAsItComesIn)
     layout.advance(double(now));
     EXPECT_EQ(base::Point(0, -30), panel->presentationOffset());
     EXPECT_TRUE(panel->isPresentationHidden());
-    // The desk bar takes the edge it left, and the pointer there is the overview's.
     EXPECT_EQ(kOutput.top(), overview->bars().front().bounds.top());
-    // Its previews keep half the margin they had under the panel.
     const base::Rect work = manager.outputAreas().front().workArea;
     EXPECT_EQ(std::round((work.top() + OverviewController::kBarPadding) / 2.0),
               overview->bars().front().desks.front().bounds.top());
@@ -411,7 +393,6 @@ TEST_F(OverviewTest, AClickedWindowIsActivatedAndLandsOnTop)
     click(placeOf(first).center());
     EXPECT_EQ(State::Exiting, overview->state());
     EXPECT_EQ(first, active());
-    // Drawn last on its way back.
     EXPECT_EQ(first, overview->items().back().window);
     settle();
     EXPECT_EQ(State::Hidden, overview->state());
@@ -434,7 +415,6 @@ TEST_F(OverviewTest, EscapeAndAClickOnNothingLeaveAsItWas)
     EXPECT_EQ(window, active());
     settle();
 
-    // The desk bar's empty space too.
     show();
     ASSERT_EQ(OverviewController::Hit::Type::Bar, overview->hitTest(base::PointF(10, 10)).type);
     click(base::PointF(10, 10));
@@ -447,7 +427,6 @@ TEST_F(OverviewTest, TheKeyboardPicksAWindow)
     Window *left = makeWindow(base::Rect(0, 200, 400, 300));
     Window *right = makeWindow(base::Rect(600, 200, 400, 300));
     show();
-    // The active window first, then the one to its left.
     key(KEY_RIGHT);
     EXPECT_EQ(indexOf(right), overview->selected());
     key(KEY_LEFT);
@@ -465,7 +444,6 @@ TEST_F(OverviewTest, APressStaysWithItsWindowWhenTheOthersChange)
     show();
     ASSERT_EQ(3u, overview->items().size());
 
-    // The window under the press closes: letting go picks nothing.
     moveTo(placeOf(middle).center());
     input.onPointerButton(at(now), BTN_LEFT, true);
     manager.destroyWindow(middle);
@@ -473,7 +451,6 @@ TEST_F(OverviewTest, APressStaysWithItsWindowWhenTheOthersChange)
     EXPECT_EQ(State::Shown, overview->state());
     EXPECT_EQ(top, active());
 
-    // One below it closes: letting go still picks it.
     moveTo(placeOf(top).center());
     input.onPointerButton(at(now), BTN_LEFT, true);
     manager.destroyWindow(bottom);
@@ -488,8 +465,6 @@ TEST_F(OverviewTest, AKeyHeldSinceBeforeGoesUpAtTheWindow)
     EXPECT_FALSE(overview->onKey(at(now), KEY_LEFTMETA, true));
     show();
     EXPECT_TRUE(overview->onKey(at(now), KEY_A, true));
-    // The window saw it go down, so it sees it go up; the overview's own key
-    // stays the overview's.
     EXPECT_FALSE(overview->onKey(at(now), KEY_LEFTMETA, false));
     EXPECT_TRUE(overview->onKey(at(now), KEY_A, false));
 }
@@ -499,7 +474,6 @@ TEST_F(OverviewTest, ActivationFromElsewhereEndsIt)
     Window *first = makeWindow(base::Rect(100, 100, 500, 400));
     makeWindow(base::Rect(300, 200, 500, 400));
     show();
-    // The dock asking for a window.
     manager.activation()->activate(first);
     EXPECT_EQ(State::Exiting, overview->state());
 }
@@ -508,7 +482,6 @@ TEST_F(OverviewTest, MinimizedWindowsAreLeftOut)
 {
     Window *shown = makeWindow(base::Rect(100, 100, 500, 400));
     Window *minimized = makeWindow(base::Rect(300, 200, 500, 400));
-    // Minimized from the click on, its animation still running.
     minimized->minimize();
     ASSERT_TRUE(minimized->state()->isMinimized());
     const auto *animation = dynamic_cast<const scene::WindowAnimation *>(minimized->node());
@@ -531,7 +504,6 @@ TEST_F(OverviewTest, ClickingADeskSwitchesThereAndTakesItAway)
     ASSERT_EQ(first, active());
     show();
     ASSERT_EQ(1u, overview->items().size());
-    // With no frames to slide, it switches at once and leaves.
     click(overview->bars()[0].desks[1].bounds.center());
     EXPECT_EQ(desk(1), desks->activeDesk());
     EXPECT_EQ(State::Exiting, overview->state());
@@ -559,8 +531,6 @@ TEST_F(OverviewTest, AClickedDeskSlidesInWhileTheDeskBarGoes)
     ASSERT_NE(nullptr, desks->newDesk(DesksCreationRemovalSource::Keyboard));
     show();
 
-    // The strip starts from the overview as it is shown, and the overview
-    // heads out at once under it, drawing nothing there.
     click(overview->bars()[0].desks[1].bounds.center());
     EXPECT_EQ(1, screenshots);
     ASSERT_NE(nullptr, desks->animation());
@@ -570,7 +540,6 @@ TEST_F(OverviewTest, AClickedDeskSlidesInWhileTheDeskBarGoes)
     EXPECT_TRUE(node->isActive());
     EXPECT_FALSE(node->covers());
 
-    // The desk bar goes as the strip slides.
     paint();
     now += scene::OverviewNode::kTransitionDurationMs / 2;
     paint();
@@ -616,8 +585,6 @@ TEST_F(OverviewTest, AHoveredDeskIsNotRingedAndAPressedOneDimsWhileTheButtonIsOn
     EXPECT_FALSE(other().highlighted);
     moveTo(on + base::PointF(0, 4));
     EXPECT_TRUE(other().pressed);
-    // Further, it is dragged rather than pressed; let go where it was,
-    // nothing is clicked or moved.
     moveTo(on + base::PointF(0, 40));
     EXPECT_FALSE(other().pressed);
     EXPECT_TRUE(other().dragged);
@@ -639,8 +606,6 @@ TEST_F(OverviewTest, ALoneDeskPressedAndLeftDimsOnlyWhileTheButtonIsOnIt)
     moveTo(on);
     input.onPointerButton(at(now), BTN_LEFT, true);
     EXPECT_TRUE(lone().pressed);
-    // A lone desk has nowhere to go: off it the press would do nothing, and
-    // it shows so.
     moveTo(on + base::PointF(0, 200));
     EXPECT_FALSE(lone().pressed);
     EXPECT_FALSE(lone().dragged);
@@ -670,7 +635,6 @@ TEST_F(OverviewTest, ADeskDraggedAlongTheBarTakesItsNewPlaceAndTheNamesFollowThe
     const base::PointF from = slots[0].bounds.center();
     moveTo(from);
     input.onPointerButton(at(now), BTN_LEFT, true);
-    // Up and down does nothing; along the bar it follows the pointer.
     moveTo(from + base::PointF(30, 120));
     auto shown = desksShown();
     ASSERT_EQ(3u, shown.size());
@@ -678,7 +642,6 @@ TEST_F(OverviewTest, ADeskDraggedAlongTheBarTakesItsNewPlaceAndTheNamesFollowThe
     EXPECT_EQ(slots[0].bounds.translated(30, 0), shown[0].bounds);
     EXPECT_EQ("Desk 1", shown[0].name);
 
-    // Past the second desk's middle, the second one makes way.
     const double step = slots[1].bounds.x() - slots[0].bounds.x();
     moveTo(from + base::PointF(step * 0.6, 0));
     shown = desksShown();
@@ -687,7 +650,6 @@ TEST_F(OverviewTest, ADeskDraggedAlongTheBarTakesItsNewPlaceAndTheNamesFollowThe
     EXPECT_EQ(uintptr_t(first), shown[1].id);
     EXPECT_TRUE(shown[1].dragged);
 
-    // Held past the last place, it stops there.
     moveTo(from + base::PointF(step * 5, 0));
     shown = desksShown();
     EXPECT_EQ(uintptr_t(first), shown[2].id);
@@ -697,7 +659,6 @@ TEST_F(OverviewTest, ADeskDraggedAlongTheBarTakesItsNewPlaceAndTheNamesFollowThe
     EXPECT_EQ(second, desk(0));
     EXPECT_EQ(third, desk(1));
     EXPECT_EQ(first, desk(2));
-    // Still up, on the same desk, which is now the last.
     EXPECT_EQ(State::Shown, overview->state());
     EXPECT_EQ(first, desks->activeDesk());
     shown = desksShown();
@@ -766,7 +727,6 @@ TEST_F(OverviewTest, AWindowLetGoElsewhereGoesBack)
 
 TEST_F(OverviewTest, ThreeFingersUpFollowAndDownLeave)
 {
-    // Large enough that the overview shows it smaller.
     Window *window = makeWindow(base::Rect(0, 30, 1000, 740));
     WmGestureHandler gestures(desks, {}, overview);
     input.setGestureFilter(&gestures);
@@ -775,13 +735,11 @@ TEST_F(OverviewTest, ThreeFingersUpFollowAndDownLeave)
         input.onPointerGestureUpdate(at(now), input::GestureType::Swipe, travel * 5, travel, 1, 0);
     };
 
-    // Down on the desk does nothing.
     input.onPointerGestureBegin(at(now), input::GestureType::Swipe, 3);
     swipe(10);
     EXPECT_EQ(State::Hidden, overview->state());
     input.onPointerGestureEnd(at(now), input::GestureType::Swipe, false);
 
-    // A slowing hold, which the fingers show before they stop.
     const auto hold = [&](double direction) {
         for (int step = 0; step < 3; ++step) {
             now += 10;
@@ -789,7 +747,6 @@ TEST_F(OverviewTest, ThreeFingersUpFollowAndDownLeave)
         }
     };
 
-    // Up, halfway and a bit, held, then let go: in.
     input.onPointerGestureBegin(at(now), input::GestureType::Swipe, 3);
     for (int step = 0; step < 6; ++step) {
         now += 10;
@@ -807,7 +764,6 @@ TEST_F(OverviewTest, ThreeFingersUpFollowAndDownLeave)
     settle();
     EXPECT_EQ(State::Shown, overview->state());
 
-    // Down a little, held, let go: it stays.
     input.onPointerGestureBegin(at(now), input::GestureType::Swipe, 3);
     for (int step = 0; step < 3; ++step) {
         now += 10;
@@ -819,7 +775,6 @@ TEST_F(OverviewTest, ThreeFingersUpFollowAndDownLeave)
     settle();
     EXPECT_EQ(State::Shown, overview->state());
 
-    // A flick down: out.
     input.onPointerGestureBegin(at(now), input::GestureType::Swipe, 3);
     for (int step = 0; step < 3; ++step) {
         now += 8;
@@ -838,7 +793,6 @@ TEST_F(OverviewTest, AFlickInOneEventBringsItIn)
     WmGestureHandler gestures(desks, {}, overview);
     input.setGestureFilter(&gestures);
 
-    // A quick flick that libinput reports in a single event past the threshold.
     input.onPointerGestureBegin(at(now), input::GestureType::Swipe, 3);
     now += 8;
     const base::PointF travel(0, -6 / WmGestureHandler::kMmPerUnacceleratedUnit);
@@ -869,14 +823,11 @@ TEST_F(OverviewTest, SlowFingersPastTheThresholdMoveItWithoutAJump)
         const base::PointF delta(0, step / WmGestureHandler::kMmPerUnacceleratedUnit);
         input.onPointerGestureUpdate(at(now), input::GestureType::Swipe, delta * 5, delta, 1, 0);
         const double progress = node->progress(double(now) + 5);
-        // Moving from the first step past the threshold, never more than
-        // twice as fast as the fingers.
         if (travel > WmGestureHandler::kContinuousGestureMoveThresholdMm)
             EXPECT_LT(progress, previous);
         EXPECT_LE(previous - progress, 2 * step / length + 1e-9);
         previous = progress;
     }
-    // Under the fingers again.
     EXPECT_NEAR(1 - travel / length, previous, 1e-9);
     input.onPointerGestureEnd(at(now), input::GestureType::Swipe, false);
     settle();
@@ -893,7 +844,6 @@ TEST_F(OverviewTest, EveryDeskPreviewShowsItsWindows)
     ASSERT_FALSE(there->isVisible());
     show();
     bar->invalidatePreviews();
-    // One preview a frame: the active desk's, then the other.
     paint();
     paint();
     EXPECT_TRUE(drewContentOf(there));
@@ -911,15 +861,12 @@ TEST_F(OverviewTest, ADraggedWindowShrinksOnItsWayToTheBar)
     };
     moveTo(place.center());
     input.onPointerButton(at(now), BTN_LEFT, true);
-    // Level with or below where it sits, the size it has in the overview.
     moveTo(place.center() + base::PointF(40, 10));
     EXPECT_EQ(place.size(), dragged().size());
     EXPECT_TRUE(dragged().contains(place.center() + base::PointF(40, 10)));
     moveTo(place.center() + base::PointF(-40, 0));
     EXPECT_EQ(place.size(), dragged().size());
 
-    // On the bar, the window at the expanded bar's share of the output's
-    // height: 6 + 80 + 24 + 6 of 800.
     const auto bar = overview->bars()[0];
     const double expanded = 116;
     const base::PointF onBar = bar.desks[1].bounds.center();
@@ -928,7 +875,6 @@ TEST_F(OverviewTest, ADraggedWindowShrinksOnItsWayToTheBar)
     EXPECT_NEAR(400 * expanded / 800, dragged().height(), 0.01);
     EXPECT_TRUE(dragged().contains(onBar));
 
-    // Halfway up from where it sits to the bar, halfway there.
     const base::PointF between(onBar.x(), (place.center().y() + bar.bounds.top() + expanded) / 2);
     moveTo(between);
     EXPECT_NEAR((place.width() + 500 * expanded / 800) / 2, dragged().width(), 0.01);
@@ -950,7 +896,6 @@ TEST_F(OverviewTest, GlassIsDrawnWhereTheWindowIsShown)
     ASSERT_EQ(2, renderer.blurs.size());
     EXPECT_EQ(base::RectF(place.topLeft(), base::SizeF(100, 400) * scale).toEnclosingRect(),
               renderer.blurs[0]);
-    // The new-desk button is frosted over it.
     EXPECT_EQ(overview->bars()[0].newDesk.toEnclosingRect(), renderer.blurs[1]);
 }
 
@@ -967,7 +912,6 @@ TEST_F(OverviewTest, ABlurredWindowIsNotDrawnAgainEachTimeItComesIn)
     settle();
     ASSERT_EQ(State::Hidden, overview->state());
 
-    // Its texture without the blur is kept beside the one with it.
     ASSERT_TRUE(overview->enter());
     paint();
     EXPECT_FALSE(drewContentOf(window));
@@ -983,7 +927,6 @@ TEST_F(OverviewTest, APreviewsCloseButtonCombinesItsDeskIntoTheNext)
     show();
     ASSERT_EQ(1u, overview->items().size());
 
-    // Only on the preview the pointer is on.
     const base::RectF preview = overview->bars()[0].desks[1].bounds;
     moveTo(preview.center());
     EXPECT_FALSE(overview->bars()[0].desks[0].closeShown);
@@ -1000,15 +943,12 @@ TEST_F(OverviewTest, APreviewsCloseButtonCombinesItsDeskIntoTheNext)
     EXPECT_EQ(State::Shown, overview->state());
     EXPECT_EQ(2u, overview->items().size());
     EXPECT_GE(indexOf(here), 0);
-    // One desk left, which cannot go.
     moveTo(overview->bars()[0].desks[0].bounds.center());
     EXPECT_FALSE(overview->bars()[0].desks[0].closeShown);
 }
 
 TEST_F(OverviewTest, ClosingTheActiveDeskSwitchesAtOnceWithoutTheRemovalStrip)
 {
-    // Outside the overview the active desk would go with the removal
-    // animation, black where the removed desk's frame was.
     auto *switchNode = static_cast<scene::DeskSwitchNode *>(
             surfaceContainer->addChild(std::make_unique<scene::DeskSwitchNode>([this] {
                 return now;
@@ -1024,7 +964,6 @@ TEST_F(OverviewTest, ClosingTheActiveDeskSwitchesAtOnceWithoutTheRemovalStrip)
     Window *here = makeWindow(base::Rect(100, 100, 500, 400));
     show();
 
-    // A new desk, clicked to, then closed.
     click(overview->bars()[0].newDesk.center());
     ASSERT_EQ(2u, desks->desks().size());
     desks->activateDesk(desk(1), DesksSwitchSource::MiniViewButton);
@@ -1056,7 +995,6 @@ TEST_F(OverviewTest, EvenOneDeskGetsAPreview)
     const auto one = overview->bars()[0];
     ASSERT_EQ(1u, one.desks.size());
     EXPECT_TRUE(one.desks[0].active);
-    // A preview at the output's shape, the new-desk button half as wide.
     const base::RectF preview = one.desks[0].bounds;
     EXPECT_NEAR(double(kOutput.width()) / kOutput.height(), preview.width() / preview.height(),
                 0.02);
@@ -1066,7 +1004,6 @@ TEST_F(OverviewTest, EvenOneDeskGetsAPreview)
 
     click(one.newDesk.center());
     EXPECT_EQ(2u, desks->desks().size());
-    // Not switched to, and the windows stay where they are.
     EXPECT_EQ(desk(0), desks->activeDesk());
     EXPECT_EQ(State::Shown, overview->state());
     EXPECT_EQ(2u, overview->bars()[0].desks.size());
@@ -1101,7 +1038,6 @@ TEST_F(OverviewTest, TheCursorIsTheDefaultOneThroughout)
     EXPECT_EQ(input::CursorShape::Default, seat.cursorOverride());
     settle();
     key(KEY_ESC);
-    // Heading out, the windows have the pointer again, but not the cursor.
     EXPECT_EQ(State::Exiting, overview->state());
     EXPECT_EQ(input::CursorShape::Default, seat.cursorOverride());
     settle();
@@ -1129,14 +1065,12 @@ TEST_F(OverviewTest, ThreeFingersDownOverAWindowBringItToTheFront)
         settle();
     };
 
-    // Away from every window: the desk as it was.
     show();
     moveTo(base::PointF(990, 790));
     flickDown();
     EXPECT_EQ(State::Hidden, overview->state());
     EXPECT_EQ(above, active());
 
-    // Over the one below: it comes to the front.
     show();
     moveTo(placeOf(below).center());
     ASSERT_EQ(indexOf(below), overview->hovered());
@@ -1158,7 +1092,6 @@ TEST_F(OverviewTest, AClickWhileItComesInTakesTheWindowUnderThePointer)
     ASSERT_GT(progress, 0.1);
     ASSERT_LT(progress, 0.9);
     ASSERT_EQ(State::Entering, overview->state());
-    // Where it is drawn now, not where it is going.
     const base::RectF drawn = node->presentedRect(indexOf(first), progress, double(now));
     click(drawn.center());
     EXPECT_EQ(State::Exiting, overview->state());
@@ -1167,7 +1100,6 @@ TEST_F(OverviewTest, AClickWhileItComesInTakesTheWindowUnderThePointer)
 
 TEST_F(OverviewTest, AClickedWindowIsDrawnOverTheRestAllTheWayOut)
 {
-    // Behind the active one on the desk, overlapping it.
     Window *behind = makeWindow(base::Rect(100, 100, 600, 400));
     Window *front = makeWindow(base::Rect(300, 200, 600, 400));
     ASSERT_EQ(front, active());
@@ -1175,13 +1107,11 @@ TEST_F(OverviewTest, AClickedWindowIsDrawnOverTheRestAllTheWayOut)
     click(placeOf(behind).center());
     ASSERT_EQ(State::Exiting, overview->state());
     EXPECT_EQ(behind, active());
-    // Topmost in the overview's own order from the first frame out.
     ASSERT_EQ(2u, overview->items().size());
     EXPECT_EQ(behind, overview->items().back().window);
     for (int step = 0; step < 6; ++step) {
         now += 40;
         paint();
-        // The last draw of the window's content, live or from its cached texture.
         const auto drawnAt = [this](const Window *window) {
             const render::Texture *texture = window->rootSurface()->node()->texture();
             int last = -1;
@@ -1207,8 +1137,6 @@ TEST_F(OverviewTest, AClickedWindowIsDrawnOverTheRestAllTheWayOut)
 
 TEST_F(OverviewTest, AClickKeepsEveryWindowsPlaceOnTheWayOut)
 {
-    // The same centre: the layout orders them by stacking, which the click
-    // changes, so the places must be kept rather than laid out again.
     Window *behind = makeWindow(base::Rect(300, 200, 400, 300));
     Window *front = makeWindow(base::Rect(100, 100, 800, 500));
     ASSERT_EQ(front, active());
@@ -1220,7 +1148,6 @@ TEST_F(OverviewTest, AClickKeepsEveryWindowsPlaceOnTheWayOut)
     ASSERT_EQ(State::Exiting, overview->state());
     EXPECT_EQ(behindPlace, placeOf(behind));
     EXPECT_EQ(frontPlace, placeOf(front));
-    // And drawn from there, not from a new slot.
     now += 40;
     paint();
     const double progress = node->progress(double(now));
@@ -1296,13 +1223,11 @@ TEST_F(OverviewTest, ANewOutputSizeLaysItOutAgainAtOnce)
     ASSERT_EQ(1u, overview->bars().size());
     EXPECT_EQ(kWide, overview->bars()[0].output);
     ASSERT_EQ(2u, overview->items().size());
-    // At its new place straight away, not on a tween from the old one.
     for (const Window *window : {first, second}) {
         EXPECT_TRUE(base::RectF(kWide).contains(placeOf(window)));
         EXPECT_EQ(placeOf(window), node->items()[indexOf(window)].to);
     }
     EXPECT_NE(place, placeOf(second));
-    // The drag is dropped, so letting go does nothing.
     input.onPointerButton(at(now), BTN_LEFT, false);
     EXPECT_EQ(State::Shown, overview->state());
     EXPECT_EQ(desk(0), desks->deskOf(second));
@@ -1394,7 +1319,6 @@ TEST_F(MultiOutputOverviewTest, AnOutputGoingOrComingLaysItOutAgain)
     EXPECT_EQ(State::Shown, overview->state());
     EXPECT_EQ(kOutput, node->geometry());
     ASSERT_EQ(1u, overview->bars().size());
-    // The window brought back from the output that went is laid out with the rest.
     ASSERT_EQ(2u, overview->items().size());
     for (const Window *window : {here, there})
         EXPECT_TRUE(base::RectF(kOutput).contains(placeOf(window)));

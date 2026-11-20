@@ -25,7 +25,7 @@ using cutefish::i18n::trn;
 namespace cutefish::shell {
 
 
-// The elapsed time rounded as qRound64 of a float, half away from zero.
+// Rounds half away from zero.
 static int64_t round64(float value)
 {
     return value >= 0.0f ? int64_t(value + 0.5f) : int64_t(value - 0.5f);
@@ -51,7 +51,6 @@ std::string friendlyTime(std::optional<int64_t> created, int64_t nowMs)
     if (days <= 10)
         return trn("{n} day ago", "{n} days ago", days);
 
-    // Stored in UTC; the date shown is the local one.
     const int64_t createdSeconds = *created >= 0 ? *created / 1000 : (*created - 999) / 1000;
     return base::Locale::system().toString(base::DateTime::fromSecondsSinceEpoch(createdSeconds),
                                            base::Locale::FormatType::Short);
@@ -84,13 +83,11 @@ NotificationHistory::NotificationHistory(std::string path, std::string imageDire
                 return notifications;
             },
             [this](std::vector<Notification> stored) {
-                // What came while the file was read is newer.
                 for (Notification &notification : stored)
                     m_notifications.push_back(std::move(notification));
                 if (m_notifications.size() > kLimit)
                     m_notifications.resize(kLimit);
 
-                // Each application's rows together, behind its newest one.
                 std::vector<std::string> order;
                 for (const Notification &notification : m_notifications) {
                     const std::string key = notification.groupKey();
@@ -142,7 +139,6 @@ void NotificationHistory::removeImages(const Notification &notification)
 
 void NotificationHistory::add(const Notification &notification)
 {
-    // A replaced notification takes the place of the version already here.
     // Ids are only unique within a session, and rows loaded from disk carry
     // none.
     for (size_t row = 0; notification.id && row < m_notifications.size(); ++row) {
@@ -163,8 +159,6 @@ void NotificationHistory::add(const Notification &notification)
         break;
     }
 
-    // The application's earlier rows move up with the new one, so the most
-    // recently active application always heads the list.
     const std::string key = notification.groupKey();
     const auto first = std::find_if(m_notifications.begin(), m_notifications.end(),
                                     [&key](const Notification &n) { return n.groupKey() == key; });
@@ -237,7 +231,6 @@ void NotificationHistory::save()
         records.push_back(notification.toJson());
 
     fileThread().post([path = m_path, data = base::json::Value(std::move(records)).serialize()] {
-        // The history holds message text, so only the user may read it.
         if (base::file::writeAtomically(path, data))
             chmod(path.c_str(), 0600);
     });
@@ -320,8 +313,6 @@ void NotificationBanners::add(const Notification &notification)
         return;
     }
 
-    // Each banner is a window of its own; past the cap the oldest one goes to
-    // the history as if its time had run out.
     int live = 0;
     for (const Notification &banner : m_notifications)
         live += m_pendingRemovals.count(banner.id) ? 0 : 1;
@@ -354,7 +345,6 @@ void NotificationBanners::replace(uint32_t id, const Notification &notification)
             notification_images::remove(directory, oldIcon);
     });
 
-    // The banner keeps its place in the stack and the time it first appeared.
     const std::optional<int64_t> created = current.created;
     current = notification;
     current.created = created;
@@ -369,7 +359,6 @@ void NotificationBanners::onRemoved(uint32_t id, NotificationServer::CloseReason
 
     const Notification &notification = m_notifications[size_t(row)];
     if (reason == NotificationServer::CloseReason::Expired) {
-        // The application may be gone by the time the history is looked at.
         Notification archived = notification;
         archived.actions.clear();
         m_history.add(archived);

@@ -128,8 +128,6 @@ TEST_F(KeyTranslatorTest, ShiftGoesOutAtOnce)
 
 TEST_F(KeyTranslatorTest, TextKeysGoOutWithCtrlUnchanged)
 {
-    // No text navigation: Command+Left and Command+Backspace are Ctrl+Left and
-    // Ctrl+Backspace, which a file view can bind as it likes.
     press(KEY_LEFTMETA);
     tap(KEY_LEFT);
     tap(KEY_BACKSPACE);
@@ -142,7 +140,6 @@ TEST_F(KeyTranslatorTest, TextKeysGoOutWithCtrlUnchanged)
 
 TEST_F(KeyTranslatorTest, AKeyReleasesWhatItWasSentAs)
 {
-    // The convention changing in between does not strand a key.
     press(KEY_LEFTMETA);
     press(KEY_A);
     translator.setConvention(ShortcutConvention::Pc);
@@ -224,7 +221,6 @@ TEST_F(KeyTranslatorTest, TerminalsOpenAndCloseTabsAndPickThemByNumber)
                                       up(KEY_K), up(KEY_LEFTSHIFT), up(KEY_LEFTCTRL)}),
               take());
 
-    // Elsewhere Command+3 is Ctrl+3, which browsers pick tabs with.
     terminal = false;
     press(KEY_LEFTMETA);
     tap(KEY_3);
@@ -236,7 +232,6 @@ TEST_F(KeyTranslatorTest, TerminalsOpenAndCloseTabsAndPickThemByNumber)
 
 TEST_F(KeyTranslatorTest, TerminalsGetNoOtherCommandControlCharacters)
 {
-    // As Ctrl these would end the shell and suspend the program.
     terminal = true;
     press(KEY_LEFTMETA);
     tap(KEY_D);
@@ -251,7 +246,6 @@ TEST_F(KeyTranslatorTest, TerminalsGetNoOtherCommandControlCharacters)
     release(KEY_LEFTSHIFT);
     EXPECT_EQ(std::vector<Delivered>({down(KEY_LEFTSHIFT), up(KEY_LEFTSHIFT)}), take());
 
-    // So would these: Esc, and the quit signal.
     press(KEY_LEFTMETA);
     tap(KEY_LEFTBRACE);
     tap(KEY_BACKSLASH);
@@ -260,7 +254,6 @@ TEST_F(KeyTranslatorTest, TerminalsGetNoOtherCommandControlCharacters)
     release(KEY_LEFTMETA);
     EXPECT_TRUE(take().empty());
 
-    // Other keys still go out as Ctrl.
     press(KEY_LEFTMETA);
     tap(KEY_LEFT);
     release(KEY_LEFTMETA);
@@ -268,7 +261,6 @@ TEST_F(KeyTranslatorTest, TerminalsGetNoOtherCommandControlCharacters)
                       {down(KEY_LEFTCTRL), down(KEY_LEFT), up(KEY_LEFT), up(KEY_LEFTCTRL)}),
               take());
 
-    // Other applications get Command+D as Ctrl+D.
     terminal = false;
     press(KEY_LEFTMETA);
     tap(KEY_D);
@@ -298,8 +290,6 @@ TEST_F(KeyTranslatorTest, TerminalRulesReadTheLatinKeyUnderANonLatinLayout)
 
 TEST_F(KeyTranslatorTest, OtherApplicationsGetTheirShortcutsAsCtrl)
 {
-    // No rule depends on the application: browser and file manager keys go
-    // out as Ctrl like any other.
     press(KEY_LEFTMETA);
     tap(KEY_LEFTBRACE);
     tap(KEY_1);
@@ -326,8 +316,6 @@ TEST_F(KeyTranslatorTest, CommandAndControlShareOneCtrl)
 
 TEST_F(KeyTranslatorTest, AClientThatBindsCommandGetsControlAsMeta)
 {
-    // Its Ctrl is Command, so Control needs a modifier of its own: there
-    // Command+C copies and Control+C interrupts a terminal program.
     bindsCommand = true;
     press(KEY_LEFTMETA);
     tap(KEY_C);
@@ -359,7 +347,6 @@ TEST_F(KeyTranslatorTest, AClickTakesTheHeldModifiers)
     release(KEY_LEFTMETA);
     EXPECT_EQ(std::vector<Delivered>({up(KEY_LEFTCTRL)}), take());
 
-    // During a drag a modifier goes out as it goes down.
     buttonsHeld = true;
     press(KEY_LEFTALT);
     EXPECT_EQ(std::vector<Delivered>({down(KEY_LEFTALT)}), take());
@@ -412,20 +399,16 @@ TEST(PressedShortcut, FollowsTheTranslationBackwards)
         return pressed.command == expected.command && pressed.control == expected.control
                 && pressed.alt == expected.alt && pressed.shift == expected.shift;
     };
-    // Under the Pc convention the keys are the ones the client gets.
     EXPECT_TRUE(equal(pressedShortcut(ShortcutConvention::Pc, false, XKB_KEY_s, true, false, true),
                       {false, true, false, true}));
-    // Command reaches applications as Ctrl.
     EXPECT_TRUE(equal(pressedShortcut(ShortcutConvention::Command, false, XKB_KEY_s, true, false, true),
                       {true, false, false, true}));
     EXPECT_TRUE(equal(pressedShortcut(ShortcutConvention::Command, false, XKB_KEY_Up, false, true, false),
                       {false, false, true, false}));
-    // A terminal's own shortcuts are Command alone.
     EXPECT_TRUE(equal(pressedShortcut(ShortcutConvention::Command, true, XKB_KEY_c, true, false, true),
                       {true, false, false, false}));
     EXPECT_TRUE(equal(pressedShortcut(ShortcutConvention::Command, true, XKB_KEY_3, false, true, false),
                       {true, false, false, false}));
-    // Command+letter reaches no terminal; Control does.
     EXPECT_TRUE(equal(pressedShortcut(ShortcutConvention::Command, true, XKB_KEY_q, true, false, true),
                       {false, true, false, true}));
     EXPECT_TRUE(equal(pressedShortcut(ShortcutConvention::Command, true, XKB_KEY_equal, true, false, false),

@@ -5,9 +5,6 @@
 // Upstream: chromium/src/ui/ozone/platform/drm/host/drm_display_host_manager.cc
 //           chromium/src/ui/ozone/platform/drm/gpu/drm_gpu_display_manager.cc
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: monitor DRM udev events on the loop and coalesce dock bursts
-// behind a bounded reprobe deadline.
 
 #pragma once
 
@@ -36,8 +33,7 @@ public:
     bool start();
     void notifyForTest(const char *devnode = nullptr, const char *property = nullptr);
 
-    // Resolve using an already-open backend fd; never open a primary node here.
-    // Only a positively identified Content Protection property skips reprobe.
+    // Must use an already-open backend fd; never open a primary node here.
     std::function<bool(const std::string &devnode, uint32_t property)> isContentProtectionProperty;
 
     base::Signal<> snapshotsInvalidated;

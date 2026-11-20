@@ -35,7 +35,6 @@ TEST(MotionTest, CriticallyDampedSpringArrivesWithoutOvershoot)
         EXPECT_LE(value, 100 + 1e-9);
         previous = value;
     }
-    // The response is about the time to cover 99% of the way from rest.
     EXPECT_GT(spring.value(1000 + 400), 98.5);
     EXPECT_LT(spring.value(1000 + 400), 99.5);
     EXPECT_NEAR(spring.value(10000), 100, 1e-9);
@@ -80,7 +79,6 @@ TEST(MotionTest, RetargetKeepsPositionAndVelocity)
     spring.retarget(120, -100);
     EXPECT_NEAR(spring.value(120), value, 1e-9);
     EXPECT_NEAR(spring.velocity(120), velocity, 1e-9);
-    // It keeps going the old way for a moment before turning around.
     EXPECT_GT(spring.value(130), value);
     EXPECT_NEAR(spring.value(5000), -100, 1e-6);
 }
@@ -124,7 +122,6 @@ TEST(MotionTest, TweenLandsOnTimeWithoutOvershoot)
 
 TEST(MotionTest, TweenLeavesAtItsStartVelocity)
 {
-    // 10 a second over 4 in 0.3 s: three quarters of the average speed.
     const Tween tween(0, 2, 6, 300, 10);
     EXPECT_NEAR(10, tween.velocity(0), 1e-6);
     for (const double time : {20.0, 150.0, 280.0}) {
@@ -136,7 +133,6 @@ TEST(MotionTest, TweenLeavesAtItsStartVelocity)
 
 TEST(MotionTest, ATweenOnQuickStartIsUnderWayAtOnceWithoutLunging)
 {
-    // 2.5 a second on average over 400 ms.
     const Tween tween(0, 0, 1, 400, 0, kQuickStart);
     EXPECT_NEAR(0, tween.velocity(0), 1e-6);
     EXPECT_GT(tween.value(60), 0.1);
@@ -148,7 +144,6 @@ TEST(MotionTest, ATweenOnQuickStartIsUnderWayAtOnceWithoutLunging)
     EXPECT_LT(tween.velocity(380), tween.velocity(200));
     EXPECT_TRUE(tween.isFinished(400));
 
-    // Bent to leave at a speed, it still slows into its landing.
     const Tween moving(0, 0, 1, 400, 4, kQuickStart);
     EXPECT_NEAR(4, moving.velocity(0), 1e-6);
     for (const double time : {20.0, 200.0, 380.0}) {
@@ -159,7 +154,6 @@ TEST(MotionTest, ATweenOnQuickStartIsUnderWayAtOnceWithoutLunging)
     EXPECT_LT(moving.velocity(380), moving.velocity(200));
     EXPECT_LT(moving.velocity(380), 0.5);
 
-    // Bent to a slow start, it speeds up to under twice the average.
     const Tween slow(0, 0, 1, 400, 1, kQuickStart);
     fastest = 0;
     for (double time = 0; time < 400; time += 1)
@@ -169,7 +163,6 @@ TEST(MotionTest, ATweenOnQuickStartIsUnderWayAtOnceWithoutLunging)
 
 TEST(MotionTest, AFastStartShortensTheTweenAndABackwardOneIsDropped)
 {
-    // 200 a second would need a start five times the average over 300 ms.
     const Tween fast(0, 0, 4, 300, 200);
     EXPECT_NEAR(200, fast.velocity(0), 1e-6);
     EXPECT_TRUE(fast.isFinished(100));

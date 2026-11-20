@@ -4,13 +4,6 @@
 //
 // Upstream: chromium/src/components/exo/wayland/wayland_dmabuf_feedback_manager.h
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: gpu::Capabilities becomes render::DmaBufDevice, the
-// format table lives in a sealed memfd instead of a
-// base::ReadOnlySharedMemoryRegion, and the scanout tranche comes from a
-// primary-plane format provider the shell installs rather than the display
-// manager. Overlay priority hints do not exist here; fullscreen is the only
-// scanout reason.
 
 #ifndef CUTEFISH_WAYLAND_PROTOCOLS_DMABUF_FEEDBACK_MANAGER_H_
 #define CUTEFISH_WAYLAND_PROTOCOLS_DMABUF_FEEDBACK_MANAGER_H_
@@ -55,10 +48,6 @@ using IndexedDrmFormatsAndModifiers = std::map<uint32_t, std::map<size_t, uint64
 // modifier list means the plane only knows the implicit modifier.
 using ScanoutFormats = std::map<uint32_t, std::vector<uint64_t>>;
 
-// Owns everything the linux-dmabuf global needs: which formats and modifiers
-// are supported, the shared format table, the default feedback and the
-// per-surface feedbacks that gain a scanout tranche while their surface is a
-// scanout candidate.
 class DmaBufFeedbackManager : public compositor::SurfaceObserver
 {
 public:
@@ -91,21 +80,15 @@ public:
     // nothing, no scanout tranche is ever sent.
     void setScanoutFormats(std::function<ScanoutFormats()> provider);
 
-    // A candidate's surface feedback carries a scanout tranche restricted to
-    // the primary planes' formats, so a client renders straight into a buffer
-    // the compositor can flip. The shell marks fullscreen windows' root
-    // surfaces. Every change is re-sent to the surface's feedback objects.
+    // Every change is re-sent to the surface's feedback objects.
     void setScanoutCandidate(compositor::Surface* surface, bool candidate);
     bool isScanoutCandidate(const compositor::Surface* surface) const;
 
-    // Rebuilds the candidates' scanout tranches, after the outputs changed.
     void refreshScanoutTranches();
 
-    // Live per-surface feedback objects, for tests.
     size_t surfaceFeedbackCount() const { return m_surfaceFeedbacks.size(); }
 
-    // compositor::SurfaceObserver, on the candidate surfaces: a dead candidate
-    // must not be found again by a surface reusing its address.
+    // On the candidate surfaces: a dead candidate must not be found again by a surface reusing its address.
     void onSurfaceDestroying(compositor::Surface* surface) override;
 
 private:
@@ -116,8 +99,7 @@ private:
     void sendTranche(const DmaBufFeedbackTranche* tranche, wl_resource* resource) const;
     void sendSurfaceFeedback(DmaBufSurfaceFeedback* surfaceFeedback) const;
     void removeSurfaceFeedback(compositor::Surface* surface);
-    // The scanout tranche `surface` would get now, or null when none of the
-    // default tranche can be scanned out.
+    // Null when none of the default tranche can be scanned out.
     std::unique_ptr<DmaBufFeedbackTranche> makeScanoutTranche() const;
 
     compositor::Compositor* const m_compositor;

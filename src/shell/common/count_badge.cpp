@@ -77,12 +77,9 @@ void CountBadge::place()
         return;
     const double height = heightFor(m_iconRect.width, m_heightRatio);
     m_label->setFontSize(std::round(height * 0.6));
-    // The text keeps the gap above and below it at its sides too, so one
-    // digit sits in a circle and more widen it into a pill.
     const ui::RectF ink = m_label->inkBoundingRect();
     const double scale = textLayoutMode().scale;
     const double width = std::max(height, std::round((ink.width + height - ink.height) * scale) / scale);
-    // Over the icon's corner, a little past its top and right edges.
     const double outset = std::round(height * 0.2);
     setGeometry({m_iconRect.x + m_iconRect.width + outset - width, m_iconRect.y - outset, width, height});
     requestLayout();
@@ -93,7 +90,6 @@ void CountBadge::layout()
 {
     const ui::RectF rect = localRect();
     const ui::SizeF size = m_label->sizeHint();
-    // Centred on the glyphs' ink.
     const ui::RectF ink = m_label->inkBoundingRect();
     const double x = (rect.width - ink.width) / 2 - ink.x;
     const double baseline = (rect.height - ink.height) / 2 - ink.y;

@@ -4,9 +4,6 @@
 //
 // Upstream: chromium/src/components/exo/shell_surface_util.cc
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: integrates the upstream behavior with native
-// compositor types and ownership.
 
 #include "input/hit_test.h"
 #include "display/display_manager.h"
@@ -35,13 +32,11 @@ compositor::Surface *findTargetSurface(compositor::Surface *root, const base::Po
     if (!root || !root->isMapped())
         return nullptr;
 
-    // Cheap rejection first: the hierarchy region covers this surface and every
-    // subsurface, so a miss here cannot become a hit further down.
+    // The hierarchy region covers every subsurface, so a miss here cannot become a hit further down.
     if (!root->hitTestRegion().contains(flooredPoint(location)))
         return nullptr;
 
-    // Topmost first. The entry whose surface is the parent marks where the
-    // parent's own content sits among its children.
+    // Topmost first; the parent's own entry marks where its content sits among its children.
     const auto &stack = root->subSurfaceStack();
     for (auto it = stack.rbegin(); it != stack.rend(); ++it) {
         compositor::Surface *surface = it->first;
@@ -63,8 +58,6 @@ compositor::Surface *findTargetSurface(compositor::Surface *root, const base::Po
 
 namespace {
 
-// The topmost surface under `location` among `nodes`, which are siblings in the
-// scene. Recurses through nodes that are not surfaces themselves.
 compositor::Surface *findTargetSurfaceInNodes(compositor::Compositor *compositor,
                                               const std::vector<scene::Node *> &nodes,
                                               const base::PointF &location, base::PointF *surfaceLocation,
@@ -79,18 +72,13 @@ compositor::Surface *findTargetSurfaceInNodes(compositor::Compositor *compositor
             continue;
         compositor::Surface *surface = compositor->surfaceForNode(node);
         if (!surface) {
-            // A grouping node - a window, holding its frame and the client's
-            // surface tree. Descend into it; the frame's own nodes have no
-            // surface and are skipped the same way.
             if (compositor::Surface *target = findTargetSurfaceInNodes(
                         compositor, node->children(), location, surfaceLocation, throughCapture)) {
                 return target;
             }
             continue;
         }
-        // Subsurfaces are reached through their parent, never from the
-        // container, and a surface reparented elsewhere (the cursor) is not
-        // here at all.
+        // Subsurfaces are reached through their parent, never from the container.
         if (surface->parentSurface())
             continue;
         const base::PointF surfaceRelative = locationInSurface(surface, location);
@@ -117,8 +105,7 @@ compositor::Surface *findTargetSurfaceIn(compositor::Compositor *compositor, sce
     if (!compositor || !container)
         return nullptr;
 
-    // Candidate popups stack above the session's windows; a blocked session
-    // searches a container of its own and never reaches them.
+    // Candidate popups stack above the session's windows.
     scene::Node *inputMethod = compositor->inputMethodContainer();
     if (inputMethod && container == compositor->surfaceContainer()) {
         if (compositor::Surface *target = findTargetSurfaceInNodes(

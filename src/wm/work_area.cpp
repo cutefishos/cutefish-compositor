@@ -77,8 +77,6 @@ base::Rect ExclusiveZones::apply(const base::Rect& outputBounds, const std::stri
     }
 
     base::Rect area = outputBounds.adjusted(left, top, -right, -bottom);
-    // A reservation larger than the output would leave nothing to lay windows
-    // out in; the output itself is the floor.
     if (area.width() <= 0 || area.height() <= 0)
         return outputBounds;
     return area;

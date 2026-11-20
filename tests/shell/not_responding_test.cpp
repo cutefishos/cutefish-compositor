@@ -2,9 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// The sheets that offer force quit for an application that stopped
-// responding, as the compositor draws them, headless on a fake renderer.
-
 #include <chrono>
 
 #include <linux/input-event-codes.h>
@@ -86,7 +83,7 @@ protected:
 
     void frame() { compositor.updateTextures(renderer); }
 
-    // An application window of kPid that answers pings until told otherwise.
+    // Answers pings until told otherwise.
     wm::Window *openApplication(const base::Rect &bounds)
     {
         surfaces.push_back(compositor.createSurface());
@@ -119,7 +116,6 @@ protected:
         input.onKey(at(++ms), code, false);
     }
 
-    // Where a view of the sheet is on screen.
     base::PointF centreOf(const ui::View *view) const
     {
         const base::Rect bounds = sheets->sheet(kPid)->drawnBounds();
@@ -133,7 +129,6 @@ protected:
 TEST_F(NotRespondingTest, APressOnAWindowThatStoppedAnsweringHangsASheetFromIt)
 {
     wm::Window *window = openApplication(base::Rect(292, 175, 856, 546));
-    // Nothing while it answers.
     click(400, 400);
     EXPECT_EQ(0u, sheets->sheetCount());
 
@@ -151,7 +146,6 @@ TEST_F(NotRespondingTest, APressOnAWindowThatStoppedAnsweringHangsASheetFromIt)
     EXPECT_EQ("“Terminal” is not responding", sheets->view(kPid)->title());
     EXPECT_EQ("“Terminal” is not responding", sheetWindow->title());
 
-    // 400 wide, centred on the window, and it has the keyboard.
     const base::Rect bounds = sheetWindow->bounds();
     EXPECT_EQ(400, bounds.width());
     EXPECT_GE(bounds.height(), 130);
@@ -161,7 +155,6 @@ TEST_F(NotRespondingTest, APressOnAWindowThatStoppedAnsweringHangsASheetFromIt)
     EXPECT_EQ(sheetWindow, manager.activation()->activeWindow());
     EXPECT_TRUE(sheets->view(kPid)->waitButton()->hasFocus());
 
-    // Wait: the sheet goes, and the application is left alone until it answers.
     key(KEY_ESC);
     EXPECT_EQ(0u, sheets->sheetCount());
     EXPECT_TRUE(sheets->isWaiting(kPid));
@@ -170,7 +163,6 @@ TEST_F(NotRespondingTest, APressOnAWindowThatStoppedAnsweringHangsASheetFromIt)
     EXPECT_EQ(0u, sheets->sheetCount());
     EXPECT_EQ(0, kills);
 
-    // Once it answers, the next hang asks again; Return waits too.
     window->setResponsive(true);
     EXPECT_FALSE(sheets->isWaiting(kPid));
     window->setResponsive(false);
@@ -185,7 +177,6 @@ TEST_F(NotRespondingTest, ForceQuitEndsTheApplication)
 {
     wm::Window *window = openApplication(base::Rect(292, 175, 856, 546));
     window->setResponsive(false);
-    // Closing a window that stopped answering asks first.
     window->requestClose();
     ASSERT_EQ(1u, sheets->sheetCount());
     EXPECT_EQ(0, kills);
@@ -212,7 +203,6 @@ TEST_F(NotRespondingTest, OneSheetPerApplicationFollowsItsWindowsAndGoesWhenItAn
     ASSERT_EQ(1u, sheets->sheetCount());
     EXPECT_EQ(first->id(), sheets->parentWindow(kPid));
     frame();
-    // Another window of the same application takes the sheet.
     click(1000, 700);
     ASSERT_EQ(1u, sheets->sheetCount());
     EXPECT_EQ(second->id(), sheets->parentWindow(kPid));
@@ -220,11 +210,9 @@ TEST_F(NotRespondingTest, OneSheetPerApplicationFollowsItsWindowsAndGoesWhenItAn
     EXPECT_EQ(second, sheets->sheet(kPid)->wmWindow()->transientParent());
     EXPECT_EQ(700 + (600 - 400) / 2, sheets->sheet(kPid)->wmWindow()->bounds().x());
 
-    // Any window answering closes it.
     first->setResponsive(true);
     EXPECT_EQ(0u, sheets->sheetCount());
 
-    // So does its window going away.
     click(1000, 700);
     ASSERT_EQ(1u, sheets->sheetCount());
     manager.destroyWindow(second);

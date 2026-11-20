@@ -49,7 +49,6 @@ dbus::Connection *sessionBus()
     return dbus::Connection::session(core::mainLoop());
 }
 
-// The entry of `parent` labelled `label`, separators skipped.
 const compositor::MenuItem *entryLabelled(const compositor::MenuModel &menu, int32_t parent, const std::string &label)
 {
     const compositor::MenuItem *item = menu.item(parent);
@@ -79,8 +78,6 @@ dbus::VariantMap gtkItem(const std::string &label, const std::string &action = {
     return item;
 }
 
-// An editor with File and View menus, an application menu, and the
-// application's and the window's actions.
 struct GtkEditor {
     test::DBusTestClient application;
     FakeGtkMenus menubar{application.connection.get(), "/org/example/Editor/menus/menubar"};
@@ -139,12 +136,10 @@ TEST(GtkMenuTest, ReadsTheMenusWithTheStateOfTheirActions)
     GtkEditor editor;
     shell::GtkMenu menu(sessionBus(), editor.address());
     ASSERT_TRUE(test::runUntil([&] { return menu.root().childrenLoaded && menu.root().children.size() == 3; }));
-    // Every linked group is subscribed at once.
     EXPECT_TRUE(editor.menubar.called("Start 0"));
     EXPECT_TRUE(editor.menubar.called("Start 1"));
     EXPECT_TRUE(editor.menubar.called("Start 2"));
 
-    // The application menu opens from the name.
     const compositor::MenuItem *application = menu.item(menu.root().children[0]);
     EXPECT_EQ(application->role, compositor::MenuItem::Role::Application);
     EXPECT_EQ(labelsOf(menu, application->id), (std::vector<std::string>{"_About"}));
@@ -153,7 +148,6 @@ TEST(GtkMenuTest, ReadsTheMenusWithTheStateOfTheirActions)
     ASSERT_NE(file, nullptr);
     EXPECT_TRUE(file->hasSubmenu);
     EXPECT_TRUE(file->childrenLoaded);
-    // A section sits between separators; the popup folds the ones at the ends.
     EXPECT_EQ(labelsOf(menu, file->id), (std::vector<std::string>{"_New", "-", "_Quit", "-"}));
     const compositor::MenuItem *create = entryLabelled(menu, file->id, "_New");
     EXPECT_EQ(create->shortcut, (std::vector<std::vector<std::string>>{{"Control", "Shift", "n"}}));
@@ -170,7 +164,6 @@ TEST(GtkMenuTest, ReadsTheMenusWithTheStateOfTheirActions)
     EXPECT_FALSE(entryLabelled(menu, view, "Missing")->visible);
     EXPECT_TRUE(entryLabelled(menu, view, "Zoom")->enabled);
 
-    // Items activate their actions, with their targets.
     menu.activate(entryLabelled(menu, view, "Small")->id);
     menu.activate(entryLabelled(menu, view, "Zoom")->id);
     menu.activate(create->id);
@@ -179,7 +172,6 @@ TEST(GtkMenuTest, ReadsTheMenusWithTheStateOfTheirActions)
                 && editor.appActions.called("Activate new");
     }));
 
-    // Entries change in place under their ids.
     const int32_t quit = entryLabelled(menu, file->id, "_Quit")->id;
     std::vector<int32_t> changed;
     auto itemChanged = menu.itemChanged.connect([&](int32_t id) { changed.push_back(id); });
@@ -193,7 +185,6 @@ TEST(GtkMenuTest, ReadsTheMenusWithTheStateOfTheirActions)
             "Changed", std::vector<test::GtkMenuChange>{{1, 1, 0, 1, {gtkItem("E_xit", "app.quit")}}});
     ASSERT_TRUE(test::runUntil([&] { return menu.item(quit)->label == "E_xit"; }));
 
-    // A new submenu is subscribed and shows once its group is in.
     dbus::VariantMap help = gtkItem("_Help");
     help.emplace(":submenu", gtkLink(3, 0));
     editor.menubar.menus.push_back({3, 0, {gtkItem("_Contents", "app.help")}});
@@ -257,7 +248,6 @@ TEST(DBusMenuTest, FetchesOneLevelAtATimeAndFollowsUpdates)
     EXPECT_TRUE(menu.item(1)->hasSubmenu);
     EXPECT_FALSE(menu.item(1)->childrenLoaded);
 
-    // Opening a submenu without entries fetches them; "opened" goes along.
     menu.aboutToShow(1);
     ASSERT_TRUE(test::runUntil([&] { return menu.item(1)->childrenLoaded; }));
     EXPECT_TRUE(exporter.called("AboutToShow 1"));
@@ -269,7 +259,6 @@ TEST(DBusMenuTest, FetchesOneLevelAtATimeAndFollowsUpdates)
     EXPECT_EQ(menu.item(12)->toggleState, 1);
     EXPECT_FALSE(menu.item(12)->enabled);
 
-    // Properties change in place.
     exporter.object.emitSignal(
             "ItemsPropertiesUpdated",
             std::vector<std::tuple<int32_t, dbus::VariantMap>>{
@@ -279,13 +268,11 @@ TEST(DBusMenuTest, FetchesOneLevelAtATimeAndFollowsUpdates)
     EXPECT_EQ(menu.item(12)->label, "Wrap Lines");
     EXPECT_TRUE(menu.item(10)->shortcut.empty());
 
-    // A new layout drops what it no longer lists, with everything under it.
     exporter.layouts[0] = layout(0, {}, {layout(2, {{"label", dbus::Variant(std::string("_Edit"))}})});
     exporter.object.emitSignal("LayoutUpdated", uint32_t(2), int32_t(0));
     ASSERT_TRUE(test::runUntil([&] { return menu.item(1) == nullptr; }));
     EXPECT_EQ(menu.item(10), nullptr);
     EXPECT_EQ(menu.root().children, (std::vector<int32_t>{2}));
-    // The kind an entry came with stays.
     EXPECT_TRUE(menu.item(2)->hasSubmenu);
 
     menu.activate(2);
@@ -359,14 +346,11 @@ TEST(DBusMenuTest, ALayoutUpdateMakesEverythingUnderItCurrentAgain)
     menu.prepare(2);
     ASSERT_TRUE(test::runUntil([&] { return menu.item(1)->childrenLoaded && menu.item(2)->childrenLoaded; }));
 
-    // A show of a current menu fetches nothing.
     menu.prepare(2);
     ASSERT_TRUE(test::runUntil([&] { return exporter.count("AboutToShow 2") == 2; }));
     test::runFor(std::chrono::milliseconds(20));
     EXPECT_EQ(exporter.count("GetLayout 2 1"), 1);
 
-    // Every id kept, the root's layout changed: the open File is fetched at
-    // once, Edit as it next shows, and both keep their entries until then.
     exporter.layouts[1] = layout(1, {}, {layout(11, {{"label", dbus::Variant(std::string("_Save"))}})});
     exporter.layouts[2] = layout(2, {}, {layout(21, {{"label", dbus::Variant(std::string("_Redo"))}})});
     exporter.object.emitSignal("LayoutUpdated", uint32_t(2), int32_t(0));
@@ -378,7 +362,6 @@ TEST(DBusMenuTest, ALayoutUpdateMakesEverythingUnderItCurrentAgain)
     menu.prepare(2);
     EXPECT_TRUE(test::runUntil([&] { return menu.item(2)->children == std::vector<int32_t>{21}; }));
 
-    // Once closed, File waits for its next show too.
     menu.closed(1);
     exporter.layouts[1] = layout(1, {}, {layout(12, {{"label", dbus::Variant(std::string("_Close"))}})});
     exporter.object.emitSignal("LayoutUpdated", uint32_t(3), int32_t(0));
@@ -417,7 +400,6 @@ TEST(SystemTrayTest, RegistersItemsAndReadsThem)
     EXPECT_EQ(shown->id(), application->connection->uniqueName() + "/StatusNotifierItem");
     EXPECT_EQ(shown->title(), "Example");
     EXPECT_EQ(shown->toolTip(), "Tip");
-    // Only the -symbolic variant exists.
     EXPECT_EQ(shown->iconName(), "known-icon-symbolic");
     EXPECT_EQ(shown->iconThemePath(), "/nonexistent/icons");
     EXPECT_EQ(shown->menu(), nullptr);
@@ -435,7 +417,6 @@ TEST(SystemTrayTest, RegistersItemsAndReadsThem)
     EXPECT_TRUE(test::runUntil([&] { return !observer.signalsSeen.empty(); }));
     EXPECT_EQ(observer.signalsSeen.front().member(), "StatusNotifierItemRegistered");
 
-    // Clicks reach the item; without a menu it shows its own.
     tray.leftButtonClick(shown->id(), 10, 20);
     tray.middleButtonClick(shown->id(), 0, 0);
     EXPECT_EQ(tray.contextMenu(shown->id(), 0, 0), nullptr);
@@ -444,12 +425,10 @@ TEST(SystemTrayTest, RegistersItemsAndReadsThem)
     EXPECT_EQ(item.calls,
               (std::vector<std::string>{"Activate 10,20", "SecondaryActivate", "ContextMenu", "Scroll 120 vertical"}));
 
-    // A new title is read after the item says so.
     item.title = "Renamed";
     item.object.emitSignal("NewTitle");
     EXPECT_TRUE(test::runUntil([&] { return shown->title() == "Renamed"; }));
 
-    // Its application leaving takes it away.
     int removed = 0;
     auto subscription = tray.rowsRemoved.connect([&](int, int count) { removed += count; });
     application.reset();
@@ -462,7 +441,6 @@ TEST(SystemTrayTest, TakesAnIconFromTheItemsOwnDirectoryFirst)
 {
     shell::StatusNotifierWatcher watcher(sessionBus());
     ASSERT_TRUE(watcher.registerService());
-    // The theme would have every name, as it does through the pixmaps directory.
     shell::SystemTrayModel tray(watcher, sessionBus(), nullptr,
                                 [](const std::string &, const std::string &) { return true; });
     test::TemporaryDirectory directory;
@@ -477,7 +455,6 @@ TEST(SystemTrayTest, TakesAnIconFromTheItemsOwnDirectoryFirst)
     ASSERT_TRUE(test::runUntil([&] { return tray.count() == 1 && !tray.at(0)->title().empty(); }));
     EXPECT_EQ(tray.at(0)->iconName(), directory.filePath("app_tray_mono.png"));
 
-    // A name the directory lacks is the theme's.
     item.iconName = "other";
     item.object.emitSignal("NewIcon");
     EXPECT_TRUE(test::runUntil([&] { return tray.at(0)->iconName() == "other"; }));
@@ -606,13 +583,11 @@ TEST(MprisTest, ShowsThePlayerThatLastStartedPlaying)
     ASSERT_TRUE(test::runUntil(
             [&] { return manager.current()->playbackStatus() == shell::MprisPlayer::PlaybackStatus::Playing; }));
 
-    // Another player appears while this one plays: it waits behind it.
     auto second = std::make_unique<test::DBusTestClient>();
     auto video = std::make_unique<FakePlayer>(second->connection.get(), "video");
     ASSERT_TRUE(test::runUntil([&] { return manager.availableServices().size() == 2; }));
     EXPECT_EQ(manager.currentService(), "org.mpris.MediaPlayer2.music");
 
-    // It starts playing, then the shown one stops: it takes over.
     test::runFor(std::chrono::milliseconds(30));
     video->setStatus("Playing");
     test::runFor(std::chrono::milliseconds(30));
@@ -625,7 +600,6 @@ TEST(MprisTest, ShowsThePlayerThatLastStartedPlaying)
     ASSERT_TRUE(test::runUntil([&] { return video->calls.size() == 2; }));
     EXPECT_EQ(video->calls, (std::vector<std::string>{"PlayPause", "Next"}));
 
-    // It leaves: the next one on the list is shown.
     video.reset();
     second.reset();
     EXPECT_TRUE(test::runUntil([&] { return manager.currentService() == "org.mpris.MediaPlayer2.music"; }));
@@ -659,10 +633,8 @@ TEST(ApplicationMenuTest, SwitchesWithTheActiveApplicationOnceItsMenuIsIn)
     ASSERT_TRUE(test::runUntil([&] { return menu.menu() != nullptr; }));
     EXPECT_EQ(menu.title(), "Editor");
     EXPECT_EQ(menu.menu()->root().children.size(), 2u);
-    // The submenus the bar pops up were asked to get ready.
     EXPECT_TRUE(test::runUntil([&] { return exporter.called("AboutToShow 1") && exporter.called("AboutToShow 2"); }));
 
-    // A window without a menu: its name alone.
     shell::TaskWindow plain;
     plain.appId = "plain";
     plain.title = "Plain";
@@ -707,8 +679,6 @@ TEST(ApplicationMenuTest, ReadiesTheBarsMenusWithoutOpeningThem)
     EXPECT_TRUE(exporter.called("AboutToShow 1"));
     EXPECT_TRUE(exporter.called("AboutToShow 2"));
 
-    // The application lays its bar out again under new ids: the new menus
-    // are readied too.
     exporter.layouts = {
             {0, layout(0, {},
                        {layout(101, {{"label", dbus::Variant(std::string("_File"))},
@@ -724,7 +694,6 @@ TEST(ApplicationMenuTest, ReadiesTheBarsMenusWithoutOpeningThem)
     EXPECT_TRUE(exporter.called("AboutToShow 101"));
     EXPECT_TRUE(exporter.called("AboutToShow 102"));
 
-    // A layout update that keeps the ids asks none of them again.
     const int roots = exporter.count("GetLayout 0 1");
     exporter.object.emitSignal("LayoutUpdated", uint32_t(3), int32_t(0));
     ASSERT_TRUE(test::runUntil([&] { return exporter.count("GetLayout 0 1") > roots; }));
@@ -800,7 +769,6 @@ TEST(BatteryTest, PicksTheIconForTheLevel)
     EXPECT_EQ(shell::Battery::iconSource(4, false, true), "battery-level-0-charging-symbolic.svg");
 }
 
-// cutefish-services comes up after the shell: the battery shows once it does.
 TEST(BatteryTest, ShowsOnceTheServiceComesUp)
 {
     test::TemporaryDirectory directory;
@@ -835,7 +803,6 @@ TEST(MenuBarTest, ServesOrgCutefishMenuBar)
     EXPECT_NE(menuBar.timeFormat().find('H'), std::string::npos);
     EXPECT_EQ(menuBar.timeLocale(), "en_US@hours=h23");
 
-    // The session's choice goes, and the region's 12-hour clock stands.
     directory.write("services.conf", "[Language]\nlanguage=en_US\n\n[Region]\nregion=US\n");
     test::DBusTestClient services;
     dbus::Object language(services.connection.get(), "/org/cutefish/Services/Language",

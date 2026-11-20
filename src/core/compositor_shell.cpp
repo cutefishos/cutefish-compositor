@@ -120,7 +120,6 @@
 namespace cutefish::core {
 
 namespace {
-// After the login transition and the shell's own startup.
 constexpr int kSwitcherPreloadDelayMs = 3000;
 
 std::vector<std::string> withExecutables(std::vector<std::string> builtIn,
@@ -130,7 +129,6 @@ std::vector<std::string> withExecutables(std::vector<std::string> builtIn,
     return builtIn;
 }
 
-// Fire and forget, as the session's AppRuntime answers nothing of use here.
 void callAppRuntime(const std::string &method, int64_t pid)
 {
     base::dbus::Connection *bus = base::dbus::Connection::session(mainLoop());
@@ -159,8 +157,6 @@ double mib(uint64_t bytes)
     return double(bytes) / (1 << 20);
 }
 
-// What the compositor holds, for the debug service: the heap, the GL textures
-// by size and owner, what Skia keeps and the wallpaper decodes.
 std::vector<std::string> memoryStats(shell::Wallpaper *wallpaper)
 {
     std::vector<std::string> lines;
@@ -201,7 +197,6 @@ std::vector<std::string> memoryStats(shell::Wallpaper *wallpaper)
     return lines;
 }
 
-// Whether `node` puts anything on the output, walked as the damage tracker does.
 bool drawsAnything(const scene::Node &node)
 {
     if (!node.isVisible() && !node.paintsWhenHidden())
@@ -293,8 +288,6 @@ CompositorShell::CompositorShell(const CompositorOptions &options)
     , m_dockPreferences(m_dockLayout, m_windowManager)
     , m_secureScene(m_secureContainer)
     , m_sessionTeardown(&m_seat, &m_windowManager)
-    // The session says which screen the compositor starts on; the compositor
-    // never works it out from anything about a user.
     , m_sessionController(&m_secureScene, &m_sessionTeardown,
                           options.login ? session::SessionState::Login
                                         : session::SessionState::Active)
@@ -306,8 +299,7 @@ CompositorShell::CompositorShell(const CompositorOptions &options)
     // The live medium is mounted there; its user was logged in without typing a password.
     m_authUi.setPasswordRequired(!std::filesystem::exists("/run/live/medium"));
 
-    // Before any output is up: the account the login screen preselects, so its
-    // wallpaper is the first one decoded.
+    // Before any output is up, so the preselected account's wallpaper is decoded first.
     if (m_options.login && !auth::lastLoginUser().empty())
         m_secureScene.setSettingsFile(auth::loginBackgroundFile(auth::lastLoginUser()), false);
     m_compositor.setOutputScale(m_options.scale);
@@ -326,7 +318,6 @@ CompositorShell::CompositorShell(const CompositorOptions &options)
             }));
     m_outputModel.scale = m_options.scale;
 
-    // The overview's windows slide with a desk switch, its desk bar stays.
     m_overviewNode = static_cast<scene::OverviewNode *>(
             m_surfaceContainer->addChild(std::make_unique<scene::OverviewNode>()));
     m_deskSwitchNode = static_cast<scene::DeskSwitchNode *>(
@@ -385,16 +376,12 @@ void CompositorShell::initKeyboard()
         return m_seat.setKeyboardLayout(name);
     });
 
-    // The greeter and development instances must not take over the user's
-    // keyboard settings.
     if (!m_options.noDrm && !m_options.login)
         m_keyboardSettings.registerService();
 }
 
 void CompositorShell::initComputerControl()
 {
-    // As with capture: the greeter has no one to hand the seat to, and a
-    // development instance has no display to show.
     if (m_options.login || m_options.noDrm)
         return;
 
@@ -437,7 +424,6 @@ void CompositorShell::initAccelerators()
                                                               &m_windowManager,
                                                               &m_decorationTheme);
     m_windowCycle->setView(m_switcherView.get());
-    // Once the session has settled; the greeter switches nothing.
     if (!m_options.login) {
         m_switcherView->preloadAfter(std::chrono::milliseconds(kSwitcherPreloadDelayMs));
     }
@@ -458,8 +444,7 @@ void CompositorShell::initAccelerators()
     m_acceleratorController->setUsePositionalLookup(
             accelerators::usesPositionalShortcuts(*m_seat.xkbTracker()));
 
-    // The greeter has no overview. It takes the pointer and the keys from
-    // the windows while it is up, after the accelerators had them.
+    // It takes the pointer and the keys from the windows after the accelerators.
     if (!m_options.login) {
         wm::OverviewController *overview = m_windowManager.overview();
         overview->setNodes(m_overviewNode, m_overviewBarNode);
@@ -467,8 +452,6 @@ void CompositorShell::initAccelerators()
         m_inputManager.setEventSink(overview);
     }
 
-    // In front of whatever the window manager chain is: the demo controller
-    // when enabled, the window manager otherwise.
     m_acceleratorFilter = std::make_unique<accelerators::AcceleratorFilter>(
             m_acceleratorController.get(), m_seat.xkbTracker(), &m_windowManager,
             m_windowCycle.get(), m_inputManager.eventSink());
@@ -480,7 +463,6 @@ void CompositorShell::initAccelerators()
             m_seat.xkbTracker());
     m_acceleratorService->registerService();
 
-    // The greeter has no hot corners.
     if (!m_options.login) {
         m_hotCorners = std::make_unique<accelerators::HotCornerController>(
                 &m_seat, [this](accelerators::AcceleratorAction action) {
@@ -514,13 +496,10 @@ void CompositorShell::initAccelerators()
         });
     }
 
-    // Quit's last resort for a process that closed its windows but keeps
-    // running. AppRuntime checks the process is the user's before signalling.
+    // AppRuntime checks the process is the user's before signalling.
     m_windowManager.setTerminateProcess([](int64_t pid) {
         callAppRuntime("quitByPid", pid);
     });
-    // Force quit ends the client itself; AppRuntime ends what else runs in the
-    // application scope it started the process in.
     m_windowManager.setForceQuitProcess([](int64_t pid) {
         callAppRuntime("forceQuitByPid", pid);
     });
@@ -540,17 +519,12 @@ void CompositorShell::initAccelerators()
     translator->setCommandBindingProvider([focusedWindow, bindsCommand] {
         return bindsCommand(focusedWindow());
     });
-    // A remote desktop, a virtual machine or the shortcut recorder wants the
-    // keys the user pressed, with Command as Meta. So does a game, which holds
-    // the pointer and reads a lone Ctrl or Alt as it goes down.
     translator->setPassthroughProvider([this] {
         return m_seat.shortcutsInhibition()->isActive()
                 || m_seat.pointerConstraints()->active()
                 || m_acceleratorController->shouldPreventProcessingAccelerators();
     });
 
-    // The convention decides the compositor's own shortcuts as well as what
-    // the clients get for the keys it leaves them.
     const auto applyConvention = [this] {
         const input::ShortcutConvention convention = m_keyboardSettings.shortcutConvention();
         m_seat.setShortcutConvention(convention);
@@ -583,7 +557,6 @@ bool CompositorShell::init()
         return m_seat.cursorPosition();
     });
     m_screenSaver.registerService();
-    // The greeter and development instances must not hold the system's sleep.
     if (!m_options.noDrm && !m_options.login)
         m_sleepLock.start();
     m_seat.setSessionGate(&m_sessionController);
@@ -609,8 +582,6 @@ bool CompositorShell::init()
     initComputerControl();
     initAccelerators();
 
-    // The greeter has no desks, and development instances must not take over
-    // the user's.
     if (!m_options.login) {
         m_gestureHandler = std::make_unique<wm::WmGestureHandler>(
                 m_windowManager.desks(),
@@ -618,8 +589,7 @@ bool CompositorShell::init()
                     return m_seat.drag()->busy() || m_windowManager.eventHandler()->isDragging();
                 },
                 m_windowManager.overview());
-        // After idle the overview's first frame missed its slot on every other
-        // swipe; with one drawn ahead, none did. That one may land late unseen.
+        // A frame drawn ahead keeps the overview's first frame after idle on time.
         m_gestureHandler->setWarmUp([this] {
             m_backend->expectAnimation();
             for (const auto &output : m_backend->allOutputs())
@@ -637,7 +607,6 @@ bool CompositorShell::init()
     if (!m_options.noDrm && !m_options.login)
         m_powerButton->start();
 
-    // The greeter has no applications of its own to quit.
     if (!m_options.login) {
         m_quitAll = std::make_unique<wm::QuitAll>(&m_windowManager);
         m_applicationsService = std::make_unique<session::ApplicationsService>(
@@ -665,8 +634,6 @@ bool CompositorShell::init()
     }
 
     if (m_options.noDrm) {
-        // Headless: give the window manager a nominal output so state changes
-        // and placement still have somewhere to happen.
         m_windowManager.setOutputBounds(base::Rect(backend::HeadlessBackend::outputSize()));
         m_scene.setSize(backend::HeadlessBackend::outputSize());
         m_sessionController.setOutputs(
@@ -680,9 +647,6 @@ bool CompositorShell::init()
         return false;
 
     initXwayland();
-
-    // The trusted client (the file manager's desktop) reserves nothing: every
-    // reservation is the compositor's own panels', which outlive it.
 
     if (!m_options.shellControlSocket.empty()) {
         m_shellControl = std::make_unique<wayland::ShellControlChannel>();
@@ -704,8 +668,7 @@ bool CompositorShell::init()
         if (!initHeadless())
             return false;
     } else {
-        // Its layout starts at scale 1 and passes an empty one before the real
-        // one: nothing of this compositor's goes on the cursor plane until then.
+        // Nothing goes on the cursor plane until the display layout has its real scale.
         m_cursorHeld = true;
         m_cursor.setHeld(true);
         if (!initDrm())
@@ -720,9 +683,7 @@ bool CompositorShell::init()
 
     if (!initDisplay())
         return false;
-    // The shell on the first loop turn, after the ready byte: the toolkit's
-    // start alone costs ~60 ms the session would otherwise wait before it
-    // starts anything.
+    // After the ready byte, so the session does not wait for the toolkit's start.
     mainLoop()->post([this] { initShell(); });
     return true;
 }
@@ -779,7 +740,6 @@ std::string CompositorShell::shortcutText(const std::string &key, uint32_t modif
 
 void CompositorShell::initShell()
 {
-    // The greeter shows no desktop.
     if (m_options.login)
         return;
     shell::ShellEnvironment environment;
@@ -826,7 +786,6 @@ void CompositorShell::initShell()
     shell::Launchpad *launchpadService = launchpad.get();
     m_shell->addComponent(std::make_unique<shell::LaunchpadWindow>(m_shell.get(), std::move(launchpad),
                                                                    dockService, wallpaper));
-    // The dock and the accelerators reach the launchpad directly.
     dockService->applications().hideLaunchpad = [launchpadService] { launchpadService->hide(); };
     dockService->applications().toggleLaunchpad = [launchpadService] { launchpadService->toggle(); };
     dockService->minimizedWindows().hideLaunchpad = [launchpadService] { launchpadService->hide(); };
@@ -868,7 +827,6 @@ void CompositorShell::initShell()
                 usage->applicationsChanged.connect([controlCenter] { controlCenter->deviceUsersChanged(); }));
     }
     bar->addPanels(notifications);
-    // A development instance must not take the session's services over.
     if (!m_options.noDrm) {
         osd->registerService();
         dockService->registerService();
@@ -916,12 +874,10 @@ bool CompositorShell::initWayland()
     m_security = std::make_unique<wayland::ExecutableSecurityDelegate>(
             withExecutables({"/usr/bin/cutefish-services"}, m_options.clipboardClients),
             captureExecutables(m_options),
-            // Permission prompts and authentication dialogs.
             std::vector<std::string> {"/usr/bin/cutefish-services",
                                       "/usr/bin/cutefish-polkit-agent"},
             !m_options.noDrm,
             withExecutables({"/usr/bin/cutefish-computer-use"}, m_options.computerControlClients),
-            // The compatibility runtime, whose programs place their windows.
             withExecutables({"/usr/bin/reef"}, m_options.windowPlacementClients));
 
     wayland::ProtocolGlobals::Dependencies dependencies;
@@ -934,13 +890,10 @@ bool CompositorShell::initWayland()
     dependencies.inputMethodPopupLayer = m_inputMethodContainer;
     dependencies.security = m_security.get();
     dependencies.computerControl = m_computerControl.get();
-    // The greeter and development instances must not take over the user's input
-    // method.
     dependencies.launchInputMethod =
             !m_options.inputMethodId.empty() || (!m_options.noDrm && !m_options.login);
     dependencies.inputMethodOverride = m_options.inputMethodId;
-    // Constructing this installs the privileged registry filter, which has to be
-    // in place before the socket exists.
+    // Installs the privileged registry filter, which must be in place before the socket exists.
     m_globals = std::make_unique<wayland::ProtocolGlobals>(dependencies);
 
     if (!m_server->addSocket(m_options.socketName))
@@ -953,8 +906,7 @@ bool CompositorShell::initWayland()
         return false;
     m_idleInhibitionPolicy.setInhibition(m_globals->idleInhibition());
 
-    // The greeter and development instances must not keep the user's session
-    // awake. The counter goes before the service when the shell tears down.
+    // The counter goes before the service when the shell tears down.
     if (!m_options.noDrm && !m_options.login) {
         const auto inhibition = m_globals->idleInhibition()->weakPtr();
         m_screenSaver.setInhibition(
@@ -1042,9 +994,7 @@ void CompositorShell::initXwayland()
 #ifdef CUTEFISH_ENABLE_XWAYLAND
     m_xwayland = std::make_unique<xwayland::XwaylandServer>(
             m_server->display(), m_globals->privileged(), &m_windowManager);
-    // Xwayland starts on demand, and an input method that connected to its
-    // display would start it at login. It runs without X11 until Xwayland
-    // does, then restarts with the display to serve X11 clients as well.
+    // Xwayland starts on demand, so the input method runs without X11 until it does.
     m_xwayland->ready = [this] {
         m_globals->startInputMethod();
     };
@@ -1060,8 +1010,7 @@ void CompositorShell::initXwayland()
             m_xwayland->setCursorTheme(m_cursor.theme(), m_cursor.size());
     };
     if (m_options.xwayland) {
-        // The saved display configuration may already be applied, with a
-        // scale of its own per display: render at the largest.
+        // The saved configuration may already be applied: render at the largest scale.
         double scale = 0;
         if (const auto &applied = m_displayManager.applied()) {
             for (const auto &logical : applied->logicalDisplays)
@@ -1120,9 +1069,6 @@ void CompositorShell::probeCursor()
     }
 }
 
-// Once the displays have their real scale, the pointer takes the previous
-// master's cursor over in place and this cursor replaces it once, at its size;
-// with none, as after boot, the pointer stays centred.
 void CompositorShell::releaseCursor()
 {
     if (!std::exchange(m_cursorHeld, false))
@@ -1131,11 +1077,9 @@ void CompositorShell::releaseCursor()
     const auto mapping = m_probedCursor ? m_displayManager.mappingFor(m_probedCursor->destination)
                                         : std::nullopt;
     if (mapping) {
-        // In native pixels, with the hotspot the plane subtracts again: a logical
-        // hotspot is rounded and would move the image a pixel or two.
+        // In native pixels: a logical hotspot is rounded and would move the image.
         const base::Point native = m_probedCursor->topLeft + m_cursor.deviceHotspot();
         const base::Rect &content = mapping->nativeContent;
-        // The last pixel inside the content on each axis.
         const base::PointF pointer(std::clamp(native.x(), content.x(), content.right() - 1),
                                    std::clamp(native.y(), content.y(), content.bottom() - 1));
         if (const auto position = mapping->transform().nativeToLogical(pointer))
@@ -1186,9 +1130,7 @@ void CompositorShell::scheduleSceneSync()
 
 void CompositorShell::syncSceneToClients()
 {
-    // A surface can only have entered or left an output, or come to prefer
-    // another scale, if it moved, as exo updates a surface's display only
-    // when its window changes displays (SurfaceTreeHost::UpdateDisplayOnTree).
+    // A surface can only change outputs or preferred scale by moving.
     const auto moved = m_compositor.takeMovedSurfaces();
     for (const auto &token : moved) {
         if (*token)
@@ -1246,8 +1188,6 @@ bool CompositorShell::initDrm()
     if (!m_dmabufGlobal) {
         CF_WARNING(cfWayland) << "linux-dmabuf is unavailable on this device";
     } else {
-        // A fullscreen client is steered to a layout the primary plane takes,
-        // so its buffers can be flipped instead of composited.
         auto *feedback = m_dmabufGlobal->feedbackManager();
         feedback->setScanoutFormats([this]() -> wayland::ScanoutFormats {
             if (auto *output = m_backend->primaryOutput())
@@ -1259,9 +1199,6 @@ bool CompositorShell::initDrm()
                 [feedback](uint64_t, uint64_t) { feedback->refreshScanoutTranches(); });
     }
 
-    // Explicit synchronization rides on the same device the buffers come from.
-    // Without it clients fall back to implicit fences, which is slower but
-    // correct.
     m_syncobjGlobal = wayland::createLinuxDrmSyncobjGlobal(m_server->display(), m_backend->fd());
     if (!m_syncobjGlobal)
         CF_WARNING(cfWayland) << "Explicit synchronization is unavailable on this device";
@@ -1327,8 +1264,6 @@ bool CompositorShell::initDisplay()
             m_displayManager, m_backend.get(), outputModels(), m_outputGlobals, m_outputGlobal,
             m_server->display(), m_compositor, m_inputManager, m_windowManager, m_scene, m_cursor,
             m_cursorRouter.get(), m_updatingOutput);
-    // The login screen is ready once its wallpaper and panel are drawn, the
-    // session once its wallpaper is up on every output.
     m_displayRuntime->carryOverWhileSecure = m_options.login;
     m_displayRuntime->setStartupCover(
             m_startupCover,
@@ -1359,7 +1294,6 @@ bool CompositorShell::initDisplay()
     m_displayRuntime->capturePending = [this](const std::string &output) {
         return m_globals->imageCapture()->hasPending(output);
     };
-    // Complete transitions only after secure presentation.
     m_displayRuntime->securelyPresented = [this](const std::string &name) {
         m_sessionController.notifyOutputPresented(name);
     };
@@ -1501,9 +1435,7 @@ CompositorShell::~CompositorShell()
         m_globals->shutdown();
     m_outputGlobal = nullptr;
     m_scene.root()->setChangeCallback({});
-    // ProtocolGlobals outlives the server here, as its objects did when they were
-    // locals of main(): it is declared after m_server, so it is destroyed once
-    // this body returns.
+    // ProtocolGlobals is declared after m_server, so it outlives the server.
     m_server.reset();
     m_outputGlobals.clear();
     // Runtime-owned output models must outlive their Wayland resources.

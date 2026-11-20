@@ -12,10 +12,6 @@
 
 namespace cutefish::shell {
 
-// Log out, restart and shut down, which the user is asked to confirm first,
-// and suspend and lock, which act at once: the user menu's and the power
-// dialog's actions, through the session (org.cutefish.Session) and the
-// screen saver.
 class PowerActions
 {
 public:
@@ -28,13 +24,12 @@ public:
 
     explicit PowerActions(base::dbus::Connection *bus = base::dbus::Connection::session());
 
-    // What the confirmation dialog asks about; None while it is not up.
+    // None while the dialog is not up.
     Action pending() const { return m_pending; }
 
-    // Shows the confirmation for the action.
     void request(Action action);
-    // The dialog's answers. The pending action clears on the next turn of the
-    // loop, as the dialog answering is still on the stack.
+    // The pending action clears on the next turn of the loop: the dialog's
+    // answer is still on the stack.
     void confirm();
     void cancel();
 

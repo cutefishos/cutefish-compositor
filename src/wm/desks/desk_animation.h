@@ -5,11 +5,6 @@
 // Upstream: chromium/src/ash/wm/desks/desk_animation_base.h and
 //           desk_animation_impl.h
 // Revision: 8abbac30b9cf2fe976422c58c000c94685648b65
-//
-// Adapted for Cutefish: one DeskSwitchNode stands in for the per-root
-// animators. The starting frames are taken synchronously, so phase (1) ends
-// inside launch(); the ending frames come from the next frame each output
-// draws. Metrics, haptics, overview and split view are not carried over.
 
 #ifndef CUTEFISH_WM_DESKS_DESK_ANIMATION_H_
 #define CUTEFISH_WM_DESKS_DESK_ANIMATION_H_
@@ -25,8 +20,6 @@ class Desk;
 class DeskAnimationBase
 {
 public:
-    // Long enough for every output to draw a frame, even one slowed by a
-    // client; past it the switch happens without the animation.
     static constexpr int kEndingScreenshotTimeoutMs = 500;
 
     DeskAnimationBase(DesksController *controller, int endingDesk,
@@ -34,26 +27,21 @@ public:
     virtual ~DeskAnimationBase();
 
     int endingDeskIndex() const { return m_endingDesk; }
-    // While fingers pull the strip, the desk the swipe was chosen to stay on
-    // until they lift; -1 otherwise.
+    // -1 unless fingers pull the strip.
     int chosenDeskIndex() const { return m_chosenDesk; }
 
     // Phase (1), and with it the ending desk's activation.
     void launch();
 
-    // Lands where the animation was heading without animating the rest; the
-    // controller lets go of it.
     void finishNow() { activateTargetDeskWithoutAnimation(); }
 
-    // Upstream Replace: takes the ending desk one further along. False when
-    // the animation cannot, and the caller has to start another.
+    // False when the animation cannot, and the caller has to start another.
     virtual bool replace(bool movingLeft, DesksSwitchSource source) { return false; }
-    // See DeskSwitchNode::updateSwipeAnimation and endSwipeAnimation.
     virtual bool updateSwipeAnimation(double deskDelta, double timeMs) { return false; }
     virtual bool endSwipeAnimation(double timeMs) { return false; }
 
 protected:
-    // Starts the node on the starting frames; false when there are none.
+    // False when there are no starting frames.
     virtual bool startNode() = 0;
     virtual void onStartingDeskScreenshotTakenInternal(int endingDesk) = 0;
     virtual void onDeskSwitchAnimationFinishedInternal() = 0;
@@ -70,11 +58,9 @@ protected:
     scene::DeskSwitchNode *m_node = nullptr;
     int m_endingDesk = -1;
     int m_chosenDesk = -1;
-    // The fingers move the strip, and let it go into its own slide.
     const bool m_isContinuousGestureAnimation;
 
 private:
-    // Hands the node back empty for the next animation.
     void releaseNode();
 
     base::Timer m_screenshotTimeout;

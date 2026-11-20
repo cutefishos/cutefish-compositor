@@ -121,7 +121,6 @@ TEST_F(TouchTest, OnTouchDown)
     FakeTouchDelegate delegate;
     Touch touch(&delegate, &seat);
 
-    // Nothing is under the point: no client hears of it.
     seat.onTouchDown(at(1), 1, base::PointF(10, 10));
     seat.onTouchFrame();
     EXPECT_TRUE(delegate.calls.empty());
@@ -165,8 +164,6 @@ TEST_F(TouchTest, OnTouchMotionStaysWithTheSurfaceItWentDownOn)
 
     seat.onTouchDown(at(1), 1, base::PointF(110, 110));
     seat.onTouchFrame();
-    // Over another surface, and off every surface, the point still reports
-    // relative to where it went down.
     seat.onTouchMotion(at(2), 1, base::PointF(310, 120));
     seat.onTouchMotion(at(3), 1, base::PointF(50, 60));
     seat.onTouchFrame();
@@ -175,7 +172,6 @@ TEST_F(TouchTest, OnTouchMotionStaysWithTheSurfaceItWentDownOn)
     EXPECT_EQ(base::PointF(-50, -40), delegate.motions[1].second);
     EXPECT_EQ(Calls({"down", "frame", "motion", "motion", "frame"}), delegate.calls);
 
-    // A point that never went down on this client's surfaces is not reported.
     seat.onTouchMotion(at(4), 7, base::PointF(120, 120));
     seat.onTouchFrame();
     EXPECT_EQ(2u, delegate.motions.size());
@@ -193,12 +189,10 @@ TEST_F(TouchTest, OnTouchCancel)
     seat.onTouchFrame();
     seat.onTouchCancel();
     EXPECT_EQ(Calls({"down", "down", "frame", "cancel"}), delegate.calls);
-    // Nothing more is sent for the cancelled points.
     seat.onTouchUp(at(2), 1);
     seat.onTouchMotion(at(2), 2, base::PointF(30, 30));
     seat.onTouchFrame();
     EXPECT_EQ(Calls({"down", "down", "frame", "cancel"}), delegate.calls);
-    // A cancel with nothing down tells the client nothing.
     seat.onTouchCancel();
     EXPECT_EQ(4u, delegate.calls.size());
 }
@@ -249,7 +243,6 @@ TEST_F(TouchTest, TouchMultiple2Surfaces)
     ASSERT_EQ(2u, delegate.downs.size());
     EXPECT_EQ(first.get(), delegate.downs[0].surface);
     EXPECT_EQ(second.get(), delegate.downs[1].surface);
-    // One of them going cancels both, as upstream does.
     second.reset();
     EXPECT_EQ(Calls({"down", "down", "frame", "cancel"}), delegate.calls);
     EXPECT_FALSE(touch.tracks(1));
@@ -307,7 +300,6 @@ TEST_F(TouchTest, TheSeatFindsTheNewestPointOnAWindow)
 
     EXPECT_FALSE(seat.touchPointOn(parent.get()));
     seat.onTouchDown(at(1), 1, base::PointF(10, 10));
-    // A point on a subsurface is on the window too.
     seat.onTouchDown(at(2), 2, base::PointF(60, 70));
     seat.onTouchDown(at(3), 3, base::PointF(310, 10));
     seat.onTouchMotion(at(4), 2, base::PointF(65, 75));
@@ -342,7 +334,6 @@ TEST_F(TouchTest, TakingAPointCancelsTheClientsThatHaveIt)
     seat.takeTouchPoint(1);
     EXPECT_EQ("cancel", firstClient.calls.back());
     EXPECT_EQ(Calls({"down", "frame"}), secondClient.calls);
-    // The cancel ended the client's other point as well; nobody has either now.
     EXPECT_FALSE(seat.touchPointOn(first.get()));
     EXPECT_EQ(3, seat.touchPointOn(second.get())->id);
 
@@ -361,7 +352,6 @@ TEST_F(TouchTest, AFrameOnlyFollowsSomethingSent)
 
     seat.onTouchFrame();
     EXPECT_TRUE(delegate.calls.empty());
-    // Several points of one device frame make one client frame.
     seat.onTouchDown(at(1), 1, base::PointF(10, 10));
     seat.onTouchDown(at(1), 2, base::PointF(20, 20));
     seat.onTouchMotion(at(1), 1, base::PointF(11, 11));
@@ -374,7 +364,6 @@ namespace {
 
 struct RecordingSink : EventSink {
     bool take = false;
-    // Takes a point a client already has, from its next motion on.
     bool takeOnMotion = false;
     std::vector<std::string> calls;
     std::vector<std::pair<uint32_t, bool>> buttons;
@@ -486,7 +475,6 @@ TEST_F(TouchTest, TheEventSinkCanTakeAWholePoint)
 
     sink.take = true;
     manager.onTouchDown(at(1), 1, base::PointF(0.1, 0.1));
-    // A second point the sink leaves alone goes to the client.
     sink.take = false;
     manager.onTouchDown(at(1), 2, base::PointF(0.2, 0.2));
     manager.onTouchFrame(at(1));
@@ -494,7 +482,6 @@ TEST_F(TouchTest, TheEventSinkCanTakeAWholePoint)
     manager.onTouchUp(at(3), 1);
     manager.onTouchUp(at(3), 2);
     manager.onTouchFrame(at(3));
-    // The sink is asked about the client's point too, and leaves it.
     EXPECT_EQ(Calls({"touch-down", "touch-down", "touch-motion 1", "touch-up 1", "touch-up 2"}),
               sink.calls);
     ASSERT_EQ(1u, delegate.downs.size());
@@ -525,7 +512,6 @@ TEST_F(TouchTest, TheEventSinkCanTakeAPointAClientHas)
     EXPECT_EQ(Calls({"touch-down", "touch-motion 1", "touch-motion 1", "touch-motion 1",
                      "touch-up 1"}),
               sink.calls);
-    // Once taken, the rest of the point stays with the sink.
     EXPECT_EQ(Calls({"down", "motion", "frame"}), delegate.calls);
 }
 
@@ -541,7 +527,6 @@ TEST_F(TouchTest, ALockedSessionTakesTheFirstPointAsItsPointer)
     InputManager manager(&seat);
     manager.setBounds(base::Size(800, 600));
 
-    // A point down before the lock is cancelled for its client.
     manager.onTouchDown(at(1), 1, base::PointF(0.1, 0.1));
     manager.onTouchFrame(at(1));
     gate.locked = true;
@@ -552,7 +537,6 @@ TEST_F(TouchTest, ALockedSessionTakesTheFirstPointAsItsPointer)
     manager.onTouchUp(at(4), 2);
     manager.onTouchFrame(at(4));
     EXPECT_EQ(Calls({"down", "frame", "cancel"}), delegate.calls);
-    // Only the first point of the locked session is a pointer there.
     EXPECT_EQ(Calls({"pointer-motion", "pointer-button", "pointer-motion", "pointer-button"}),
               lockScreen.calls);
     EXPECT_EQ((std::vector<std::pair<uint32_t, bool>>({{BTN_LEFT, true}, {BTN_LEFT, false}})),

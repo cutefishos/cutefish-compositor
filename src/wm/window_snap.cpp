@@ -8,9 +8,6 @@ namespace cutefish::wm {
 
 namespace {
 
-// Ash's kScreenEdgeInsetForSnappingSides / kScreenEdgeInsetForSnappingTop. The
-// top is less aggressive: the caption is what gets dragged there, and a wide
-// band would snap windows the user only wanted to align.
 constexpr int kSideTolerance = 32;
 constexpr int kTopTolerance = 8;
 

@@ -30,14 +30,11 @@ constexpr render::Color kShieldColor {0.0f, 0.0f, 0.0f, 1.0f};
 // it goes straight to its end instead.
 constexpr double kLateStartMs = 250;
 
-// The backdrop and panel fade in over this, while the panel's raise runs the
-// whole kCoverDurationMs. Leaving, the panel is gone before the backdrop.
 constexpr double kCoverFadeMs = 300;
 constexpr double kPanelLiftFadeMs = 200;
 constexpr double kPanelRaiseFrom = 0.92;
 constexpr double kPanelLiftTo = 1.06;
 
-// Another account's wallpaper fades in over the one shown.
 constexpr double kWallpaperFadeMs = 300;
 
 double steadyNow()
@@ -47,8 +44,6 @@ double steadyNow()
             .count();
 }
 
-// gfx::Tween::EASE_IN_OUT and EASE_OUT, which ash's session state animator
-// gives opacity and transform.
 double easeInOut(double t)
 {
     t = std::clamp(t, 0.0, 1.0);
@@ -64,13 +59,13 @@ double easeOut(double t)
 const std::string kDefaultWallpaper = "/usr/share/backgrounds/cutefishos/default.jpg";
 const std::string kDefaultBackgroundColor = "#2B8ADA";
 
-// The file a wallpaper setting names: a path, or a file: URL.
+// A path, or a file: URL.
 std::string wallpaperFile(const std::string &setting)
 {
     return base::url::toLocalFile(setting).value_or(setting);
 }
 
-// Milliseconds since the epoch; -1 for a file that is not there.
+// -1 for a file that is not there.
 int64_t modifiedMs(const std::string &path)
 {
     struct stat info;
@@ -79,8 +74,7 @@ int64_t modifiedMs(const std::string &path)
     return int64_t(info.st_mtim.tv_sec) * 1000 + info.st_mtim.tv_nsec / 1000000;
 }
 
-// #RGB, #RRGGBB, #AARRGGBB and the 12-bit-per-channel forms of a colour
-// setting, as premultiplied 0xAARRGGBB; opaque black for anything else.
+// As premultiplied 0xAARRGGBB; opaque black for anything else.
 uint32_t settingColor(std::string_view text)
 {
     if (text.empty() || text.front() != '#')
@@ -124,12 +118,10 @@ uint32_t settingColor(std::string_view text)
     return a << 24 | premultiply(r) << 16 | premultiply(g) << 8 | premultiply(b);
 }
 
-// On a worker thread: the wallpaper covering `size` at the output's density,
-// cropped to its middle.
+// On a worker thread.
 ui::Bitmap loadWallpaper(const std::string &settingsFile, const base::Size &size, double scale)
 {
     const base::Settings settings(settingsFile);
-    // Device pixels: the wallpaper is shown sharp, as the desktop shows it.
     const base::Size target(std::max(1, base::roundToInt(size.width() * scale)),
                             std::max(1, base::roundToInt(size.height() * scale)));
     ui::Bitmap image;
@@ -157,7 +149,6 @@ ui::Bitmap loadWallpaper(const std::string &settingsFile, const base::Size &size
 class WallpaperNode final : public scene::Node
 {
 public:
-    // `fadesIn` over the wallpaper below it, which goes once it is covered.
     WallpaperNode(const SecureContainer *container, const base::Size &size, double scale, bool fadesIn,
                   std::function<void()> onLoaded)
         : Node("lock-wallpaper")
@@ -264,8 +255,7 @@ private:
     mutable std::unique_ptr<render::Texture> m_texture;
 };
 
-// Black under the wallpaper, and in its place until it has loaded. It fades in
-// only when there is no wallpaper to fade: under one it would darken the fade.
+// It fades in only without a wallpaper: under one it would darken the fade.
 class ShieldNode final : public scene::ColorNode
 {
 public:
@@ -361,7 +351,6 @@ CoverSample SecureContainer::sample(double frameTime, double framePeriod) const
     const double time = frameTime >= 0 ? frameTime : steadyNow();
     const double duration = transitionDuration();
     if (m_animating && !m_start) {
-        // Already moving in its first frame, as window animations do.
         m_start = time - kLateStartMs > m_requested ? time - duration : time - framePeriod;
     }
     const bool over = !m_animating || time >= *m_start + duration;
@@ -488,7 +477,6 @@ void SecureContainer::rebuildShield(bool crossfade)
     for (size_t i = 0; i < m_outputs.size(); ++i) {
         auto *shield = m_shieldRects[i];
         shield->setGeometry(m_outputs[i].bounds);
-        // The wallpapers up stay under the new one until it covers them.
         bool shown = false;
         for (scene::Node *child : std::vector<scene::Node *>(shield->children())) {
             const auto *wallpaper = dynamic_cast<const WallpaperNode *>(child);

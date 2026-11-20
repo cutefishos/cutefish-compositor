@@ -17,7 +17,6 @@ namespace cutefish::auth {
 
 namespace {
 
-// The clock's right inset, which puts the bar's last plate 9 px from the edge.
 constexpr double kLastRightInset =
         shell::BarContext::kEdgeMargin - (shell::BarContext::kItemGap - shell::BarContext::kHighlightGap) / 2;
 constexpr double kInset = shell::BarContext::kHighlightGap / 2;

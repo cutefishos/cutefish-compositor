@@ -70,13 +70,10 @@ void Desk::activate(bool updateWindowActivation)
     if (!updateWindowActivation || m_windows.empty())
         return;
 
-    // The window on this desk that was most recently used right before the
-    // user left it, so as not to break the user's workflow.
     WindowManager *manager = m_controller->windowManager();
     for (Window *window : manager->mruWindowTracker()->buildMruWindowList()) {
         if (m_controller->deskOf(window) != this)
             continue;
-        // Activating a minimized or hidden window would bring it back.
         if (window->state()->isMinimized() || window->isHidden())
             continue;
         manager->activation()->activate(window);
@@ -88,8 +85,6 @@ void Desk::deactivate(bool updateWindowActivation)
 {
     Window *active = m_controller->windowManager()->activation()->activeWindow();
     m_active = false;
-    // Hiding the active window moves activation on by itself; upstream hides the
-    // containers first for the same reason, so that it lands off this desk.
     m_controller->updateDeskVisibility();
     if (!updateWindowActivation)
         return;
@@ -101,7 +96,6 @@ void Desk::deactivate(bool updateWindowActivation)
 void Desk::moveWindowsToDesk(Desk *target)
 {
     WindowManager *manager = m_controller->windowManager();
-    // Top-most first: lowering each to the bottom in turn keeps their order.
     std::vector<Window *> windows;
     const auto &stacking = manager->windows();
     for (auto it = stacking.rbegin(); it != stacking.rend(); ++it) {
@@ -119,14 +113,10 @@ void Desk::moveWindowsToDesk(Desk *target)
 
 void Desk::moveWindowToDesk(Window *window, Desk *target)
 {
-    // Always the root of the transient tree: a transient child is never left
-    // behind by its parent, nor moved without it.
     Window *root = m_controller->transientRoot(window);
     if (!contains(root) || target == this)
         return;
     m_controller->assignWindow(root, target);
-    // Upstream FixWindowStackingAccordingToGlobalMru: the window was the one in
-    // use, so it goes on top of the target desk's windows.
     m_controller->windowManager()->raise(root);
     if (root->state()->isMinimized())
         root->restore();

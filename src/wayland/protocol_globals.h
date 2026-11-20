@@ -55,16 +55,7 @@ class WaylandXdgActivation;
 class WaylandXdgShell;
 struct WaylandSeat;
 
-// Every device-independent Wayland global this compositor registers, together
-// with the state each global binds to.
-//
-// Upstream: chromium/src/components/exo/wayland/server.cc, Server::Initialize().
-// Exo keeps this inside Server; here it is a separate type because
-// cutefish-wayland is the base library the protocol implementations are built
-// on, so the registration has to sit above them rather than inside it.
-//
-// Globals that depend on the graphics device - linux-dmabuf, drm-syncobj,
-// presentation - are registered by whoever owns that device, not here.
+// Globals that depend on the graphics device are registered by whoever owns that device.
 class ProtocolGlobals
 {
 public:
@@ -85,7 +76,7 @@ public:
         // The greeter and development instances must not take over the user's
         // input method.
         bool launchInputMethod = false;
-        // Development override; empty means use the saved selection.
+        // Empty means use the saved selection.
         std::string inputMethodOverride;
     };
 
@@ -94,10 +85,7 @@ public:
     ProtocolGlobals &operator=(const ProtocolGlobals &) = delete;
     ~ProtocolGlobals();
 
-    // Registers every global; call once the server is listening. False means the
-    // compositor cannot serve clients, and the reason has already been logged.
-    // The privileged registry filter is in place from construction, before the
-    // socket exists.
+    // Call once the server is listening. On false the reason has already been logged.
     bool initialize();
 
     // Releases the globals. Must run after the clients are gone and before the
@@ -112,7 +100,6 @@ public:
     void setInputMethodX11Display(const std::string &x11Display,
                                   const std::string &x11Authority);
 
-    // Keeps input-method popups on the text cursor when windows move.
     void sceneChanged();
 
     PrivilegedClients *privileged() { return m_privileged.get(); }
@@ -141,8 +128,7 @@ private:
     const Dependencies m_deps;
     bool m_inputMethodStarted = false;
 
-    // Declaration order is destruction order reversed, and it matters: this
-    // mirrors the order these objects had as locals of main().
+    // Declaration order is destruction order reversed, and it matters.
     std::unique_ptr<PrivilegedClients> m_privileged;
     std::unique_ptr<WaylandSeat> m_seat;
     std::unique_ptr<IdleInhibition> m_idleInhibition;

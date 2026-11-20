@@ -16,8 +16,6 @@
 
 namespace cutefish::shell {
 
-// A VPN that went down on its own is told
-// with a notification, and a click on it opens its page in Settings.
 class VpnNotifier
 {
 public:
@@ -27,10 +25,8 @@ public:
     VpnNotifier(const VpnNotifier &) = delete;
     VpnNotifier &operator=(const VpnNotifier &) = delete;
 
-    // NetworkManager's Handler::vpnFailed.
     void vpnFailed(const std::string &name, const std::string &message);
 
-    // What a click does: the owner opens Settings' VPN page.
     std::function<void()> openSettings;
 
 private:
@@ -38,7 +34,6 @@ private:
     base::dbus::Proxy m_server;
     PendingCalls m_calls;
     std::vector<base::dbus::Match> m_matches;
-    // The notifications shown and not yet closed.
     std::set<uint32_t> m_shown;
 };
 

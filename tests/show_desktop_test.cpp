@@ -2,9 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Show desktop: which windows move aside, how far, and what brings them back.
-// No DRM, no GL, no Wayland client.
-
 #include <gtest/gtest.h>
 
 #include <linux/input-event-codes.h>
@@ -87,7 +84,6 @@ protected:
         return window;
     }
 
-    // Plays the running slide to its end.
     void finishSlide()
     {
         showDesktop->advance(now);
@@ -115,7 +111,6 @@ TEST_F(ShowDesktopTest, WindowsGoToTheNearerSideLeavingASliver)
     EXPECT_EQ(left->presentationOffset(), base::Point(kSliver - 400, 0));
     EXPECT_EQ(right->presentationOffset(), base::Point(1000 - kSliver - 600, 0));
     EXPECT_EQ(desktop->presentationOffset(), base::Point());
-    // The desktop has the keyboard meanwhile.
     EXPECT_EQ(manager.activation()->activeWindow(), desktop);
 }
 
@@ -169,7 +164,6 @@ TEST_F(ShowDesktopTest, ActivatingAnApplicationWindowBringsThemBack)
     showDesktop->enter();
     finishSlide();
 
-    // Clicking the desktop keeps them aside.
     click(base::PointF(500, 650));
     EXPECT_TRUE(showDesktop->isActive());
 
@@ -188,7 +182,6 @@ TEST_F(ShowDesktopTest, ClickingASliverBringsThatWindowBackInFront)
     showDesktop->enter();
     finishSlide();
 
-    // The first window's sliver, below the second's.
     click(base::PointF(kSliver / 2, 120));
     EXPECT_FALSE(showDesktop->isActive());
     EXPECT_EQ(manager.activation()->activeWindow(), first);
@@ -226,7 +219,6 @@ TEST_F(ShowDesktopTest, WhereAWindowWasIsDesktop)
     showDesktop->enter();
     finishSlide();
 
-    // Its handles went with it.
     EXPECT_EQ(nullptr, manager.resizeHandleAt(outsideRight, false, &edge));
     click(outsideRight);
     EXPECT_TRUE(showDesktop->isActive());

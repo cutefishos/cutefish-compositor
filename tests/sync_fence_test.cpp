@@ -6,12 +6,6 @@
 //           (CreateMergedGpuFenceFromFDs)
 //           chromium/src/components/exo/buffer.cc (release callbacks)
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Explicit synchronization: fence handling and the buffer-release rules that
-// keep a client from reusing storage the compositor is still reading.
-//
-// Adapted for Cutefish: exercises the corresponding behavior with native
-// compositor test doubles and APIs.
 
 #include <gtest/gtest.h>
 
@@ -34,8 +28,6 @@ namespace {
 
 using testsupport::FakeFence;
 
-// Records what a client's release timeline was told, standing in for a DRM
-// syncobj point.
 class RecordingRelease final : public compositor::BufferRelease
 {
 public:
@@ -51,8 +43,6 @@ public:
     render::SyncFence received;
 };
 
-// A DMA-BUF-like buffer: the compositor samples client storage in place, so
-// release waits for detach rather than for an upload.
 class RetainingBuffer final : public compositor::Buffer
 {
 public:
@@ -75,7 +65,6 @@ TEST(SyncFenceTest, AnInvalidFenceIsAlreadySignalled)
     const render::SyncFence fence;
 
     EXPECT_FALSE(fence.isValid());
-    // "Nothing to wait for" is what makes the implicit-sync fallback safe.
     EXPECT_TRUE(fence.isSignaled());
     EXPECT_TRUE(fence.wait(0));
 }
@@ -178,8 +167,6 @@ TEST(BufferSyncTest, AReleaseIsNeverDroppedWhenTheBufferGoesAway)
         buffer.onAttach();
     }
 
-    // A client waiting on the release point must not wait forever just because
-    // the compositor tore the buffer down first.
     EXPECT_EQ(release->signalCount, 1);
 }
 
@@ -192,8 +179,6 @@ TEST(BufferSyncTest, ABufferOnAPlaneIsNotReleasedWhenTheClientReattaches)
     buffer.onAttach();
     buffer.onScanoutAcquired();
 
-    // The client committed something else, so nothing references the buffer any
-    // more - except the display, which is still showing it.
     buffer.onDetach();
     EXPECT_EQ(release->signalCount, 0);
     EXPECT_FALSE(buffer.isReleased());
@@ -216,8 +201,6 @@ TEST(BufferSyncTest, TheScanoutCompletionFenceReachesTheReleasePoint)
     buffer.onScanoutReleased(completion.take());
 
     ASSERT_EQ(release->signalCount, 1);
-    // The client is told when the display actually stops reading, not merely
-    // that the compositor stopped caring.
     EXPECT_TRUE(release->hadFence);
 }
 
@@ -228,8 +211,6 @@ TEST(BufferSyncTest, ABufferKeptOnAPlaneDoesNotCollectAnOutFencePerFlip)
     buffer.onScanoutAcquired();
 
     const int before = openFdCount();
-    // Each frame acquires the buffer before the flip retires the previous
-    // frame, so the scanout count never reaches zero while it stays on screen.
     for (int flip = 0; flip < 64; ++flip) {
         buffer.onScanoutAcquired();
         FakeFence outFence;

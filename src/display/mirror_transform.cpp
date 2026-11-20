@@ -4,9 +4,6 @@
 //
 // Upstream: chromium/src/ash/display/root_window_transformers.cc
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: normalized coordinates provide a reversible mapping
-// for differently sized, rotated, and letterboxed mirror destinations.
 
 #include "display/mirror_transform.h"
 

@@ -4,9 +4,6 @@
 //
 // Upstream: chromium/src/components/exo/wayland/wl_compositor.cc
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: SkRegion becomes base::Region and the leave/enter callback
-// is absent until wl_output exists.
 
 #include "wayland/protocols/wl_compositor.h"
 
@@ -25,9 +22,6 @@
 namespace cutefish::wayland {
 
 namespace {
-
-////////////////////////////////////////////////////////////////////////////////
-// wl_region_interface:
 
 void region_destroy(wl_client*, wl_resource* resource)
 {
@@ -75,9 +69,6 @@ base::Region opaqueToLogical(const base::Region& region, double scale)
     }
     return result;
 }
-
-////////////////////////////////////////////////////////////////////////////////
-// wl_surface_interface:
 
 void surface_destroy(wl_client*, wl_resource* resource)
 {
@@ -246,16 +237,11 @@ const struct wl_surface_interface surface_implementation = {
 void surface_destructor(wl_resource* resource)
 {
     compositor::Surface* surface = getUserDataAs<compositor::Surface>(resource);
-    // The Surface is destroyed while the association still stands, so input
-    // observers reacting to its destruction can resolve it back to this
-    // resource and send their leave events, as they do upstream. The resource
-    // outlives this call, so those events are still valid to send.
+    // The Surface is destroyed while the association still stands, so observers can resolve it to
+    // this resource and send their leave events.
     takeUserDataAs<compositor::Surface>(resource).reset();
     setSurfaceResource(surface, nullptr);
 }
-
-////////////////////////////////////////////////////////////////////////////////
-// wl_compositor_interface:
 
 void compositor_create_surface(wl_client* client, wl_resource* resource, uint32_t id)
 {

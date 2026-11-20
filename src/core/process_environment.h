@@ -10,8 +10,6 @@
 
 namespace cutefish {
 
-// The environment to start a child process from, as NAME=value entries: the
-// compositor's current one.
 std::vector<std::string> childEnvironment();
 
 } // namespace cutefish

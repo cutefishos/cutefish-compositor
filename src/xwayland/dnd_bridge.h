@@ -4,9 +4,6 @@
 //
 // Upstream: chromium/src/ui/base/x/x11_drag_drop_client.cc
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// What is taken: the XDND messaging. Chromium is an X11 client; here the
-// window manager speaks XDND on behalf of Wayland drags and targets.
 #pragma once
 
 #include <functional>
@@ -40,17 +37,8 @@ class WindowManager;
 
 namespace cutefish::xwayland {
 
-// Bridges drag-and-drop between X11 clients and Wayland.
-//
-// A Wayland drag over an X11 window: this is the XDND source. It owns
-// XdndSelection through a SelectionBridge that serves the Wayland source, and
-// drives an ordinary DragOffer from the target's XdndStatus replies.
-//
-// An X11 drag over a Wayland surface: the X11 client keeps its implicit grab
-// and goes on seeing the pointer, so an XdndAware proxy window is mapped over
-// the output whenever the pointer is off every X11 window. The source's
-// XdndEnter starts an external Wayland drag, its XdndPosition moves it and its
-// XdndDrop drops it.
+// For an X11 drag over a Wayland surface, an XdndAware proxy window is mapped over the output while
+// the pointer is off every X11 window.
 class DndBridge
 {
 public:
@@ -85,7 +73,6 @@ private:
     uint32_t actionAtom(uint32_t action) const;
     uint32_t actionFromAtom(xcb_atom_t atom) const;
 
-    // Wayland drag, X11 target.
     void onDragEntered(compositor::Surface *surface);
     void onDragMoved();
     void onDragLeft();
@@ -100,7 +87,6 @@ private:
     void completeDrop(bool success);
     void clearExport();
 
-    // X11 drag, Wayland target.
     void onOwnerChanged(xcb_window_t owner);
     void track();
     void setProxyMapped(bool mapped);

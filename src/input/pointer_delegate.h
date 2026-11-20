@@ -4,12 +4,6 @@
 //
 // Upstream: chromium/src/components/exo/pointer_delegate.h
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: integrates the upstream behavior with native
-// compositor types and ownership.
-//
-// Adaptation: gfx::PointF/Vector2dF become base::PointF, and the pinch/stylus and
-// relative-motion delegates are out of scope for v0.1.
 
 #ifndef CUTEFISH_INPUT_POINTER_DELEGATE_H_
 #define CUTEFISH_INPUT_POINTER_DELEGATE_H_
@@ -26,7 +20,6 @@ namespace cutefish::input {
 
 class Pointer;
 
-// Handles events on pointers in context-specific ways.
 class PointerDelegate
 {
 public:
@@ -34,8 +27,6 @@ public:
     // chance to remove itself.
     virtual void onPointerDestroying(Pointer* pointer) = 0;
 
-    // Whether `surface` is a valid target for this pointer, e.g. because it is
-    // owned by the same client.
     virtual bool canAcceptPointerEventsForSurface(compositor::Surface* surface) const = 0;
 
     // `location` is relative to the origin of `surface`; `pressedButtonFlags`
@@ -55,8 +46,6 @@ public:
     virtual void onPointerScroll(Timestamp timestamp, const base::PointF& offset,
                                  bool discrete) = 0;
 
-    // Ends a sequence of finger scroll events, e.g. fingers lifted off a
-    // touchpad.
     virtual void onFingerScrollStop(Timestamp timestamp) = 0;
 
     // Called once every pointer event of this frame has been sent. Nothing is

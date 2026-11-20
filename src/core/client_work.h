@@ -7,9 +7,7 @@
 
 namespace cutefish::core {
 
-// Marks work done for clients on the main thread: dispatching their requests,
-// or applying a commit once its fences have signalled. What changes in the
-// scene meanwhile is theirs, not the compositor's own.
+// Scene changes made inside the scope are the clients' work, not the compositor's.
 class ClientWorkScope
 {
 public:

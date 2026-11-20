@@ -4,8 +4,6 @@
 //
 // Upstream: chromium/src/ash/display/root_window_transformers_unittest.cc
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: tests the direct global-logical/native transform contract.
 
 #include <gtest/gtest.h>
 

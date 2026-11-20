@@ -23,7 +23,6 @@ static constexpr double kPillScale = 0.985;
 static constexpr double kRimWidth = 4.0 / 216;
 static constexpr double kRimOpacity = 0.3;
 
-// The text field itself, drawn without its frame over the pill.
 class LaunchpadSearchField::Field final : public ui::TextField
 {
 public:
@@ -53,7 +52,6 @@ protected:
         case ui::key::Down:
         case ui::key::Return:
         case ui::key::KeypadEnter:
-            // Left and right stay with the caret.
             if (m_owner->onKey && m_owner->onKey(event.key))
                 return true;
             break;
@@ -66,7 +64,6 @@ protected:
     void textInput(const ui::TextInputEvent &event) override
     {
         ui::TextField::textInput(event);
-        // The placeholder's label goes while a preedit shows.
         m_owner->updatePlaceholder();
     }
 
@@ -139,8 +136,6 @@ void LaunchpadSearchField::focusChanged(bool focused)
     if (focused == m_focused)
         return;
     m_focused = focused;
-    // Keeps the typed text on the same x as the placeholder label: the
-    // margin, the glyph and the row's spacing.
     requestLayout();
 
     ui::Window *animating = m_animated ? window() : nullptr;
@@ -177,7 +172,6 @@ void LaunchpadSearchField::layoutPlaceholder()
     const double height = geometry().height;
     const double iconSize = m_metrics.searchIconSize;
     ui::SizeF label = m_label->sizeHint();
-    // The row takes its items' widths in whole pixels.
     label.width = std::ceil(label.width);
     const double width = iconSize + (m_label->isVisible() ? m_metrics.searchIconGap + label.width : 0);
     const double centred = (geometry().width - width) / 2;
@@ -201,7 +195,6 @@ void LaunchpadSearchField::layout()
 
 void LaunchpadSearchField::paint(ui::Painter &painter)
 {
-    // A pill a little inside the field, its edges on the device grid.
     const ui::RectF bounds = localRect();
     const double scale = painter.scale();
     const ui::Rect device = painter.snappedRect({(bounds.width - bounds.width * kPillScale) / 2,
@@ -215,7 +208,6 @@ void LaunchpadSearchField::paint(ui::Painter &painter)
     shape.addRoundedRect(pill, radius, radius);
     painter.fillPath(shape, kWhite.withAlpha(m_backgroundOpacity));
 
-    // The rim shows at the top and the bottom and fades out towards the sides.
     const double inset = std::max(1.0, std::round(pill.height * kRimWidth * scale)) / scale;
     const ui::RectF inner = pill.adjusted(inset, inset, -inset, -inset);
     ui::Path core;

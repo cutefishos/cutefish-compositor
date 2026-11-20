@@ -4,9 +4,6 @@
 //
 // Upstream: chromium/src/ui/display/manager/display_change_observer.cc
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: external monitors get a density table of their own,
-// where Chromium leaves them at 1, and results are Settings' scale steps.
 
 #include "display/recommended_scale.h"
 
@@ -20,9 +17,8 @@ struct Threshold {
     uint32_t scale120;
 };
 
-// Chromium's kThresholdTableForLcdInternal, each factor rounded to a step:
-// 2.666 and 2.4 to 2.5, 1.777 to 1.75, and 1.6 up to 1.75, since 1.5 leaves
-// a 13" 3:2 panel's text too small.
+// Threshold factors rounded to scale steps; 1.6 goes up to 1.75, since 1.5
+// leaves a 13" 3:2 panel's text too small.
 constexpr std::array<Threshold, 5> kInternal {{
         {270, 300},
         {230, 240},
@@ -31,8 +27,8 @@ constexpr std::array<Threshold, 5> kInternal {{
         {0, 120},
 }};
 
-// A desktop monitor sits farther away than a laptop panel: about 110 dpi per
-// unit of scale, so a 27" 4K runs at 150% and a 27" 5K at 200%.
+// About 110 dpi per unit of scale, as a desktop monitor sits farther away than
+// a laptop panel.
 constexpr std::array<Threshold, 5> kExternal {{
         {200, 240},
         {175, 210},
@@ -41,8 +37,7 @@ constexpr std::array<Threshold, 5> kExternal {{
         {0, 120},
 }};
 
-// ui/display/util/display_util.cc: IsDisplaySizeValid. Projectors and some
-// TVs report an aspect ratio or nothing in place of a size.
+// Projectors and some TVs report an aspect ratio or nothing in place of a size.
 bool isPhysicalSizeValid(const base::Size &mm)
 {
     if (mm.width() <= 40 || mm.height() <= 30)

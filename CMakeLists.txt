@@ -15,8 +15,6 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
 endif()
 
 include(GNUInstallDirs)
-# The suite needs GoogleTest and GPU pixel tests, so it is built on request
-# (-DBUILD_TESTING=ON) rather than by every plain cmake run.
 option(BUILD_TESTING "Build the test suite" OFF)
 include(CTest)
 
@@ -36,8 +34,6 @@ pkg_check_modules(WaylandProtocols REQUIRED wayland-protocols>=1.39)
 pkg_get_variable(WAYLAND_PROTOCOLS_DATADIR wayland-protocols pkgdatadir)
 pkg_get_variable(WAYLAND_SCANNER wayland-scanner wayland_scanner)
 
-# Generated protocol marshalling. The XML is wayland-protocols'; the generated
-# sources live in the build tree and are never checked in.
 set(CUTEFISH_PROTOCOL_DIR ${CMAKE_BINARY_DIR}/wayland-protocols)
 file(MAKE_DIRECTORY ${CUTEFISH_PROTOCOL_DIR})
 
@@ -97,9 +93,8 @@ cutefish_wayland_protocol(linux-dmabuf-v1
 cutefish_wayland_protocol(linux-drm-syncobj-v1
     ${WAYLAND_PROTOCOLS_DATADIR}/staging/linux-drm-syncobj/linux-drm-syncobj-v1.xml)
 
-# Cutefish's own private protocols. cutefish-toolkit/protocols keeps the
-# client-side copy of every one a client speaks, and the two copies must stay
-# byte-identical: they define the wire format.
+# cutefish-toolkit/protocols keeps the client-side copy; the two copies must stay
+# byte-identical.
 set(CUTEFISH_PRIVATE_PROTOCOL_DIR ${CMAKE_CURRENT_SOURCE_DIR}/protocols)
 cutefish_wayland_protocol(cutefish-shell-v1
     ${CUTEFISH_PRIVATE_PROTOCOL_DIR}/cutefish-shell-v1.xml)
@@ -180,8 +175,6 @@ target_include_directories(cutefish-protocols PUBLIC ${CUTEFISH_PROTOCOL_DIR})
 target_link_libraries(cutefish-protocols PUBLIC PkgConfig::WaylandServer)
 set_target_properties(cutefish-protocols PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
-# Shared logging categories, preference files, process environment and the
-# main thread's toolkit loop.
 add_library(cutefish-core STATIC
     src/core/logging.cpp
     src/core/logging.h
@@ -196,8 +189,6 @@ target_include_directories(cutefish-core PUBLIC src)
 target_link_libraries(cutefish-core PUBLIC Cutefish::ToolkitBase)
 set_target_properties(cutefish-core PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
-# Backend-independent display contracts. DRM, Wayland and UI adapters consume
-# this library without becoming part of the state and geometry model.
 add_library(cutefish-display STATIC
     src/display/callback_native_display_delegate.cpp
     src/display/callback_native_display_delegate.h
@@ -245,7 +236,6 @@ target_include_directories(cutefish-display-ipc PUBLIC src)
 target_link_libraries(cutefish-display-ipc PUBLIC cutefish-display)
 set_target_properties(cutefish-display-ipc PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
-# Protocol/compositor core, shared by the executable and the tests.
 add_library(cutefish-wayland STATIC
     src/wayland/client_tracker.cpp
     src/wayland/client_tracker.h
@@ -265,8 +255,6 @@ target_include_directories(cutefish-wayland PUBLIC src)
 target_link_libraries(cutefish-wayland PUBLIC cutefish-core PkgConfig::WaylandServer)
 set_target_properties(cutefish-wayland PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
-# Explicit-synchronization primitives: sync_file fences and DRM syncobj
-# timelines. libdrm is the only dependency; nothing here knows about Wayland.
 add_library(cutefish-sync STATIC
     src/render/sync_fence.cpp
     src/render/sync_fence.h
@@ -277,7 +265,6 @@ target_include_directories(cutefish-sync PUBLIC src)
 target_link_libraries(cutefish-sync PUBLIC cutefish-core PkgConfig::Libdrm)
 set_target_properties(cutefish-sync PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
-# Scene graph. Deliberately free of GL and DRM so it stays testable.
 add_library(cutefish-scene STATIC
     src/scene/window_visual_node.cpp
     src/scene/motion.cpp
@@ -322,7 +309,6 @@ target_include_directories(cutefish-scene PUBLIC src)
 target_link_libraries(cutefish-scene PUBLIC cutefish-core cutefish-sync Cutefish::ToolkitBase Cutefish::Toolkit)
 set_target_properties(cutefish-scene PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
-# Compositor model and the Wayland protocol implementations that drive it.
 add_library(cutefish-compositor-core STATIC
     src/compositor/buffer.cpp
     src/compositor/buffer.h
@@ -356,14 +342,10 @@ add_library(cutefish-compositor-core STATIC
     src/wayland/protocols/wl_shm.h
 )
 target_include_directories(cutefish-compositor-core PUBLIC src)
-# Cutefish::Toolkit for the blur shape's ui::Path.
 target_link_libraries(cutefish-compositor-core PUBLIC cutefish-wayland cutefish-scene cutefish-protocols
     Cutefish::Toolkit)
 set_target_properties(cutefish-compositor-core PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
-# Compositor-side input: seat, pointer, keyboard, xkb. Free of libinput and of
-# the Wayland protocol so it stays testable.
-# The session bus services of input, shortcuts and cursors.
 add_library(cutefish-input-dbus STATIC src/input/dbus_export.cpp src/input/dbus_export.h)
 target_include_directories(cutefish-input-dbus PUBLIC src)
 target_link_libraries(cutefish-input-dbus PUBLIC cutefish-core Cutefish::ToolkitBase)
@@ -441,8 +423,6 @@ target_link_libraries(cutefish-input PUBLIC cutefish-display cutefish-compositor
     PkgConfig::Xkbcommon)
 set_target_properties(cutefish-input PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
-# Window manager. Above the compositor and the input model, below the Wayland
-# shell protocols: nothing here knows about xdg-shell or wl_resource.
 add_library(cutefish-wm STATIC
     src/wm/types.cpp
     src/wm/types.h
@@ -525,7 +505,6 @@ add_library(cutefish-wm STATIC
     src/wm/overview/overview_controller.h
     src/wm/overview/overview_layout.cpp
     src/wm/overview/overview_layout.h
-    # Development shortcuts for exercising the window manager.
     src/wm/demo_controller.cpp
     src/wm/demo_controller.h
 )
@@ -534,8 +513,6 @@ target_link_libraries(cutefish-wm PUBLIC cutefish-input cutefish-compositor-core
     cutefish-core Cutefish::ToolkitBase)
 set_target_properties(cutefish-wm PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
-# Server-side window decoration. Above the window manager and the scene, below
-# the Wayland protocols: nothing here knows about xdg-decoration.
 add_library(cutefish-decoration STATIC
     src/decoration/shadow.cpp
     src/decoration/shadow.h
@@ -563,9 +540,6 @@ target_link_libraries(cutefish-decoration PUBLIC cutefish-wm cutefish-scene Cute
     PRIVATE PkgConfig::TitleText)
 set_target_properties(cutefish-decoration PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
-# The wl_seat protocol adapters live with the other protocol code but need the
-# input model, so they are a separate target rather than part of
-# cutefish-compositor-core.
 add_library(cutefish-wayland-input STATIC
     src/wayland/protocols/input_method.cpp
     src/wayland/protocols/input_method.h
@@ -606,11 +580,6 @@ target_include_directories(cutefish-wayland-input PUBLIC src)
 target_link_libraries(cutefish-wayland-input PUBLIC cutefish-input cutefish-wayland)
 set_target_properties(cutefish-wayland-input PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
-# xdg-shell: the protocol tables and the positioner. Above the window manager,
-# which is where all shell policy stays.
-# Session state and the secure scene container. The controller and the container
-# know nothing about windows; only the teardown reaches into the window manager,
-# and only to drop what a lock must not let survive.
 add_library(cutefish-session STATIC
     src/session/applications_service.cpp
     src/session/applications_service.h
@@ -634,8 +603,6 @@ target_include_directories(cutefish-session PUBLIC src)
 target_link_libraries(cutefish-session PUBLIC cutefish-compositor-core cutefish-wm Cutefish::Toolkit)
 set_target_properties(cutefish-session PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
-# An agent driving the seat once the user agrees, over
-# cutefish-computer-control-v1: consent, injection, and the pause on real input.
 add_library(cutefish-computer-control STATIC
     src/computer_control/controller.cpp
     src/computer_control/controller.h
@@ -648,8 +615,6 @@ target_include_directories(cutefish-computer-control PUBLIC src)
 target_link_libraries(cutefish-computer-control PUBLIC cutefish-input cutefish-input-dbus Cutefish::ToolkitBase)
 set_target_properties(cutefish-computer-control PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
-# Keyboard shortcuts: the Ash accelerator controller and its configuration,
-# above the window manager and the session, exposed to Settings over D-Bus.
 add_library(cutefish-accelerators STATIC
     src/accelerators/accelerator.cpp
     src/accelerators/accelerator.h
@@ -723,8 +688,6 @@ target_link_libraries(cutefish-wayland-shell
            cutefish-wayland-dmabuf)
 set_target_properties(cutefish-wayland-shell PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
-# The private shell protocols. Above the window manager, like xdg-shell: all
-# policy stays in wm/, and no wl_resource crosses into it.
 add_library(cutefish-wayland-private-shell STATIC
     src/wayland/privileged_client.cpp
     src/wayland/privileged_client.h
@@ -740,8 +703,6 @@ target_link_libraries(cutefish-wayland-private-shell
     PUBLIC cutefish-wm cutefish-wayland cutefish-protocols)
 set_target_properties(cutefish-wayland-private-shell PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
-# linux-dmabuf-v1. Needs the compositor model, the generated protocol tables and
-# the DRM fourcc definitions, but nothing from the renderer.
 add_library(cutefish-wayland-dmabuf STATIC
     src/wayland/protocols/dmabuf_feedback_manager.cpp
     src/wayland/protocols/dmabuf_feedback_manager.h
@@ -756,7 +717,6 @@ target_link_libraries(cutefish-wayland-dmabuf
     PRIVATE PkgConfig::Libdrm)
 set_property(TARGET cutefish-wayland-dmabuf PROPERTY POSITION_INDEPENDENT_CODE ON)
 
-# EGL/GLES renderer on the GBM platform.
 set(CUTEFISH_SHADER_NAMES
     color_vertex_shader color_fragment_shader
     texture_vertex_shader texture_fragment_shader
@@ -812,7 +772,6 @@ target_link_libraries(cutefish-render
 )
 set_target_properties(cutefish-render PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
-# Session and DRM/KMS backend.
 add_library(cutefish-backend STATIC
     src/backend/drm/amdgpu_boost.cpp
     src/backend/drm/amdgpu_boost.h
@@ -870,7 +829,6 @@ target_link_libraries(cutefish-backend PUBLIC cutefish-output-scheduler)
 add_library(cutefish-display-runtime STATIC src/display/display_runtime.cpp)
 target_link_libraries(cutefish-display-runtime PUBLIC cutefish-backend cutefish-wayland-shell
     cutefish-wm cutefish-display cutefish-wayland-input cutefish-cursor)
-# The toolkit's application inside the compositor, for the panels it draws itself.
 add_library(cutefish-toolkit-host STATIC
     src/toolkit/toolkit_host.cpp src/toolkit/toolkit_host.h
     src/toolkit/compositor_colors.cpp src/toolkit/compositor_colors.h)
@@ -882,7 +840,6 @@ add_executable(cutefish-auth-helper src/auth/auth_helper.cpp)
 target_link_libraries(cutefish-auth-helper PRIVATE ${PAM_LIBRARY})
 install(TARGETS cutefish-auth-helper RUNTIME DESTINATION ${CMAKE_INSTALL_LIBEXECDIR})
 # Fedora/RHEL use authselect's system-auth rather than Debian's common-*.
-# Packagers and cross builds can explicitly select a service file.
 set(_cutefish_pam_default "${CMAKE_CURRENT_SOURCE_DIR}/data/cutefish-auth")
 if(EXISTS "/etc/pam.d/system-auth" AND NOT EXISTS "/etc/pam.d/common-auth")
     set(_cutefish_pam_default "${CMAKE_CURRENT_SOURCE_DIR}/data/cutefish-auth-fedora")
@@ -908,7 +865,6 @@ target_link_libraries(cutefish-auth PUBLIC cutefish-session cutefish-toolkit-hos
 target_compile_definitions(cutefish-auth PRIVATE
     CUTEFISH_AUTH_HELPER="${CMAKE_INSTALL_FULL_LIBEXECDIR}/cutefish-auth-helper")
 
-# The application switcher's list, drawn by the compositor as the lock screen is.
 add_library(cutefish-switcher STATIC
     src/switcher/application_info.cpp src/switcher/application_info.h
     src/switcher/switcher_view.cpp src/switcher/switcher_view.h)
@@ -916,8 +872,6 @@ target_include_directories(cutefish-switcher PUBLIC src)
 target_link_libraries(cutefish-switcher PUBLIC cutefish-wm cutefish-decoration cutefish-scene
     cutefish-toolkit-host)
 
-# The desktop shell inside the compositor: its internal windows, their input
-# and rendering, and the components built on them.
 add_library(cutefish-shell STATIC
     src/shell/shell.cpp src/shell/shell.h
     src/shell/shell_data.cpp src/shell/shell_data.h
@@ -934,7 +888,6 @@ target_compile_definitions(cutefish-shell PRIVATE
     CUTEFISH_SHELL_DATA_DIR="${CMAKE_INSTALL_FULL_DATADIR}/cutefish-compositor/shell")
 install(DIRECTORY data/shell/ DESTINATION ${CMAKE_INSTALL_DATADIR}/cutefish-compositor/shell)
 
-# The synthetic display: outputs and a presentation clock with no hardware.
 add_library(cutefish-headless STATIC
     src/backend/headless/headless_backend.cpp
     src/backend/headless/headless_backend.h
@@ -943,8 +896,6 @@ target_include_directories(cutefish-headless PUBLIC src)
 target_link_libraries(cutefish-headless PUBLIC cutefish-compositor-core)
 set_target_properties(cutefish-headless PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
-# Global registration. Sits above every protocol library, which is why it cannot
-# live in cutefish-wayland the way Exo keeps it in its Server.
 add_library(cutefish-wayland-globals STATIC
     src/wayland/protocol_globals.cpp
     src/wayland/protocol_globals.h
@@ -970,9 +921,6 @@ add_executable(cutefish-compositor
 )
 target_link_libraries(cutefish-compositor PRIVATE cutefish-display-runtime
     cutefish-auth cutefish-switcher cutefish-shell cutefish-wayland-globals cutefish-headless)
-# The portal backend streams outputs to PipeWire through the capture globals and
-# is allowlisted by its installed path; cutefish-core's screen recorder is started
-# by the shell on a capture connection of its own.
 target_compile_definitions(cutefish-compositor PRIVATE
     CUTEFISH_PORTAL_BACKEND="${CMAKE_INSTALL_FULL_LIBEXECDIR}/xdg-desktop-portal-cutefish"
     CUTEFISH_SCREEN_RECORDER="${CMAKE_INSTALL_FULL_LIBEXECDIR}/cutefish-screenrecorder")
@@ -1037,9 +985,7 @@ target_sources(cutefish-cursor PRIVATE src/cursor/preferences.cpp src/cursor/pre
 target_link_libraries(cutefish-cursor PUBLIC cutefish-input cutefish-display Cutefish::Toolkit)
 target_link_libraries(cutefish-compositor PRIVATE cutefish-cursor)
 
-# The shell's backends: models and D-Bus services without views.
 include(src/shell/backends.cmake)
-# The shell's components: their views on the backends above.
 include(src/shell/components.cmake)
 
 if(BUILD_TESTING)

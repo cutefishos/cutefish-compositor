@@ -13,9 +13,7 @@
 
 namespace cutefish::wm {
 
-// Aggregates the work-area reservations of the shell's panels (the menu bar,
-// the dock). Keys are opaque tokens owned by the caller - the panel's window -
-// so a reservation can be dropped again when the panel that made it goes.
+// Keys are opaque tokens owned by the caller.
 class ExclusiveZones
 {
 public:
@@ -23,13 +21,10 @@ public:
         ScreenEdge edge = ScreenEdge::Top;
         int thickness = 0;
         std::string outputName;
-        // Withdrawn while a window on its output is maximized, as a dock that
-        // hides for maximized windows is.
         bool yieldsToMaximized = false;
     };
 
-    // Returns true when the aggregate changed and the work area has to be
-    // recomputed.
+    // Returns true when the work area has to be recomputed.
     bool set(const void* token, ScreenEdge edge, int thickness,
              const std::string& outputName = {}, bool yieldsToMaximized = false);
     bool clear(const void* token);
@@ -37,10 +32,7 @@ public:
     bool isEmpty() const { return m_zones.empty(); }
     bool hasYieldingZone() const;
 
-    // `outputBounds` minus every reservation. Reservations on the same edge do
-    // not stack: the largest one wins, so a dock that briefly has two
-    // reservations in flight cannot shrink the work area twice. `maximized`
-    // leaves out the reservations that yield to maximized windows.
+    // Reservations on the same edge do not stack: the largest wins.
     base::Rect apply(const base::Rect& outputBounds) const;
     base::Rect apply(const base::Rect& outputBounds, const std::string& outputName, bool primary,
                      bool maximized = false) const;

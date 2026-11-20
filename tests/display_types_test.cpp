@@ -4,8 +4,6 @@
 //
 // Upstream: chromium/src/ui/display/manager/test/fake_display_snapshot_unittest.cc
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: tests stable string identities and exact timing keys.
 
 #include <gtest/gtest.h>
 

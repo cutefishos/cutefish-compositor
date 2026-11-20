@@ -2,11 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// A minimal libwayland-client program for exercising wl_shm by hand: it binds
-// wl_compositor and wl_shm, paints a moving pattern into an shm buffer and
-// drives repeated commits from frame callbacks. Deliberately no xdg-shell and
-// no toolkit, so that a failure points at the compositor rather than at one.
-
 #include <wayland-client.h>
 
 #include <poll.h>
@@ -27,8 +22,6 @@ constexpr int kWidth = 400;
 constexpr int kHeight = 300;
 constexpr int kStride = kWidth * 4;
 constexpr size_t kBufferBytes = static_cast<size_t>(kStride) * kHeight;
-// Two buffers, so the next frame can be painted while the compositor still
-// holds the one on screen.
 constexpr int kBufferCount = 2;
 
 volatile sig_atomic_t g_running = 1;
@@ -80,8 +73,6 @@ void handleBufferRelease(void* data, wl_buffer*)
 
 const wl_buffer_listener kBufferListener = { handleBufferRelease };
 
-// An animated checkerboard with a diagonal gradient; every commit visibly
-// changes, so a stalled frame-callback loop is obvious on screen.
 void paint(Buffer* buffer, int frame)
 {
     const double phase = frame * 0.05;
@@ -100,7 +91,6 @@ void paint(Buffer* buffer, int frame)
         }
     }
 
-    // A visible border, so the surface bounds are unambiguous.
     for (int x = 0; x < kWidth; ++x) {
         buffer->pixels[x] = 0x00ffffff;
         buffer->pixels[(kHeight - 1) * kWidth + x] = 0x00ffffff;

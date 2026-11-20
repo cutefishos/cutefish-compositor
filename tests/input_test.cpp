@@ -41,8 +41,6 @@ Timestamp at(int ms)
     return Timestamp(std::chrono::milliseconds(ms));
 }
 
-// Records the delegate calls in order, so tests can assert on event sequencing
-// and frame batching rather than only on final state.
 class FakePointerDelegate : public PointerDelegate
 {
 public:
@@ -196,8 +194,6 @@ class InputTest : public testing::Test
 {
 protected:
     scene::Scene scene;
-    // Mirrors the compositor's own layout: surfaces in one container, cursor
-    // surfaces lifted out into another.
     scene::Node* surfaceContainer =
         scene.root()->addChild(std::make_unique<scene::Node>("surfaces"));
     scene::Node* cursorContainer =
@@ -214,7 +210,6 @@ protected:
         seat.setCursorContainer(cursorContainer);
     }
 
-    // Gives `surface` content of `size` and places it at `position`.
     void map(compositor::Surface* surface, const base::Point& position, const base::Size& size)
     {
         auto buffer = pool->createBuffer(size, 0, size.width() * 4,
@@ -245,7 +240,6 @@ TEST_F(InputTest, PointerEntersAndLeavesAsItCrossesASurface)
     seat.onPointerMotion(at(2), base::PointF(120, 110));
     ASSERT_EQ(1u, delegate.enters.size());
     EXPECT_EQ(surface.get(), delegate.enters[0].surface);
-    // Enter and leave are each followed by their own frame.
     EXPECT_EQ(std::vector<std::string>({"enter", "frame"}), delegate.calls);
 
     seat.onPointerMotion(at(3), base::PointF(400, 400));
@@ -267,7 +261,6 @@ TEST_F(InputTest, OnePointerMotionIsHitTestedOnceForAllItsHandlers)
     seat.beginPointerMotion();
     EXPECT_EQ(seat.pointerTargetAt(surfaceContainer, base::PointF(120, 110), &local), below.get());
     EXPECT_EQ(local, base::PointF(20, 10));
-    // Whatever changes while the motion is dispatched, its handlers agree.
     above->setPosition(base::Point(100, 100));
     local = {};
     EXPECT_EQ(seat.pointerTargetAt(surfaceContainer, base::PointF(120, 110), &local), below.get());
@@ -275,7 +268,6 @@ TEST_F(InputTest, OnePointerMotionIsHitTestedOnceForAllItsHandlers)
     EXPECT_EQ(seat.pointerTargetAt(surfaceContainer, base::PointF(121, 110), &local), above.get());
     seat.endPointerMotion();
     EXPECT_EQ(seat.pointerTargetAt(surfaceContainer, base::PointF(120, 110), &local), above.get());
-    // A surface destroyed in the meantime is not handed out.
     seat.beginPointerMotion();
     EXPECT_EQ(seat.pointerTargetAt(surfaceContainer, base::PointF(120, 110), &local), above.get());
     above.reset();
@@ -294,7 +286,6 @@ TEST_F(InputTest, EnterAndMotionCarrySurfaceLocalCoordinates)
     seat.onPointerMotion(at(1), base::PointF(120, 110));
     ASSERT_EQ(1u, delegate.enters.size());
     EXPECT_EQ(base::PointF(20, 10), delegate.enters[0].location);
-    // The enter already carried the location, so no motion follows it.
     EXPECT_TRUE(delegate.motions.empty());
 
     seat.onPointerMotion(at(2), base::PointF(130.5, 115.25));
@@ -317,7 +308,6 @@ TEST_F(InputTest, ViewportPreservesSurfaceLocalPointerCoordinates)
     seat.onPointerMotion(at(1), base::PointF(120, 110));
     ASSERT_EQ(1u, delegate.enters.size());
     EXPECT_EQ(base::PointF(20, 10), delegate.enters[0].location);
-    // The enter already carried the location, so no motion follows it.
     EXPECT_TRUE(delegate.motions.empty());
 
     seat.onPointerMotion(at(2), base::PointF(130.5, 115.25));
@@ -354,17 +344,14 @@ TEST_F(InputTest, HitTestingDescendsIntoSubsurfaces)
     FakePointerDelegate delegate;
     Pointer pointer(&delegate, &seat);
 
-    // (105,105) is over the parent only.
     seat.onPointerMotion(at(1), base::PointF(105, 105));
     ASSERT_EQ(1u, delegate.enters.size());
     EXPECT_EQ(parent.get(), delegate.enters[0].surface);
     EXPECT_EQ(base::PointF(5, 5), delegate.enters[0].location);
 
-    // (125,125) is inside the subsurface, which is stacked above the parent.
     seat.onPointerMotion(at(2), base::PointF(125, 125));
     ASSERT_EQ(2u, delegate.enters.size());
     EXPECT_EQ(child.get(), delegate.enters[1].surface);
-    // Local to the subsurface, not to the parent.
     EXPECT_EQ(base::PointF(5, 5), delegate.enters[1].location);
     EXPECT_EQ(1u, delegate.leaves.size());
 }
@@ -402,8 +389,6 @@ TEST_F(InputTest, ButtonsAreReportedAndSeedThePressedSetOnEnter)
     EXPECT_EQ(LeftButton, delegate.buttons[0].first);
     EXPECT_TRUE(delegate.buttons[0].second);
 
-    // The press holds the pointer: crossing the second surface changes nothing
-    // until the button comes back up.
     seat.onPointerMotion(at(3), base::PointF(250, 50));
     EXPECT_EQ(1u, delegate.enters.size());
     EXPECT_TRUE(delegate.leaves.empty());
@@ -413,7 +398,6 @@ TEST_F(InputTest, ButtonsAreReportedAndSeedThePressedSetOnEnter)
     EXPECT_FALSE(delegate.buttons[1].second);
     EXPECT_EQ(NoButton, seat.pressedButtons());
 
-    // With the grab gone the next motion lands where the pointer actually is.
     seat.onPointerMotion(at(5), base::PointF(251, 50));
     ASSERT_EQ(2u, delegate.enters.size());
     EXPECT_EQ(second.get(), delegate.enters[1].surface);
@@ -427,8 +411,6 @@ TEST_F(InputTest, AnEnterReportsButtonsHeldOutsideTheClient)
     FakePointerDelegate delegate;
     Pointer pointer(&delegate, &seat);
 
-    // A press the window manager consumed: the seat tracks the button, but no
-    // client took the implicit grab.
     seat.updatePointerButtonState(BTN_LEFT, true);
     seat.onPointerMotion(at(1), base::PointF(50, 50));
     ASSERT_EQ(1u, delegate.enters.size());
@@ -447,14 +429,12 @@ TEST_F(InputTest, AGrabbedPointerKeepsReportingLocationsOutsideTheSurface)
     seat.onPointerButton(at(2), base::PointF(120, 110), BTN_LEFT, true);
     EXPECT_EQ(surface.get(), seat.pointerGrabSurface());
 
-    // Well outside the surface, and negative in both axes.
     seat.onPointerMotion(at(3), base::PointF(10, 20));
     EXPECT_EQ(surface.get(), pointer.focusedSurface());
     ASSERT_EQ(1u, delegate.motions.size());
     EXPECT_EQ(base::PointF(-90, -80), delegate.motions[0]);
     EXPECT_TRUE(delegate.leaves.empty());
 
-    // A second button joins the drag and does not end it.
     seat.onPointerButton(at(4), base::PointF(10, 20), BTN_RIGHT, true);
     seat.onPointerButton(at(5), base::PointF(10, 20), BTN_RIGHT, false);
     EXPECT_EQ(surface.get(), seat.pointerGrabSurface());
@@ -462,7 +442,6 @@ TEST_F(InputTest, AGrabbedPointerKeepsReportingLocationsOutsideTheSurface)
     seat.onPointerButton(at(6), base::PointF(10, 20), BTN_LEFT, false);
     EXPECT_EQ(nullptr, seat.pointerGrabSurface());
 
-    // The grab ended over nothing, so the surface is left on the next motion.
     seat.onPointerMotion(at(7), base::PointF(11, 20));
     EXPECT_EQ(nullptr, pointer.focusedSurface());
     ASSERT_EQ(1u, delegate.leaves.size());
@@ -531,7 +510,6 @@ TEST_F(InputTest, ScrollAndScrollStopReachTheDelegate)
 
     seat.onPointerAxisStop(at(4), base::PointF(50, 50));
     EXPECT_EQ(1, delegate.scrollStops);
-    // Every scroll is its own frame.
     EXPECT_EQ(4, delegate.frames);
 }
 
@@ -571,7 +549,6 @@ TEST_F(InputTest, DestroyingTheFocusedSurfaceLeavesAndClearsFocus)
     ASSERT_EQ(1u, delegate.leaves.size());
     EXPECT_EQ(raw, delegate.leaves[0]);
 
-    // Nothing dangles afterwards.
     seat.onPointerMotion(at(2), base::PointF(60, 60));
     EXPECT_EQ(1u, delegate.enters.size());
 }
@@ -596,14 +573,12 @@ TEST_F(InputTest, SetCursorLiftsTheSurfaceOutOfTheStackAndTracksTheHotspot)
     EXPECT_EQ(cursor.get(), pointer.cursorSurface());
     EXPECT_EQ(base::Point(4, 4), pointer.hotspot());
     EXPECT_TRUE(cursor->hasRole());
-    // Out of the surface container, into the cursor one.
     EXPECT_EQ(cursorContainer, cursor->node()->parent());
     EXPECT_EQ(base::Point(46, 56), cursor->position());
 
     seat.onPointerMotion(at(2), base::PointF(100, 100));
     EXPECT_EQ(base::Point(96, 96), cursor->position());
 
-    // A cursor surface is never a hit-test target.
     EXPECT_EQ(surface.get(), pointer.focusedSurface());
 }
 
@@ -633,14 +608,12 @@ TEST_F(InputTest, ViewportCursorPreservesHotspotAndSampling)
     EXPECT_EQ(cursor.get(), pointer.cursorSurface());
     EXPECT_EQ(base::Point(4, 4), pointer.hotspot());
     EXPECT_TRUE(cursor->hasRole());
-    // Out of the surface container, into the cursor one.
     EXPECT_EQ(cursorContainer, cursor->node()->parent());
     EXPECT_EQ(base::Point(46, 56), cursor->position());
 
     seat.onPointerMotion(at(2), base::PointF(100, 100));
     EXPECT_EQ(base::Point(96, 96), cursor->position());
 
-    // A cursor surface is never a hit-test target.
     EXPECT_EQ(surface.get(), pointer.focusedSurface());
 }
 
@@ -657,7 +630,6 @@ TEST_F(InputTest, LosingFocusDropsTheCursorSurface)
     pointer.setCursor(cursor.get(), base::Point(0, 0));
     ASSERT_EQ(cursor.get(), pointer.cursorSurface());
 
-    // The client must call set_cursor again in response to the next enter.
     seat.onPointerMotion(at(2), base::PointF(500, 500));
     EXPECT_EQ(nullptr, pointer.cursorSurface());
     EXPECT_FALSE(cursor->hasRole());
@@ -711,9 +683,6 @@ TEST_F(InputTest, DestroyingTheCursorSurfaceClearsIt)
     EXPECT_EQ(nullptr, pointer.cursorSurface());
     EXPECT_EQ(surface.get(), pointer.focusedSurface());
 }
-
-////////////////////////////////////////////////////////////////////////////////
-// Keyboard
 
 TEST_F(InputTest, AKeyboardSendsItsKeymapAndRepeatInfoOnCreation)
 {
@@ -773,7 +742,6 @@ TEST_F(InputTest, RepeatSettingsReachEveryKeyboardOnlyWhenTheyChange)
     seat.setKeyRepeatSettings(settings);
     EXPECT_EQ(0, raw->repeatRateHz);
 
-    // A keyboard bound later starts from the seat's settings.
     auto lateDelegate = std::make_unique<FakeKeyboardDelegate>();
     FakeKeyboardDelegate* late = lateDelegate.get();
     Keyboard lateKeyboard(std::move(lateDelegate), &seat);
@@ -812,7 +780,6 @@ TEST_F(InputTest, EnterCarriesTheKeysAlreadyPressed)
 
     seat.onKey(at(1), KEY_A, true);
     seat.onKey(at(2), KEY_LEFTSHIFT, true);
-    // Nothing is focused yet, so nothing reached the client.
     EXPECT_TRUE(raw->keys.empty());
 
     seat.setFocusedSurface(surface.get());
@@ -821,7 +788,6 @@ TEST_F(InputTest, EnterCarriesTheKeysAlreadyPressed)
     EXPECT_EQ(1u, raw->enterKeys.count(KEY_A));
     EXPECT_EQ(1u, raw->enterKeys.count(KEY_LEFTSHIFT));
 
-    // A key pressed before focus is still released to the focused surface.
     seat.onKey(at(3), KEY_A, false);
     ASSERT_EQ(1u, raw->keys.size());
     EXPECT_EQ(KEY_A, raw->keys[0].code);
@@ -840,8 +806,7 @@ TEST_F(InputTest, KeyEventsReachTheFocusedSurfaceBeforeTheModifiersTheyChange)
     raw->calls.clear();
     raw->modifiers.clear();
 
-    // As wlroots, KWin and Mutter send them: Qt reads Shift's own press
-    // against the state before it, and would otherwise report it without Shift.
+    // Some clients read Shift's own press against the modifier state before it.
     seat.onKey(at(1), KEY_LEFTSHIFT, true);
     EXPECT_EQ(std::vector<std::string>({"key", "modifiers"}), raw->calls);
     ASSERT_EQ(1u, raw->modifiers.size());
@@ -896,7 +861,6 @@ TEST_F(InputTest, DestroyingTheFocusedSurfaceLeavesTheKeyboard)
     ASSERT_EQ(1u, raw->leaves.size());
     EXPECT_EQ(rawSurface, raw->leaves[0]);
 
-    // Keys after the surface is gone go nowhere.
     seat.onKey(at(2), KEY_A, true);
     EXPECT_TRUE(raw->keys.empty());
 }
@@ -937,7 +901,6 @@ TEST_F(InputTest, ABorrowedFocusLeavesTheOtherClientFocusedWithoutNewKeys)
     Keyboard captureKeyboard(std::move(captureDelegate), &seat);
 
     seat.setFocusedSurface(app.get());
-    // The shortcut that opened the capture interface is still held.
     seat.onKey(at(1), KEY_LEFTSHIFT, true);
     seat.setFocusedSurface(capture.get(), true);
     EXPECT_TRUE(appKeys->leaves.empty());
@@ -948,7 +911,6 @@ TEST_F(InputTest, ABorrowedFocusLeavesTheOtherClientFocusedWithoutNewKeys)
     seat.onKey(at(2), KEY_ESC, true);
     seat.onKey(at(3), KEY_LEFTSHIFT, false);
     seat.onKey(at(4), KEY_ESC, false);
-    // Only the release of what it held, so no key stays stuck.
     ASSERT_EQ(1u, appKeys->keys.size());
     EXPECT_EQ(KEY_LEFTSHIFT, appKeys->keys[0].code);
     EXPECT_FALSE(appKeys->keys[0].pressed);
@@ -973,8 +935,6 @@ TEST_F(InputTest, TheKeyThatEndsABorrowStaysWithTheBorrower)
     map(app.get(), base::Point(0, 0), base::Size(100, 100));
     map(capture.get(), base::Point(0, 0), base::Size(800, 600));
 
-    // The borrower's keyboard comes first, so the seat reaches the other
-    // client after the borrow has already ended.
     auto captureDelegate = std::make_unique<FakeKeyboardDelegate>();
     FakeKeyboardDelegate* captureKeys = captureDelegate.get();
     captureKeys->acceptable = {capture.get()};
@@ -1003,12 +963,6 @@ TEST_F(InputTest, TheKeyThatEndsABorrowStaysWithTheBorrower)
     EXPECT_TRUE(appKeys->keys[0].pressed);
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// InputManager
-
-// Click-to-activate belongs to the window manager; see wm_test.cpp.
-// InputManager only offers events to its EventSink.
-
 TEST_F(InputTest, ThePointerIsClampedToTheOutput)
 {
     InputManager manager(&seat);
@@ -1022,8 +976,6 @@ TEST_F(InputTest, ThePointerIsClampedToTheOutput)
     EXPECT_EQ(base::PointF(799, 599), manager.pointerPosition());
 }
 
-// aura clears hover when a touch hides the cursor (a mouse exit with
-// EF_CURSOR_HIDE); a click or a wheel brings both back, as a move does.
 TEST_F(InputTest, ATouchTakesTheHoverAwayUntilTheMouseIsUsedAgain)
 {
     auto surface = compositor.createSurface();
@@ -1055,7 +1007,6 @@ TEST_F(InputTest, ATouchTakesTheHoverAwayUntilTheMouseIsUsedAgain)
     EXPECT_FALSE(seat.cursorHiddenByTouch());
     EXPECT_EQ(std::vector<std::string>({"enter", "frame", "button", "frame"}), delegate.calls);
 
-    // The surface the mouse is pressing on keeps it.
     delegate.calls.clear();
     manager.onTouchDown(at(7), 1, base::PointF(0.5, 0.5));
     manager.onTouchUp(at(8), 1);
@@ -1064,8 +1015,6 @@ TEST_F(InputTest, ATouchTakesTheHoverAwayUntilTheMouseIsUsedAgain)
     manager.onPointerButton(at(9), BTN_LEFT, false);
 }
 
-// aura's PostSynthesizeMouseMove: a surface mapped under a still pointer
-// gets its enter without the pointer moving, but not while a button is held.
 TEST_F(InputTest, ASurfaceMappedUnderAStillPointerIsEntered)
 {
     base::EventLoop *loop = base::EventLoop::current();
@@ -1099,12 +1048,9 @@ TEST_F(InputTest, ASurfaceMappedUnderAStillPointerIsEntered)
 
 TEST_F(InputTest, PointerStartsAtThePrimaryDisplaysCentre)
 {
-    // Upstream DrmCursor::OnWindowAdded: a cursor not placed yet goes to the
-    // centre, not the origin a new compositor would otherwise show it at.
     InputManager manager(&seat);
     manager.setTopology({base::Rect(-200, 0, 200, 100), base::Rect(0, 0, 300, 200)}, base::Rect(0, 0, 300, 200));
     EXPECT_EQ(manager.pointerPosition(), base::PointF(150, 100));
-    // Placed once: a later layout keeps the pointer where it is.
     manager.warpPointer(base::PointF(-100, 50));
     manager.setTopology({base::Rect(-200, 0, 200, 100), base::Rect(0, 0, 400, 300)}, base::Rect(0, 0, 400, 300));
     EXPECT_EQ(manager.pointerPosition(), base::PointF(-100, 50));
@@ -1112,9 +1058,6 @@ TEST_F(InputTest, PointerStartsAtThePrimaryDisplaysCentre)
 
 TEST_F(InputTest, PointerKeepsItsSpotOnADisplayThatChangesScale)
 {
-    // The greeter centres the pointer before its display gets 150%; it has to
-    // stay centred, not keep a logical point that is now bottom right. The
-    // coordinator republishes through an empty layout, as every reprobe does.
     InputManager manager(&seat);
     manager.setTopology({base::Rect(0, 0, 2160, 1440)});
     EXPECT_EQ(manager.pointerPosition(), base::PointF(1080, 720));
@@ -1124,7 +1067,6 @@ TEST_F(InputTest, PointerKeepsItsSpotOnADisplayThatChangesScale)
     manager.warpPointer(base::PointF(1200, 60));
     manager.setTopology({base::Rect(0, 0, 1080, 720)});
     EXPECT_EQ(manager.pointerPosition(), base::PointF(900, 45));
-    // A reprobe that brings the same layout back leaves the pointer alone.
     manager.setTopology({});
     manager.setTopology({base::Rect(0, 0, 1080, 720)});
     EXPECT_EQ(manager.pointerPosition(), base::PointF(900, 45));
@@ -1287,7 +1229,6 @@ TEST_F(InputTest, CursorPresentationSurvivesConsumedMotionAndHonorsHideWhileIdle
     pointer.setCursor(nullptr, {});
     manager.onPointerMotionAbsolute(at(4), {310, 310});
     EXPECT_FALSE(fallback->isEffectivelyVisible());
-    // A hidden fallback's location update must not wake output.
     EXPECT_EQ(repaint, 0);
     pointer.setCursor(replacement.get(), {2, 3});
     replacement.reset();
@@ -1351,13 +1292,11 @@ TEST_F(InputTest, ConsumedReleaseCompletesOnlyTheOriginalClientPress)
     manager.onPointerButton(at(5), BTN_LEFT, false);
     EXPECT_EQ(first.buttons.size(), 2u);
 
-    // A shell-owned press was never delivered and must not manufacture a release.
     manager.onPointerButton(at(6), BTN_LEFT, true);
     manager.onPointerButton(at(7), BTN_LEFT, false);
     EXPECT_EQ(first.buttons.size(), 2u);
     EXPECT_EQ(second.calls.size(), secondEvents);
 
-    // Destruction during a drag removes the pending client recipient.
     manager.setEventSink(nullptr);
     manager.onPointerMotionAbsolute(at(8), {50, 50});
     manager.onPointerButton(at(9), BTN_LEFT, true);
@@ -1396,9 +1335,6 @@ TEST_F(InputTest, PairedReleaseMayDestroyItsPointer)
     EXPECT_EQ(seat.pressedButtons(), NoButton);
 }
 
-// Exo's OnKeyboardKey_ChangeFocusInPreTargetHandler: a handler that moves
-// focus while it takes a key must leave the new surface with a consistent
-// view of what is held.
 TEST_F(InputTest, FocusMovedWhileAKeyIsConsumedKeepsTheNewSurfaceConsistent)
 {
     auto first = compositor.createSurface();
@@ -1436,7 +1372,6 @@ TEST_F(InputTest, FocusMovedWhileAKeyIsConsumedKeepsTheNewSurfaceConsistent)
     manager.onKey(at(2), KEY_A, false);
     manager.setEventSink(nullptr);
 
-    // Neither the press nor a release the surface could not pair reaches it.
     size_t presses = 0, releases = 0;
     for (const auto& key : raw->keys) {
         if (key.code == KEY_A)
@@ -1445,7 +1380,6 @@ TEST_F(InputTest, FocusMovedWhileAKeyIsConsumedKeepsTheNewSurfaceConsistent)
     EXPECT_EQ(0u, presses);
     EXPECT_EQ(raw->enterKeys.count(KEY_A), releases);
 
-    // Keys after the change go to the new surface as usual.
     raw->keys.clear();
     manager.onKey(at(3), KEY_B, true);
     manager.onKey(at(4), KEY_B, false);

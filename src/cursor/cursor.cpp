@@ -101,10 +101,8 @@ public:
         return m_frame < m_frames.size() ? &m_frames[m_frame] : nullptr;
     }
 
-    // Replaces the scene repaint when the image lives on a hardware plane.
     std::function<void()> onFrameChanged;
 
-    // Whether the cursor would be drawn if it were not on a hardware plane.
     bool wantsDisplay() const { return m_wantsDisplay && !m_frames.empty(); }
 
     Content content() const override
@@ -138,8 +136,6 @@ protected:
 private:
     void startTimer() { m_timer.start(std::chrono::milliseconds(m_frames[m_frame].delayMs)); }
 
-    // A theme is read from disk once per shape and pixel size, as
-    // wm::CursorLoader keeps image_cursors_ until the theme or size changes.
     std::vector<Frame> frames(input::CursorShape shape)
     {
         const int pixels = m_size * m_density;
@@ -195,8 +191,7 @@ void Cursor::setHeld(bool held)
     if (m_held == held)
         return;
     m_held = held;
-    // The sink learns the position before the image, which it then puts on the
-    // output under the pointer and nowhere else first.
+    // The sink needs the position before the image, so it shows on the right output first.
     if (!held && m_sink)
         m_sink->moveCursor(m_seat.cursorPosition());
     updatePresentation();
@@ -266,10 +261,7 @@ bool Cursor::pushToSink()
     if (!m_sink || !frame)
         return false;
 
-    // A fractional scale gets the plane too, as ash scales the next larger
-    // artwork down (wm::ScaleAndRotateCursorBitmapAndHotpoint, floored). The
-    // hotspot then lands within half a device pixel, and the cursor moves on
-    // the plane instead of costing a composited frame per motion.
+    // A fractional scale uses the plane too, with the next larger artwork scaled down.
     ui::Bitmap image = frame->image.converted(ui::Bitmap::Format::Argb32Premultiplied);
     const double ratio = m_scale / m_node->density();
     const base::Size deviceSize(int(std::floor(image.width() * ratio)),
@@ -286,8 +278,6 @@ bool Cursor::pushToSink()
     return m_sink->setCursorImage(cursorImage);
 }
 
-// Decides between the cursor plane and the scene, and keeps exactly one of them
-// showing the cursor.
 void Cursor::updatePresentation()
 {
     if (m_held) {
@@ -319,8 +309,6 @@ void Cursor::onCursorChanged()
 {
     const auto override = m_seat.cursorOverride();
     const auto client = m_seat.clientCursorShape();
-    // A touch hides every cursor, the client's own surface too, until the
-    // mouse moves.
     const bool touched = m_seat.cursorHiddenByTouch();
     const bool visible = !touched && (override || client || !m_seat.hasClientCursorRequest());
     if (auto *container = m_seat.cursorContainer())
@@ -333,7 +321,6 @@ void Cursor::onCursorChanged()
 void Cursor::onCursorPositionChanged()
 {
     if (m_hardware) {
-        // The whole point of the plane: motion costs one ioctl, not a frame.
         // The sink maps the logical position onto each output itself.
         m_sink->moveCursor(m_seat.cursorPosition());
         return;

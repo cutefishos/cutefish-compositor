@@ -2,8 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// What the compositor's shell components cost in memory, headless through
-// the compositor's own GL renderer, one step at a time:
+// What the compositor's shell components cost in memory, one step at a time:
 //
 //   cutefish-shell-memory-bench [--scale S] [--dark] [--wallpaper IMAGE]
 //                               [--glibc-defaults] [--mmap-threshold BYTES]
@@ -12,19 +11,7 @@
 //                               [--exit-after STEP] [--slab-probe] [--textures]
 //                               COMPONENT...
 //
-// Steps: the renderer with a wallpaper, the Shell, then each COMPONENT
-// (osd, dock, wallpaper, launchpad, notifications) added and drawn for a
-// second, then each one used `--cycles` times, with the peak while it was
-// used, then idle as the compositor idles (a frame only when something asked
-// for one) up to each `--idle` mark, then Skia's GPU cache purged and the
-// heap trimmed. With wallpaper, the desktop's own picture comes from that
-// component instead of the bench. Each step prints this
-// process's PSS split by kind of mapping, malloc's bytes in use and free,
-// the GPU memory of its DRM client, its threads and the main thread's CPU
-// time, with the change since the step before. malloc is set up as the
-// compositor sets it up unless --glibc-defaults. Run it on a private session
-// bus (dbus-run-session): the components then reach the session's PipeWire
-// and services as they do in the compositor.
+// Run it on a private session bus (dbus-run-session).
 
 #include <dlfcn.h>
 #include <malloc.h>
@@ -308,8 +295,6 @@ private:
     std::unique_ptr<render::EglRenderTarget> m_target;
 };
 
-// One output with a wallpaper and a menu bar's reservation, rendered as
-// the compositor renders it; the shell and its components come later.
 class Desktop
 {
 public:
@@ -446,8 +431,7 @@ public:
         return ms;
     }
 
-    // Textures of `size` made with the context current, as panels and icons
-    // are; empty ones when the GPU is unavailable.
+    // Empty ones when the GPU is unavailable.
     std::vector<std::unique_ptr<render::Texture>> makeTextures(int count, const base::Size &size)
     {
         std::vector<std::unique_ptr<render::Texture>> textures;
@@ -473,9 +457,7 @@ public:
         renderer->cancelFrame();
     }
 
-    // The loop turning for `ms`, with a frame on a refresh only when the
-    // scene or a surface asked for one, as the compositor's output does.
-    // Returns the frames drawn.
+    // A frame only on a refresh the scene or a surface asked for. Returns the frames drawn.
     int idle(int ms)
     {
         int frames = 0;
@@ -548,7 +530,6 @@ std::filesystem::path scratchDirectory()
     return std::filesystem::temp_directory_path() / ("cutefish-shell-memory-bench-" + std::to_string(getpid()));
 }
 
-// A file or directory of this run's own, so nothing here writes the user's.
 std::string scratchPath(const std::string &name)
 {
     static const std::filesystem::path directory = [] {
@@ -558,7 +539,7 @@ std::string scratchPath(const std::string &name)
     return (directory / name).string();
 }
 
-// The user's shell.conf, copied so that nothing here writes to it.
+// Copied so that nothing here writes the user's shell.conf.
 std::string shellConf()
 {
     static const std::string copy = [] {
@@ -571,15 +552,13 @@ std::string shellConf()
     return copy;
 }
 
-// The pictures the wallpaper step goes through; the first is the one shown
-// before it is used.
+// The first is the one shown before it is used.
 std::vector<std::string> &wallpaperFiles()
 {
     static std::vector<std::string> files;
     return files;
 }
 
-// A component: added to the shell, then used as a person would once.
 struct Component {
     std::function<void(Desktop &, base::dbus::Connection *)> add;
     std::function<void(Desktop &)> exercise;
@@ -587,14 +566,10 @@ struct Component {
 
 shell::Dock *dockComponentService = nullptr;
 
-// Owns a dock service no dock window shows, for the shell to destroy with
-// the other components.
 struct DockServiceHolder : shell::Component {
     std::unique_ptr<shell::Dock> dock;
 };
 
-// The dock's service for the launchpad: the dock component's when it was
-// added, made here otherwise.
 shell::Dock *dockService(Desktop &desktop, base::dbus::Connection *bus)
 {
     if (dockComponentService)
@@ -723,8 +698,6 @@ std::map<std::string, Component> components()
                 test::runUntil([] { return wallpaper->isReady(); }, std::chrono::seconds(10));
             },
             [](Desktop &desktop) {
-                // Each picture once, then back to the first, as a person
-                // trying a few in Settings would.
                 std::vector<std::string> files = wallpaperFiles();
                 files.push_back(files.front());
                 for (size_t i = 1; i < files.size(); ++i) {
@@ -825,8 +798,6 @@ std::map<std::string, Component> components()
                     std::fprintf(stderr, "notifications: the bus names are taken; nothing is sent\n");
             },
             [](Desktop &desktop) {
-                // A burst from one program, each with an icon, as a chat or
-                // a build would send; the banners then time out.
                 if (notificationsServed)
                     std::system("for i in $(seq 1 20); do notify-send -a Bench -i dialog-information "
                                 "\"Message $i\" \"Line one of the body $i\"; done &");
@@ -917,7 +888,6 @@ int main(int argc, char **argv)
     Sample last = sample();
     printHeader();
     printSample("process", last, nullptr);
-    // With `showPeak`, also the highest PSS and GPU memory since the last step.
     const auto step = [&](const std::string &name, bool showPeak = false) {
         const Sample now = sample();
         printSample(name, now, &last);
@@ -1014,8 +984,6 @@ int main(int argc, char **argv)
         step("skia purged");
         malloc_trim(0);
         step("malloc_trim");
-        // The compositor's own GL textures by owner, as the debug service
-        // reports them.
         if (textureReport) {
             const render::GlTextureUsage usage = render::GlTexture::usage();
             std::printf("textures: %zu owned %.1f MiB, %zu imported\n", usage.owned.textures,
@@ -1024,12 +992,10 @@ int main(int argc, char **argv)
                 std::printf("  %-20s %4zu %7.1f MiB\n", label ? label : "(unlabelled)", count.textures,
                             count.bytes / 1048576.0);
         }
-        // For a look from outside, e.g. at the GPU driver's buffer list.
         if (holdSeconds > 0) {
             std::printf("holding pid %d for %d s\n", int(getpid()), holdSeconds);
             std::fflush(stdout);
-            // As the compositor idles, a step a minute, to see what the
-            // kernel does meanwhile (khugepaged collapsing trimmed heap).
+            // A step a minute, to see what the kernel does meanwhile.
             for (int held = 0; held < holdSeconds;) {
                 const int chunk = std::min(60, holdSeconds - held);
                 desktop.idle(chunk * 1000);

@@ -342,13 +342,12 @@ TEST(InputMethodProtocol, EveryCommitIsAcknowledgedWithTheCurrentPreedit)
     app.addText();
     ime.addMethod();
     h.focus(app.client);
-    // Chromium sends its cursor rectangle only once done matches its commit count.
     zwp_text_input_v3_enable(app.text);
     zwp_text_input_v3_commit(app.text);
     h.sync(app.client);
     EXPECT_EQ(1u, app.textSerial);
     EXPECT_EQ(1, app.done);
-    // GTK reads an empty string as an open composition and swallows Enter.
+    // Some toolkits read an empty preedit as an open composition and swallow Enter.
     EXPECT_TRUE(app.preeditNull);
     zwp_text_input_v3_set_cursor_rectangle(app.text, 10, 20, 2, 15);
     zwp_text_input_v3_commit(app.text);
@@ -390,7 +389,6 @@ TEST(InputMethodProtocol, CommitWithoutPreeditClearsIt)
     h.sync(app.client);
     EXPECT_EQ("xin j p", app.preedit);
 
-    // fcitx5 commits the conversion without setting an empty preedit.
     zwp_input_method_v2_commit_string(ime.method, "新加坡");
     zwp_input_method_v2_commit(ime.method, ime.serial);
     h.sync(ime.client);
@@ -398,7 +396,6 @@ TEST(InputMethodProtocol, CommitWithoutPreeditClearsIt)
     EXPECT_EQ("新加坡", app.commit);
     EXPECT_TRUE(app.preedit.empty());
 
-    // A later client commit, such as after Backspace, must not bring the old preedit back.
     zwp_text_input_v3_set_surrounding_text(app.text, "新加", 6, 6);
     zwp_text_input_v3_commit(app.text);
     h.sync(app.client);
@@ -500,7 +497,6 @@ TEST(InputMethodProtocol, TheGrabFollowsLayoutAndRepeatChanges)
     EXPECT_EQ(50, ime.repeatRate);
     EXPECT_EQ(300, ime.repeatDelay);
 
-    // The input method re-uploaded the new keymap, so forwarding still works.
     ime.forward = true;
     const auto t = input::Timestamp(std::chrono::milliseconds(100));
     h.seat.onKey(t, 48, true);
@@ -544,7 +540,6 @@ TEST(InputMethodProtocol, PopupPositionHideAndSurfaceDestruction)
                                           wl_proxy_get_id(reinterpret_cast<wl_proxy *>(surface)));
     auto *s = wayland::surfaceFromResource(resource);
     ASSERT_NE(nullptr, s);
-    // In the popup layer rather than inside the window, so application popups cannot cover it.
     EXPECT_EQ(h.popupLayer, s->node()->parent());
     EXPECT_EQ(base::Point(110, 85), s->node()->absolutePosition());
     EXPECT_EQ(1, rectangles);
@@ -572,18 +567,13 @@ TEST(InputMethodProtocol, PopupPositionKeepsInsideTheAreaAndFlipsAboveTheCaret)
 {
     const base::Rect area(0, 0, 1000, 800);
     const base::Size size(300, 120);
-    // Below the caret while it fits.
     EXPECT_EQ(base::Point(100, 115), wayland::inputPopupPosition({100, 100, 2, 15}, size, area));
-    // Above it at the bottom edge.
     EXPECT_EQ(base::Point(100, 580), wayland::inputPopupPosition({100, 700, 2, 15}, size, area));
-    // Pushed back in from the right edge, still below.
     EXPECT_EQ(base::Point(700, 115), wayland::inputPopupPosition({900, 100, 2, 15}, size, area));
-    // Too tall for either side: the roomier one, pushed back into the area.
     EXPECT_EQ(base::Point(100, 300),
               wayland::inputPopupPosition({100, 300, 2, 15}, {300, 500}, area));
     EXPECT_EQ(base::Point(100, 0),
               wayland::inputPopupPosition({100, 400, 2, 15}, {300, 500}, area));
-    // No area or no content yet: just below the caret.
     EXPECT_EQ(base::Point(900, 815),
               wayland::inputPopupPosition({900, 800, 2, 15}, size, base::Rect()));
     EXPECT_EQ(base::Point(900, 815),
@@ -617,17 +607,14 @@ TEST(InputMethodProtocol, PopupFlipsAboveTheCaretAndTellsTheInputMethod)
                                           wl_proxy_get_id(reinterpret_cast<wl_proxy *>(surface)));
     auto *s = wayland::surfaceFromResource(resource);
     ASSERT_NE(nullptr, s);
-    // Nothing drawn yet: under the caret at (110, 70).
     EXPECT_EQ(base::Point(110, 85), s->node()->absolutePosition());
 
-    // 60 high does not fit the 35 below the caret, so it goes above.
     auto pool = testsupport::makePool(1 << 16);
     s->attach(pool->createBuffer({100, 60}, 0, 400, render::PixelFormat::Bgrx8888, nullptr), {});
     s->commit();
     EXPECT_EQ(base::Point(110, 10), s->node()->absolutePosition());
     h.sync(ime.client);
     EXPECT_EQ(base::Rect(0, 60, 2, 15), rectangle);
-    // Candidates are picked with the pointer: the popup keeps its input region.
     EXPECT_TRUE(s->hitTest(base::Point(50, 30)));
 
     wl_surface_destroy(surface);
@@ -768,7 +755,7 @@ TEST(InputMethodProtocol, TextInputV1ActivatesOnFocusAndRelaysEdits)
     h.sync(app.client);
     EXPECT_EQ("世界", app.commit);
     EXPECT_TRUE(app.preedit.empty());
-    // Exo's byte offset from the start of the surrounding text, not cursor-relative.
+    // A byte offset from the start of the surrounding text, not from the cursor.
     EXPECT_EQ(1, app.deleteIndex);
     EXPECT_EQ(4u, app.deleteLength);
     EXPECT_EQ(42u, app.eventSerial);
@@ -808,7 +795,6 @@ TEST(InputMethodProtocol, TextInputV1FocusLossDeactivateAndSurfaceDestruction)
     h.sync(app.client);
     EXPECT_TRUE(app.commit.empty());
 
-    // Focus loss drops the activation, as in exo; the client must activate again.
     h.focus(app.client);
     h.sync(app.client);
     h.sync(ime.client);
@@ -902,7 +888,6 @@ TEST(InputMethodProtocol, ATypistTypesIntoTheFocusedWindowInItsOwnTerms)
     h.sync(typist);
     ASSERT_NE(nullptr, manager);
     auto *keyboard = zwp_virtual_keyboard_manager_v1_create_virtual_keyboard(manager, typist.seat);
-    // Any keymap will do: the codes are the seat's keys.
     const std::string keymap = "xkb_keymap {};";
     const int fd = memfd_create("keymap", MFD_CLOEXEC);
     ASSERT_GE(fd, 0);
@@ -910,7 +895,6 @@ TEST(InputMethodProtocol, ATypistTypesIntoTheFocusedWindowInItsOwnTerms)
     zwp_virtual_keyboard_v1_keymap(keyboard, WL_KEYBOARD_KEYMAP_FORMAT_XKB_V1, fd, keymap.size() + 1);
     close(fd);
 
-    // Its Ctrl is Command, which every other client gets as Ctrl.
     zwp_virtual_keyboard_v1_key(keyboard, 0, KEY_LEFTCTRL, 1);
     zwp_virtual_keyboard_v1_key(keyboard, 0, KEY_V, 1);
     zwp_virtual_keyboard_v1_key(keyboard, 0, KEY_V, 0);
@@ -922,7 +906,6 @@ TEST(InputMethodProtocol, ATypistTypesIntoTheFocusedWindowInItsOwnTerms)
               app.client.keyEvents);
     EXPECT_EQ(0, wl_display_get_error(typist.display));
 
-    // Nothing reaches a locked session.
     struct Gate : input::SessionGate {
         bool restrictsInput() const override { return true; }
 
@@ -944,7 +927,6 @@ TEST(InputMethodProtocol, ATypistTypesIntoTheFocusedWindowInItsOwnTerms)
     EXPECT_TRUE(app.client.keyEvents.empty());
     h.focus(app.client);
 
-    // What it leaves down comes up when it goes.
     zwp_virtual_keyboard_v1_key(keyboard, 0, KEY_LEFTSHIFT, 1);
     h.sync(typist);
     h.sync(app.client);

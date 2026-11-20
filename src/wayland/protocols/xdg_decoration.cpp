@@ -4,9 +4,6 @@
 //
 // Upstream: chromium/src/components/exo/wayland/xdg_shell.cc
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: integrates the upstream behavior with native
-// compositor types and ownership.
 
 #include "wayland/protocols/xdg_decoration.h"
 
@@ -48,9 +45,8 @@ std::optional<DecorationMode> fromWayland(uint32_t mode)
     }
 }
 
-// The user data of a zxdg_toplevel_decoration_v1. The protocol says the
-// decoration must be destroyed before its xdg_toplevel; a client that gets it
-// wrong is caught by the destroy listener rather than by a dangling pointer.
+// The protocol says the decoration goes before its xdg_toplevel; a client that gets it wrong is
+// caught by the destroy listener.
 class WaylandXdgToplevelDecoration
 {
 public:
@@ -62,10 +58,8 @@ public:
         m_toplevelDestroy.listener.notify = &onToplevelDestroyed;
         wl_resource_add_destroy_listener(m_toplevel, &m_toplevelDestroy.listener);
 
-        // A disconnecting client tears its objects down in whatever order
-        // libwayland finds them, which is not a protocol error. The client's
-        // destroy signal runs before its resources are destroyed, so this is
-        // what tells the two cases apart.
+        // The client's destroy signal runs before its resources are destroyed, which tells a
+        // disconnect apart from a protocol error.
         m_clientDestroy.owner = this;
         m_clientDestroy.listener.notify = &onClientDestroyed;
         wl_client_add_destroy_listener(wl_resource_get_client(resource),
@@ -96,17 +90,15 @@ public:
         return m_toplevel ? shellSurfaceForToplevel(m_toplevel) : nullptr;
     }
 
-    // Applies `mode` - or the compositor's own preference, when the client has
-    // none - and tells the client what it got.
+    // A null `mode` takes the compositor's own preference.
     void requestMode(std::optional<DecorationMode> mode)
     {
         ShellSurface* shellSurface = this->shellSurface();
         if (!shellSurface)
             return;
 
-        // The decoration configure goes first, so the xdg_surface.configure the
-        // mode change produces is the one that closes the sequence, exactly as
-        // the protocol describes it.
+        // The decoration configure goes first, so the xdg_surface.configure the mode change produces
+        // closes the sequence.
         sendConfigure(shellSurface->decorationModeFor(mode));
         shellSurface->setRequestedDecorationMode(mode);
     }
@@ -154,9 +146,6 @@ private:
     std::optional<DecorationMode> m_configuredMode;
 };
 
-////////////////////////////////////////////////////////////////////////////////
-// zxdg_toplevel_decoration_v1_interface:
-
 void toplevel_decoration_destroy(wl_client*, wl_resource* resource)
 {
     wl_resource_destroy(resource);
@@ -175,8 +164,6 @@ void toplevel_decoration_set_mode(wl_client*, wl_resource* resource, uint32_t mo
 
 void toplevel_decoration_unset_mode(wl_client*, wl_resource* resource)
 {
-    // No preference from the client leaves the compositor's, which is
-    // server-side.
     getUserDataAs<WaylandXdgToplevelDecoration>(resource)->requestMode(std::nullopt);
 }
 
@@ -185,9 +172,6 @@ const struct zxdg_toplevel_decoration_v1_interface toplevel_decoration_implement
     toplevel_decoration_set_mode,
     toplevel_decoration_unset_mode,
 };
-
-////////////////////////////////////////////////////////////////////////////////
-// zxdg_decoration_manager_v1_interface:
 
 void decoration_manager_destroy(wl_client*, wl_resource* resource)
 {
@@ -227,10 +211,8 @@ void decoration_manager_get_toplevel_decoration(wl_client* client, wl_resource* 
     WaylandXdgToplevelDecoration* raw = decoration.get();
     setImplementation(resource, &toplevel_decoration_implementation, std::move(decoration));
 
-    // A client may not attach a buffer before it has been told which mode it
-    // is in, so the first configure goes out with the object. It is a
-    // decoration configure only: the xdg_surface configure that ends the
-    // sequence comes from the surface's own initial commit.
+    // A client may not attach a buffer before it knows its mode, so the first decoration configure
+    // goes out with the object.
     if (shellSurface)
         raw->sendConfigure(shellSurface->decorationMode());
 }

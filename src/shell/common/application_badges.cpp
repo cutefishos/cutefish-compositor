@@ -94,7 +94,6 @@ void ApplicationBadges::update(const std::string &sender, const std::string &uri
     Entry &entry = m_entries[lowered(id)];
     const int64_t before = entry.shown();
     entry.sender = sender;
-    // Each signal carries only the properties that changed.
     if (const auto it = properties.find("count"); it != properties.end()) {
         if (const auto count = integer(it->second))
             entry.count = *count;

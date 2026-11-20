@@ -43,7 +43,6 @@ ui::Color white(double alpha)
     return kWhite.withAlpha(alpha);
 }
 
-// A colour animation step: each channel, alpha included, straight.
 ui::Color mix(ui::Color from, ui::Color to, double t)
 {
     const auto channel = [t](uint8_t a, uint8_t b) {
@@ -53,8 +52,6 @@ ui::Color mix(ui::Color from, ui::Color to, double t)
             channel(from.a, to.a)};
 }
 
-// A change of the target animates from where the value is now. The first
-// value is taken as it is.
 template<typename T>
 class Behavior
 {
@@ -114,8 +111,7 @@ std::function<double(double, double, double)> numberInterpolation()
     return [](double from, double to, double t) { return from + (to - from) * t; };
 }
 
-// FishUI's RoundedRectangle as the panel had it: snapped to device pixels,
-// with a border of whole device pixels inside the outline.
+// Snapped to device pixels, with a border of whole device pixels inside the outline.
 void drawPanelRect(ui::Painter &painter, const ui::RectF &rect, double radius, ui::Color fill,
                    double border = 0, ui::Color borderColor = {})
 {
@@ -124,8 +120,6 @@ void drawPanelRect(ui::Painter &painter, const ui::RectF &rect, double radius, u
 
 } // namespace
 
-// Raised text: the text drawn again in the style
-// colour one logical pixel lower, under it.
 class RaisedLabel final : public ui::StyledLabel
 {
 public:
@@ -146,8 +140,6 @@ public:
     }
 };
 
-// A press and release inside, as MouseArea's clicked, and whether the
-// pointer is over it, as its containsMouse with hoverEnabled.
 class Clickable : public ui::View
 {
 public:
@@ -204,9 +196,6 @@ private:
     bool m_pressed = false;
 };
 
-// The account's picture cut to a circle, or the account's colour where there
-// is none. Where another account can be picked, hovering dims it and shows the
-// swap arrows, and a click opens the accounts.
 class Avatar final : public Clickable
 {
 public:
@@ -226,7 +215,6 @@ public:
         m_hover.setTarget(0);
     }
 
-    // The colour shows until the picture is decoded.
     void setUser(const std::string &userName, const std::string &icon)
     {
         m_disc->setColor(ui::Color::rgb(accounts::pictureColor(userName)));
@@ -292,7 +280,6 @@ private:
             if (t <= 0)
                 return;
             drawPanelRect(painter, localRect(), geometry().width / 2, kBlack.withAlpha(0.35 * t));
-            // The arrows on their 24 by 24 grid, centred.
             const double x = centeredStart(geometry().width, 24);
             const double y = centeredStart(geometry().height, 24);
             ui::Path arrows;
@@ -323,8 +310,6 @@ private:
     bool m_swappable = false;
 };
 
-// The account's picture and name over the password field.
-// Upstream: LoginUserView.
 class UserView final : public ui::View
 {
 public:
@@ -365,9 +350,6 @@ private:
     RaisedLabel *m_name;
 };
 
-// One account among the others: its picture with a halo behind it while
-// hovered or chosen from the keyboard, a fainter one for the account picked
-// now, and the name under it.
 class UserTile final : public Clickable
 {
 public:
@@ -429,8 +411,6 @@ private:
     bool m_highlighted = false;
 };
 
-// The accounts to switch to, in rows centred under each other. The arrow keys
-// move between them, Return picks one and Escape goes back to the password.
 class UserGrid final : public ui::View
 {
 public:
@@ -470,8 +450,6 @@ public:
             m_tiles[i]->setCurrent(int(i) == index);
     }
 
-    // Each time it opens, the keyboard starts from the account picked now,
-    // and highlights nothing until it is used.
     void reset()
     {
         m_highlight = std::clamp(m_current, 0, std::max(0, int(m_tiles.size()) - 1));
@@ -569,13 +547,10 @@ private:
     bool m_keyboard = false;
 };
 
-// One of a few names, the account or the session to log in with: the current
-// choice as a pill, and the others in a list while it is open.
 class ChoiceMenu final : public ui::View
 {
 public:
-    // The list goes on `layer`, over everything else in the panel, and is
-    // placed there whenever the menu is laid out or placeList() is called.
+    // The list goes on `layer`, over everything else in the panel.
     ChoiceMenu(const std::string &name, ui::View *layer)
     {
         setName(name);
@@ -588,7 +563,6 @@ public:
 
     std::function<void(int index)> onActivated;
 
-    // After the menu moved without being laid out itself.
     void placeList()
     {
         m_popup->place();
@@ -619,7 +593,6 @@ public:
         m_button->requestPaint();
     }
 
-    // A press elsewhere closes the list and still reaches what it pressed.
     void pressedAt(ui::PointF windowPosition)
     {
         if (!m_open)
@@ -754,7 +727,6 @@ private:
         {
             while (!children().empty())
                 takeChild(children().back().get());
-            // Every entry as wide as the widest name, so their highlights line up.
             double widest = 0;
             for (const std::string &name : m_menu->m_names) {
                 ui::Label measure;
@@ -781,7 +753,7 @@ private:
             return {m_entryWidth + 12, 30.0 * double(m_menu->m_names.size()) + 12};
         }
 
-        // In the menu's place, in the coordinates of the layer it is on.
+        // In the coordinates of the layer the list is on.
         void place()
         {
             const ui::SizeF size = sizeHint();
@@ -825,13 +797,10 @@ private:
     std::vector<std::string> m_names;
     int m_current = -1;
     bool m_open = false;
-    // The panel is an image of a fixed size; a list that would run past its
-    // bottom opens upward instead of being cut off.
     bool m_upward = false;
 };
 
-// The password field's TextInput: no frame, no clipboard and no undo. Each of
-// those is a copy of the credential that would outlive the attempt.
+// No clipboard and no undo: each would be a copy of the credential.
 class PasswordInput final : public ui::TextField
 {
 public:
@@ -842,7 +811,6 @@ public:
         setFadesWhenDisabled(false);
         setEchoMode(EchoMode::Password);
         setPasswordCharacter("\u2022");
-        // What "monospace" resolved to before.
         setFontFamily("DejaVu Sans Mono");
         setFontSize(13);
         setSelectionColors(white(0.35), kWhite);
@@ -863,7 +831,6 @@ protected:
 
     bool keyPress(const ui::KeyEvent &event) override
     {
-        // The clipboard keys are refused, which no setting covers.
         switch (event.key) {
         case XKB_KEY_XF86Copy:
         case XKB_KEY_XF86Cut:
@@ -880,7 +847,6 @@ protected:
     }
 };
 
-// The typed user name's TextInput.
 class NameInput final : public ui::TextField
 {
 public:
@@ -897,7 +863,6 @@ public:
     }
 };
 
-// Where the name is typed, where no account could be listed.
 class UserNameField final : public ui::View
 {
 public:
@@ -926,7 +891,6 @@ protected:
     void layout() override
     {
         const ui::RectF inner {10, 10, geometry().width - 20, geometry().height - 20};
-        // TextInput's default alignment is the top: its line, not the box, is placed.
         m_input->setGeometry({inner.x, inner.y, inner.width, m_input->sizeHint().height});
         const ui::SizeF placeholder = m_placeholder->sizeHint();
         m_placeholder->setGeometry({inner.x + centeredStart(inner.width, placeholder.width),
@@ -944,8 +908,6 @@ private:
     NameInput *m_input;
 };
 
-// The password pill: the prompt, the masked text and a round arrow to submit.
-// Upstream: LoginPasswordView.
 class PasswordField final : public ui::View
 {
 public:
@@ -969,8 +931,6 @@ public:
                 onEdited();
         };
         m_input->onAccepted = [this] {
-            // The text stays, greyed out while the field is disabled; only a
-            // rejection clears it (LoginAuthUserView::OnAuthComplete).
             if (m_input->text().empty() || !onAccepted)
                 return;
             onAccepted(m_input->text());
@@ -1013,8 +973,6 @@ public:
         update();
     }
 
-    // Ash shakes the login pod on a rejection; this shakes the field, which is
-    // where the user is looking.
     void shake()
     {
         m_shakeFrom = m_shakeOffset;
@@ -1022,7 +980,6 @@ public:
         m_shake.start();
     }
 
-    // The pill where it is drawn, the shake included.
     ui::RectF pillRect() const { return m_pill->geometry(); }
 
     void update()
@@ -1040,7 +997,6 @@ protected:
     void layout() override
     {
         const ui::RectF rect = localRect();
-        // The shake moves the pill, not the field, which the layout places.
         m_pill->setGeometry({rect.x + m_shakeOffset, rect.y, rect.width, rect.height});
         const ui::SizeF prompt = m_prompt->sizeHint();
         m_prompt->setGeometry({14, centeredStart(rect.height, prompt.height), prompt.width,
@@ -1061,8 +1017,6 @@ private:
     protected:
         void paint(ui::Painter &painter) override
         {
-            // One logical pixel of border as whole device pixels, rounded down
-            // as before: 1 at 1.5, 2 at 2.
             const double border = std::max(1.0, std::floor(painter.scale() + 1e-3)) / painter.scale();
             drawPanelRect(painter, localRect(), geometry().height / 2, m_field->m_fill.value(),
                           border, m_field->m_border.value());
@@ -1118,7 +1072,6 @@ private:
         NumberBehavior m_opacity;
     };
 
-    // Two rounds of: out to the left, across to the right, back to the middle.
     double shakeAt(double milliseconds) const
     {
         const bool first = milliseconds < 200;
@@ -1157,7 +1110,6 @@ private:
     bool m_keyboardFocused = false;
 };
 
-// The reason an attempt failed, fading in under the field.
 class ErrorLabel final : public ui::View
 {
 public:
@@ -1192,8 +1144,6 @@ private:
     RaisedLabel *m_label;
 };
 
-// In the password field's place for a user who has no password to give:
-// Enter unlocks.
 class UnlockPrompt final : public ui::View
 {
 public:
@@ -1212,8 +1162,6 @@ public:
         requestLayout();
     }
 
-    // The widest the text may run, centred on the field: a translation
-    // longer than the field takes the panel's width less its margins.
     void setAvailableWidth(double width)
     {
         if (width == m_availableWidth)
@@ -1222,7 +1170,6 @@ public:
         requestLayout();
     }
 
-    // The password field's height, so the column does not move.
     ui::SizeF sizeHint() const override { return {0, 32}; }
 
     bool acceptsFocus() const override { return true; }
@@ -1328,8 +1275,6 @@ AuthScreen::AuthScreen(ui::Window *window, AuthController *controller)
         m_controller->authenticate(password);
     };
     m_unlock->onAccepted = [this] { m_controller->unlockWithoutPassword(); };
-    // Any edit means the user has moved on from the rejection; the error goes
-    // away without waiting for another attempt.
     m_password->onEdited = [this] {
         if (m_controller->failed())
             m_controller->reset();
@@ -1395,7 +1340,6 @@ AuthScreen::~AuthScreen()
     m_window->onPointerPressed = nullptr;
 }
 
-// The typed name and password, the account and the session stay.
 void AuthScreen::retranslate()
 {
     m_userName->retranslate();
@@ -1425,8 +1369,6 @@ void AuthScreen::focusPassword()
         m_unlock->setFocus();
         return;
     }
-    // The keyboard is the compositor's to give; when it arrives it belongs in
-    // the password field and nowhere else.
     m_password->input()->setFocus();
     m_password->update();
 }
@@ -1462,7 +1404,6 @@ void AuthScreen::setPickerOpen(bool open)
     if (open == m_pickerOpen || (open && !canSwitchUser()))
         return;
     m_pickerOpen = open;
-    // The side going away takes no input while it fades.
     m_pod->setEnabled(!open);
     m_picker->setEnabled(open);
     if (open) {
@@ -1530,7 +1471,6 @@ void AuthScreen::layout()
     const double height = geometry().height;
     const ui::SizeF date = m_date->sizeHint();
     const ui::SizeF time = m_time->sizeHint();
-    // A Column of the two, 4 closer than touching, centred at the top.
     const double column = std::max(date.width, time.width);
     const double left = centeredStart(width, column);
     m_date->setGeometry({left + centeredStart(column, date.width), 56, date.width, date.height});
@@ -1542,14 +1482,11 @@ void AuthScreen::layout()
     const double podHeight = m_pod->verticalExtent(podWidth).preferred;
     m_pod->setGeometry({centeredStart(width, podWidth), height - 64 - podHeight, podWidth, podHeight});
 
-    // The accounts' pictures in the row of the one picked now, as long as
-    // they fit above the bottom margin.
     const ui::SizeF grid = m_picker->sizeFor(width - 48);
     const double gridTop = std::min(height - 64 - podHeight - UserTile::kHalo, height - 64 - grid.height);
     m_picker->setGeometry({centeredStart(width, grid.width), gridTop, grid.width, grid.height});
 }
 
-// The menu's list lies outside the pod, by its menu wherever the pod placed it.
 void AuthScreen::childrenLaidOut()
 {
     m_sessions->placeList();

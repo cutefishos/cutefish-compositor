@@ -6,10 +6,6 @@
 //               (ColorTemperatureAnimation, MatrixFromTemperature,
 //                BlueColorScaleFromTemperature, GreenColorScaleFromTemperature)
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: the compositor only animates the strength it is given
-// and tints every output through KMS; the schedule and the preferences belong
-// to cutefish-services, which calls DisplayConfig1.SetNightLight.
 
 #pragma once
 
@@ -21,8 +17,7 @@
 
 namespace cutefish::display {
 
-// The night light's strength, from 0, which leaves the screen untouched, to 1,
-// the warmest, and the tint each step of its animation gives the outputs.
+// Strength 0 leaves the screen untouched; 1 is the warmest.
 class NightLight
 {
 public:
@@ -33,8 +28,6 @@ public:
     NightLight(const NightLight &) = delete;
     NightLight &operator=(const NightLight &) = delete;
 
-    // Moves linearly from where the animation is now. Ash takes a second for a
-    // change the user makes and a minute for a scheduled one.
     void animateTo(double strength, std::chrono::milliseconds duration);
 
     double strength() const { return m_current; }
@@ -47,7 +40,6 @@ public:
     // not turn green.
     static render::ColorTransform transformFor(double strength);
 
-    // One animation step, as the timer runs it, for tests that drive the clock.
     void stepForTesting() { step(); }
 
 private:

@@ -21,8 +21,7 @@ bool isOpen(int fd)
     return fcntl(fd, F_GETFD) != -1 || errno != EBADF;
 }
 
-// libseat's noop backend opens devices itself, so no seat manager is needed;
-// like logind and seatd it leaves the descriptor it hands out to the caller.
+// libseat's noop backend opens devices itself and leaves the descriptor to the caller.
 std::unique_ptr<backend::LibseatSession> createSession()
 {
     setenv("LIBSEAT_BACKEND", "noop", 1);

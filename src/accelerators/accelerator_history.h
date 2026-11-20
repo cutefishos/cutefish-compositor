@@ -4,9 +4,6 @@
 //
 // Upstream: chromium/src/ash/accelerators/accelerator_history_impl.h
 // Revision: 8abbac30b9cf2fe976422c58c000c94685648b65
-//
-// Adapted for Cutefish: fed by the accelerator filter instead of being an
-// aura pre-target handler.
 
 #ifndef CUTEFISH_ACCELERATORS_ACCELERATOR_HISTORY_H_
 #define CUTEFISH_ACCELERATORS_ACCELERATOR_HISTORY_H_
@@ -17,7 +14,6 @@
 
 namespace cutefish::accelerators {
 
-// Keeps track of the system-wide current and previous key accelerators.
 class AcceleratorHistory
 {
 public:
@@ -28,7 +24,6 @@ public:
 
     const Accelerator &currentAccelerator() const { return m_currentAccelerator; }
 
-    // The most recent accelerator that differs from the current one.
     const Accelerator &previousAccelerator() const { return m_previousAccelerator; }
 
     const std::set<uint32_t> &currentlyPressedKeys() const { return m_currentlyPressedKeys; }

@@ -4,9 +4,6 @@
 //
 // Upstream: chromium/src/components/exo/wayland/wayland_touch_delegate.h
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: locations are converted to the client's units, for
-// Xwayland's scaled surfaces. There is no contact size to send as a shape.
 
 #ifndef CUTEFISH_WAYLAND_PROTOCOLS_WAYLAND_TOUCH_DELEGATE_H_
 #define CUTEFISH_WAYLAND_PROTOCOLS_WAYLAND_TOUCH_DELEGATE_H_
@@ -20,8 +17,6 @@ namespace cutefish::wayland {
 
 class SerialTracker;
 
-// Touch delegate that accepts events for surfaces owned by the same client as
-// the wl_touch resource.
 class WaylandTouchDelegate : public input::TouchDelegate
 {
 public:
@@ -30,7 +25,6 @@ public:
     WaylandTouchDelegate(const WaylandTouchDelegate&) = delete;
     WaylandTouchDelegate& operator=(const WaylandTouchDelegate&) = delete;
 
-    // input::TouchDelegate:
     void onTouchDestroying(input::Touch* touch) override;
     bool canAcceptTouchEventsForSurface(compositor::Surface* surface) const override;
     void onTouchDown(compositor::Surface* surface, input::Timestamp timestamp, int32_t id,

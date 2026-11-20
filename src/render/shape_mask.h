@@ -13,10 +13,8 @@
 
 namespace cutefish::render {
 
-// Eight bits a channel, rounded.
 ui::Color toUiColor(const Color &color);
 
-// Identity of a path for texture cache keys.
 std::string shapeKey(const ui::Path &path);
 
 // A logical path placed on physical pixels: pixel = point * scale + offset.
@@ -25,11 +23,11 @@ struct ShapeRaster {
     base::PointF offset;
     base::Size size;
 
-    // Covers `logical` with `margin` physical pixels around it, keeping the
-    // image origin on a physical pixel of the output.
+    // `margin` is in physical pixels; the image origin stays on a physical
+    // pixel.
     static ShapeRaster covering(const base::RectF &logical, double scale, int margin = 0);
 
-    // Where the image goes, in logical output coordinates.
+    // In logical output coordinates.
     base::RectF target() const;
 
     std::string key() const;
@@ -43,8 +41,7 @@ struct ShapeRaster {
 // Premultiplied RGBA8888 white, so the alpha is the coverage.
 ui::Bitmap rasterizeShape(const ui::Path &path, const ShapeRaster &raster);
 
-// A hairline of `widthPx` physical pixels just outside the path in `outline`
-// and just inside it in `highlight`.
+// `widthPx` is in physical pixels.
 ui::Bitmap rasterizeShapeOutline(const ui::Path &path, const ShapeRaster &raster, double widthPx,
                                  const Color &outline, const Color &highlight);
 

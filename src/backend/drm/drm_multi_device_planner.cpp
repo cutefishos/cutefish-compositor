@@ -4,9 +4,6 @@
 //
 // Upstream: chromium/src/ui/ozone/platform/drm/gpu/drm_gpu_display_manager.cc
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: device-local tests precede ordered commits, partial
-// success rolls back, and unsupported cross-GPU/tile routes stay unavailable.
 
 #include "backend/drm/drm_multi_device_planner.h"
 

@@ -18,7 +18,7 @@
 
 namespace cutefish::clipboard {
 
-// MIME names and payloads are opaque. send() always consumes the supplied fd.
+// send() always consumes the supplied fd.
 class DataSource
 {
 public:
@@ -77,12 +77,7 @@ public:
 
     Recipient recipient() const { return m_recipient; }
 
-    // Ash's LockScreen::saved_clipboard_: while the session is blocked the
-    // secure screen gets its own, empty clipboard and the session's is put
-    // aside. Isolated, nothing is offered to anyone and nobody may set a
-    // source, so neither direction crosses the boundary - the auth client
-    // cannot read what the user copied, and what it types cannot be left behind
-    // for the session, a clipboard manager or Xwayland to pick up.
+    // While isolated, nothing is offered and no source may be set, in either direction.
     void setIsolated(bool isolated);
 
     bool isIsolated() const { return m_isolated; }
@@ -91,9 +86,7 @@ public:
     // Records only actual delivered keyboard-enter/key or pointer-button events.
     void recordSerial(Recipient recipient, uint32_t serial);
     bool authorize(Recipient recipient, uint32_t serial);
-    // For a selection that records no serials of its own, the primary one:
-    // the serial is looked up here, but it only has to be newer than the last
-    // one `selection` accepted.
+    // `serial` need only be newer than the last one `selection` accepted.
     bool authorize(Recipient recipient, uint32_t serial, SelectionController &selection);
     bool setSource(std::shared_ptr<DataSource> source);
     // Expected-source check protects a replacement from old teardown callbacks.
@@ -110,7 +103,6 @@ private:
     bool m_destroying = false;
     bool m_isolated = false;
     std::shared_ptr<DataSource> m_source;
-    // The session's selection, held across a lock and put back afterwards.
     std::shared_ptr<DataSource> m_savedSource;
     Recipient m_savedRecipient = nullptr;
     Recipient m_recipient = nullptr;
@@ -129,8 +121,7 @@ private:
     base::WeakPtrFactory<SelectionController> m_weakFactory {this};
 };
 
-// An immutable offer snapshot. Losing eligibility invalidates future receives,
-// even if the same recipient later regains focus or the same address is reused.
+// Losing eligibility invalidates future receives, even if the recipient regains focus.
 class DataOffer
 {
 public:

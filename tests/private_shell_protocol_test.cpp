@@ -2,11 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// End-to-end tests for the private Cutefish shell protocol, which is down to the
-// desktop surface, driven through real libwayland-client connections: one
-// trusted connection created the way the session creates it, and one ordinary
-// application connection.
-
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
@@ -351,9 +346,7 @@ protected:
         return nullptr;
     }
 
-    // `shellBody` runs on a trusted connection created the way the session
-    // creates one; `appBody` runs on an ordinary connection to the public
-    // socket. Either may be empty.
+    // `shellBody` runs on a trusted connection, `appBody` on an ordinary one; either may be empty.
     void run(std::function<void(Client &)> shellBody, std::function<void(Client &)> appBody = {})
     {
         auto privileged = std::make_unique<wayland::PrivilegedClients>(server.display());
@@ -441,16 +434,11 @@ protected:
     }
 };
 
-////////////////////////////////////////////////////////////////////////////////
-// Privilege
-
 TEST_F(PrivateShellProtocolTest, TheTrustedClientSeesThePrivateGlobal)
 {
     run([&](Client &c) {
         EXPECT_TRUE(c.globals.contains("cutefish_shell_v1"));
-        // The rest of the private shell protocols are gone.
         EXPECT_FALSE(c.globals.contains("cutefish_window_management_v1"));
-        // Every public global is still there for it.
         EXPECT_TRUE(c.globals.contains("wl_compositor"));
         EXPECT_TRUE(c.globals.contains("xdg_wm_base"));
         EXPECT_TRUE(c.globals.contains("wl_seat"));
@@ -468,8 +456,6 @@ TEST_F(PrivateShellProtocolTest, AnOrdinaryClientNeverSeesThePrivateGlobal)
 
 TEST_F(PrivateShellProtocolTest, AnOrdinaryClientCannotBindThePrivateGlobalByName)
 {
-    // The name is guessed the way a hostile client would have to guess it: the
-    // trusted client learns the real one, and the application tries to bind it.
     std::promise<std::pair<uint32_t, uint32_t>> namePromise;
     auto nameFuture = namePromise.get_future();
 
@@ -482,18 +468,13 @@ TEST_F(PrivateShellProtocolTest, AnOrdinaryClientCannotBindThePrivateGlobalByNam
                 const auto [name, version] = nameFuture.get();
                 auto *shell = static_cast<cutefish_shell_v1 *>(
                         wl_registry_bind(c.registry, name, &cutefish_shell_v1_interface, version));
-                // libwayland raises wl_display.error rather than a per-interface
-                // code, so any protocol error at all is the pass condition.
+                // libwayland reports wl_display.error rather than a per-interface code, so any protocol error passes.
                 EXPECT_NE(0, c.roundtrip());
                 EXPECT_EQ(EPROTO, wl_display_get_error(c.display));
-                // wl_proxy_destroy rather than the generated destructor: no request
-                // can be marshalled on a display that has already errored out.
+                // No request can be marshalled on a display that has errored out.
                 wl_proxy_destroy(reinterpret_cast<wl_proxy *>(shell));
             });
 }
-
-////////////////////////////////////////////////////////////////////////////////
-// The desktop
 
 namespace {
 
@@ -529,7 +510,6 @@ TEST_F(PrivateShellProtocolTest, TheDesktopIsPlacedAtItsOutputBelowApplications)
                 check([&] {
                     wm::Window *desktop = windowWithRole(wm::WindowRole::Desktop);
                     ASSERT_NE(nullptr, desktop);
-                    // Raising the desktop never puts it over the application.
                     windowManager.raise(desktop);
                     EXPECT_EQ(desktop, windowManager.windows().front());
                 });
@@ -542,7 +522,6 @@ TEST_F(PrivateShellProtocolTest, AnUnknownRoleIsAnError)
         ASSERT_TRUE(c.bindShell());
         XdgWindow *window = c.makeToplevel("Panel", "cutefish-filemanager");
         window->shellSurface = cutefish_shell_v1_get_shell_surface(c.shell, window->surface);
-        // The panel role of the separate shell, which is gone.
         cutefish_shell_surface_v1_set_role(window->shellSurface, 1);
         EXPECT_EQ(uint32_t(CUTEFISH_SHELL_SURFACE_V1_ERROR_INVALID_ROLE), c.syncExpectingError());
         // Nothing more can be sent on the broken connection.
@@ -585,8 +564,6 @@ TEST_F(PrivateShellProtocolTest, TheDesktopGetsNoConfigureBounds)
 {
     run([&](Client &c) {
         ASSERT_TRUE(c.bindShell());
-        // A client clamping a size it picks itself to the bounds would shrink
-        // the desktop off the strip the dock reserves.
         XdgWindow *desktop = makeDesktop(c);
         c.map(desktop, kOutput.size());
         XdgWindow *app = c.makeToplevel("App", "app");
@@ -608,8 +585,6 @@ TEST_F(PrivateShellProtocolTest, DestroyingTheShellSurfaceLeavesTheMappedDesktop
         c.map(desktop, kOutput.size());
         check([&] { ASSERT_NE(nullptr, windowWithRole(wm::WindowRole::Desktop)); });
 
-        // Only the extension object goes; the wl_surface and its xdg_toplevel
-        // stay mapped.
         cutefish_shell_surface_v1_destroy(desktop->shellSurface);
         desktop->shellSurface = nullptr;
         c.sync();
@@ -665,12 +640,10 @@ TEST_F(PrivateShellProtocolTest, ADesktopHearsItsWorkArea)
         cutefish_shell_surface_v1_add_listener(desktop->shellSurface, &listener, &areas);
         cutefish_shell_surface_v1_set_role(desktop->shellSurface, CUTEFISH_SHELL_SURFACE_V1_ROLE_DESKTOP);
         c.sync();
-        // As soon as it is a desktop, before anything is mapped.
         ASSERT_EQ(1u, areas.size());
         EXPECT_EQ(base::Rect(0, 0, 800, 600), areas.back());
         c.map(desktop, kOutput.size());
 
-        // The compositor's own reservations: the menu bar's and the dock's.
         int bar = 0;
         int dock = 0;
         check([&] { windowManager.setExclusiveZone(&bar, wm::ScreenEdge::Top, 32); });
@@ -682,7 +655,6 @@ TEST_F(PrivateShellProtocolTest, ADesktopHearsItsWorkArea)
         ASSERT_EQ(3u, areas.size());
         EXPECT_EQ(base::Rect(0, 32, 800, 476), areas.back());
 
-        // Unchanged reservations send nothing.
         check([&] { windowManager.setExclusiveZone(&bar, wm::ScreenEdge::Top, 32); });
         c.sync();
         EXPECT_EQ(3u, areas.size());
@@ -695,9 +667,6 @@ TEST_F(PrivateShellProtocolTest, ADesktopHearsItsWorkArea)
     });
 }
 
-// The session's case: named outputs from the display manager, the desktop of
-// the file manager on one of them, and the compositor's menu bar and dock
-// reserving their strips of it by name, before and after the desktop exists.
 TEST_F(PrivateShellProtocolTest, ADesktopOnANamedOutputHearsTheShellsReservations)
 {
     display::DisplayManager displays;
@@ -722,7 +691,6 @@ TEST_F(PrivateShellProtocolTest, ADesktopOnANamedOutputHearsTheShellsReservation
     ASSERT_TRUE(displays.installApplied({"instance", 1, 1, {}, {logical}, {}}));
     windowManager.setDisplayManager(&displays);
 
-    // The menu bar is up before the file manager starts.
     int bar = 0;
     int dock = 0;
     windowManager.setExclusiveZone(&bar, wm::ScreenEdge::Top, 32, "Cutefish-a");
@@ -742,13 +710,11 @@ TEST_F(PrivateShellProtocolTest, ADesktopOnANamedOutputHearsTheShellsReservation
         cutefish_shell_surface_v1_set_role(desktop->shellSurface, CUTEFISH_SHELL_SURFACE_V1_ROLE_DESKTOP);
         cutefish_shell_surface_v1_set_output(desktop->shellSurface, "Cutefish-a");
         c.sync();
-        // The bar's strip is already left out of the first one.
         ASSERT_FALSE(areas.empty());
         EXPECT_EQ(base::Rect(0, 32, 800, 568), areas.front());
         EXPECT_EQ(1u, areas.size());
         c.map(desktop, kOutput.size());
 
-        // The dock comes up after the desktop.
         check([&] { windowManager.setExclusiveZone(&dock, wm::ScreenEdge::Bottom, 92, "Cutefish-a"); });
         c.sync();
         EXPECT_EQ(base::Rect(0, 32, 800, 476), areas.back());

@@ -44,11 +44,8 @@ class DndBridge;
 
 class FdWatch;
 
-// The cursor size X11 clients are told, in X11 pixels: the theme size nearest
-// `size` logical pixels at `scale`. Between two theme sizes X11 clients would
-// take either; named exactly, they all take that one. `theme` becomes the
-// theme that has the files, not an alias such as "default", which is often
-// only an index.theme linked into /etc that a sandboxed client cannot follow.
+// In X11 pixels: the theme size nearest `size` logical pixels at `scale`. `theme` becomes the theme
+// that has the files, not an alias a sandboxed client may not follow.
 int x11CursorSize(int size, double scale, std::string &theme);
 
 class Xwm
@@ -59,11 +56,9 @@ public:
     Xwm &operator=(const Xwm &) = delete;
     ~Xwm();
     void start(int fd);
-    // X11 pixels per logical unit. Xwayland draws at device resolution, so
-    // every coordinate crossing between X11 and the window manager is scaled.
+    // X11 pixels per logical unit.
     void setScale(double scale);
     void setCursorTheme(const std::string &theme, int size);
-    // How long a client has to answer _NET_WM_PING.
     void setPingTimeout(int milliseconds) { m_pingTimeoutMs = milliseconds; }
     void setWindowLimit(size_t limit) { m_windowLimit = limit; }
     // Xwayland's own process, never reported as a window's owner nor killed.
@@ -90,7 +85,6 @@ private:
     void detach(X11Window &window);
     // Follows a new child of the root, unless its client holds too many windows.
     X11Window *adopt(uint32_t window, const base::Rect &xGeometry, bool overrideRedirect);
-    // Stops following a window that is gone from the root.
     void forget(uint32_t window);
     // Adds `set` to and removes `clear` from the window's event mask, keeping
     // the bits other parts of the compositor selected.

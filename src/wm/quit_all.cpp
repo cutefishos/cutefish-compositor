@@ -19,7 +19,6 @@ namespace {
 
 constexpr int kPollMs = 100;
 
-// A prompt of the application's own, not a menu or tooltip.
 bool hasPrompt(const Window *window)
 {
     for (const Window *child : window->transientChildren()) {
@@ -48,7 +47,6 @@ QuitAll::QuitAll(WindowManager *manager, std::function<int64_t()> clock)
     m_timer.onTimeout = [this] {
         update();
     };
-    // The last window going is when the session may end; no need to wait a poll.
     m_windowRemoved = m_manager->windowRemoved.connect([this](Window *) {
         if (!isRunning())
             return;
@@ -77,8 +75,6 @@ bool QuitAll::isApplicationWindow(const Window *window) const
 
 void QuitAll::ask(Window *window, int64_t now)
 {
-    // Quit asks every window of the application at once; asking one of them
-    // again would only raise a second prompt.
     for (const Window *candidate : m_manager->windows()) {
         if (isApplicationWindow(candidate) && m_manager->belongsToApplication(candidate, window))
             m_asked[candidate->id()] = Asked {now, std::nullopt};
@@ -100,8 +96,6 @@ void QuitAll::update()
         finish({Outcome::Quit, {}});
         return;
     }
-    // Windows that opened since are asked too, on their own if their
-    // application was already asked, so as not to raise its prompt again.
     for (Window *window : windows) {
         if (m_asked.contains(window->id()))
             continue;

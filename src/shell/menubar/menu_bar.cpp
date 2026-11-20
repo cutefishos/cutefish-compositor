@@ -116,8 +116,6 @@ bool MenuBar::registerServices()
             if (auto *player = m_mpris.current())
                 player->stop();
         });
-        // The same as the menu's: the user is asked first. The session's
-        // own methods act at once.
         object->addMethod("requestLogout", [this] { m_powerActions.request(PowerActions::Logout); });
         object->addMethod("requestReboot", [this] { m_powerActions.request(PowerActions::Reboot); });
         object->addMethod("requestShutdown", [this] { m_powerActions.request(PowerActions::Shutdown); });
@@ -176,8 +174,6 @@ struct ClockLocale
 
 void MenuBar::reloadLanguage()
 {
-    // The session language and region live in cutefish-services' settings,
-    // beside the shell's.
     const std::string services = (std::filesystem::path(m_settingsPath).parent_path() / "services.conf").string();
     m_language = runOnFileThread(
             [services] {

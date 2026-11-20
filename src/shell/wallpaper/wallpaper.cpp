@@ -27,13 +27,10 @@ namespace cutefish::shell {
 
 static const char kDefaultWallpaper[] = "/usr/share/backgrounds/cutefishos/default.jpg";
 static const char kDefaultBackgroundColor[] = "#2B8ADA";
-// What a desktop shows while it has nothing else: the desktop window's
-// colour.
 static constexpr render::Color kBlack {0, 0, 0, 1};
-// Samples kept for wallpapers switched back to.
 static constexpr size_t kMaxSamples = 8;
 
-// #RGB, #RRGGBB or #AARRGGBB (alpha first); invalid (none) otherwise.
+// Alpha first; invalid otherwise.
 static std::optional<ui::Color> parseColor(std::string_view text)
 {
     if (text.empty() || text.front() != '#')
@@ -55,8 +52,7 @@ static std::optional<ui::Color> parseColor(std::string_view text)
     }
 }
 
-// A translucent colour over the desktop's black window colour, since the
-// desktop is opaque.
+// The desktop is opaque, so a translucent colour goes over its black.
 static render::Color opaqueColor(const ui::Color &color)
 {
     const float alpha = color.a / 255.0f;
@@ -68,8 +64,6 @@ static std::string localFile(const std::string &setting)
     return base::url::toLocalFile(setting).value_or(setting);
 }
 
-// The desktop as window capture picks it: this output's wallpaper and the
-// desktop window over it.
 class Wallpaper::CaptureNode final : public scene::Node
 {
 public:
@@ -107,7 +101,6 @@ struct Wallpaper::Screen {
     std::unique_ptr<CaptureNode> captureNode;
     std::shared_ptr<compositor::CaptureSource> captureSource;
 
-    // The picture loading, and the one shown.
     std::string pendingPath;
     base::Size pendingSize;
     std::shared_ptr<void> request;
@@ -305,7 +298,6 @@ void Wallpaper::reload(Screen &screen)
     screen.pendingSize = screen.device;
     if (screen.pendingPath != screen.shownPath || screen.pendingSize != screen.shownSize) {
         updateShownPictures();
-        // A decode in memory comes back at once.
         screen.request = m_cache.load(screen.pendingPath, screen.pendingSize,
                                       [this, &screen](const ui::Bitmap &image) { decoded(screen, image); });
         return;
@@ -414,7 +406,6 @@ void Wallpaper::publish(bool judged, const BarBackdrop::Style &style)
 void Wallpaper::updateGradient()
 {
     for (const std::unique_ptr<Screen> &screen : m_screens) {
-        // An opaque bar under Reduce Transparency needs no lift.
         const bool shows = screen->output.primary && m_judged && m_style.gradientVisible
                 && !render::opaqueBackdrop()
                 && (screen->showingImage || screen->showingColor);

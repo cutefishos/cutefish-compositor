@@ -16,8 +16,8 @@ namespace cutefish::render {
 
 namespace {
 
-// Skia's kMaxLinearBlurSigma is 4; twice that still keeps three sigma inside
-// the kernel's reach and halves once less, so the stretched copy stays smooth.
+// Twice Skia's kMaxLinearBlurSigma still keeps three sigma inside the kernel's
+// reach.
 constexpr float kMaxSigma = 8;
 
 } // namespace
@@ -34,7 +34,6 @@ std::unique_ptr<Texture> DropShadow::render(Renderer &renderer, const base::Size
 {
     if (size.isEmpty() || !m_program)
         return nullptr;
-    // The caster's coverage, then each level the one before it halved.
     std::vector<std::unique_ptr<Texture>> levels(1);
     if (!renderer.renderToTexture(levels[0], base::Rect(base::Point(), size), paintCaster))
         return nullptr;
@@ -102,8 +101,7 @@ std::unique_ptr<Texture> DropShadow::render(Renderer &renderer, const base::Size
             setGaussianKernel(m_program, 0, 0, 0);
             for (const Blurred &lobe : blurred) {
                 glUniform1f(m_program.uniform("uCenterWeight"), lobe.opacity);
-                // Stretched back over the pixels it stands for. Rows run
-                // bottom-up, so down the image is down GL's y as well.
+                // Rows run bottom-up, so down the image is down GL's y as well.
                 const base::SizeF covered = base::SizeF(lobe.texture->size()) * lobe.factor;
                 draw(lobe.texture.get(), base::RectF(base::PointF(lobe.offset.x(), -lobe.offset.y()), covered),
                      size);

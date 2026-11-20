@@ -18,13 +18,8 @@ namespace cutefish::shell {
 class StatusNotifierWatcher;
 class TaskManager;
 
-// A theme icon lookup with the item's IconThemePath as a fallback search
-// path: the icon theme, its parents and hicolor, then name.png, .svg or .xpm
-// directly in the path.
 bool themeIconExists(const std::string &name, const std::string &themePath);
 
-// The tray's items in the order they registered, moved as the user drags
-// them; a row changes whenever its item read itself again.
 class SystemTrayModel : public ListModelSignals
 {
 public:
@@ -42,8 +37,7 @@ public:
 
     void leftButtonClick(const std::string &id, int x, int y);
     void middleButtonClick(const std::string &id, int x, int y);
-    // The item's menu, asked AboutToShow; null for an item that exports
-    // none, which is then asked to show its own.
+    // Null for an item that exports none, which is then asked to show its own.
     DBusMenu *contextMenu(const std::string &id, int x, int y);
     void move(int from, int to);
 

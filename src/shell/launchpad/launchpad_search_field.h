@@ -20,10 +20,6 @@ class Label;
 
 namespace cutefish::shell {
 
-// The launchpad's search pill: a translucent white
-// field whose placeholder, a search glyph and "Search", sits centred until
-// the field takes the focus and then slides to the start, where the typed
-// text begins. Input methods compose in it through the compositor's relay.
 class LaunchpadSearchField final : public ui::View
 {
 public:
@@ -31,20 +27,16 @@ public:
     ~LaunchpadSearchField() override;
 
     void setMetrics(const LaunchpadMetrics &metrics);
-    // Animations play only while the launchpad is up, so the first layout
-    // and a reset while hidden do not animate.
     void setAnimated(bool animated) { m_animated = animated; }
 
     const std::string &text() const;
     void setText(std::string text);
     bool hasFieldFocus() const;
     void focusField();
-    // Takes the placeholder's text again after the session language changed.
     void retranslate();
 
-    // The text changed, from the user, an input method or setText().
     std::function<void()> onTextChanged;
-    // Escape, Up, Down, Return and Enter in the field; true when taken.
+    // True when taken.
     std::function<bool(uint32_t key)> onKey;
 
 protected:

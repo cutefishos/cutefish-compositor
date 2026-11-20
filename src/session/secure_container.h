@@ -37,16 +37,12 @@ struct SecureOutput {
     friend bool operator==(const SecureOutput &, const SecureOutput &) = default;
 };
 
-// How far the lock screen has come in, as one frame draws it: the blurred
-// wallpaper over the desktop, and the panel above it.
 struct CoverSample {
     float backdrop = 1;
     float panelOpacity = 1;
     double panelScale = 1;
 };
 
-// The lock raises to the screen and lifts off it as ash's lock_state_controller.cc
-// does, but in one step, and only the panel scales: the wallpaper would show its edges.
 class SecureContainer
 {
 public:
@@ -66,54 +62,43 @@ public:
 
     void setBlocked(bool blocked);
 
-    // Brings the lock screen in (covered) or takes it away. Without `animate`
-    // it is there at once, as at the login screen.
+    // Without `animate` it is there at once.
     void setCovered(bool covered, bool animate);
 
-    // Ends a transition where it is headed, for a lock taken as the displays go
-    // dark: they must wake to the lock screen, not to the rest of its fade.
+    // For a lock taken as the displays go dark: they must wake to the lock screen.
     void finishTransition();
 
-    // The transition as a frame drawn at `frameTime` shows it, in frame-clock
-    // milliseconds. The first frame drawn starts it.
+    // In frame-clock milliseconds. The first frame drawn starts it.
     CoverSample sample(double frameTime, double framePeriod) const;
     CoverSample sample(const render::Renderer &renderer) const;
 
-    // Whether a frame drawn at `frameTime` shows the transition over. A lock is
-    // not in place until such a frame is on screen.
+    // A lock is not in place until such a frame is on screen.
     bool isSettled(double frameTime) const;
 
-    // Asks every node the transition moves for another frame.
     void requestAnimationFrame() const;
 
     void setOutputs(const std::vector<SecureOutput> &outputs);
 
     const std::vector<SecureOutput> &outputs() const { return m_outputs; }
 
-    // Every output has its shield, and every shield's wallpaper has finished
-    // loading, whether or not it could be read.
+    // Including wallpapers that could not be read.
     bool isWallpaperReady() const;
 
-    // The picture the output named shows on top, at its device size; null
-    // while none has loaded.
+    // At its device size; null while none has loaded.
     ui::Bitmap wallpaperImage(const std::string &output) const;
-    // A wallpaper finished loading, possibly before its node is in place.
+    // Possibly before its node is in place.
     base::Signal<> wallpaperLoaded;
 
-    // Decodes the picture covering `deviceSize`, centre-cropped; `done` runs
-    // while the returned handle is kept. The session's desktop shares its
-    // decode this way; unset, the lock screen decodes on its own.
+    // `done` runs while the returned handle is kept; unset, the lock screen decodes on
+    // its own.
     using PictureLoader = std::function<std::shared_ptr<void>(
             const std::string &path, const base::Size &deviceSize, std::function<void(const ui::Bitmap &)> done)>;
     void setPictureLoader(PictureLoader loader) { m_pictureLoader = std::move(loader); }
     const PictureLoader &pictureLoader() const { return m_pictureLoader; }
-    // The wallpaper file shown, empty for the plain colour.
+    // Empty for the plain colour.
     const std::string &picture() const { return m_picture; }
 
-    // The file with services.conf's [Appearance] keys the wallpaper is read
-    // from: the user's services.conf, or at the login screen the copy
-    // cutefish-dm keeps for the account picked. With `crossfade` the new
-    // wallpaper fades in over the one shown.
+    // At the login screen, the copy cutefish-dm keeps for the account picked.
     void setSettingsFile(const std::string &path, bool crossfade);
     const std::string &settingsFile() const { return m_settingsFile; }
 

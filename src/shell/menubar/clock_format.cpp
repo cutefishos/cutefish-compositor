@@ -49,7 +49,6 @@ static std::string localeFormatField(char32_t letter, int count)
     case 'a':
     case 'b':
     case 'B':
-        // The locale's own case: "PM" in en_US, "pm" in en_GB.
         return "Ap";
     default:
         return {};

@@ -169,13 +169,11 @@ TEST_F(SurfaceBlurProtocolTest, ShapeIsPendingStateClippedToTheRectangle)
     ASSERT_FALSE(shape.isEmpty());
     EXPECT_TRUE(shape.contains(ui::PointF {90, 10}));
     EXPECT_FALSE(shape.contains(ui::PointF {98, 55}));
-    // The part below the rectangle is cut off.
     EXPECT_LE(shape.boundingRect().bottom(), 60.0001);
 
     cutefish_surface_blur_v1_set_glass(blur, surface);
     wl_surface_commit(surface);
     ASSERT_GE(roundtrip(), 0);
-    // Glass masks its lens by the shape without clipping it to the rectangle.
     EXPECT_FALSE(model->backgroundBlurShape().isEmpty());
     cutefish_surface_blur_v1_unset_glass(blur, surface);
     cutefish_surface_blur_v1_unset_shape(blur, surface);
@@ -186,8 +184,6 @@ TEST_F(SurfaceBlurProtocolTest, ShapeIsPendingStateClippedToTheRectangle)
     ASSERT_GE(roundtrip(), 0);
 }
 
-// The element rules the shape has always had: it starts at the origin, a
-// move replaces a move, and closing an empty shape does nothing.
 TEST_F(SurfaceBlurProtocolTest, ShapeKeepsItsElementRules)
 {
     auto *surface = wl_compositor_create_surface(clientCompositor);
@@ -221,7 +217,6 @@ TEST_F(SurfaceBlurProtocolTest, ShapeKeepsItsElementRules)
                      wl_fixed_from_int(1), CUTEFISH_SURFACE_BLUR_V1_PATH_COMMAND_CLOSE});
     EXPECT_TRUE(shape.isEmpty());
 
-    // An empty segment is dropped, so the shape stays a lone move.
     shape = shapeOf({CUTEFISH_SURFACE_BLUR_V1_PATH_COMMAND_MOVE_TO, wl_fixed_from_int(1),
                      wl_fixed_from_int(1), CUTEFISH_SURFACE_BLUR_V1_PATH_COMMAND_LINE_TO,
                      wl_fixed_from_int(1), wl_fixed_from_int(1)});
@@ -235,7 +230,6 @@ TEST_F(SurfaceBlurProtocolTest, SaturationAndRimArePendingMaterialState)
     auto *surface = wl_compositor_create_surface(clientCompositor);
     cutefish_surface_blur_v1_set(blur, surface, 0, 0, 100, 60, 8);
     cutefish_surface_blur_v1_set_glass_saturation(blur, surface, wl_fixed_from_double(1.5));
-    // Past full intensity is clamped rather than refused.
     cutefish_surface_blur_v1_set_glass_rim(blur, surface, wl_fixed_from_int(3));
     cutefish_surface_blur_v1_set_glass(blur, surface);
     ASSERT_GE(roundtrip(), 0);
@@ -265,7 +259,6 @@ TEST_F(SurfaceBlurProtocolTest, MalformedShapePostsProtocolError)
     auto *surface = wl_compositor_create_surface(clientCompositor);
     wl_array path;
     wl_array_init(&path);
-    // Cut short: a line needs two coordinates.
     append(&path,
            {CUTEFISH_SURFACE_BLUR_V1_PATH_COMMAND_MOVE_TO, 0, 0,
             CUTEFISH_SURFACE_BLUR_V1_PATH_COMMAND_LINE_TO, 0});

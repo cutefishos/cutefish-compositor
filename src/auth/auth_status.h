@@ -23,13 +23,9 @@ class WirelessStatus;
 
 namespace cutefish::auth {
 
-// The menu bar's Wi-Fi and battery icons for the screen's top-right corner
-// at the login and lock screen, with the percentage always shown. They only
-// show: nothing passes input to them.
 class AuthStatus final : public ui::View, public shell::BarContext
 {
 public:
-    // The menu bar's height.
     static constexpr double kHeight = 32;
 
     // At the login screen there is no session bus: the battery comes from
@@ -40,8 +36,7 @@ public:
     void setLightContents(bool light);
     bool lightContents() const override { return m_lightContents; }
 
-    // The icons' width, the last one reaching as near the edge as the
-    // menu bar's last item does; 0 when neither shows.
+    // 0 when neither shows.
     double preferredWidth() const;
 
     shell::StatusIcon *networkIcon() const { return m_network; }
@@ -53,7 +48,7 @@ protected:
 private:
     void updateBattery();
     void updateNetwork();
-    // The icons that show, right to left.
+    // Right to left.
     std::vector<shell::StatusIcon *> shownIcons() const;
 
     std::unique_ptr<shell::Battery> m_batteryStatus;

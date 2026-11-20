@@ -2,9 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// The overview through the real GL renderer: a window is drawn from its own
-// texture at its place, over the dimmed desktop, and at rest where it was.
-
 #include <GLES3/gl3.h>
 #include <gtest/gtest.h>
 
@@ -110,11 +107,9 @@ TEST_F(OverviewPixels, TheWindowIsAtItsPlaceOverTheDimmedDesktop)
     node->jumpTo(1);
     const ui::Bitmap image = paint();
     ASSERT_FALSE(image.isNull());
-    // Its place, edge to edge.
     EXPECT_EQ(test::kRed, test::pixelAt(image, pixel(20, 8)));
     EXPECT_EQ(test::kRed, image.pixel(32, 8));
     EXPECT_EQ(test::kRed, image.pixel(47, 23));
-    // Where it was, and around its place, the desktop dimmed.
     const uint32_t dimmed = test::pixelAt(image, pixel(4, 4));
     EXPECT_EQ(0, test::red(dimmed));
     EXPECT_NEAR(255 * (1 - scene::OverviewNode::kDimOpacity), test::blue(dimmed), 2);
@@ -127,7 +122,6 @@ TEST_F(OverviewPixels, TheWindowIsAtItsPlaceOverTheDimmedDesktop)
 TEST_F(OverviewPixels, HalfwayTheWindowIsHalfwayThere)
 {
     node->animateTo(1);
-    // Halfway along the tween, whenever that is.
     while (node->progress(double(now)) < 0.5)
         ++now;
     const double progress = node->progress(double(now));
@@ -139,7 +133,6 @@ TEST_F(OverviewPixels, HalfwayTheWindowIsHalfwayThere)
 
 TEST_F(OverviewPixels, AnOpaqueRegionOverAnAlphaBufferReplacesTheLastFrame)
 {
-    // Translucent texels under the opaque region would blend over the frame before.
     auto *surface = static_cast<scene::SurfaceNode *>(
             container->addChild(std::make_unique<scene::SurfaceNode>()));
     container->reorderChildren({surface, desktop, window, node});
@@ -164,7 +157,6 @@ TEST_F(OverviewPixels, AnOpaqueRegionOverAnAlphaBufferReplacesTheLastFrame)
 
 TEST_F(OverviewPixels, ADesktopDrawnThroughItsSnapshotReplacesTheLastFrame)
 {
-    // As live: the desktop surface sits in a window drawn from a snapshot texture.
     auto *desk = static_cast<scene::WindowAnimation *>(
             container->addChild(std::make_unique<scene::WindowAnimation>([this] {
                 return double(now);
@@ -192,7 +184,6 @@ TEST_F(OverviewPixels, ADesktopDrawnThroughItsSnapshotReplacesTheLastFrame)
 
 TEST_F(OverviewPixels, AnOpaqueDesktopDarkenedInPlaceStaysOpaque)
 {
-    // A blur over a pixel left below alpha 1 lets the sharp backdrop through.
     auto *surface = static_cast<scene::SurfaceNode *>(
             container->addChild(std::make_unique<scene::SurfaceNode>()));
     container->reorderChildren({surface, desktop, window, node});

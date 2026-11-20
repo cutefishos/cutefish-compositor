@@ -30,7 +30,6 @@ float glassFixed(double value)
     return float(std::round(value * 256.0) / 256.0);
 }
 
-// A colour component rounded to 16 bits, then back to a double.
 static double colorComponent(double value)
 {
     return std::round(value * 65535.0) / 65535.0;

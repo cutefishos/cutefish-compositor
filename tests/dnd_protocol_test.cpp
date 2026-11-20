@@ -285,7 +285,6 @@ TEST(DndProtocol, ModifiersPickAmongTheDestinationsActionsUnderBothConventions)
         h.sync(a);
         EXPECT_EQ(1u, a.sourceAction);
 
-        // A key for an action the destination does not take leaves its own.
         accept(h, b, 2, 2);
         EXPECT_EQ(2u, b.dragAction);
         h.seat.onKey({}, copyKey, false);
@@ -583,10 +582,8 @@ TEST(DndProtocol, ATouchDragFollowsTheFingerAndDropsWhereItIsLifted)
     h.sync(a);
     ASSERT_TRUE(h.seat.drag()->active());
     EXPECT_EQ(std::optional<int32_t>(1), h.seat.drag()->touchId());
-    // The drag has the point now; the client that started it is told so.
     EXPECT_EQ(1u, a.touchCancels);
 
-    // The pointer does not move a drag that follows a finger.
     h.seat.onPointerMotion({}, {160, 10});
     h.sync(b);
     EXPECT_EQ(nullptr, b.dragOffer);
@@ -628,7 +625,6 @@ TEST(DndProtocol, ALiftedFingerCannotStartADrag)
     EXPECT_EQ(1u, a.cancelled);
 }
 
-// Exo's DataDeviceManagerTest.StartDragInvalidIcon.
 TEST(DndProtocol, AnIconThatAlreadyHasARoleIsAProtocolError)
 {
     Harness h;
@@ -660,8 +656,6 @@ TEST(DndProtocol, AnIconThatAlreadyHasARoleIsAProtocolError)
     wl_surface_destroy(icon);
 }
 
-// Exo's DataDeviceManagerTest.StartDragOriginNoRootWindow: an origin that was
-// never mapped cancels the source instead of starting a drag.
 TEST(DndProtocol, AnUnmappedOriginCancelsTheDrag)
 {
     Harness h;
@@ -679,7 +673,6 @@ TEST(DndProtocol, AnUnmappedOriginCancelsTheDrag)
     EXPECT_EQ(1u, a.cancelled);
     EXPECT_FALSE(h.seat.cursorOverride());
 
-    // The source is spent, but the press can still start a drag from the window.
     source = a.source({{"text/plain", "window"}});
     wl_data_device_start_drag(a.devices.front(), source, a.surface, nullptr, a.buttonSerial);
     h.sync(a);
@@ -692,8 +685,6 @@ TEST(DndProtocol, AnUnmappedOriginCancelsTheDrag)
     wl_surface_destroy(origin);
 }
 
-// Exo's DataDeviceTest.DataOfferNotFinished: a destination that drops its
-// offer after the drop without finishing it cancels the source.
 TEST(DndProtocol, AnOfferDestroyedAfterTheDropWithoutFinishCancelsTheSource)
 {
     Harness h;
@@ -719,8 +710,6 @@ TEST(DndProtocol, AnOfferDestroyedAfterTheDropWithoutFinishCancelsTheSource)
     EXPECT_FALSE(h.seat.cursorOverride());
 }
 
-// The source owner quitting after the drop does not make the target's finish
-// untimely.
 TEST(DndProtocol, FinishingAfterTheSourceWentAwayIsNoError)
 {
     Harness h;
@@ -746,8 +735,6 @@ TEST(DndProtocol, FinishingAfterTheSourceWentAwayIsNoError)
     EXPECT_EQ(0, wl_display_get_error(b.display));
 }
 
-// A destination in the compositor, such as a shell window that needs no data,
-// finishes as the drop reaches it; the source still hears the drop first.
 TEST(DndProtocol, ADestinationFinishingAsTheDropArrivesLetsTheSourceHearTheDropFirst)
 {
     Harness h;
@@ -770,10 +757,6 @@ TEST(DndProtocol, ADestinationFinishingAsTheDropArrivesLetsTheSourceHearTheDropF
     EXPECT_FALSE(h.seat.drag()->active());
 }
 
-// Exo's PointerTest.DragDropAndPointerEnterLeaveEvents: the origin loses
-// pointer focus once when the drag starts and sees no pointer input while it
-// runs. Exo re-enters on the next motion after Ash's nested drag loop; here the
-// drop hands the pointer back at once, without the release that ended the drag.
 TEST(DndProtocol, PointerFocusLeavesForTheDragAndReturnsAfterTheDrop)
 {
     Harness h;

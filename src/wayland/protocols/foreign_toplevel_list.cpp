@@ -26,7 +26,6 @@ struct ForeignToplevelList::Entry {
     wm::Window *window = nullptr;
     std::string identifier;
     std::shared_ptr<compositor::CaptureSource> source;
-    // The window with its shadow, for the screenshot interface.
     std::shared_ptr<compositor::CaptureSource> shadowed;
     // Announced to the list's clients; a shell window only has its sources.
     bool listed = false;

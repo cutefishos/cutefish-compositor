@@ -4,9 +4,6 @@
 //
 // Upstream: chromium/src/components/exo/wayland/server_util.h
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: integrates the upstream behavior with native
-// compositor types and ownership.
 
 #ifndef CUTEFISH_WAYLAND_SERVER_UTIL_H_
 #define CUTEFISH_WAYLAND_SERVER_UTIL_H_
@@ -25,10 +22,7 @@ class Surface;
 
 namespace cutefish::wayland {
 
-// Exo keeps this association in an aura window property; a side table serves
-// the same purpose here. The protocol layer registers a surface when its
-// wl_surface is created and clears it when the resource dies, so the input
-// delegates can answer "which client owns this surface".
+// Registered when the wl_surface is created and cleared when the resource dies.
 compositor::Surface* surfaceFromResource(wl_resource* resource);
 wl_resource* getSurfaceResource(compositor::Surface* surface);
 void setSurfaceResource(compositor::Surface* surface, wl_resource* resource);
@@ -63,26 +57,19 @@ void setImplementation(wl_resource* resource, const void* implementation,
 
 void setImplementation(wl_resource* resource, const void* implementation);
 
-// Convert a steady-clock time point to a time value that can be used when
-// interfacing with wayland. Note that the value is truncated to uint32_t,
-// which can potentially overflow.
+// Truncated to uint32_t, so it wraps.
 uint32_t timePointToMilliseconds(std::chrono::steady_clock::time_point tp);
 uint32_t nowInMilliseconds();
 
-// Returns whether a client has initiated destruction. After destruction begins
-// resources associated with the client start to be freed and there is a risk of
-// UAFs in querying for client resources (see crbug.com/1433187).
+// Client resources start to be freed once destruction begins, so they must not be queried after.
 bool isClientDestroyed(wl_client* client);
 
-// Server::clientScale for the client's display: 1 for every client but Xwayland.
+// 1 for every client but Xwayland.
 double clientScale(wl_client* client);
-// Server::cursorScale for the client's display.
 double cursorScale(wl_client* client);
 
-// A request's x, y, width and height as a rectangle. Exo saturates them
-// (SkIRect::MakeXYWH, gfx::Rect); here every edge stays within 2^24 of zero,
-// past any surface a client can attach, so no sum the compositor makes of them
-// overflows. A negative size is empty.
+// Every edge stays within 2^24 of zero, so no sum the compositor makes of them overflows. A negative
+// size is empty.
 base::Rect clientRect(int32_t x, int32_t y, int32_t width, int32_t height);
 
 // Surface coordinates from a scaled client, in logical units. Rectangles grow

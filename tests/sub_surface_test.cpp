@@ -5,9 +5,6 @@
 // Upstream: chromium/src/components/exo/sub_surface_unittest.cc (SetPosition
 //           PlaceAbove, PlaceBelow, SetCommitBehavior), surface_unittest.cc
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: exercises the corresponding behavior with native
-// compositor test doubles and APIs.
 
 #include <gtest/gtest.h>
 
@@ -109,8 +106,6 @@ TEST_F(SubSurfaceTest, DesynchronizedGrowthReachesTheParentHitRegion)
     sub->setPosition({8, 8});
     parent->commit();
     ASSERT_FALSE(parent->hitTestRegion().contains(base::Point(30, 30)));
-    // The parent's region gates hit testing of its children. Exo recommits
-    // the tree from the root after a desynchronized commit, so it grows too.
     child->attach(b, {});
     child->commit();
     EXPECT_TRUE(parent->hitTestRegion().contains(base::Point(30, 30)));
@@ -128,7 +123,6 @@ TEST_F(SubSurfaceTest, InheritedSynchronizationAndSyncToDesync)
     EXPECT_FALSE(grandchild->hasContents());
     grand->setCommitBehavior(false);
     EXPECT_FALSE(grandchild->hasContents());
-    // Removing the final synchronizing ancestor applies the existing caches.
     sub->setCommitBehavior(false);
     EXPECT_FALSE(grandchild->isSynchronized());
     EXPECT_EQ(b, grandchild->buffer());
@@ -367,7 +361,6 @@ TEST_F(SubSurfaceTest, OtherSurfaceUploadCannotReleaseCachedStorage)
     child->attach(a, {});
     child->commit();
     parent->attach(a, {});
-    // Use an unrelated root so the cached child is not applied yet.
     auto root = compositor.createSurface();
     root->attach(a, {});
     root->commit();
@@ -427,11 +420,9 @@ TEST_F(SubSurfaceTest, AttachOffsetDesynchronizedSubsurface)
     EXPECT_EQ(base::Point(), child->offset());
 
     child->attach(a, {1, 2});
-    // The parent's commit does not apply a desynchronized child's pending state.
     parent->commit();
     EXPECT_EQ(base::Point(), child->offset());
 
-    // An uncommitted attachment is replaced, offset included.
     child->attach(a, {10, 20});
     child->commit();
     EXPECT_EQ(base::Point(10, 20), child->offset());

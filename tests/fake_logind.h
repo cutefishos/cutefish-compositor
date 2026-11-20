@@ -17,9 +17,6 @@
 
 namespace cutefish::test {
 
-// logind's manager on a connection of its own, as much of it as the session
-// uses: Inhibit hands out the write end of a pipe, and the read end tells
-// whether anyone still holds it. The caller's session records its LockedHint.
 class FakeLogind
 {
 public:
@@ -59,7 +56,6 @@ public:
 
     bool isValid() const { return m_valid; }
 
-    // Whether the descriptor handed out last is still open anywhere.
     bool held() const
     {
         if (readEnds.empty())

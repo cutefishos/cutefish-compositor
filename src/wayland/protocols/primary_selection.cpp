@@ -2,7 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Uses the existing Cutefish selection model and primary-selection-unstable-v1.
 #include "primary_selection.h"
 
 #include "clipboard/selection.h"

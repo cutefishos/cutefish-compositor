@@ -21,14 +21,9 @@ class CaptureToolbar;
 class ScreenCapture;
 class ShellWindow;
 
-// The capture interface on one output: a Capture window over the whole output,
-// never in what is captured, with the dim around the selection, its frame and
-// handles, the window a click would take, the crosshair's selection and its
-// size, the countdown, and on the toolbar's output the toolbar.
 class CaptureOverlay
 {
 public:
-    // What the pointer is drawn as.
     enum class Shape {
         Arrow,
         Crosshair,
@@ -50,23 +45,20 @@ public:
     base::Rect bounds() const { return m_output.bounds; }
     void setOutput(const Shell::Output &output);
 
-    // Shown over the output; `focus` takes the keyboard too.
+    // `focus` takes the keyboard too.
     void present(bool focus);
     void dismiss();
     // While the timer counts down, input goes to what is under it.
     void setPassThrough(bool passThrough);
-    // Takes the keyboard back, as after the Options menu.
     void activate();
-    // The capture's state changed.
     void update();
 
     ShellWindow *window() const { return m_window.get(); }
     CaptureToolbar *toolbar() const;
     Shape shape() const { return m_shape; }
-    // The toolbar's rect in the overlay's coordinates, empty while it is not
-    // shown here.
+    // In the overlay's coordinates; empty while the toolbar is not shown here.
     ui::RectF toolbarRect() const;
-    // The crosshair's position or size by the pointer; empty while hidden.
+    // Empty while hidden.
     std::string coordinates() const;
 
 private:

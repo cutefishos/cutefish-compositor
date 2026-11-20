@@ -14,7 +14,6 @@
 
 namespace cutefish::shell {
 
-// The black over a picture.
 static constexpr double kDimmer = 0.4;
 
 struct LaunchpadWallpaper::Result {
@@ -74,7 +73,6 @@ void LaunchpadWallpaper::blur(ui::Bitmap &image)
     }
 }
 
-// Ink::averageColor: premultiplied sums over the alpha sum.
 static std::optional<ui::Color> averageColor(const ui::Bitmap &image)
 {
     int64_t red = 0, green = 0, blue = 0, alpha = 0;
@@ -156,8 +154,6 @@ void LaunchpadWallpaper::refresh()
         return;
     }
 
-    // The desktop's decode at this size, shared and usually in memory: the
-    // launchpad covers the same output.
     const std::string key = background.path + '\n' + std::to_string(m_size.width()) + 'x'
             + std::to_string(m_size.height());
     if (key == m_key || key == m_pendingKey)
@@ -209,7 +205,6 @@ LaunchpadWallpaper::Result *LaunchpadWallpaper::shrink(const ui::Bitmap &decode,
     auto *result = new Result;
     if (decode.isNull())
         return result;
-    // Scaled to cover, centre-cropped, blurred.
     const base::Size covering = ui::scaledSize(decode.size(), target, ui::Bitmap::Scaling::Cover);
     ui::Bitmap image = decode.scaled(base::Size(std::max(covering.width(), target.width()),
                                                 std::max(covering.height(), target.height())));

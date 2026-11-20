@@ -4,13 +4,6 @@
 //
 // Upstream: chromium/src/components/exo/wayland/wayland_positioner_unittest.cc
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: exercises the corresponding behavior with native
-// compositor test doubles and APIs.
-//
-// Ported in full. Exo's SetFlipState is a no-op upstream, so the builder does
-// not carry it; PropagatesAnInitialFlip is kept because it still pins the
-// behaviour that case describes.
 
 #include <gtest/gtest.h>
 #include <xdg-shell-server-protocol.h>
@@ -75,16 +68,13 @@ struct TestCaseBuilder {
 
 TEST(WaylandPositionerTest, UnconstrainedCases)
 {
-    // No gravity or anchor.
     EXPECT_EQ(TestCaseBuilder().setSize(1, 1).solveToRect(), Rect(2, 2, 1, 1));
 
-    // Anchor without gravity.
     EXPECT_EQ(TestCaseBuilder().setSize(2, 1).setAnchor(XDG_POSITIONER_ANCHOR_RIGHT).solveToRect(),
               Rect(2, 2, 2, 1));
     EXPECT_EQ(TestCaseBuilder().setSize(2, 1).setAnchor(XDG_POSITIONER_ANCHOR_LEFT).solveToRect(),
               Rect(1, 2, 2, 1));
 
-    // Gravity without anchor.
     EXPECT_EQ(TestCaseBuilder()
                   .setSize(1, 2)
                   .setAnchorRect(2, 2, 0, 0)
@@ -98,7 +88,6 @@ TEST(WaylandPositionerTest, UnconstrainedCases)
                   .solveToRect(),
               Rect(2, 2, 1, 2));
 
-    // Gravity and anchor in the same direction.
     EXPECT_EQ(TestCaseBuilder()
                   .setSize(2, 2)
                   .setGravity(XDG_POSITIONER_GRAVITY_BOTTOM_LEFT)
@@ -106,7 +95,6 @@ TEST(WaylandPositionerTest, UnconstrainedCases)
                   .solveToRect(),
               Rect(0, 3, 2, 2));
 
-    // Gravity and anchor in opposing directions.
     EXPECT_EQ(TestCaseBuilder()
                   .setSize(2, 2)
                   .setGravity(XDG_POSITIONER_GRAVITY_BOTTOM_LEFT)
@@ -122,16 +110,12 @@ TEST(WaylandPositionerTest, FlipSlideResizePriority)
         .setSize(2, 2)
         .setGravity(XDG_POSITIONER_GRAVITY_BOTTOM_RIGHT)
         .setAnchor(XDG_POSITIONER_ANCHOR_BOTTOM_RIGHT);
-    // Flip is enabled, so the result is at 2,2: a 2-wide square flipped around
-    // 4,4.
     EXPECT_EQ(builder.setAdjustment(~XDG_POSITIONER_CONSTRAINT_ADJUSTMENT_NONE).solveToRect(),
               Rect(2, 2, 2, 2));
-    // Without a flip on an axis, that axis slides to 3 instead.
     EXPECT_EQ(builder.setAdjustment(~XDG_POSITIONER_CONSTRAINT_ADJUSTMENT_FLIP_X).solveToRect(),
               Rect(3, 2, 2, 2));
     EXPECT_EQ(builder.setAdjustment(~XDG_POSITIONER_CONSTRAINT_ADJUSTMENT_FLIP_Y).solveToRect(),
               Rect(2, 3, 2, 2));
-    // With neither flip nor slide, it resizes.
     EXPECT_EQ(builder
                   .setAdjustment(XDG_POSITIONER_CONSTRAINT_ADJUSTMENT_RESIZE_X
                                  | XDG_POSITIONER_CONSTRAINT_ADJUSTMENT_RESIZE_Y)
@@ -141,7 +125,6 @@ TEST(WaylandPositionerTest, FlipSlideResizePriority)
 
 TEST(WaylandPositionerTest, TriesToMaximizeArea)
 {
-    // The size is too large to fit where the anchor is.
     const WaylandPositioner::Result result =
         TestCaseBuilder()
             .setAnchorRect(2, 4, 0, 0)
@@ -150,9 +133,7 @@ TEST(WaylandPositionerTest, TriesToMaximizeArea)
             .setAnchor(XDG_POSITIONER_ANCHOR_BOTTOM_RIGHT)
             .setAdjustment(~XDG_POSITIONER_CONSTRAINT_ADJUSTMENT_NONE)
             .solve();
-    // x can slide to 1, but y must resize after sliding to 0.
     EXPECT_EQ(result.origin, Point(1, 0));
-    // The x size is preserved; y shrinks to the work area.
     EXPECT_EQ(result.size, Size(4, 5));
 }
 
@@ -170,8 +151,6 @@ TEST(WaylandPositionerTest, PropagatesAnInitialFlip)
     EXPECT_EQ(result.size, Size(2, 2));
 }
 
-// The common dropdown-menu case: a popup is not allowed to slide if that would
-// occlude the anchor rect. Here x does slide, but y resizes instead.
 TEST(WaylandPositionerTest, PreventsSlidingThatOccludesAnchorRect)
 {
     EXPECT_EQ(TestCaseBuilder()
@@ -182,7 +161,6 @@ TEST(WaylandPositionerTest, PreventsSlidingThatOccludesAnchorRect)
                   .solveToRect(),
               Rect(2, 3, 3, 2));
 
-    // The 4x4 popup may slide, because the anchor rect is occluded already.
     EXPECT_EQ(TestCaseBuilder()
                   .setSize(4, 4)
                   .setGravity(XDG_POSITIONER_GRAVITY_BOTTOM_RIGHT)
@@ -192,23 +170,18 @@ TEST(WaylandPositionerTest, PreventsSlidingThatOccludesAnchorRect)
               Rect(1, 1, 4, 4));
 }
 
-// Sliding that occludes the anchor is allowed when nothing else leaves the
-// popup unconstrained.
 TEST(WaylandPositionerTest, AllowsSlidingThatOccludesWhenThereAreNoOtherOptions)
 {
     EXPECT_EQ(TestCaseBuilder()
                   .setSize(4, 4)
                   .setGravity(XDG_POSITIONER_GRAVITY_BOTTOM_RIGHT)
                   .setAnchor(XDG_POSITIONER_ANCHOR_BOTTOM_LEFT)
-                  // Disable resizing on both axes, which forces a slide.
                   .setAdjustment(~(XDG_POSITIONER_CONSTRAINT_ADJUSTMENT_RESIZE_X
                                    | XDG_POSITIONER_CONSTRAINT_ADJUSTMENT_RESIZE_Y))
                   .solveToRect(),
               Rect(1, 1, 4, 4));
 }
 
-// The size must never come out empty, even when the constraints would make it
-// so.
 TEST(WaylandPositionerTest, ResizableShouldNotBeEmpty)
 {
     EXPECT_EQ(TestCaseBuilder()
@@ -236,15 +209,12 @@ TEST(WaylandPositionerTest, AllowsAdditionalAdjustmentsIfNoSolutionCanBeFound)
                   .setSize(10, 10)
                   .setAnchorRect(0, 0, 0, 0)
                   .setGravity(XDG_POSITIONER_GRAVITY_BOTTOM_RIGHT)
-                  // With no solution, resizing is forcibly allowed.
                   .setAdjustment(XDG_POSITIONER_CONSTRAINT_ADJUSTMENT_SLIDE_X
                                  | XDG_POSITIONER_CONSTRAINT_ADJUSTMENT_SLIDE_Y)
                   .solveToRect(),
               Rect(0, 0, 5, 5));
 }
 
-// A work area that does not start at the origin is solved by shifting it, so
-// the whole suite has to hold there too.
 TEST(WaylandPositionerTest, WorkAreaWithANonZeroOrigin)
 {
     EXPECT_EQ(TestCaseBuilder()

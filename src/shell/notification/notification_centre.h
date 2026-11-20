@@ -35,14 +35,6 @@ class NotificationHistory;
 class Shell;
 class ShellWindow;
 
-// The notification centre: the history in a
-// 380 px popup of the menu bar on PanelGlass, from 6 below the work
-// area's top to 6 above its bottom, under the item that opened it or 6 from
-// the output's right edge. Each application's notifications stack behind
-// its newest; a click fans the stack out under a header with "Show Less"
-// and a clear button, or shows a card's whole body. Cards fade out and the
-// gap closes before they leave the history. While it is open, new
-// notifications go to the history instead of banners.
 class NotificationCentre
 {
 public:
@@ -65,33 +57,23 @@ public:
     NotificationCentre(const NotificationCentre &) = delete;
     NotificationCentre &operator=(const NotificationCentre &) = delete;
 
-    // Opens as a popup of `parent`, the menu bar on its output, with its
-    // left edge at `position.x` (global logical: the opening item's left
-    // inset), moved in to 6 px from the
-    // output's right edge where it would not fit.
+    // `position` is in global logical coordinates.
     void open(ShellWindow *parent, const base::Point &position);
     void close();
-    // Opens, or closes when open.
     void toggle(ShellWindow *parent, const base::Point &position);
     bool isOpen() const { return m_open; }
-    // Opened or closed: the menu bar's clock item is checked while open.
     base::Signal<> openChanged;
 
-    // Where it is, global logical, while open.
+    // Global logical, while open.
     base::Rect geometry() const { return m_geometry; }
     ShellWindow *shellWindow() const;
     ClearButton *clearButton() const { return m_clear; }
-    // The rows as the history holds them.
-    // Views of the popup, there once it was first opened.
     const std::vector<Row *> &rows() const { return m_rows; }
     const std::vector<GroupHeader *> &groupHeaders() const { return m_headers; }
-    // Rows that take part, those fading out included.
     int liveCount() const { return m_liveCount; }
     bool isExpanded(const std::string &groupKey) const { return m_expanded.count(groupKey) > 0; }
-    // An expand, collapse or dismissal is playing out.
     bool isInMotion() const { return m_motion; }
 
-    // The layout pass, for tests: rows and headers move to their targets.
     void relayout();
 
 private:
@@ -110,7 +92,6 @@ private:
     void onHidden();
     void retranslate();
 
-    // The model's rows.
     void insertRows(int first, int count);
     void removeRows(int first, int count);
     void moveRow(int from, int to);
@@ -162,8 +143,6 @@ private:
     std::vector<base::Subscription> m_subscriptions;
 };
 
-// One history row. The centre's layout pass sets
-// where it goes and what part it plays in its application's group.
 class NotificationCentre::Row : public ui::View
 {
 public:
@@ -175,15 +154,10 @@ public:
     const std::string &groupKey() const { return m_groupKey; }
     NotificationCard *card() const { return m_card; }
 
-    // Set by the layout pass.
     bool placed = false;
-    // The first row of its application still standing: it carries the stack.
     bool lead = true;
     bool groupExpanded = false;
-    // Rows stacked behind a collapsed lead.
     int stackCount = 0;
-    // Fading out in place; `gone` follows once it has, and only then does
-    // the row give up its space.
     bool dismissing = false;
     bool gone = false;
 
@@ -194,7 +168,6 @@ public:
     double contentHeight() const;
     double targetHeight() const;
     double targetY() const { return m_y.target(); }
-    // As drawn now.
     double contentOpacity() const { return m_opacity.value(); }
     double frameHeight() const { return m_frameHeight.value(); }
     double peekOpacity(int index) const { return m_peeks[index]->value(); }
@@ -202,14 +175,10 @@ public:
     void setDetailed(bool detailed);
     bool isDetailed() const;
     void moveTo(double y, bool animate);
-    // Whether any of the card shows between `top` and `bottom` of the list,
-    // as drawn now or once it is at `y` as its state says.
     bool isSeenWithin(double top, double bottom, double y) const;
-    // Brings what the row shows in line with its state.
     void apply(bool animated);
     void startGoneTimer();
     void disarmUnless(ui::PointF windowPoint);
-    // Puts the row and its content where the tweens are now.
     void place();
 
 private:
@@ -233,8 +202,6 @@ private:
     base::Timer m_goneTimer;
 };
 
-// The title above an expanded application group, with
-// "Show Less" and a clear button; it belongs to the group, not to a row.
 class NotificationCentre::GroupHeader : public ui::View
 {
 public:

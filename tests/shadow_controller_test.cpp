@@ -5,16 +5,6 @@
 // Upstream: chromium/src/ui/wm/core/shadow_controller_unittest.cc
 //           chromium/src/ash/wm/wm_shadow_controller_delegate.cc
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Compositor-owned window shadows, from the window manager's side.
-//
-// Adapted for Cutefish: exercises the corresponding behavior with native
-// compositor test doubles and APIs.
-//
-// The cases upstream has and Cutefish keeps are ShadowBounds, ShadowStyle,
-// ShowState and teardown. The one it cannot have is the CSD pair: ChromeOS
-// windows never draw their own exterior, so nothing upstream has to decide
-// whether the client already owns the space around its window geometry.
 
 #include <gtest/gtest.h>
 #include <memory>
@@ -59,8 +49,6 @@ struct Recorder {
     uint32_t nextSerial = 1;
 };
 
-// A buffer a hardware plane could show. Copied from overlay_candidate_test:
-// the planner only checks that one is there, never what is in it.
 class TestScanoutBuffer final : public render::ScanoutBuffer
 {
 public:
@@ -78,7 +66,6 @@ private:
     render::DmaBufAttributes m_attributes;
 };
 
-// Stands in for real content; the planner only checks that one is there.
 class TestTexture final : public render::Texture
 {
 public:
@@ -135,9 +122,7 @@ protected:
         surface->damage(base::Rect(base::Point(), size));
     }
 
-    // The xdg-shell handshake. `geometry`, when non-null, is committed as the
-    // window geometry before the first buffer, which is how a CSD client
-    // declares that part of its surface is exterior decoration.
+    // `geometry`, when non-null, is committed as the window geometry before the first buffer.
     ShellSurface *makeToplevel(const base::Size &bufferSize, bool serverSide,
                                const base::Rect *geometry = nullptr)
     {
@@ -177,10 +162,6 @@ protected:
     }
 };
 
-////////////////////////////////////////////////////////////////////////////////
-// Which windows get a shadow at all.
-
-// Upstream: ShadowControllerTest.Shadow.
 TEST_F(ShadowControllerTest, ServerSideDecoratedWindowGetsShadow)
 {
     Window *window = makeToplevel({400, 300}, true)->window();
@@ -191,14 +172,11 @@ TEST_F(ShadowControllerTest, ServerSideDecoratedWindowGetsShadow)
     ASSERT_TRUE(shadow);
     EXPECT_EQ(shadow->elevation(), ShadowElevation::Active);
 
-    // The shadow's node is the window's own, not the decoration's, and it is
-    // underneath everything else the window draws.
     ASSERT_TRUE(shadow->node());
     EXPECT_EQ(shadow->node()->parent(), window->node());
     EXPECT_EQ(window->node()->children().front(), shadow->node());
     EXPECT_EQ(shadow->node()->content(), scene::Node::Content::Translucent);
 
-    // It reaches outside the window by the style's exterior margins.
     const base::Insets margins = shadow->node()->margins();
     EXPECT_GT(margins.left(), 0);
     EXPECT_GT(margins.top(), 0);
@@ -223,9 +201,6 @@ TEST_F(ShadowControllerTest, DockShadowFollowsPanelGlass)
     EXPECT_EQ(shadow->elevation(), ShadowElevation::None);
 }
 
-// A magnified dock's glass running past its surface is cut there: its shadow
-// and outline end square at the surface edge, rounded only where the glass
-// ends inside.
 TEST_F(ShadowControllerTest, DockGlassPastTheSurfaceIsCutSquareThere)
 {
     ShellSurface *shell = makeToplevel({800, 86}, false);
@@ -250,14 +225,11 @@ TEST_F(ShadowControllerTest, DockGlassPastTheSurfaceIsCutSquareThere)
     EXPECT_EQ(base::RectF(panel).translated(origin), visual.outlineShape.bounds);
     EXPECT_EQ(base::RectF(0, 0, 800, 86).translated(origin), visual.outlineClip);
 
-    // Inside the surface, nothing is cut.
     shell->rootSurface()->setBackgroundBlur(base::Rect(200, 0, 400, 86), 28);
     shell->rootSurface()->commit();
     EXPECT_TRUE(wm::WindowVisualController::evaluate(*window, decoration::WindowVisualStyle()).outlineClip.isEmpty());
 }
 
-// The largest dock icons make a panel whose corner radius, 28/86 of its
-// thickness, is past the largest shadow corner. It keeps a shadow.
 TEST_F(ShadowControllerTest, TallDockKeepsItsShadow)
 {
     ShellSurface *shell = makeToplevel({1200, 204}, false);
@@ -275,8 +247,6 @@ TEST_F(ShadowControllerTest, TallDockKeepsItsShadow)
     EXPECT_EQ(shadow->node()->geometry(), panel.marginsAdded(shadow->node()->margins()));
 }
 
-// A FishUI window is frameless and declares its whole surface as its window
-// geometry, so there is no exterior area and the compositor owns the shadow.
 TEST_F(ShadowControllerTest, FramelessClientDecoratedWindowGetsShadow)
 {
     const base::Rect geometry(0, 0, 400, 300);
@@ -288,9 +258,6 @@ TEST_F(ShadowControllerTest, FramelessClientDecoratedWindowGetsShadow)
     EXPECT_EQ(elevationOf(window), ShadowElevation::Active);
 }
 
-// A window that draws a shaped body in a transparent surface, a bubble with an
-// arrow, casts its shadow from that outline, and is neither clipped nor
-// outlined as a rounded rectangle.
 TEST_F(ShadowControllerTest, ABodyShapeCastsTheShadowAndKeepsTheWindowAsDrawn)
 {
     Window *window = makeToplevel({200, 160}, false)->window();
@@ -319,8 +286,6 @@ TEST_F(ShadowControllerTest, ABodyShapeCastsTheShadowAndKeepsTheWindowAsDrawn)
     EXPECT_TRUE(static_cast<scene::WindowVisualNode *>(window->visualNode())->state().drawOutline);
 }
 
-// A client that draws its own shadow inside a transparent surface asks for
-// none: with its body shape the window shows exactly as drawn.
 TEST_F(ShadowControllerTest, AClientCanDeclineTheShadow)
 {
     Window *window = makeToplevel({200, 160}, false)->window();
@@ -342,8 +307,6 @@ TEST_F(ShadowControllerTest, AClientCanDeclineTheShadow)
     EXPECT_EQ(elevationOf(window), ShadowElevation::Active);
 }
 
-// A client that never sets a window geometry is the same case: its buffer is
-// its window.
 TEST_F(ShadowControllerTest, ClientWithoutWindowGeometryGetsShadow)
 {
     Window *window = makeToplevel({400, 300}, false)->window();
@@ -367,7 +330,6 @@ TEST_F(ShadowControllerTest, ExteriorClientDecorationGetsCompositorShadowAroundB
     EXPECT_EQ(shadowOf(window)->node()->geometry(),
               base::Rect(0, 0, 400, 300).marginsAdded(shadowOf(window)->node()->margins()));
 
-    // The same window after it stops drawing its own exterior.
     const base::Rect full(0, 0, 460, 350);
     shell->setGeometry(full);
     shell->rootSurface()->commit();
@@ -375,8 +337,6 @@ TEST_F(ShadowControllerTest, ExteriorClientDecorationGetsCompositorShadowAroundB
     EXPECT_EQ(elevationOf(window), ShadowElevation::Active);
 }
 
-// A menu that paints its own shadow may declare its whole surface as window
-// geometry and only keep the shadow band out of its input region.
 TEST_F(ShadowControllerTest, PopupWithInputMarginDrawsItsOwnShadow)
 {
     ShellSurface *parent = makeToplevel({400, 300}, false);
@@ -398,16 +358,12 @@ TEST_F(ShadowControllerTest, PopupWithInputMarginDrawsItsOwnShadow)
     EXPECT_EQ(window->clientInputInsets(), (Insets {4, 4, 4, 4}));
     EXPECT_EQ(elevationOf(window), ShadowElevation::None);
 
-    // An input region flush with any edge is not a surrounding band.
     popup->rootSurface()->setInputRegion(base::Region(base::Rect(0, 4, 116, 82)));
     popup->rootSurface()->commit();
     EXPECT_FALSE(window->hasClientInputMargin());
     EXPECT_EQ(elevationOf(window), ShadowElevation::MenuOrTooltip);
 }
 
-// A popup that describes no body may paint a rounded card and its shadow
-// inside a transparent margin while declaring neither window geometry nor an
-// input band; a shadow around its surface would frame that margin.
 TEST_F(ShadowControllerTest, PopupWithoutABodyCastsNoShadow)
 {
     ShellSurface *parent = makeToplevel({400, 300}, false);
@@ -426,8 +382,6 @@ TEST_F(ShadowControllerTest, PopupWithoutABodyCastsNoShadow)
     EXPECT_EQ(elevationOf(window), ShadowElevation::MenuOrTooltip);
 }
 
-// When the compositor drew the frame it owns the space around it, whatever the
-// client's window geometry still says about its own exterior.
 TEST_F(ShadowControllerTest, ServerSideDecorationOverridesClientExterior)
 {
     const base::Rect geometry(30, 20, 400, 300);
@@ -437,7 +391,6 @@ TEST_F(ShadowControllerTest, ServerSideDecorationOverridesClientExterior)
     EXPECT_EQ(elevationOf(window), ShadowElevation::Active);
 }
 
-// Both compositor-owned modes use the same complete rounded silhouette.
 TEST_F(ShadowControllerTest, SilhouetteMatchesBothCompositorOwnedModes)
 {
     Window *decorated = makeToplevel({400, 300}, true)->window();
@@ -455,23 +408,15 @@ TEST_F(ShadowControllerTest, SilhouetteMatchesBothCompositorOwnedModes)
     EXPECT_TRUE(csd.bottomLeft);
     EXPECT_TRUE(csd.bottomRight);
 
-    // Both are cut with the window radius the whole desktop shares. Cutting a
-    // frameless window with anything smaller than the radius its own toolkit
-    // rounds by leaves an unshadowed sliver outside its arc.
     EXPECT_EQ(shadowOf(frameless)->node()->radius(), theme.metrics().cornerRadius);
     EXPECT_EQ(shadowOf(decorated)->node()->radius(), theme.metrics().cornerRadius);
 
-    // And it follows the frame appearing and disappearing later on.
     frameless->setDecorated(true);
     EXPECT_TRUE(shadowOf(frameless)->node()->corners().bottomLeft);
     frameless->setDecorated(false);
     EXPECT_TRUE(shadowOf(frameless)->node()->corners().bottomLeft);
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// Elevation.
-
-// Upstream: ShadowControllerTest.ShadowStyle.
 TEST_F(ShadowControllerTest, ActivationChangesElevation)
 {
     Window *first = makeToplevel({400, 300}, true)->window();
@@ -485,13 +430,9 @@ TEST_F(ShadowControllerTest, ActivationChangesElevation)
     EXPECT_EQ(elevationOf(first), ShadowElevation::Inactive);
     EXPECT_EQ(elevationOf(second), ShadowElevation::Active);
 
-    // Both elevations keep the same exterior margins, so activation never
-    // moves the window's scene bounds.
     EXPECT_EQ(shadowOf(first)->node()->margins(), shadowOf(second)->node()->margins());
 }
 
-// A window being moved reads as lifted, so it keeps the active elevation even
-// while something else holds activation.
 TEST_F(ShadowControllerTest, DraggedWindowKeepsActiveElevation)
 {
     Window *dragged = makeToplevel({400, 300}, true)->window();
@@ -508,17 +449,12 @@ TEST_F(ShadowControllerTest, DraggedWindowKeepsActiveElevation)
     EXPECT_EQ(elevationOf(dragged), ShadowElevation::Inactive);
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// Window state.
-
-// Upstream: ShadowControllerTest.ShowState.
 TEST_F(ShadowControllerTest, FullscreenRemovesShadowAndRestoreBringsItBack)
 {
     Window *window = makeToplevel({400, 300}, true)->window();
     ASSERT_EQ(elevationOf(window), ShadowElevation::Active);
     const base::Rect normalBounds = window->bounds();
 
-    // A maximized window keeps the floating look.
     window->maximize();
     ASSERT_EQ(window->stateType(), WindowStateType::Maximized);
     EXPECT_EQ(elevationOf(window), ShadowElevation::Active);
@@ -539,8 +475,6 @@ TEST_F(ShadowControllerTest, FullscreenRemovesShadowAndRestoreBringsItBack)
     EXPECT_FALSE(window->isVisible());
     EXPECT_EQ(elevationOf(window), ShadowElevation::None);
 
-    // Minimizing gave activation away, so the restored window is shadowed
-    // again but at the inactive elevation.
     window->restore();
     EXPECT_TRUE(window->isVisible());
     EXPECT_EQ(elevationOf(window), ShadowElevation::Inactive);
@@ -604,7 +538,6 @@ TEST_F(ShadowControllerTest, DragRestoreWithClientMarginsRestoresFloatingVisuals
     EXPECT_EQ(visual->state().shape.radius, 14);
 }
 
-// Upstream: ShadowControllerTest.ShadowBounds.
 TEST_F(ShadowControllerTest, BoundsChangesUpdateShadow)
 {
     auto *shell = makeToplevel({400, 300}, true);
@@ -627,15 +560,6 @@ TEST_F(ShadowControllerTest, BoundsChangesUpdateShadow)
     EXPECT_EQ(shadow->shadowBounds(), resized.marginsAdded(margins));
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// Resize.
-
-// An interactive resize moves the window manager's bounds on every pointer
-// motion, but the client's buffer only catches up a round trip later. The
-// shadow is cut around the window's silhouette, so a shadow sized from the
-// requested bounds while the old buffer is still on screen leaves a band of
-// bare desktop between the client's real edge and the cut-out - which flickers
-// as the client catches up.
 TEST_F(ShadowControllerTest, ShadowTracksCommittedContentDuringAnInteractiveResize)
 {
     ShellSurface *shell = makeToplevel({400, 300}, false);
@@ -651,13 +575,10 @@ TEST_F(ShadowControllerTest, ShadowTracksCommittedContentDuringAnInteractiveResi
     manager.eventHandler()->onPointerMotion(window->bounds().bottomRight() - base::Point(1, 1)
                                             + base::PointF(100, 80));
 
-    // The window manager has already grown; the client has not committed yet.
     EXPECT_EQ(window->bounds().size(), base::Size(500, 380));
     EXPECT_EQ(surface->geometry().size(), base::Size(400, 300));
-    // The shadow must hug what is actually on screen, not the request.
     EXPECT_EQ(shadowOf(window)->node()->geometry(), base::Rect(0, 0, 400, 300).marginsAdded(margins));
 
-    // The commit that carries the new size is what moves the shadow.
     attach(shell->rootSurface(), {500, 380});
     shell->rootSurface()->commit();
     compositor.updateTextures(renderer);
@@ -667,11 +588,6 @@ TEST_F(ShadowControllerTest, ShadowTracksCommittedContentDuringAnInteractiveResi
     manager.eventHandler()->completeDrag(ToplevelEventHandler::DragResult::Success);
 }
 
-// A client's buffer routinely runs ahead of the window geometry it has declared
-// for it - the same render-thread race the commit path already compensates for
-// in the other direction. That is trailing slack, not exterior decoration, and
-// reading it as decoration switches the shadow off for those frames, which is
-// what makes a resize flicker.
 TEST_F(ShadowControllerTest, ABufferAheadOfItsDeclaredGeometryIsNotExteriorDecoration)
 {
     const base::Rect initial(0, 0, 400, 300);
@@ -680,18 +596,14 @@ TEST_F(ShadowControllerTest, ABufferAheadOfItsDeclaredGeometryIsNotExteriorDecor
     manager.activation()->activate(window);
     ASSERT_EQ(elevationOf(window), ShadowElevation::Active);
 
-    // A bigger buffer, with set_window_geometry still describing the old size.
     attach(shell->rootSurface(), {500, 380});
     shell->rootSurface()->commit();
     compositor.updateTextures(renderer);
 
-    // Measured honestly...
     EXPECT_EQ(window->clientExteriorInsets(), (Insets {0, 0, 100, 80}));
-    // ...but the window has reserved nothing around itself, so the shadow stays.
     EXPECT_FALSE(window->hasClientExteriorDecoration());
     EXPECT_EQ(elevationOf(window), ShadowElevation::Active);
 
-    // And the shadow follows the content that is actually up.
     EXPECT_EQ(window->presentedBounds(), base::Rect(0, 0, 500, 380));
 
     shell->setGeometry(base::Rect(0, 0, 500, 380));
@@ -700,9 +612,6 @@ TEST_F(ShadowControllerTest, ABufferAheadOfItsDeclaredGeometryIsNotExteriorDecor
     EXPECT_EQ(elevationOf(window), ShadowElevation::Active);
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// Lifetime.
-
 TEST_F(ShadowControllerTest, ShadowSurvivesTheCloseAnimationAndLeavesNothingBehind)
 {
     ShellSurface *shell = makeToplevel({400, 300}, true);
@@ -710,14 +619,11 @@ TEST_F(ShadowControllerTest, ShadowSurvivesTheCloseAnimationAndLeavesNothingBehi
     scene::Node *windowNode = window->node();
     ASSERT_TRUE(controller->shadowForWindow(window));
 
-    // The close animation keeps the window's node in the scene after the
-    // window is gone; nothing of the shadow may outlive the window itself.
     shells.clear();
     EXPECT_TRUE(manager.windows().empty());
     for (const scene::Node *child : windowNode->children())
         EXPECT_NE(child->name(), "shadow");
 
-    // Re-asking after destruction must not resurrect anything either.
     EXPECT_EQ(controller->shadowForWindow(window), nullptr);
 }
 
@@ -729,9 +635,6 @@ TEST_F(ShadowControllerTest, ControllerAdoptsWindowsThatAlreadyExist)
     EXPECT_EQ(elevationOf(window), ShadowElevation::Active);
 }
 
-// A window that gets no shadow is not observed either: nothing would take the
-// controller out of it again, and the window would call a controller that is
-// gone.
 TEST_F(ShadowControllerTest, WindowWithoutAShadowOutlivesTheController)
 {
     controller = std::make_unique<ShadowController>(&manager, nullptr, &delegate);
@@ -745,17 +648,8 @@ TEST_F(ShadowControllerTest, WindowWithoutAShadowOutlivesTheController)
     EXPECT_TRUE(manager.windows().empty());
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// Presentation.
-
-// A shadow reaches outside its window, over whatever is behind it. Because it
-// is a scene node of its own - rather than overflow painted by the frame - the
-// planner sees those pixels and will not lift the window underneath onto a
-// hardware plane, which would draw it over the shadow.
 TEST_F(ShadowControllerTest, VisibleShadowBlocksOverlayPromotionOfTheWindowBehindIt)
 {
-    // Built directly on the scene: proposeOverlays works on nodes, and a real
-    // window's animation node hides its whole subtree from the planner anyway.
     auto *behind = static_cast<scene::SurfaceNode *>(scene.root()->addChild(
             std::make_unique<scene::SurfaceNode>("surface")));
     behind->setGeometry(base::Rect(0, 0, 400, 300));
@@ -767,7 +661,6 @@ TEST_F(ShadowControllerTest, VisibleShadowBlocksOverlayPromotionOfTheWindowBehin
             scene.root()->addChild(std::make_unique<decoration::ShadowNode>(&theme)));
     shadow->update(base::Rect(0, 0, 200, 200), ShadowElevation::Active, decoration::Corners::all(),
                    theme.metrics().cornerRadius);
-    // The window itself clears `behind`; only its shadow's left margin does not.
     const base::Rect window(430, 100, 200, 200);
     shadow->setGeometry(shadow->geometry().translated(window.topLeft()));
     ASSERT_TRUE(shadow->absoluteGeometry().intersects(behind->absoluteGeometry()));
@@ -775,7 +668,6 @@ TEST_F(ShadowControllerTest, VisibleShadowBlocksOverlayPromotionOfTheWindowBehin
 
     EXPECT_TRUE(scene::proposeOverlays(*scene.root(), kOutput.size(), 2).overlays.empty());
 
-    // With no shadow drawn there is nothing over it, and the plane is offered.
     shadow->update(base::Rect(0, 0, 200, 200), ShadowElevation::None, decoration::Corners::all(),
                    theme.metrics().cornerRadius);
     EXPECT_EQ(scene::proposeOverlays(*scene.root(), kOutput.size(), 2).overlays.size(), 1u);

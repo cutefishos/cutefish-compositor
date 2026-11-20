@@ -49,8 +49,7 @@ std::string generateHandle()
     return handle;
 }
 
-// The user data of a zxdg_exported_v2. The exported wl_surface may go first,
-// which invalidates every relationship set up through this handle.
+// The exported wl_surface may go first, which invalidates every relationship set up through this handle.
 class ExportedSurface
 {
 public:
@@ -119,8 +118,7 @@ private:
     std::vector<wl_resource *> m_imports;
 };
 
-// The user data of a zxdg_imported_v2. Inert once the export is gone; the
-// client may still send requests until it destroys the object.
+// Inert once the export is gone; the client may still send requests until it destroys the object.
 class ImportedSurface
 {
 public:
@@ -164,7 +162,6 @@ public:
         return true;
     }
 
-    // The export is gone: the relationship it set up goes with it.
     void invalidate()
     {
         clearParent();
@@ -211,9 +208,6 @@ void ExportedSurface::invalidate()
         getUserDataAs<ImportedSurface>(imported)->invalidate();
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// zxdg_exported_v2_interface:
-
 void exported_destroy(wl_client *, wl_resource *resource)
 {
     wl_resource_destroy(resource);
@@ -222,9 +216,6 @@ void exported_destroy(wl_client *, wl_resource *resource)
 const struct zxdg_exported_v2_interface exported_implementation = {
         exported_destroy,
 };
-
-////////////////////////////////////////////////////////////////////////////////
-// zxdg_imported_v2_interface:
 
 void imported_destroy(wl_client *, wl_resource *resource)
 {
@@ -243,9 +234,6 @@ const struct zxdg_imported_v2_interface imported_implementation = {
         imported_destroy,
         imported_set_parent_of,
 };
-
-////////////////////////////////////////////////////////////////////////////////
-// zxdg_exporter_v2_interface:
 
 void exporter_destroy(wl_client *, wl_resource *resource)
 {
@@ -286,9 +274,6 @@ void bindXdgExporter(wl_client *client, void *data, uint32_t version, uint32_t i
     }
     wl_resource_set_implementation(resource, &exporter_implementation, data, nullptr);
 }
-
-////////////////////////////////////////////////////////////////////////////////
-// zxdg_importer_v2_interface:
 
 void importer_destroy(wl_client *, wl_resource *resource)
 {

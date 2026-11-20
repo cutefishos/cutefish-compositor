@@ -54,8 +54,7 @@ EglFence::EglFence(EglContext &context)
     m_createSync = reinterpret_cast<void *>(eglGetProcAddress("eglCreateSyncKHR"));
     m_destroySync = reinterpret_cast<void *>(eglGetProcAddress("eglDestroySyncKHR"));
     m_dupNativeFence = reinterpret_cast<void *>(eglGetProcAddress("eglDupNativeFenceFDANDROID"));
-    // The server-side wait is what keeps the compositor thread out of the
-    // acquire path; without it every wait has to block on the CPU.
+    // Without the server-side wait every acquire blocks on the CPU.
     m_waitSyncServer = reinterpret_cast<void *>(eglGetProcAddress("eglWaitSyncKHR"));
     if (!m_createSync || !m_destroySync || !m_dupNativeFence || !m_waitSyncServer) {
         m_createSync = m_destroySync = m_dupNativeFence = m_waitSyncServer = nullptr;
@@ -69,8 +68,8 @@ void EglFence::wait(const SyncFence &fence, bool inFrame, int timeoutMs)
         return;
 
     if (m_createSync && m_waitSyncServer && inFrame) {
-        // eglCreateSyncKHR takes ownership of the fd on success, so hand it a
-        // duplicate and keep the caller's fence intact.
+        // eglCreateSyncKHR takes ownership of the fd on success, so it gets a
+        // duplicate.
         SyncFence duplicate = fence.duplicate();
         if (duplicate.isValid()) {
             EGLint attribs[] = {EGL_SYNC_NATIVE_FENCE_FD_ANDROID, duplicate.get(), EGL_NONE};

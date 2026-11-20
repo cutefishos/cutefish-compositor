@@ -137,8 +137,6 @@ TEST(DamagePixels, FilteredTextureDamageMatchesFullFrame)
     renderer->releaseTarget(target.get());
 }
 
-// A native-density texture snaps its origin and size to pixels separately, so at
-// 1.5 a 33-unit surface at x = 3 covers pixels 5..54 while its rect encloses 4..53.
 TEST(DamagePixels, MovingNativeDensitySurfaceLeavesNoColumnBehind)
 {
     auto renderer = render::EglRendererTestAccess::create();
@@ -248,7 +246,6 @@ TEST(DamagePixels, ARepaintReachingABlurRedrawsItFromAllItReads)
                                                             nullptr, size);
     scene::Scene scene;
     scene.setSize(size);
-    // A still backdrop, which the finished frame shows blurred inside the blur.
     auto *strip = scene.root()->addChild(
             std::make_unique<scene::ColorNode>(render::Color {1, 1, 1, 1}));
     strip->setGeometry({160, 110, 12, 100});
@@ -256,7 +253,6 @@ TEST(DamagePixels, ARepaintReachingABlurRedrawsItFromAllItReads)
             scene.root()->addChild(std::make_unique<scene::SurfaceNode>()));
     blur->setGeometry({150, 150, 32, 32});
     blur->setBackgroundBlur({0, 0, 32, 32}, 30);
-    // Changes beyond its halo on either side, whose bounding repaint crosses it.
     auto *left = scene.root()->addChild(
             std::make_unique<scene::ColorNode>(render::Color {1, 0, 0, 1}));
     auto *right = scene.root()->addChild(
@@ -292,8 +288,6 @@ TEST(DamagePixels, ARepaintReachingABlurRedrawsItFromAllItReads)
     renderer->releaseTarget(target.get());
 }
 
-// A blur whose backdrop has not changed draws the result it kept, so a repaint
-// over it need not take in all it reads.
 TEST(DamagePixels, AKeptBlurMatchesTheCompleteFrame)
 {
     auto renderer = render::EglRendererTestAccess::create();
@@ -331,7 +325,6 @@ TEST(DamagePixels, AKeptBlurMatchesTheCompleteFrame)
                 return renderer->keepsBackdrop(scope, owner);
             };
             for (int frame = 0; frame < 6; ++frame) {
-                // The backdrop moves on the fourth frame only.
                 strip->setGeometry({frame == 3 ? 170 : 160, 110, 12, 100});
                 above->setGeometry({155 + frame * 6, 160, 8, 8});
                 const auto damage = tracker.update(*scene.root(), context.logicalViewport, scale);
@@ -373,8 +366,6 @@ TEST(DamagePixels, AKeptBlurMatchesTheCompleteFrame)
     renderer->releaseTarget(target.get());
 }
 
-// A blur whose backdrop changes beside it redoes only the part of its kept
-// result that reads the change, and matches a blur drawn whole.
 TEST(DamagePixels, APartlyRedoneBlurMatchesTheCompleteFrame)
 {
     auto renderer = render::EglRendererTestAccess::create();
@@ -398,8 +389,6 @@ TEST(DamagePixels, APartlyRedoneBlurMatchesTheCompleteFrame)
             add({1, 0, 0, 1}, {50, 50, 40, 40});
             add({0, 1, 0, 1}, {120, 80, 70, 60});
             add({0, 0, 1, 1}, {70, 150, 60, 50});
-            // Outside the blur, inside what it reads: one beside it, one under
-            // it; and one inside it, which the lip of a glass refracts from afar.
             auto *right = add({1, 1, 1, 1}, {252, 60, 12, 30});
             auto *bottom = add({1, 1, 0, 1}, {60, 232, 30, 12});
             auto *inside = add({0, 1, 1, 1}, {186, 60, 10, 30});
@@ -435,7 +424,6 @@ TEST(DamagePixels, APartlyRedoneBlurMatchesTheCompleteFrame)
                 if (frame > 1)
                     EXPECT_TRUE(fresh.size() == 1 && !fresh.front().changed.isEmpty())
                             << "scale=" << scale << " glass=" << glassy << " frame=" << frame;
-                // A plain blur redone inside reads all of one this small.
                 if (frame > 1 && (glassy || frame % 3 != 2))
                     EXPECT_NE(repaint, render::coverSamples(physical, tracker.samples(), context, size))
                             << "scale=" << scale << " glass=" << glassy << " frame=" << frame;
@@ -469,9 +457,6 @@ TEST(DamagePixels, APartlyRedoneBlurMatchesTheCompleteFrame)
     renderer->releaseTarget(target.get());
 }
 
-// A window's blur, drawn into the window's texture, that the output redoes in
-// part beside a change: the texture draws only that part again, and the
-// frame matches one drawn whole.
 TEST(DamagePixels, AWindowBlurRedoneInPartMatchesTheCompleteFrame)
 {
     auto renderer = render::EglRendererTestAccess::create();
@@ -493,7 +478,6 @@ TEST(DamagePixels, AWindowBlurRedoneInPartMatchesTheCompleteFrame)
         };
         add({1, 0, 0, 1}, {60, 60, 40, 40});
         add({0, 0, 1, 1}, {110, 200, 60, 50});
-        // Beside the window, under it, inside what its blur reads.
         auto *beside = add({1, 1, 0, 1}, {256, 60, 30, 30});
         auto *window = static_cast<scene::WindowAnimation *>(
                 scene.root()->addChild(std::make_unique<scene::WindowAnimation>()));
@@ -517,7 +501,6 @@ TEST(DamagePixels, AWindowBlurRedoneInPartMatchesTheCompleteFrame)
         };
         for (int frame = 0; frame < 8; ++frame) {
             beside->setGeometry({256, 60 + frame * 17, 30, 30});
-            // A row inside the window changes on its own now and then, as a cursor blinks.
             if (frame % 3 == 2) {
                 for (int y = 30; y < 40; ++y) {
                     for (int x = 10; x < 20; ++x)
@@ -559,9 +542,6 @@ TEST(DamagePixels, AWindowBlurRedoneInPartMatchesTheCompleteFrame)
     renderer->releaseTarget(target.get());
 }
 
-// A window keeps a texture of itself for a close or a minimize to start from.
-// A blur in it reads the output behind the window, which outside a partial
-// repaint still shows the window itself.
 TEST(DamagePixels, AWindowSnapshotNeverBlursWhatAPartialRepaintLeftBehind)
 {
     auto renderer = render::EglRendererTestAccess::create();
@@ -588,7 +568,6 @@ TEST(DamagePixels, AWindowSnapshotNeverBlursWhatAPartialRepaintLeftBehind)
                 window->addChild(std::make_unique<scene::SurfaceNode>()));
         content->setGeometry({0, 0, 120, 120});
         content->setBackgroundBlur({0, 0, 120, 120}, 12);
-        // Far from all the blur reads.
         auto *moving = scene.root()->addChild(
                 std::make_unique<scene::ColorNode>(render::Color {1, 0, 0, 1}));
         renderer->setOutputContext(context);
@@ -632,8 +611,6 @@ TEST(DamagePixels, AWindowSnapshotNeverBlursWhatAPartialRepaintLeftBehind)
     renderer->releaseTarget(target.get());
 }
 
-// A capture between output frames may draw a window's changed content first;
-// the output frame after it then reuses that snapshot.
 TEST(DamagePixels, AWindowSnapshotDrawnByACaptureServesTheNextFrame)
 {
     auto renderer = render::EglRendererTestAccess::create();
@@ -688,8 +665,6 @@ TEST(DamagePixels, AWindowSnapshotDrawnByACaptureServesTheNextFrame)
     renderer->releaseTarget(target.get());
 }
 
-// The second blur stage reads what the children placed below a surface drew:
-// their edges come out soft under it, and nowhere else.
 TEST(DamagePixels, ABlurOverChildrenBelowBlursThem)
 {
     auto renderer = render::EglRendererTestAccess::create();
@@ -723,7 +698,6 @@ TEST(DamagePixels, ABlurOverChildrenBelowBlursThem)
     const ui::Bitmap sharp = frame();
     EXPECT_EQ(red(sharp.pixel(186, 180)), 0);
     EXPECT_EQ(red(sharp.pixel(192, 180)), 255);
-    // Over the lower half only.
     parent->setSubsurfaceBlur({0, 80, 200, 80}, 12);
     const ui::Bitmap blurred = frame();
     EXPECT_GT(red(blurred.pixel(186, 220)), 20);
@@ -736,10 +710,6 @@ TEST(DamagePixels, ABlurOverChildrenBelowBlursThem)
     renderer->releaseTarget(target.get());
 }
 
-// A shape blurs only the areas it outlines in the rect: two panels over one
-// child below, with the gap between them left sharp. A pass that leaves the
-// background blur out, as a window's snapshot for its animations is drawn,
-// still blurs the children below.
 TEST(DamagePixels, ABlurOverChildrenBelowKeepsToItsShapeAndToSnapshots)
 {
     auto renderer = render::EglRendererTestAccess::create();
@@ -771,7 +741,6 @@ TEST(DamagePixels, ABlurOverChildrenBelowKeepsToItsShapeAndToSnapshots)
     };
     const auto red = [](uint32_t pixel) { return int(pixel >> 16 & 0xff); };
     const ui::Bitmap sharp = frame();
-    // Rows 10-50 and 110-150 of the surface; 60-100 between them is not.
     ui::Path shape;
     shape.addRect({0, 10, 200, 40});
     shape.addRect({0, 110, 200, 40});
@@ -788,8 +757,6 @@ TEST(DamagePixels, ABlurOverChildrenBelowKeepsToItsShapeAndToSnapshots)
     EXPECT_GT(red(snapshot.pixel(186, 130)), 20);
     EXPECT_EQ(snapshot.pixel(186, 180), sharp.pixel(186, 180));
 
-    // Red blended as a colour over the blurred child: the child's light in
-    // red's hue, black where the backdrop is, and the gap untouched.
     render::GlassParams fill;
     fill.fillMode = int(render::BackdropBlend::Color);
     fill.fillColor[0] = 1;
@@ -807,8 +774,6 @@ TEST(DamagePixels, ABlurOverChildrenBelowKeepsToItsShapeAndToSnapshots)
     renderer->releaseTarget(target.get());
 }
 
-// Partial frames, a child below changing under the blur and something above
-// it moving, kept results and all, match frames drawn whole.
 TEST(DamagePixels, ABlurOverChildrenBelowRedoneInPartMatchesTheCompleteFrame)
 {
     auto renderer = render::EglRendererTestAccess::create();
@@ -845,13 +810,11 @@ TEST(DamagePixels, ABlurOverChildrenBelowRedoneInPartMatchesTheCompleteFrame)
             return renderer->keepsBackdrop(scope, owner);
         };
         for (int frame = 0; frame < 6; ++frame) {
-            // What the child below shows changes on the second and fifth frames.
             below->setGeometry({frame >= 4 ? 120 : frame >= 1 ? 100 : 80, 20, 16, 260});
             above->setGeometry({150 + frame * 7, 260, 8, 8});
             const auto damage = tracker.update(*scene.root(), context.logicalViewport, scale);
             const base::Rect physical = render::physicalDamage(damage, context, size);
             const base::Rect repaint = render::coverSamples(physical, tracker.samples(kept), context, size);
-            // At 1.5 the blur and its halo reach over the whole output.
             if (frame && scale == 1)
                 EXPECT_LT(repaint.width() * repaint.height(), size.width() * size.height()) << "frame=" << frame;
             render::EglRendererTestAccess::applyRepaint(*renderer, repaint);

@@ -4,9 +4,6 @@
 //
 // Upstream: chromium/src/ui/display/manager/display_manager_unittest.cc
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: tests cover immutable applied batches and global
-// logical coordinates without Ash display objects.
 
 #include <gtest/gtest.h>
 
@@ -127,8 +124,6 @@ TEST(DisplayManager, BuildsTheSharedTransformFromLogicalAndPhysicalState)
     EXPECT_NEAR(roundTrip.y(), point.y(), 0.001);
 }
 
-// ash's TouchDeviceManager ties an internal touchscreen to the internal panel,
-// wherever that panel sits on the desktop and whichever display is primary.
 TEST(DisplayManager, TheTouchscreenFollowsTheInternalPanel)
 {
     display::DisplayManager manager;
@@ -151,11 +146,8 @@ TEST(DisplayManager, TheTouchscreenFollowsTheInternalPanel)
     ASSERT_TRUE(middle);
     EXPECT_NEAR(middle->x(), 1920 + 720, 0.01);
     EXPECT_NEAR(middle->y(), 480, 0.01);
-    // The far edge is still on the panel, not past it.
     EXPECT_TRUE(manager.touchscreenToGlobal({1, 1}));
 
-    // Turned, the panel still reports in its own orientation: the point maps
-    // back onto the same native pixel.
     internal.rotation = display::DisplayRotation::Rotate90;
     internal.bounds = {1920, 0, 960, 1440};
     internal.workArea = internal.bounds;
@@ -171,7 +163,6 @@ TEST(DisplayManager, TheTouchscreenFollowsTheInternalPanel)
         EXPECT_NEAR(native.y(), normalized.y() * 1440, 0.5);
     }
 
-    // Without an internal panel the primary display takes it.
     panel.connectionType = display::DisplayConnectionType::External;
     internal.rotation = display::DisplayRotation::Normal;
     internal.bounds = {1920, 0, 1440, 960};
@@ -184,8 +175,6 @@ TEST(DisplayManager, TheTouchscreenFollowsTheInternalPanel)
     EXPECT_NEAR(onPrimary->y(), 540, 0.01);
 }
 
-// A 3:2 panel driven at 16:9 shows the picture between black bars; the glass
-// still spans the whole panel, so a touch lands where the picture is drawn.
 TEST(DisplayManager, TheTouchscreenFollowsThePanelFitter)
 {
     display::DisplayManager manager;
@@ -201,7 +190,6 @@ TEST(DisplayManager, TheTouchscreenFollowsThePanelFitter)
     ASSERT_TRUE(manager.installApplied(
             {"instance", 1, 1, {panel}, {internal}, {}}));
 
-    // The picture is 2160x1215, 112.5 pixels down the glass.
     const auto middle = manager.touchscreenToGlobal({0.5, 0.5});
     ASSERT_TRUE(middle);
     EXPECT_NEAR(middle->x(), 960, 0.01);
@@ -210,12 +198,10 @@ TEST(DisplayManager, TheTouchscreenFollowsThePanelFitter)
     ASSERT_TRUE(nearBottom);
     EXPECT_NEAR(nearBottom->x(), 480, 0.01);
     EXPECT_NEAR(nearBottom->y(), 972, 0.01);
-    // A touch on a bar reaches the nearest edge of the picture.
     const auto onBar = manager.touchscreenToGlobal({0.5, 0.02});
     ASSERT_TRUE(onBar);
     EXPECT_NEAR(onBar->y(), 0, 0.01);
 
-    // 4:3 is pillarboxed: the picture is 1920x1440, 120 pixels in.
     panel.currentMode = panel.modes[2];
     internal.bounds = {0, 0, 1600, 1200};
     internal.workArea = internal.bounds;

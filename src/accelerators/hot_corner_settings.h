@@ -28,8 +28,7 @@ enum class HotCorner {
     BottomRight,
 };
 
-// What a corner runs, and the modifiers that must be held for it; none means
-// any may be.
+// No modifiers means any may be held.
 struct HotCornerBinding {
     std::optional<AcceleratorAction> action;
     uint32_t modifiers = 0;
@@ -37,9 +36,7 @@ struct HotCornerBinding {
     bool operator==(const HotCornerBinding &) const = default;
 };
 
-// The actions of the four screen corners, kept in compositor.conf [HotCorners]
-// and exported as org.cutefish.HotCorners1. An action is named as in the
-// shortcuts service; an empty one turns the corner off.
+// Kept in compositor.conf [HotCorners]; an empty action turns the corner off.
 class HotCornerSettings
 {
 public:
@@ -50,7 +47,6 @@ public:
 
     const HotCornerBinding &binding(HotCorner corner) const;
 
-    // What heldModifiers() answers from: the seat the corners read.
     void setModifierSource(std::function<uint32_t()> source) { m_modifierSource = std::move(source); }
 
     std::string topLeft() const { return actionName(HotCorner::TopLeft); }
@@ -66,10 +62,8 @@ public:
     // that is not known turns the corner off.
     void setCorner(const std::string &corner, const std::string &action, int modifiers);
 
-    // The modifiers held right now, as a corner sees them, for a settings page
-    // that takes a corner's modifiers from the keys held while choosing. A
-    // client's own modifiers can differ: the Command convention swaps keys
-    // before applications see them.
+    // A client's own modifiers can differ: the Command convention swaps keys before
+    // applications see them.
     int heldModifiers() const;
 
     base::Signal<> changed;

@@ -9,9 +9,7 @@
 
 namespace cutefish::shell {
 
-// What a list model tells its views, row by row, so a view keeps the items of
-// rows that stay and can animate the ones that come, go or move. Each signal
-// follows the change it reports: the model already holds the new rows.
+// Each signal follows the change: the model already holds the new rows.
 struct ListModelSignals {
     // first, count
     base::Signal<int, int> rowsInserted;
@@ -21,7 +19,6 @@ struct ListModelSignals {
     base::Signal<int, int> rowMoved;
     // first, last: rows whose values changed in place
     base::Signal<int, int> dataChanged;
-    // Everything may have changed.
     base::Signal<> modelReset;
 };
 

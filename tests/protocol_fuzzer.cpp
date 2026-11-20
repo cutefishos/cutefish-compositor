@@ -2,15 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Random request sequences against every global, the counterpart of exo's
-// wayland/fuzzer. Exo generates protobuf actions and a harness from the
-// protocol XML; here the harness reads the same request signatures from the
-// wl_interface tables libwayland already has, and the input bytes pick the
-// globals, objects, requests and arguments.
-//
-// Built as is, it runs seeded random inputs or replays the files it is given.
-// Linked with -fsanitize=fuzzer, LLVMFuzzerTestOneInput drives it instead.
-
 #include <algorithm>
 #include <atomic>
 #include <chrono>
@@ -58,11 +49,9 @@ namespace {
 // Requests per input, and how many go out between roundtrips.
 constexpr int kMaxSteps = 200;
 constexpr int kStepsPerRoundtrip = 8;
-// Larger than any buffer a request can describe, so a pool the input sizes
-// stays mappable; how the compositor copes with a short one is its own case.
+// Larger than any buffer a request can describe, so a pool the input sizes stays mappable.
 constexpr size_t kFdSize = 1 << 20;
 
-// Lets every client reach every global, restricted ones included.
 class AllowingSecurityDelegate final : public wayland::SecurityDelegate
 {
 public:
@@ -75,8 +64,6 @@ public:
     bool showsSystemDialogs(int64_t) const override { return true; }
 };
 
-// The compositor's protocol side without a renderer, as exo's
-// ServerEnvironment is its server without a display.
 class ServerEnvironment
 {
 public:
@@ -114,7 +101,6 @@ public:
         m_globals->shutdown();
     }
 
-    // A client of the privileged shell connection or an ordinary one.
     wl_display *connect(bool trusted)
     {
         int fds[2];
@@ -127,8 +113,7 @@ public:
         return wl_display_connect_to_fd(fds[1]);
     }
 
-    // The client roundtrips on a worker while this thread serves it. A server
-    // that stops answering is a hang, which the fuzzer reports as a crash.
+    // The client roundtrips on a worker while this thread serves it; a server that stops answering hangs.
     int roundtrip(wl_display *display)
     {
         std::atomic<bool> done = false;
@@ -151,7 +136,6 @@ public:
         return result;
     }
 
-    // Lets the server notice a client that went away.
     void settle()
     {
         for (int i = 0; i < 10; ++i)
@@ -198,8 +182,6 @@ public:
         return value;
     }
 
-    // Mostly the small values protocols mean something by, as exo's
-    // small_value receivers are, and now and then anything at all.
     uint32_t number()
     {
         const uint8_t kind = byte();
@@ -305,9 +287,7 @@ private:
             track(proxy, interface);
     }
 
-    // Objects the server creates by events are tracked as requested ones are,
-    // so they are destroyed and can be used; descriptors the events carry are
-    // closed.
+    // Objects created by events are tracked like requested ones; descriptors the events carry are closed.
     void track(wl_proxy *proxy, const wl_interface *interface)
     {
         m_objects.push_back({proxy, interface});
@@ -334,7 +314,7 @@ private:
         return 0;
     }
 
-    // An object of `interface` the input picks; any interface when null.
+    // Any interface when `interface` is null.
     wl_proxy *pick(Input &input, const wl_interface *interface)
     {
         std::vector<wl_proxy *> candidates;
@@ -482,8 +462,7 @@ void runInput(const uint8_t *data, size_t size)
 
 } // namespace
 
-// Once a client has a protocol error, libwayland no longer dispatches the
-// events it has read, so the objects they create never reach the harness.
+// After a protocol error libwayland stops dispatching the events it read, so the objects they create leak.
 extern "C" const char *__lsan_default_suppressions()
 {
     return "leak:wl_display_read_events\n";
@@ -496,9 +475,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
 }
 
 #ifndef CUTEFISH_LIBFUZZER
-// `protocol_fuzzer [files...]` replays inputs. `protocol_fuzzer --random N SEED`
-// runs N random ones from SEED; with no arguments, 400 from a fixed seed, the
-// same on every run.
+// `protocol_fuzzer [files...]` replays inputs; `--random N SEED` runs N random ones; no arguments run 400 from a fixed seed.
 int main(int argc, char **argv)
 {
     int runs = 400;

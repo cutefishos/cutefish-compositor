@@ -26,13 +26,10 @@ public:
 
     bool initialize(const char *fragmentOverride = nullptr);
     void resetTextures();
-    // Drops what no draw has used for a while; called with the context current.
+    // Called with the context current.
     void frameEnded();
-    // Set when a kept backdrop went: a set or mask may now be held for no
-    // blur that is still shown.
     bool mayHoldUnshown() const { return m_mayHoldUnshown; }
-    // Frees those; with the context current, outside a frame. Whatever a
-    // blur that keeps nothing used ages by frames only.
+    // With the context current, outside a frame.
     void releaseUnshown();
     struct Holding {
         size_t scratch = 0;
@@ -40,17 +37,14 @@ public:
         size_t kept = 0;
     };
     Holding holding() const { return {m_scratch.size(), m_masks.size(), m_kept.size()}; }
-    // Whether the blur of surface `owner` kept its result in the target `scope` names.
     bool keeps(uint64_t scope, uint64_t owner) const;
-    // In a pass, what of that blur's backdrop its next draw redoes from its
-    // kept result. Nothing when that draw starts from scratch.
+    // Nothing when that draw starts from scratch.
     std::optional<base::Rect> keptChange(uint64_t scope, uint64_t owner) const;
-    // Starts a pass into that target: the blurs of `fresh` draw what they kept
-    // in the last one, redone where their backdrop changed; the others'
-    // results are dropped.
+    // The blurs of `fresh` redraw what they kept, redone where their backdrop
+    // changed; the others' results are dropped.
     void beginPass(uint64_t scope, const std::vector<KeptBackdrop> &fresh);
-    // `lens` is the exact device rectangle; it is rounded outward to pixels here.
-    // With a `scope`, the blurred backdrop is kept for the next pass, by `owner`.
+    // `lens` is the exact device rectangle; with a `scope`, the result is kept
+    // for the next pass, by `owner`.
     void draw(Renderer &renderer, const base::RectF &lens, int radius, const base::Rect &clip,
               const GlassParams &glass, double scale, const ui::Path &shape,
               const std::vector<BackdropSource> &sources, std::vector<RoundedShape> &clips,
@@ -59,7 +53,6 @@ public:
               uint64_t scope = 0, uint64_t owner = 0);
 
 private:
-    // A blur that keeps its backdrop, by the pass and the surface it is for.
     struct User {
         uint64_t scope = 0;
         uint64_t owner = 0;
@@ -67,16 +60,14 @@ private:
         bool operator==(const User &) const = default;
     };
 
-    // Who a set or mask is held for: users whose kept backdrops are gone are
-    // dropped as others come, so the list is never longer than the kept list.
+    // Users whose kept backdrops are gone are dropped as others come.
     struct Users {
         std::vector<User> users;
-        // Used by a blur that keeps nothing, which no kept backdrop vouches for.
         bool anonymous = false;
     };
 
-    // Kept per size, so the dock, the panel and the windows drawn in one
-    // frame do not reallocate each other's textures; plain blurs share them.
+    // Kept per size, so blurs drawn in one frame do not reallocate each other's
+    // textures.
     struct Scratch {
         // Empty for a plain blur, whose textures serve any coverage.
         base::Size coverage;
@@ -98,7 +89,6 @@ private:
         Users users;
     };
 
-    // A blurred backdrop, drawn again while what lies behind it stays the same.
     struct Kept {
         uint64_t scope = 0;
         uint64_t owner = 0;
@@ -106,7 +96,7 @@ private:
         base::Size reduced;
         base::Size allocated;
         float sigma = 0;
-        // Logical; what of the backdrop changed since the result was made.
+        // Logical.
         base::Rect changed;
         // A surface drawn twice in one pass keeps only its first blur.
         bool drawn = false;
@@ -117,16 +107,13 @@ private:
     // A plain blur's set may be larger than `size`, unless `exact`.
     Scratch &scratch(const User &user, const base::Size &coverage, const base::Size &size,
                      bool exact = false);
-    // Copies `coverage` of the target into `textures.source`, reduced to `reduced`.
-    // A non-empty `texels`, rows top-down, is all of it that is written; the
-    // rest keeps what it holds.
+    // A non-empty `texels`, rows top-down, is all that is written; the rest
+    // keeps what it holds.
     bool captureBackdrop(Renderer &renderer, Scratch &textures,
                          const std::vector<BackdropSource> &sources, const base::Rect &coverage,
                          const base::Size &reduced, const base::Rect &allocatedBounds,
                          const base::Rect &texels = {});
-    // Copies `coverage` of a lone upright source into the top left of the
-    // bound pass at `reduced` in one blit, inside the pass's scissor. False
-    // when it cannot, and nothing is drawn.
+    // False when it cannot, and nothing is drawn.
     bool blitReduced(const std::vector<BackdropSource> &sources, const base::Rect &coverage,
                      const base::Size &reduced, unsigned int destination);
     Texture *mask(Renderer &renderer, const User &user, const ui::Path &shape, const ShapeRaster &raster);

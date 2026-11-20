@@ -4,9 +4,6 @@
 //
 // Upstream: chromium/src/ash/display/root_window_transformers_unittest.cc
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: tests reversible mirror input mapping across native
-// aspect ratios, letterboxing, negative origins, and output rotations.
 
 #include <gtest/gtest.h>
 
@@ -41,10 +38,6 @@ TEST(MirrorTransform, RoundTripsEveryRotation)
 
 TEST(MirrorTransform, APixelAtAFractionalScaleComesBackToTheSamePixel)
 {
-    // The cursor takeover puts the pointer on a device pixel through the
-    // inverse, and the plane is placed through the forward mapping, rounded:
-    // at 150% the round trip has to land on that same pixel, or the cursor
-    // moves by one at every hand-over.
     display::MirrorTransform transform({0, 0, 1440, 960}, {0, 0, 2160, 1440},
                                        display::DisplayRotation::Normal);
     for (int x = 0; x < 2160; x += 7) {

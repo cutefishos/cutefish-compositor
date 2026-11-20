@@ -18,22 +18,16 @@ bool WmShadowControllerDelegate::shouldShowShadowForWindow(const Window *window)
     if (!window || !window->isVisible() || window->bounds().isEmpty())
         return false;
 
-    // The client draws its own shadow, or none.
     if (const auto *surface = window->rootSurface(); surface && !surface->castsShadow())
         return false;
 
-    // Popups and shell surfaces retain their client-owned exterior policy.
     if ((window->isPopup() || window->role() != WindowRole::Normal) && !window->isDecorated()
         && window->hasClientExteriorDecoration())
         return false;
 
-    // A popup whose geometry is its whole surface but whose input region leaves
-    // a band on every edge draws its own shadow in that band.
     if (window->isPopup() && !window->isDecorated() && window->hasClientInputMargin())
         return false;
 
-    // A popup casts a shadow only around a body it describes; any other popup
-    // may paint its own shadow inside a transparent margin of its surface.
     if (window->isPopup()) {
         const auto *surface = window->rootSurface();
         return surface && (!surface->backgroundBlurRect().isEmpty() || !surface->bodyShape().isEmpty());
@@ -55,8 +49,6 @@ bool WmShadowControllerDelegate::shouldShowShadowForWindow(const Window *window)
         return false;
     }
 
-    // A fullscreen window fills the output and owns no exterior space to cast
-    // into.
     return isRoundedStateType(window->stateType());
 }
 
@@ -69,8 +61,6 @@ ShadowElevation WmShadowControllerDelegate::elevationForWindow(const Window *win
     if (window->role() == WindowRole::Notification || window->role() == WindowRole::Osd
         || window->role() == WindowRole::Picker)
         return ShadowElevation::Popup;
-    // A window being moved or resized reads as lifted off the desktop, so it
-    // keeps the active elevation even if something else holds the keyboard.
     if (window->isDragged())
         return ShadowElevation::Active;
     return window->isActive() ? ShadowElevation::Active : ShadowElevation::Inactive;

@@ -40,7 +40,6 @@ void HotCornerController::setOutputs(const std::vector<base::Rect> &outputs)
     const base::Point pointer(int(std::floor(m_lastPosition.x())),
                               int(std::floor(m_lastPosition.y())));
     for (const base::Rect &output : outputs) {
-        // Each corner with the direction out of the output from it.
         const std::array<std::tuple<HotCorner, base::Point, base::Point>, 4> candidates = {{
                 {HotCorner::TopLeft, output.topLeft(), base::Point(-1, -1)},
                 {HotCorner::TopRight, base::Point(output.right() - 1, output.y()),

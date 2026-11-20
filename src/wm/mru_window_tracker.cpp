@@ -4,9 +4,6 @@
 //
 // Upstream: chromium/src/ash/wm/mru_window_tracker.cc
 // Revision: 8abbac30b9cf2fe976422c58c000c94685648b65
-//
-// Adapted for Cutefish: integrates the upstream behavior with native
-// compositor types and ownership.
 
 #include "wm/mru_window_tracker.h"
 
@@ -26,8 +23,6 @@ bool canIncludeWindowInMruList(const Window *window)
         return false;
     if (window->transientParent())
         return false;
-    // A hidden application, or one on another desk, is switched to as a
-    // minimized window is.
     return window->targetVisibility() || window->state()->isMinimized() || window->isHidden();
 }
 
@@ -54,7 +49,6 @@ MruWindowTracker::WindowList MruWindowTracker::buildMruWindowList() const
         if (canIncludeWindowInMruList(*it))
             windows.push_back(*it);
     }
-    // Windows that were never activated come after, topmost first.
     const std::vector<Window *> &stacking = m_manager->windows();
     for (auto it = stacking.rbegin(); it != stacking.rend(); ++it) {
         Window *window = *it;

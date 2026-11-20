@@ -34,35 +34,22 @@ class LaunchpadPageIndicator;
 class LaunchpadSearchField;
 class LaunchpadWallpaper;
 
-// The launchpad's content: the blurred wallpaper, the search field, the
-// application grid in pages that slide sideways, the page dots, "Not
-// found" and the open folder, with its keys, wheel and touchpad paging,
-// drags and menus. An application dragged onto another's icon makes a
-// folder of the two, or joins the folder it is dropped on; dragged out of
-// an open folder's panel, it leaves the folder.
 class LaunchpadView final : public ui::View, private ui::Scroller::Target
 {
 public:
-    // The MIME type an application dragged out of the launchpad carries: its
-    // desktop id, as UTF-8.
+    // Carries the desktop id as UTF-8.
     static constexpr const char *kDesktopIdMimeType = "application/x-cutefish-desktop-id";
 
     LaunchpadView(Launchpad &launchpad, LaunchpadWallpaper &wallpaper, ApplicationBadges &badges);
     ~LaunchpadView() override;
 
     void setMargins(const LaunchpadMetrics::Margins &margins);
-    // Where menus stay, in window coordinates: the output's work area.
+    // In window coordinates.
     void setAvailableGeometry(std::optional<ui::RectF> geometry) { m_availableGeometry = geometry; }
     const LaunchpadMetrics &metrics() const { return m_metrics; }
 
-    // The launchpad came up or went: animations play only while it is up,
-    // and going resets the search, the selection and the swipe at once.
     void setShown(bool shown);
-    // Rasterises the icons on the pool at the size and scale they show at,
-    // when they or the window's size or scale changed.
     void preloadIcons();
-
-    // --- State, for the window and tests ---
 
     int pageTotal() const { return int(m_pages.size()); }
     int currentPage() const { return m_currentPage; }
@@ -73,47 +60,35 @@ public:
     bool isSearching() const;
     LaunchpadSearchField *searchField() const { return m_search; }
     LaunchpadCell *cell(const std::string &id) const;
-    // A cell of the grid, or of the open folder.
     LaunchpadCell *anyCell(const std::string &id) const;
-    // The cell of a row, null when absent.
+    // Null when absent.
     LaunchpadCell *cellAt(int row) const;
-    // Where a row's cell rests, in window coordinates.
+    // In window coordinates.
     ui::RectF cellRect(int row) const;
     const std::string &draggedId() const { return m_draggedId; }
-    // Whether cells slide to new slots now rather than jump: while a drag
-    // runs and for a moment after its last move, in the grid and in a folder.
     bool animatesReorder() const;
     ui::Menu *menu() const;
     bool isMenuOpen() const;
-    // The dots' centres, in window coordinates.
+    // In window coordinates.
     std::vector<ui::PointF> indicatorDots() const;
     bool isNotFoundVisible() const;
     LaunchpadFolderView *folderView() const { return m_folder; }
-    // The folder an application dragged now would join or make; empty for
-    // none.
+    // Empty for none.
     const std::string &mergeTargetId() const { return m_mergeTargetId; }
-
-    // --- What the keys, the wheel and the dots do ---
 
     void moveSelection(LaunchpadDirection direction);
     void launchSelected();
-    // Opens a folder over the grid, its name selected for editing when
-    // `editName`.
     void openFolder(const std::string &folder, bool editName = false);
     void closeFolder();
     void goToPage(int page);
     void scrollNextPage();
     void scrollPreviousPage();
-    // Lands on the page at once, without the slide.
     void jumpToPage(int page);
-    // Lands at once on the page a swipe was heading for.
     void stopSwipe();
 
-    // Called by LaunchpadCell; not part of the public API.
     void cellClicked(LaunchpadCell *cell, ui::MouseButton button, ui::PointF windowPosition);
     bool startCellDrag(LaunchpadCell *cell, ui::View *icon);
 
-    // A press on nothing but the page: hide.
     base::Signal<> dismissRequested;
 
 protected:
@@ -133,7 +108,6 @@ private:
     class Page;
     friend class Pages;
 
-    // ui::Scroller::Target
     ui::Scroller::Axis horizontalAxis() const override;
     ui::Scroller::Axis verticalAxis() const override;
     ui::PointF position() const override;
@@ -163,8 +137,6 @@ private:
     void requestMove(int to);
     void applyMove();
     void requestMerge();
-    // Drops an application on another or on a folder, and plays the folder's
-    // animation.
     void merge(const std::string &id, const std::string &target);
     void updateDragTarget(ui::PointF position);
     bool updateFolderDragTarget(ui::PointF position);
@@ -174,7 +146,6 @@ private:
     void retranslate();
     void retire(std::unique_ptr<ui::View> view);
 
-    // Pages: the background's press, flick and click.
     void backgroundPressed(ui::PointF position);
     void backgroundMoved(ui::PointF position);
     void backgroundReleased(ui::PointF position);
@@ -195,7 +166,7 @@ private:
     LaunchpadFolderView *m_folder = nullptr;
 
     int m_currentPage = -1;
-    // The page the grid showed when a search began; -1 outside a search.
+    // -1 outside a search.
     int m_pageBeforeSearch = -1;
     double m_contentX = 0;
     bool m_swiping = false;
@@ -208,7 +179,6 @@ private:
     base::Timer m_wheelReset;
     base::Timer m_searchTimer;
 
-    // A press on the background, and the flick it may become.
     bool m_backgroundPressed = false;
     bool m_flicking = false;
     ui::PointF m_pressPosition;
@@ -219,7 +189,6 @@ private:
     std::unique_ptr<ui::Menu> m_menu;
     std::string m_menuId;
 
-    // A drag out of a cell, and the reorder it may ask for.
     std::string m_draggedId;
     std::string m_hoveredId;
     bool m_reorderPending = false;
@@ -229,9 +198,8 @@ private:
     base::Timer m_edgeTimer;
     std::string m_pendingMoveId;
     int m_pendingMoveTo = -1;
-    // The folder a pending move is within; empty for the grid.
+    // Empty for the grid.
     std::string m_pendingMoveFolder;
-    // The icon the drag rests on, which a drop makes a folder with.
     std::string m_mergeTargetId;
 
     base::Timer m_preloadTimer;

@@ -4,9 +4,6 @@
 //
 // Upstream: chromium/src/components/exo/sub_surface.h
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: integrates the upstream behavior with native
-// compositor types and ownership.
 
 #pragma once
 
@@ -18,7 +15,7 @@ namespace cutefish::compositor {
 
 class Surface;
 
-// A subsurface has one parent; the protocol resource owns this role object.
+// The protocol resource owns this role object.
 class SubSurface
 {
 public:
@@ -35,7 +32,7 @@ public:
     bool placeAbove(Surface* reference);
     bool placeBelow(Surface* reference);
     void setCommitBehavior(bool synchronized);
-    // The mode change itself, once commits before it are applied.
+    // Once commits before it are applied.
     void applyCommitBehavior(bool synchronized);
     bool isSurfaceSynchronized() const;
     void onSurfaceDestroying(Surface* surface);

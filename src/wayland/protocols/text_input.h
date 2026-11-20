@@ -45,8 +45,6 @@ struct TextInputEdit {
 
 class InputMethodRelay;
 
-// One application text field, modelled on exo::TextInput with the protocol
-// adapter as its delegate.
 class TextInput
 {
 public:
@@ -65,9 +63,7 @@ public:
 
     // Bound to the focused surface; the relay additionally checks seat focus.
     virtual bool attached() const = 0;
-    // For a text input with no resource, the compositor's own: whether
-    // `surface`, the keyboard-focused one, is its window's. A resource's
-    // client decides for the others.
+    // For a text input with no resource: whether `surface`, the keyboard-focused one, is its window's.
     virtual bool ownsSurface(const compositor::Surface *) const { return false; }
     virtual void sendEdit(const TextInputEdit &edit) = 0;
 
@@ -83,7 +79,6 @@ protected:
     TextInputState m_state;
 };
 
-// The input-method side seen by application text-input adapters.
 class InputMethodRelay
 {
 public:

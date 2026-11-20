@@ -2,7 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Paints only the opaque SSD frame regions, caption and controls.
 // WindowVisualNode owns the shared body clip and final exterior outline.
 
 #ifndef CUTEFISH_DECORATION_DECORATION_NODE_H_
@@ -42,10 +41,8 @@ private:
     const Decoration* m_decoration = nullptr;
     Theme* m_theme = nullptr;
 
-    // The caption is rasterized from the window's title; it is not a second
-    // copy of it. Rebuilt whenever the title or its colour changes, and kept
-    // once per output scale, so outputs at different scales do not rebuild it
-    // for each other every frame.
+    // Kept once per output scale, so outputs at different scales do not rebuild
+    // it for each other.
     struct Caption {
         double scale = 0;
         std::string key;

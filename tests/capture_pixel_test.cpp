@@ -20,7 +20,7 @@ constexpr uint32_t kGreen = 0xff00ff00;
 constexpr uint32_t kBlue = 0xff0000ff;
 constexpr uint32_t kBlack = 0xff000000;
 
-// The pixel at (x, y) of `image` turned clockwise by `quarters` right angles.
+// `quarters` counts clockwise right angles.
 uint32_t turnedPixel(const ui::Bitmap &image, int quarters, int x, int y)
 {
     const int width = image.width();
@@ -155,7 +155,6 @@ TEST(CapturePixels, AReadbackCollectedLaterMatchesTheWaitingCapture)
     ASSERT_FALSE(expectedFrame.isNull());
     EXPECT_EQ(frame->take(), expectedFrame);
     EXPECT_EQ(image->take(), expectedImage);
-    // Collected once, for every session that shares it.
     EXPECT_EQ(frame->take(), expectedFrame);
     EXPECT_EQ(glGetError(), GL_NO_ERROR);
 }
@@ -182,7 +181,6 @@ TEST(CapturePixels, ACopiedOutputFrameMatchesThePaintedCapture)
         };
         paint();
         EXPECT_FALSE(renderer->copyOutputFrame({64, 48}));
-        // A partial repaint leaves its scissor on; the copy takes the whole frame.
         glEnable(GL_SCISSOR_TEST);
         glScissor(20, 20, 2, 2);
         const ui::Bitmap expected = renderer->captureFrame(paint);
@@ -211,7 +209,6 @@ TEST(CapturePixels, AWindowAtAFractionalDeviceOriginKeepsItsLayerOnPixels)
     renderer->setOutputContext({"test", base::Rect(0, 0, 64, 48), {64, 48}, 1, 0, 1});
     ASSERT_TRUE(renderer->beginFrame(target.get()));
 
-    // Columns one device pixel wide, alternately black and white.
     constexpr int kPixels = 56;
     std::vector<uint8_t> columns(kPixels * kPixels * 4);
     for (int y = 0; y < kPixels; ++y) {
@@ -225,7 +222,6 @@ TEST(CapturePixels, AWindowAtAFractionalDeviceOriginKeepsItsLayerOnPixels)
     auto texture = renderer->createTexture({kPixels, kPixels}, columns.data());
     ASSERT_NE(texture, nullptr);
 
-    // 83 logical units are 145.25 device pixels at 1.75.
     const base::Rect body(83, 0, 32, 32);
     const render::OutputRenderContext window {"test", body, {kPixels, kPixels}, 1.75, 0, 1};
     std::unique_ptr<render::Texture> layer;
@@ -242,8 +238,6 @@ TEST(CapturePixels, AWindowAtAFractionalDeviceOriginKeepsItsLayerOnPixels)
     EXPECT_EQ(glGetError(), GL_NO_ERROR);
 }
 
-// A buffer drawn scaled covers every device pixel its edges touch: a surface
-// at a fractional device position leaves no row between it and its parent.
 TEST(CapturePixels, AScaledBufferCoversThePixelsItsEdgesTouch)
 {
     auto renderer = render::EglRendererTestAccess::create();
@@ -257,7 +251,6 @@ TEST(CapturePixels, AScaledBufferCoversThePixelsItsEdgesTouch)
     renderer->setOutputContext({"test", base::Rect(0, 0, 64, 48), {64, 48}, 1, 0, 1});
     ASSERT_TRUE(renderer->beginFrame(target.get()));
 
-    // A green buffer at twice the density, shown at 1.75.
     constexpr int kPixels = 32;
     std::vector<uint8_t> green(kPixels * kPixels * 4);
     for (int i = 0; i < kPixels * kPixels; ++i) {
@@ -270,7 +263,6 @@ TEST(CapturePixels, AScaledBufferCoversThePixelsItsEdgesTouch)
     auto texture = renderer->createTexture({kPixels, kPixels}, green.data());
     ASSERT_NE(texture, nullptr);
 
-    // From 1 to 17 logical units: 1.75 to 29.75 device pixels.
     constexpr int kSide = 36;
     const render::OutputRenderContext output {"test", base::Rect(0, 0, 20, 20), {kSide, kSide}, 1.75, 0, 1};
     const ui::Bitmap image = renderer->captureImage(output, {kSide, kSide}, [&] {

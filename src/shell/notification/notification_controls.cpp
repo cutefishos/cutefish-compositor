@@ -28,7 +28,6 @@ static double linear(double channel)
 bool inkIsDark(ui::Color surface)
 {
     const double luminance = 0.2126 * linear(surface.r) + 0.7152 * linear(surface.g) + 0.0722 * linear(surface.b);
-    // White's contrast against it reaches 3:1.
     return 1.05 / (luminance + 0.05) >= 3;
 }
 
@@ -51,20 +50,16 @@ ui::Color pillFill(ui::Color surface, bool hovered, bool pressed)
     return inkOn(surface, pressed ? 0.16 : hovered ? 0.12 : 0.07);
 }
 
-// The application font's 0.9, as a whole logical pixel size.
 static double smallFontSize()
 {
     return ui::Theme::current().fontPointSize * 0.9 * 4 / 3;
 }
 
-// A 1 px bar `length` long through `centre`, turned by 45 degrees either
-// way: a rotated rectangle of height 1, antialiased.
 static void paintCross(ui::Painter &painter, ui::PointF centre, double length, ui::Color color)
 {
     const double half = length / 2;
     const double thickness = 0.5;
     for (const double sign : {1.0, -1.0}) {
-        // Along the bar and across it.
         const ui::PointF along {half / std::sqrt(2.0), sign * half / std::sqrt(2.0)};
         const ui::PointF across {-sign * thickness / std::sqrt(2.0), thickness / std::sqrt(2.0)};
         ui::Path path;
@@ -117,7 +112,6 @@ void ClearButton::setArmed(bool armed)
     if (armed == m_armed)
         return;
     m_armed = armed;
-    // A NumberAnimation restarted from where the value is.
     m_progress->setTarget(armed ? 1 : 0, true);
     if (onArmedChanged)
         onArmedChanged();
@@ -199,7 +193,6 @@ void ClearButton::pointerRelease(const ui::PointerEvent &event)
 
 void ClearButton::enabledChanged()
 {
-    // A disabled clear button backs out.
     if (!isEnabled() && m_kind == Kind::Clear)
         setArmed(false);
 }
@@ -221,7 +214,6 @@ void ClearButton::paint(ui::Painter &painter)
     if (m_kind == Kind::Clear) {
         painter.drawSmoothRectangle(rect, radius, pillFill(theme.background, m_hovered, m_pressed));
     } else if ((m_hovered || progress() > 0) && m_tint) {
-        // Not snapped: the glyph is not either.
         painter.drawSmoothRectangle(rect, radius, m_tint(m_pressed ? 2 : 1));
     }
 
@@ -232,7 +224,6 @@ void ClearButton::paint(ui::Painter &painter)
     painter.multiplyOpacity(glyphOpacity);
     const double side = rect.height;
     if (m_kind == Kind::Clear) {
-        // Centred on whole logical pixels.
         const double length = 7 * std::sqrt(2.0);
         const double x = std::round((side - length) / 2);
         const double y = std::round((side - 1) / 2);

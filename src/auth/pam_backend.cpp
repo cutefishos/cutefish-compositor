@@ -71,7 +71,6 @@ void PamBackend::reset()
 {
     m_pending = false;
     m_timeout.stop();
-    // Kills a helper still running and waits for it.
     m_process.reset();
 }
 } // namespace cutefish::auth

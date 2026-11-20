@@ -5,9 +5,6 @@
 // Upstream: chromium/src/ash/wm/window_cycle/window_cycle_controller.cc
 //           window_cycle_list.cc and window_cycle_event_filter.cc
 // Revision: 8abbac30b9cf2fe976422c58c000c94685648b65
-//
-// Adapted for Cutefish: integrates the upstream behavior with native
-// compositor types and ownership.
 
 #include "wm/window_cycle_controller.h"
 
@@ -54,7 +51,6 @@ bool WindowCycleController::canCycle() const
 {
     if (!m_manager->allowsActivation())
         return false;
-    // As upstream: the window the pointer holds stays the one in use.
     if (m_manager->eventHandler()->draggedWindow())
         return false;
     return true;
@@ -125,8 +121,6 @@ bool WindowCycleController::onKey(uint32_t keysym, bool pressed)
         step(Direction::Forward, false);
         break;
     case XKB_KEY_q:
-        // The list follows as its windows close; one asking about unsaved
-        // work stays.
         if (!m_applications.empty())
             m_manager->quitApplication(m_applications[m_currentIndex].front());
         break;
@@ -142,7 +136,6 @@ bool WindowCycleController::onKey(uint32_t keysym, bool pressed)
     default:
         break;
     }
-    // Until the cycle completes every other key belongs to it.
     return true;
 }
 
@@ -209,9 +202,6 @@ void WindowCycleController::step(Direction direction, bool startingCycle)
         return;
 
     int offset = direction == Direction::Forward ? 1 : -1;
-    // When the first application is not the active one - every window is
-    // minimized, or the desktop has the keyboard - the first forward step
-    // goes to it rather than past it.
     if (startingCycle && direction == Direction::Forward) {
         Window *active = m_manager->activation()->activeWindow();
         const auto &first = m_applications.front();
@@ -243,9 +233,7 @@ void WindowCycleController::stopCycling(bool accept)
 
 void WindowCycleController::switchToApplication(const std::vector<Window *> &windows)
 {
-    // Switching to a hidden application brings all of its windows back.
     m_manager->unhideApplication(windows.front());
-    // Its windows come forward together, keeping their order among themselves.
     const std::vector<Window *> stacking = m_manager->windows();
     for (Window *window : stacking) {
         if (std::find(windows.begin(), windows.end(), window) != windows.end()
@@ -256,7 +244,6 @@ void WindowCycleController::switchToApplication(const std::vector<Window *> &win
     const auto shown = std::find_if(windows.begin(), windows.end(), [](Window *window) {
         return !window->state()->isMinimized();
     });
-    // An application whose windows are all minimized gets its latest back.
     Window *target = shown != windows.end() ? *shown : windows.front();
     if (target->state()->isMinimized())
         target->restore();
@@ -306,7 +293,6 @@ void WindowCycleController::onWindowRemoved(Window *window)
         return;
     std::erase(*application, window);
     if (!application->empty()) {
-        // Its entry now shows another window.
         if (isViewShown())
             showView();
         return;

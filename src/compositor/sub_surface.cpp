@@ -4,9 +4,6 @@
 //
 // Upstream: chromium/src/components/exo/sub_surface.cc, display.cc
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: integrates the upstream behavior with native
-// compositor types and ownership.
 
 #include "compositor/sub_surface.h"
 
@@ -16,10 +13,8 @@ namespace cutefish::compositor {
 
 std::unique_ptr<SubSurface> SubSurface::create(Surface* surface, Surface* parent)
 {
-    // Display::CreateSubSurface: parent must not be contained in child's tree,
-    // and the surface must not already have a role object.
-    // hasRole() rather than only an existing subsurface: a surface already
-    // serving as a pointer cursor may not take the subsurface role either.
+    // The parent must not be in the child's tree, and a surface with any role,
+    // a cursor too, may not take this one.
     if (!surface || !parent || surface->hasRole())
         return nullptr;
     for (auto* ancestor = parent; ancestor; ancestor = ancestor->parentSurface())
@@ -44,7 +39,6 @@ SubSurface::~SubSurface()
         m_surface->m_subSurface = nullptr;
         m_surface->updateMapping();
     }
-    // Destroying a sub-surface takes effect immediately (remove schedules paint).
 }
 
 void SubSurface::setPosition(const base::Point& position)
@@ -57,7 +51,7 @@ void SubSurface::setPosition(const base::Point& position)
 bool SubSurface::placeAbove(Surface* reference)
 {
     if (!m_parent || !m_surface)
-        return true; // inert resource
+        return true;
     return m_parent->placeSubSurface(m_surface, reference, true);
 }
 
@@ -70,9 +64,8 @@ bool SubSurface::placeBelow(Surface* reference)
 
 void SubSurface::setCommitBehavior(bool synchronized)
 {
-    // Behind commits of the tree that wait for their buffers, the mode
-    // changes in commit order: a synchronized commit still waiting goes to
-    // the cache for its parent's commit, not to the screen before it.
+    // A synchronized commit still waiting for buffers goes to the cache for its
+    // parent's commit, in commit order.
     if (m_surface && m_surface->holdCommitBehavior(synchronized))
         return;
     applyCommitBehavior(synchronized);
@@ -81,18 +74,16 @@ void SubSurface::setCommitBehavior(bool synchronized)
 void SubSurface::applyCommitBehavior(bool synchronized)
 {
     m_isSynchronized = synchronized;
-    // wl_subsurface.set_desync requires immediate application of an existing
-    // cache if no ancestor still synchronizes us. Exo's setter alone doesn't
-    // flush it; Cutefish has no SurfaceTreeHost to trigger that application.
+    // set_desync applies an existing cache at once if no ancestor still
+    // synchronizes us.
     if (m_surface && !isSurfaceSynchronized())
         m_surface->commitDesynchronized();
 }
 
 bool SubSurface::isSurfaceSynchronized() const
 {
-    // A sub-surface is effectively synchronized if either its parent is
-    // synchronized or itself is in synchronized mode. Preserve Exo's recursive
-    // ancestor walk, including desynchronized links within a synchronized tree.
+    // Synchronized if this or any ancestor is, including desynchronized links
+    // within a synchronized tree.
     if (m_isSynchronized)
         return true;
     return m_parent && m_parent->isSynchronized();

@@ -13,7 +13,6 @@ class StatusItems;
 
 namespace cutefish::wayland {
 
-// cutefish_status_item_manager_v1, over the window manager's status items.
 wl_global *createStatusItemGlobal(wl_display *display, wm::StatusItems *items);
 
 } // namespace cutefish::wayland

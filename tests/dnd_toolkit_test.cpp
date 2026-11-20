@@ -29,7 +29,6 @@ using namespace clipboard_test;
 
 namespace {
 
-// Killed and waited for when it goes.
 class Child : public base::Process
 {
 public:
@@ -129,8 +128,6 @@ void dragBetweenGtkWindows()
         5000))
         << source.standardError();
     input.onPointerMotionAbsolute({}, endPosition);
-    // A release before the destination has answered the enter with an accepted
-    // type and action is a cancel, however long a busy machine takes to answer.
     ASSERT_TRUE(h.until(
         [&] {
             return h.seat.drag()->targetAcceptsDrop();

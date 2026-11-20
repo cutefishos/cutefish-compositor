@@ -20,7 +20,6 @@ Battery::Battery(std::shared_ptr<upower::BatteryStatus> status, std::string path
     m_load = runOnFileThread(
             [path = m_path] { return base::Settings(path).boolValue("MenuBar/BatteryPercentage", false); },
             [this](bool show) {
-                // A choice made while the file was read stays.
                 if (m_showPercentageSet || show == m_showPercentage)
                     return;
                 m_showPercentage = show;
@@ -44,8 +43,6 @@ void Battery::followService(base::dbus::Connection *sessionBus,
     m_make = std::move(make);
     if (!m_make)
         return;
-    // A first read before the service was there failed, and a restarted
-    // service may hold other values: read a fresh status each time.
     m_owner = followServiceOwner(sessionBus, "org.cutefish.Services", [this] {
         m_status = m_make();
         subscribe();
@@ -80,7 +77,6 @@ std::string Battery::iconSource(bool powerSaver) const
 
 std::string Battery::iconSource(int percent, bool onBattery, bool powerSaver)
 {
-    // 95 and up show full, then a step every ten from 5.
     int range = 0;
     if (percent >= 95)
         range = 100;

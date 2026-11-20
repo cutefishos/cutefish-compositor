@@ -18,7 +18,7 @@ namespace cutefish::shell {
 
 static const char kPngType[] = "image/png";
 
-// The picture's bytes once encoded; readers before that are held.
+// Readers before the picture is encoded are held.
 class PngSource final : public clipboard::StoredSource
 {
 public:

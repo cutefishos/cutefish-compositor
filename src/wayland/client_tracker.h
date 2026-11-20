@@ -4,9 +4,6 @@
 //
 // Upstream: chromium/src/components/exo/wayland/client_tracker.h
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: integrates the upstream behavior with native
-// compositor types and ownership.
 
 #ifndef CUTEFISH_WAYLAND_CLIENT_TRACKER_H_
 #define CUTEFISH_WAYLAND_CLIENT_TRACKER_H_
@@ -18,11 +15,7 @@
 
 namespace cutefish::wayland {
 
-// Utility class to keep track of the lifetime of wl_client. This is necessary
-// as resources owned by wl_client are freed in the process of destruction, and
-// accessing client resources should not happen after this time (see
-// crbug.com/1433187). All resources and associated user data are destroyed and
-// freed before the wl_client is itself deleted.
+// Resources of a wl_client are freed while it is destroyed, so they must not be accessed once that begins.
 class ClientTracker
 {
 public:
@@ -31,16 +24,13 @@ public:
     ClientTracker& operator=(const ClientTracker&) = delete;
     ~ClientTracker();
 
-    // Returns true if `client` has begun destruction. Client resources should
-    // not be queried after this point.
+    // Client resources must not be queried once this is true.
     bool isClientDestroyed(wl_client* client) const;
 
     int trackedClientCount() const;
 
 private:
-    // Listener called when a wl_client has been successfully created for
-    // `m_display`, and immediately when a client begins destruction (before
-    // associated resources have been freed).
+    // Called when a client is created, and when it begins destruction, before its resources are freed.
     struct ClientListener {
         ClientListener(ClientTracker* tracker, wl_notify_func_t notify);
         wl_listener listener;

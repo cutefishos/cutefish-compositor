@@ -161,7 +161,7 @@ protected:
     compositor::Compositor compositor {surfaceContainer};
     testsupport::FakeRenderer renderer;
     input::Seat seat {&compositor};
-    // Ahead of the manager: the frames of its windows hold them.
+    // Declared before the manager: its windows' frames hold the theme.
     decoration::Theme theme;
     decoration::DecorationProvider frames {&theme};
     wm::WindowManager manager {&compositor, &seat};
@@ -312,7 +312,6 @@ TEST_F(SessionLockTest, TheLoginScreenIsReadyOnceEveryOutputHasItsShield)
     session::SecureContainer greeterScene(greeterNode);
     EXPECT_FALSE(greeterScene.isWallpaperReady());
     greeterScene.setOutputs({{kPrimaryName, kPrimary}});
-    // The wallpaper decodes on a worker; the shield is ready once it lands.
     test::runUntil([&] { return greeterScene.isWallpaperReady(); }, std::chrono::seconds(30));
     EXPECT_TRUE(greeterScene.isWallpaperReady());
 }
@@ -332,20 +331,16 @@ TEST_F(SessionLockTest, ThePickedAccountsWallpaperFadesInOverTheOneShown)
     const scene::Node *shield = greeterScene.shieldContainer()->children().front();
     EXPECT_EQ(1u, shield->children().size());
 
-    // Alice's stays up under Bob's until Bob's has faded in over it.
     greeterScene.setSettingsFile(bob, true);
     EXPECT_EQ(2u, shield->children().size());
     ASSERT_TRUE(test::runUntil([&] { return shield->children().size() == 1; }, std::chrono::seconds(30)));
     EXPECT_TRUE(greeterScene.isWallpaperReady());
 
-    // Without the crossfade the old one goes at once.
     greeterScene.setSettingsFile(alice, false);
     EXPECT_EQ(1u, shield->children().size());
     EXPECT_FALSE(greeterScene.isWallpaperReady());
 }
 
-// Unlocked, the lock screen's pictures leave the GPU and keep their decode;
-// the next lock uploads them again and draws what the first one did.
 TEST_F(SessionLockTest, TheLockWallpaperLeavesTheGpuWhenUnlockedAndComesBackTheSame)
 {
     base::file::TemporaryDirectory directory("/tmp", "session-lock-test");
@@ -353,7 +348,6 @@ TEST_F(SessionLockTest, TheLockWallpaperLeavesTheGpuWhenUnlockedAndComesBackTheS
     ASSERT_TRUE(base::file::writeAtomically(settings, "[Appearance]\nBackgroundType=1\nBackgroundColor=#336699\n"));
     secure.setSettingsFile(settings, false);
     ASSERT_TRUE(test::runUntil([&] { return secure.isWallpaperReady(); }, std::chrono::seconds(30)));
-    // What a frame of the lock screen draws from its picture.
     const auto drawLock = [&]() -> std::vector<uint8_t> {
         renderer.calls.clear();
         secureNode->render(renderer);
@@ -617,14 +611,12 @@ TEST_F(SessionLockTest, UnlockingGivesTheKeyboardBackToTheWindowThatHadIt)
     EXPECT_EQ(first, manager.activation()->activeWindow());
     EXPECT_EQ(first->rootSurface(), seat.focusedSurface());
 
-    // One that closed while locked leaves the keyboard to the topmost window.
     lockFully();
     manager.destroyWindow(first);
     ASSERT_TRUE(controller.requestUnlock());
     controller.notifyFramePresented();
     EXPECT_EQ(second, manager.activation()->activeWindow());
 
-    // Nothing active before the lock, nothing active after it.
     manager.activation()->activate(nullptr);
     lockFully();
     ASSERT_TRUE(controller.requestUnlock());
@@ -642,8 +634,6 @@ TEST_F(SessionLockTest, UnlockingNeverTakesTheUserToAnotherDesk)
     wm::Window *here = makeWindow(base::Rect(200, 200, 400, 300));
     manager.activation()->activate(here);
 
-    // The window that had the keyboard closes while locked; the one left on
-    // another desk is not the topmost window the keyboard falls back to.
     lockFully();
     manager.destroyWindow(here);
     ASSERT_TRUE(controller.requestUnlock());
@@ -888,7 +878,6 @@ TEST_F(SessionLockTest, CapsLockToggledWhileLockedReachesClientsAndTheLights)
     EXPECT_EQ(input::KeyboardLed::CapsLock, seat.clientXkbTracker()->leds());
     ASSERT_TRUE(controller.requestUnlock());
     controller.notifyFramePresented();
-    // Toggled off again after the unlock, both states agree it is off.
     input.onKey({}, KEY_CAPSLOCK, true);
     input.onKey({}, KEY_CAPSLOCK, false);
     EXPECT_EQ(0u, seat.clientXkbTracker()->leds());
@@ -907,7 +896,6 @@ TEST_F(SessionLockTest, ModifiersHeldForTheLockShortcutAreReleasedWhileLocked)
     EXPECT_TRUE(seat.clientPressedKeys().empty());
     ASSERT_TRUE(controller.requestUnlock());
     controller.notifyFramePresented();
-    // A later Command shortcut clears a stuck Command and would leave Control.
     input.onKey({}, KEY_LEFTMETA, true);
     input.onKey({}, KEY_LEFTMETA, false);
     EXPECT_EQ(uint32_t(BTN_LEFT), seat.keyTranslator()->translateButton(BTN_LEFT, true));
@@ -922,7 +910,6 @@ TEST_F(SessionLockTest, AMetaHeldForThePcLockShortcutIsReleasedWhileLocked)
     input::Keyboard keyboard(std::move(delegate), &seat);
     input::InputManager input(&seat);
     seat.setFocusedSurface(surface);
-    // The PC convention sends Meta at once, so a client holds it at the lock.
     input.onKey({}, KEY_LEFTMETA, true);
     ASSERT_FALSE(seat.clientPressedKeys().empty());
     lockFully();
@@ -968,7 +955,6 @@ TEST_F(SessionLockTest, ATranslatedKeyHeldAcrossTheLockLeavesNoOtherKeySuppresse
     input::Keyboard keyboard(std::move(delegate), &seat);
     input::InputManager input(&seat);
     seat.setFocusedSurface(surface);
-    // Command+Left reaches the client as Ctrl+Left.
     const auto apple = input::KeyboardModifierLayout::Apple;
     input.onKey({}, KEY_LEFTMETA, true, apple);
     input.onKey({}, KEY_LEFT, true, apple);
@@ -981,7 +967,6 @@ TEST_F(SessionLockTest, ATranslatedKeyHeldAcrossTheLockLeavesNoOtherKeySuppresse
     ASSERT_TRUE(controller.requestUnlock());
     controller.notifyFramePresented();
     seat.setFocusedSurface(surface);
-    // Neither the Ctrl it went out as nor the key stays suppressed.
     keys->keys = 0;
     input.onKey({}, KEY_LEFTCTRL, true);
     input.onKey({}, KEY_LEFT, true);
@@ -1044,7 +1029,6 @@ TEST_F(SessionLockTest, TheLockFadesInOverTheDesktopAndIsSettledOnlyAtItsEnd)
 {
     ASSERT_TRUE(controller.requestLock());
     const double first = steadyMs();
-    // Moving in its first frame, not showing where it starts.
     const auto start = secure.sample(first, 16);
     EXPECT_GT(start.backdrop, 0);
     EXPECT_LT(start.backdrop, 0.1);

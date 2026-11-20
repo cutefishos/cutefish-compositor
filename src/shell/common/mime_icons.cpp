@@ -40,7 +40,7 @@ static std::vector<std::string> mimeDirectories()
     return directories;
 }
 
-// Read once; the user's directory first, as it overrides the system's.
+// The user's directory first, as it overrides the system's.
 static const MimeData &mimeData()
 {
     static std::once_flag once;
@@ -74,7 +74,6 @@ static const MimeData &mimeData()
     return data;
 }
 
-// "*.ext" and plain names; other patterns are rare in the database.
 static bool matches(const Glob &glob, const std::string &name)
 {
     const std::string subject = glob.caseSensitive ? name : base::strings::toAsciiLower(name);
@@ -113,7 +112,6 @@ std::string mimeIconNameForFile(const std::string &path)
     if (best)
         return iconOf(best->type);
 
-    // No name says it: text when its start reads as UTF-8 without NULs.
     std::ifstream file(path, std::ios::binary);
     if (!file)
         return iconOf("application/octet-stream");

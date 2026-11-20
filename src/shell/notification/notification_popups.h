@@ -23,18 +23,10 @@ class Shell;
 class ShellWindow;
 class Tween;
 
-// The banners: one
-// window of role Notification per banner, 380 wide on PopupGlass, stacked
-// newest first down the primary output's top right corner, 6 from its
-// work area's edges and 9 apart, taking at most 60 % of its height (the
-// first always shows). Each times out after its notification's timeout (at
-// least 3 s, 7 s by default, never for critical ones), paused while the
-// pointer is over it; a banner already on screen glides to a new slot.
 class NotificationPopups
 {
 public:
     static constexpr int kWidth = 380;
-    // PanelStyle.popupMargin and FishUI's smallSpacing * 1.5.
     static constexpr int kEdgeDistance = 6;
     static constexpr int kSpacing = 9;
     static constexpr double kMaximumScreenFill = 0.6;
@@ -42,7 +34,6 @@ public:
     static constexpr std::chrono::milliseconds kDefaultTimeout {7000};
     static constexpr std::chrono::milliseconds kMinimumTimeout {3000};
 
-    // One banner's window.
     class Banner
     {
     public:
@@ -55,14 +46,11 @@ public:
 
         ShellWindow *window() const { return m_window.get(); }
         NotificationCard *card() const { return m_card; }
-        // On screen: the stack had room for it.
         bool isShown() const { return m_shown; }
         // Zero for a banner that stays until it is dismissed.
         std::chrono::milliseconds timeout() const;
         bool isTimerRunning() const;
-        // The card's height at the banner's width.
         int height() const;
-        // Where the stack put it; the window glides there.
         base::Point stackPosition() const { return m_stack; }
 
         void place(const base::Point &position);
@@ -94,10 +82,8 @@ public:
     NotificationPopups(const NotificationPopups &) = delete;
     NotificationPopups &operator=(const NotificationPopups &) = delete;
 
-    // Oldest first, as the model's rows.
     const std::vector<std::unique_ptr<Banner>> &banners() const { return m_banners; }
 
-    // Places every banner again, newest first.
     void positionPopups();
 
 private:

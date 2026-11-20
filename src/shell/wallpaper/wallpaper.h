@@ -38,35 +38,27 @@ class Window;
 
 namespace cutefish::shell {
 
-// The desktop background of every output, under the desktop surfaces: the
-// picture or the plain colour
-// org.cutefish.Services.Appearance names, one WallpaperNode per output at the
-// bottom of the desktop layer, and on the primary output the gradient under
-// the menu bar. A new picture replaces the old one only once it is decoded
-// and, on the primary output, judged for the bar; the picture, the gradient
-// and the bar's contents then change in the same frame.
+// A new picture replaces the old one only once it is decoded and, on the primary
+// output, judged for the bar, so the picture, the gradient and the bar's contents
+// change in the same frame.
 class Wallpaper final : public Component
 {
 public:
-    // What the desktop shows, as Appearance publishes it.
     struct Background {
         // BackgroundType: 0 a picture, otherwise the colour.
         int type = 0;
-        // A local file.
         std::string path;
         ui::Color color {0x2b, 0x8a, 0xda, 255};
 
         bool operator==(const Background &) const = default;
     };
 
-    // `cacheDirectory` holds the disk cache; empty is the user's.
-    // `servicesSettings` is read while the Appearance service is not up;
-    // empty reads the user's services.conf.
+    // Empty `cacheDirectory` is the user's; empty `servicesSettings` reads the user's
+    // services.conf.
     explicit Wallpaper(Shell *shell, std::string cacheDirectory = {}, std::string servicesSettings = {});
     ~Wallpaper() override;
 
-    // Follows org.cutefish.Services.Appearance. Until it answers, services.conf
-    // names the background, as the service will.
+    // Until the service answers, services.conf names the background.
     void followAppearance(appearance::Appearance *appearance);
     void setBackground(const Background &background);
     const Background &background() const { return m_background; }
@@ -74,25 +66,20 @@ public:
 
     WallpaperCache &cache() { return m_cache; }
 
-    // What is behind the menu bar, judged from what the primary output
-    // shows; invalid while nothing is judged.
+    // Invalid while nothing is judged.
     bool isJudged() const { return m_judged; }
     const BarBackdrop::Style &style() const { return m_style; }
     // The judgement changed, in the same loop turn as the picture it is for.
     base::Signal<> judgementChanged;
 
-    // The primary output's picture as shown, null for a colour or nothing.
+    // Null for a colour or nothing.
     ui::Bitmap primaryPicture() const;
 
-    // Every output shows what it is going to: a picture, the colour, or
-    // nothing because the background is off or could not be read.
     bool isReady() const;
 
     scene::WallpaperNode *node(const std::string &output) const;
     std::vector<const scene::Node *> nodes() const;
 
-    // The output's desktop as window capture picks it: the wallpaper with
-    // the desktop window's icons over it.
     std::shared_ptr<compositor::CaptureSource> desktopCaptureSource(wm::Window *desktop, const std::string &output);
 
 private:
@@ -103,7 +90,6 @@ private:
     void reload(Screen &screen);
     void tryCommit(Screen &screen);
     void decoded(Screen &screen, const ui::Bitmap &image);
-    // Tells the cache which pictures the screens show or are about to.
     void updateShownPictures();
     void present(const Screen &screen);
     void publish(bool judged, const BarBackdrop::Style &style);

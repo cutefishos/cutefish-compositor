@@ -2,10 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// The desktop background in the compositor: the shared decode and its disk
-// cache, the node on each output, the bar's verdict changing with the
-// picture, and the desktop as window capture picks it.
-
 #include <dirent.h>
 #include <fcntl.h>
 #include <sys/stat.h>
@@ -113,7 +109,6 @@ TEST(WallpaperCacheTest, CropsTheMiddleOfWhatCoversTheScreen)
     ASSERT_EQ(base::Size(60, 60), square.size());
     EXPECT_EQ(0xff00ff00u, square.pixel(1, 1));
     EXPECT_EQ(0xff00ff00u, square.pixel(58, 58));
-    // A screen of the picture's shape sees all of it.
     const ui::Bitmap wide = shell::WallpaperCache::decode(path, {150, 50});
     ASSERT_EQ(base::Size(150, 50), wide.size());
     EXPECT_EQ(0xffff0000u, wide.pixel(2, 25));
@@ -135,14 +130,11 @@ TEST(WallpaperCacheTest, SharesOneDecodeAndKeepsItForTheNextSession)
         const std::shared_ptr<void> a = cache.load(path, {32, 24}, [&](const ui::Bitmap &image) { first = image; });
         const std::shared_ptr<void> b = cache.load(path, {32, 24}, [&](const ui::Bitmap &image) { second = image; });
         ASSERT_TRUE(test::runUntil([&] { return !first.isNull() && !second.isNull(); }));
-        // One decode for both.
         EXPECT_EQ(first.constBits(), second.constBits());
-        // Kept: asked again, it comes back before load() returns.
         ui::Bitmap third;
         const std::shared_ptr<void> c = cache.load(path, {32, 24}, [&](const ui::Bitmap &image) { third = image; });
         EXPECT_EQ(first.constBits(), third.constBits());
         EXPECT_EQ(first.constBits(), cache.cached(path, {32, 24}).constBits());
-        // A request dropped before its decode hears nothing.
         bool heard = false;
         std::shared_ptr<void> dropped = cache.load(path, {16, 12}, [&](const ui::Bitmap &) { heard = true; });
         dropped.reset();
@@ -171,7 +163,6 @@ TEST(WallpaperCacheTest, SharesOneDecodeAndKeepsItForTheNextSession)
     shell::WallpaperCache next(cacheDirectory);
     EXPECT_EQ(marker, loadNow(next, path, {32, 24}).pixel(31, 23));
 
-    // An edit of the picture misses.
     writePicture(directory, "grey.png", 64, 48, 0xff202020u);
     shell::WallpaperCache edited(cacheDirectory);
     EXPECT_EQ(0xff202020u, loadNow(edited, path, {32, 24}).pixel(31, 23));
@@ -192,9 +183,8 @@ public:
 
 namespace {
 
-// A cache whose decodes no screen shows go after `delay`, with `path`
-// decoded, in memory and written to its disk cache; on show until then, so
-// the delay counts from the end of this.
+// Decodes no screen shows go after `delay`; on show until then, so the delay counts
+// from the end of this.
 struct ExpiringCache {
     ExpiringCache(test::TemporaryDirectory &directory, std::chrono::milliseconds delay)
         : cacheDirectory(directory.filePath("cache"))
@@ -232,11 +222,9 @@ TEST(WallpaperCacheTest, APictureOnShowStays)
     expiring.cache.setShown({{expiring.path, expiring.size}});
     const std::string other = writePicture(directory, "dark.png", 64, 48, 0xff202020u);
     ASSERT_FALSE(loadNow(expiring.cache, other, expiring.size).isNull());
-    // The other one goes, the one on show stays.
     EXPECT_TRUE(test::runUntil([&] { return expiring.cache.cached(other, expiring.size).isNull(); }));
     test::runFor(std::chrono::milliseconds(150));
     EXPECT_EQ(expiring.cache.cached(expiring.path, expiring.size).constBits(), expiring.first.constBits());
-    // Off show, it goes too.
     expiring.cache.setShown({});
     EXPECT_TRUE(test::runUntil([&] { return expiring.cache.cached(expiring.path, expiring.size).isNull(); }));
 }
@@ -247,7 +235,6 @@ TEST(WallpaperCacheTest, APictureThatLeftMemoryComesBackFromTheDiskCache)
     ExpiringCache expiring(directory, std::chrono::milliseconds(50));
     const ui::Bitmap first = expiring.first.copy(expiring.first.rect());
     ASSERT_TRUE(test::runUntil([&] { return expiring.cache.cached(expiring.path, expiring.size).isNull(); }));
-    // Marked on disk, so what comes back shows where it was read from.
     const std::string cacheFile = filesIn(expiring.cacheDirectory).front();
     const int fd = open(cacheFile.c_str(), O_WRONLY);
     ASSERT_GE(fd, 0);
@@ -279,7 +266,6 @@ TEST(WallpaperCacheTest, ARequestDuringTheDelayStartsItAgain)
     const std::shared_ptr<void> request =
             expiring.cache.load(expiring.path, expiring.size, [&](const ui::Bitmap &image) { again = image; });
     EXPECT_EQ(again.constBits(), expiring.first.constBits());
-    // Past the first delay, within the second.
     test::runFor(std::chrono::milliseconds(600));
     EXPECT_FALSE(expiring.cache.cached(expiring.path, expiring.size).isNull());
     EXPECT_TRUE(test::runUntil([&] { return expiring.cache.cached(expiring.path, expiring.size).isNull(); }));
@@ -298,7 +284,6 @@ TEST(WallpaperCacheTest, KeepsTheLastFourFiles)
         usleep(10000);
     }
     EXPECT_EQ(size_t(shell::WallpaperCache::kMaxCachedFiles), filesIn(cacheDirectory).size());
-    // An unreadable picture is not cached.
     EXPECT_TRUE(loadNow(cache, directory.filePath("missing.png"), {10, 10}).isNull());
 }
 
@@ -309,7 +294,6 @@ class WallpaperTest : public testing::Test
 protected:
     scene::Scene scene;
     scene::Node *surfaceContainer = scene.root()->addChild(std::make_unique<scene::Node>("surfaces"));
-    // Already there, as the overview's nodes are when the shell starts.
     scene::Node *earlier = surfaceContainer->addChild(std::make_unique<scene::Node>("earlier"));
     compositor::Compositor compositor {surfaceContainer};
     testsupport::FakeRenderer renderer;
@@ -373,15 +357,12 @@ TEST_F(WallpaperTest, EachOutputHasANodeUnderEverythingElse)
     EXPECT_EQ(node(), surfaceContainer->children().front());
     EXPECT_EQ(kOutput, node()->geometry());
     EXPECT_EQ(scene::Node::Content::Opaque, node()->content());
-    // Black until it knows what to show, and not ready.
     EXPECT_FALSE(wallpaper->isReady());
     EXPECT_EQ(0.0f, node()->color().r);
 
-    // A window's node goes above it.
     openApplication(base::Rect(100, 100, 300, 200));
     EXPECT_EQ(node(), surfaceContainer->children().front());
 
-    // The picture at the output's device size.
     showPicture(writePicture(directory, "dark.png", 64, 64, 0xff202020u));
     ASSERT_TRUE(test::runUntil([&] { return wallpaper->isReady(); }, std::chrono::seconds(10)));
     EXPECT_EQ(kDevice, node()->picture().size());
@@ -392,32 +373,27 @@ TEST_F(WallpaperTest, ANewPictureReplacesTheOldOnceDecodedAndJudged)
 {
     showPicture(writePicture(directory, "dark.png", 64, 64, 0xff202020u));
     ASSERT_TRUE(test::runUntil([&] { return wallpaper->isJudged(); }, std::chrono::seconds(10)));
-    // Smooth and dark: light contents, no gradient.
     EXPECT_TRUE(wallpaper->style().useLightForeground);
     EXPECT_FALSE(wallpaper->style().gradientVisible);
     EXPECT_FALSE(node()->gradient());
     const uint8_t *dark = node()->picture().constBits();
 
-    // What the node shows whenever the bar hears of a new verdict.
     const uint8_t *shownAtVerdict = nullptr;
     base::Subscription verdicts = wallpaper->judgementChanged.connect([&] {
         shownAtVerdict = node()->picture().constBits();
     });
     showPicture(writePicture(directory, "mid.png", 64, 64, 0xffaaaaaau));
-    // Still the old picture and verdict while the new one decodes.
     EXPECT_EQ(dark, node()->picture().constBits());
     EXPECT_TRUE(wallpaper->style().useLightForeground);
     EXPECT_FALSE(wallpaper->isReady());
     ASSERT_TRUE(test::runUntil([&] { return !wallpaper->style().useLightForeground; }, std::chrono::seconds(10)));
     EXPECT_NE(dark, node()->picture().constBits());
-    // Picture, verdict and gradient in the same turn.
     EXPECT_EQ(node()->picture().constBits(), shownAtVerdict);
     EXPECT_EQ(0xffaaaaaau, node()->picture().pixel(10, 10));
     ASSERT_TRUE(node()->gradient());
     EXPECT_EQ((ui::Color {255, 255, 255, 115}), node()->gradient()->color);
     EXPECT_EQ(shell::BarBackdrop::kGradientHeight, node()->gradient()->height);
     EXPECT_TRUE(wallpaper->isReady());
-    // An opaque bar under Reduce Transparency needs no gradient.
     render::setOpaqueBackdrop(render::Color {0.9f, 0.9f, 0.9f, 1});
     ui::Theme::setCurrent(ui::Theme::current());
     EXPECT_FALSE(node()->gradient());
@@ -456,7 +432,6 @@ TEST_F(WallpaperTest, AColourOrNothing)
     showPicture(writePicture(directory, "dark.png", 64, 64, 0xff202020u));
     ASSERT_TRUE(test::runUntil([&] { return wallpaper->isReady(); }, std::chrono::seconds(10)));
 
-    // A plain colour shows at once, judged as the bar's backdrop is.
     shell::Wallpaper::Background background;
     background.type = 1;
     background.color = ui::Color::rgb(0xaaaaaa);
@@ -484,7 +459,6 @@ TEST_F(WallpaperTest, CaptureTakesTheWallpaperWithTheDesktopOverIt)
 {
     showPicture(writePicture(directory, "dark.png", 64, 64, 0xff202020u));
     ASSERT_TRUE(test::runUntil([&] { return wallpaper->isReady(); }, std::chrono::seconds(10)));
-    // The desktop's icons: a transparent surface over the whole output.
     shell::ShellWindow icons(shell.get(), wm::WindowRole::Desktop);
     icons.setContentView(std::make_unique<ui::View>());
     icons.window()->setBackgroundColor(ui::Color {0, 0, 0, 0});
@@ -506,7 +480,6 @@ TEST_F(WallpaperTest, CaptureTakesTheWallpaperWithTheDesktopOverIt)
 
     renderer.calls.clear();
     source->node->render(renderer);
-    // The picture first, then the desktop's surface over it.
     ASSERT_GE(renderer.calls.size(), 2u);
     EXPECT_EQ(kDevice, renderer.calls.front().texture->size());
     EXPECT_EQ(kOutput, renderer.calls.front().rect);

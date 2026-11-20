@@ -16,10 +16,8 @@ class SelectionController;
 
 namespace cutefish::shell {
 
-// A picture on the clipboard as image/png, through the seat's selection
-// controller. A whole screen takes about a second to compress, so the selection
-// is offered at once and encoded on a worker; a reader that asks before that
-// waits for it.
+// The selection is offered at once and encoded on a worker; a reader that asks
+// before that waits for it.
 class CaptureClipboard
 {
 public:

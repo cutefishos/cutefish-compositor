@@ -117,7 +117,6 @@ TEST(StackingTest, WindowsCanCoverDropsAPanelIntoTheNormalLayer)
 {
     EXPECT_EQ(StackingLayer::Normal, layerFor(WindowRole::Panel, PanelBehavior::WindowsCanCover));
     EXPECT_EQ(StackingLayer::Normal, layerFor(WindowRole::Dock, PanelBehavior::WindowsCanCover));
-    // A launchpad raised over them then covers both.
     EXPECT_LT(layerFor(WindowRole::Dock, PanelBehavior::WindowsCanCover),
               layerFor(WindowRole::Launchpad, PanelBehavior::StayAbove));
 }

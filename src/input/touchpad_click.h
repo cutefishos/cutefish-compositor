@@ -17,14 +17,8 @@ struct TouchpadContact {
     Timestamp downTime;
 };
 
-// Whether a physical press with these two fingers on the pad is a two-finger
-// click. libinput's clickfinger takes two fingers more than 30 mm apart
-// vertically, or 20 mm with one in the bottom 20 mm, for a thumb and a finger;
-// an index and middle finger laid diagonally on a 60 mm pad often are. This
-// judges them as FingerButtonClick::EvaluateTwoFingerButtonType in ChromiumOS
-// libgestures (src/immediate_interpreter.cc) does, without its pressure
-// checks: fingers within an ellipse 50 mm wide and 45 mm tall are together,
-// unless one rested in the bottom 10 mm before the other came down.
+// Fingers within an ellipse 50 mm wide and 45 mm tall are together, unless one rested in the
+// bottom 10 mm before the other came down.
 bool isTwoFingerClick(const TouchpadContact &first, const TouchpadContact &second,
                       Timestamp pressTime, const base::SizeF &padSize);
 

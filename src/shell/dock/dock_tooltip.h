@@ -21,20 +21,15 @@ namespace cutefish::shell {
 class DockWindow;
 class Shell;
 
-// The dock's tooltip: a glass bubble whose arrow points at the icon, a popup
-// of its own size that the next icon moves rather than makes again.
 class DockTooltip
 {
 public:
     DockTooltip(DockWindow *dock, Shell *shell);
     ~DockTooltip();
 
-    // `target`: the icon's centre in the dock window's coordinates; `farSide`:
-    // across the dock, where it stands clear of the panel and the icon as
-    // drawn; the bubble is moved by `offset` as the icon bounces.
+    // `target` is the icon's centre in the dock window's coordinates.
     void show(const std::string &text, const base::PointF &target, double farSide, const ui::PointF &offset = {});
-    // Above `top`, in the dock window's coordinates, whichever side the dock
-    // is on; it goes off the screen with what it labels.
+    // `top` is in the dock window's coordinates.
     void showAbove(const std::string &text, const base::PointF &top);
     void hide();
     bool isShown() const;
@@ -42,8 +37,6 @@ public:
     ui::Window *window() const { return m_window.get(); }
 
 private:
-    // `across`: beside a side dock rather than above; `contained`: kept
-    // inside the work area.
     void place(const std::string &text, const base::PointF &target, double farSide, const ui::PointF &offset,
                bool across, bool contained);
 
@@ -51,8 +44,8 @@ private:
     Shell *m_shell;
     std::unique_ptr<ui::Window> m_window;
     ui::Label *m_label = nullptr;
-    // Measures the text at the dock window's scale, as the label is drawn:
-    // hinted text is wider at 1.5 than at 1.
+    // Measures at the dock window's scale: hinted text is wider at 1.5 than at
+    // 1.
     ui::Label *m_measure = nullptr;
     std::string m_text;
 };

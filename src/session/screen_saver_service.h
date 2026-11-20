@@ -16,8 +16,7 @@
 namespace cutefish::session {
 class SessionController;
 
-// The one org.freedesktop.ScreenSaver object, at /ScreenSaver and
-// /org/freedesktop/ScreenSaver: a second object at either path fails to register.
+// A second object at either path fails to register.
 class ScreenSaverService : public SessionObserver
 {
 public:
@@ -28,15 +27,12 @@ public:
     bool registerService();
     void onSessionStateChanged(SessionState state) override;
 
-    // Inhibit counts against the compositor's idle inhibition through these.
     // Without them, as in the greeter, Inhibit is refused.
     void setInhibition(std::function<void()> acquire, std::function<void()> release);
 
-    // Locks as the D-Bus Lock does, for callers inside the compositor.
     void Lock();
     bool GetActive() const;
 
-    // Also sent on the bus.
     base::Signal<bool> activeChanged;
 
 private:

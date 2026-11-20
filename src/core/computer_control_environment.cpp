@@ -39,8 +39,7 @@ computer_control::Environment computerControlEnvironment(ComputerControlHosts ho
     const auto showsSystemDialogs = hosts.showsSystemDialogs;
 
     computer_control::Environment environment;
-    // The agent's application is the nearest process above its server that
-    // has a window: the agent app itself, or the terminal it runs in.
+    // The nearest process above the agent's server that has a window.
     const auto agentApplication = [wm, windowApplication = hosts.windowApplication](int64_t pid) {
         if (!windowApplication)
             return std::string();
@@ -64,9 +63,7 @@ computer_control::Environment computerControlEnvironment(ComputerControlHosts ho
                                      std::function<void(computer_control::ConsentResult)> answer) {
         return consent->ask(agentName, pid, agentApplication(pid), std::move(answer));
     };
-    // The permission prompt, the authentication dialogs and the shell's secret
-    // prompts are the user's to answer, so the agent neither clicks nor types
-    // into them or their popups. Shell windows have no process.
+    // Shell windows have no process.
     const auto protects = [showsSystemDialogs](const wm::Window *window) {
         for (; window; window = window->transientParent()) {
             if (window->isProtectedFromControl() || showsSystemDialogs(window->processId()))
@@ -96,8 +93,6 @@ computer_control::Environment computerControlEnvironment(ComputerControlHosts ho
     environment.sessionBlocked = [session] {
         return session->isBlocked();
     };
-    // Every desk's windows, as Ash's autotest API lists them
-    // (ash/autotest_private_api_utils.cc, GetAppWindowList).
     environment.windows = [wm] {
         std::vector<computer_control::WindowInfo> windows;
         for (wm::Window *window : wm->mruWindowTracker()->buildMruWindowList()) {
@@ -118,7 +113,6 @@ computer_control::Environment computerControlEnvironment(ComputerControlHosts ho
         }
         return windows;
     };
-    // What the dock's click on a task does; each step can end the window.
     environment.activateWindow = [wm](uint64_t id) {
         wm::Window *window = wm->windowById(id);
         if (!window || !wm::canIncludeWindowInMruList(window))
@@ -137,7 +131,6 @@ computer_control::Environment computerControlEnvironment(ComputerControlHosts ho
     environment.protectedWindow = [wm, protects](uint64_t id) {
         return protects(wm->windowById(id));
     };
-    // What the close button does (commands::closeWindow).
     environment.closeWindow = [wm](uint64_t id) {
         wm::Window *window = wm->windowById(id);
         if (!window || !wm::canIncludeWindowInMruList(window) || !window->canClose())
@@ -145,8 +138,7 @@ computer_control::Environment computerControlEnvironment(ComputerControlHosts ho
         window->requestClose();
         return true;
     };
-    // A window out of view is brought back with activateWindow first, so the
-    // agent sees what it moves.
+    // A window out of view is brought back first, so the agent sees what it moves.
     environment.setWindowFrame = [wm](uint64_t id, const base::Rect &requested) {
         wm::Window *window = wm->windowById(id);
         if (!window || !wm::canIncludeWindowInMruList(window) || window->isHidden()
@@ -156,7 +148,6 @@ computer_control::Environment computerControlEnvironment(ComputerControlHosts ho
         if (!window->isResizable()) {
             bounds.setSize(window->bounds().size());
         } else {
-            // No larger than the work area, as a resize by hand (WindowResizer).
             base::Size maximum = wm->workAreaFor(window).size();
             if (const base::Size limit = window->maximumOuterSize(); !limit.isEmpty())
                 maximum = maximum.isEmpty() ? limit : maximum.boundedTo(limit);
@@ -166,18 +157,17 @@ computer_control::Environment computerControlEnvironment(ComputerControlHosts ho
             }
         }
         wm::WindowState *state = window->state();
-        // As Ash's tiling does: a tiled window leaves its state for the bounds.
+        // A tiled window leaves its state for the bounds.
         if (!state->isNormal()) {
             state->setRestoreBounds(bounds);
             state->onEvent(wm::WMEvent(wm::WMEventType::Normal));
         } else {
             window->requestBounds(bounds);
         }
-        // Placed like a window moved by hand: nothing left to restore to.
         state->clearRestoreBounds();
         return true;
     };
-    // The text as wl-copy offers it, so Xwayland clients get it too.
+    // Offered as wl-copy offers it, so Xwayland clients get it too.
     environment.setClipboard = [seat](const std::string &text) {
         auto source = std::make_shared<clipboard::StoredSource>();
         for (const char *mime : {"text/plain;charset=utf-8", "text/plain", "UTF8_STRING",

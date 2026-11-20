@@ -16,13 +16,12 @@ namespace cutefish::shell {
 
 class Applications;
 
-// Do Not Disturb and how each application's notifications reach the user, in
-// the [Notifications] group of shell.conf. Read on the file thread; nothing is
-// decided before isReady().
+// Stored in the [Notifications] group of shell.conf; nothing is decided before
+// isReady().
 class NotificationSettings
 {
 public:
-    // How one application's notifications reach the user. The values are stored.
+    // The values are stored in shell.conf.
     enum ApplicationMode {
         Banners = 0,
         CenterOnly = 1,
@@ -30,14 +29,13 @@ public:
     };
 
     struct Application {
-        // The desktop id or the lower-cased name the notifications came with.
         std::string key;
         std::string name;
         std::string icon;
         ApplicationMode mode = Banners;
     };
 
-    // `path` is shell.conf; `applications` must outlive the settings.
+    // `applications` must outlive the settings.
     NotificationSettings(Applications &applications, std::string path);
 
     bool isReady() const { return m_ready; }
@@ -45,15 +43,11 @@ public:
     bool doNotDisturb() const { return m_doNotDisturb; }
     void setDoNotDisturb(bool enabled);
 
-    // `key` is Notification::applicationKey(); an unknown one shows banners.
+    // An unknown key shows banners.
     ApplicationMode applicationMode(const std::string &key) const;
     void setApplicationMode(const std::string &key, int mode);
 
-    // Remembers an installed application that sent a notification, so it can
-    // be listed; senders without a desktop entry are not.
     void noteApplication(const std::string &key, const std::string &name, const std::string &icon);
-    // Noted applications that are still installed, sorted by name in the
-    // user's language. Their names and icons follow the desktop entry.
     std::vector<Application> applications() const;
 
     base::Signal<> ready;

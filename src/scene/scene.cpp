@@ -66,7 +66,6 @@ void Scene::render(render::Renderer &renderer) const
         auto &tracker = m_damageTrackers[context.outputId];
         const base::Region damage =
                 tracker.update(*m_root, viewportFor(context), context.scale, context.transform);
-        // Each output's tracker stands for what its target holds.
         const auto scope = uint64_t(reinterpret_cast<uintptr_t>(&tracker));
         const auto kept = [&](uint64_t owner) {
             return renderer.keepsBackdrop(scope, owner);
@@ -74,8 +73,7 @@ void Scene::render(render::Renderer &renderer) const
         renderer.prepareDamage(damage, tracker.samples(kept));
         backdrops.emplace(renderer, scope, tracker.freshBackdrops(kept));
     }
-    // viz leaves an opaque root pass uncleared (SkiaRenderer::ClearFramebuffer);
-    // under a node covering the output, a clear is a full-screen write for nothing.
+    // Under a node covering the output, a clear is a full-screen write for nothing.
     if (!m_root->subtreeOccludesOutput(renderer))
         renderer.clear(m_background);
     m_root->render(renderer);

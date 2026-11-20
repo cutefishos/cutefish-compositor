@@ -4,9 +4,6 @@
 //
 // Upstream: chromium/src/ash/display/extended_mouse_warp_controller.h
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: retain the compositor's input dispatch while adding
-// projection onto a global logical display topology with holes.
 
 #ifndef CUTEFISH_INPUT_INPUT_MANAGER_H_
 #define CUTEFISH_INPUT_INPUT_MANAGER_H_
@@ -39,13 +36,6 @@ class EventSink;
 struct RelativeMotion;
 class Seat;
 
-// Turns the physical event stream into seat events. Physical input dispatch and
-// pointer coordinates only: window policy - which window a click activates,
-// where a drag moves it - belongs to the EventSink, which in practice is the
-// window manager.
-//
-// Exo has no equivalent: pointer position belongs to Ash's cursor manager and
-// activation to Ash's activation client.
 class InputManager : public SeatObserver
 {
 
@@ -55,14 +45,11 @@ public:
 
     Seat *seat() const { return m_seat; }
 
-    // Bounds the pointer may occupy, in output coordinates. Empty means
-    // unbounded, which is what the tests use.
     void setDisplayManager(display::DisplayManager *manager) { m_displayManager = manager; }
 
+    // In output coordinates; empty means unbounded.
     void setBounds(const base::Size &bounds);
-    // `primary` is where the pointer starts: the first topology with displays
-    // puts it at the primary display's centre rather than at the origin, as
-    // upstream's DrmCursor::OnWindowAdded places a cursor not yet placed.
+    // `primary` is where the pointer starts, at its centre, on the first topology with displays.
     void setTopology(const std::vector<base::Rect> &displays, const base::Rect &primary = {});
 
     const std::vector<base::Rect> &topology() const { return m_topology; }
@@ -75,14 +62,11 @@ public:
 
     base::Size deviceBounds() const { return m_deviceBounds.isEmpty() ? m_bounds : m_deviceBounds; }
 
-    // Offered every pointer and key event before the seat sees it. A consumed
-    // event is not dispatched to any client. Null in tests that exercise the
-    // seat alone.
+    // Sees every pointer and key event before the seat; may be null.
     void setEventSink(EventSink *sink) { m_eventSink = sink; }
 
     EventSink *eventSink() const { return m_eventSink; }
 
-    // Takes touchpad gestures the window manager handles itself.
     void setGestureFilter(GestureFilter *filter) { m_gestureFilter = filter; }
 
     base::PointF pointerPosition() const { return m_pointerPosition; }
@@ -91,21 +75,14 @@ public:
     // move consumes it before the seat sees it.
     bool isPointerButtonHeld() const { return !m_heldButtons.empty(); }
 
-    // Places the pointer without generating an event. Used at startup to put it
-    // in the middle of the output.
+    // Places the pointer without generating an event.
     void warpPointer(const base::PointF &position);
 
-    // Re-targets the still pointer once control returns to the event loop, as
-    // aura's WindowEventDispatcher::PostSynthesizeMouseMove: a surface mapped,
-    // hidden or restacked under it gets its enter or leave without a move.
+    // Re-targets the still pointer once control returns to the event loop.
     void synthesizeMotion();
 
-    // The compositor's own cursor, shown wherever no client owns the pointer
-    // image. A placeholder until the compositor installs its cursor theme.
-    // `hotspot` is its tip, relative to the node's own origin.
+    // `hotspot` is relative to the node's own origin.
     void setFallbackCursor(scene::Node *node, const base::Point &hotspot);
-
-    // --- Called by the libinput backend ---
 
     // `delta` is in output pixels; `unaccelerated` is the device's delta before
     // acceleration, which only relative-pointer clients see.
@@ -129,16 +106,11 @@ public:
     void onPointerGestureUpdate(Timestamp timestamp, GestureType type, const base::PointF &delta,
                                 const base::PointF &unacceleratedDelta, double scale, double rotation);
     void onPointerGestureEnd(Timestamp timestamp, GestureType type, bool cancelled);
-    // `layout` says where the keyboard has its Command key, if any. Under the
-    // Command convention a PC keyboard's Alt and Meta trade places, so that
-    // the key next to the space bar is Command (Meta) on every keyboard. The
-    // Pc convention leaves every keyboard as it is.
+    // `layout` says where the keyboard has its Command key; under the Command convention a PC keyboard's Alt and Meta trade places.
     void onKey(Timestamp timestamp, uint32_t evdevCode, bool pressed,
                KeyboardModifierLayout layout = KeyboardModifierLayout::Pc);
 
-    // Touchscreen input. `normalized` is the point on the panel, 0..1 across
-    // it in its own orientation; the display it belongs to places it on the
-    // desktop. A frame closes each batch of points from the device.
+    // `normalized` is 0..1 across the panel in its own orientation. A frame closes each batch of points.
     void onTouchDown(Timestamp timestamp, int32_t id, const base::PointF &normalized);
     void onTouchMotion(Timestamp timestamp, int32_t id, const base::PointF &normalized);
     void onTouchUp(Timestamp timestamp, int32_t id);
@@ -163,8 +135,6 @@ private:
 
     void dispatchMotion(Timestamp timestamp, const RelativeMotion *relative = nullptr);
 
-    // Moves the pointer towards `target` as far as the active pointer
-    // constraint allows.
     void movePointer(Timestamp timestamp, base::PointF target, const RelativeMotion &relative);
     void moveAbsolute(Timestamp timestamp, const base::PointF &target);
 
@@ -175,7 +145,6 @@ private:
     Seat *m_seat = nullptr;
     EventSink *m_eventSink = nullptr;
     GestureFilter *m_gestureFilter = nullptr;
-    // The gesture in progress went to the filter.
     bool m_gestureClaimed = false;
     std::set<uint32_t> m_secureKeys;
     // Physical key to the code it went down as, so that its release matches
@@ -193,15 +162,11 @@ private:
     // The last layout with displays, which the pointer position refers to: a
     // reprobe republishes the layout through an empty one.
     std::vector<base::Rect> m_pointerLayout;
-    // Where the last absolute event put the device, which a lock keeps apart
-    // from the pointer.
     std::optional<base::PointF> m_absolutePosition;
     // Where each touch point is, for the release that carries no location.
     std::map<int32_t, base::PointF> m_touchLocations;
-    // Points the event sink took, whose events it keeps getting.
     std::set<int32_t> m_consumedTouches;
-    // The point a locked session sees as its pointer: the lock screen takes
-    // input the way the mouse gives it, one point at a time.
+    // The one touch point a locked session sees as its pointer.
     std::optional<int32_t> m_secureTouch;
     scene::Node *m_fallbackCursor = nullptr;
     base::Point m_fallbackCursorHotspot;

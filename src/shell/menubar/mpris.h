@@ -17,9 +17,6 @@
 
 namespace cutefish::shell {
 
-// One media player on the session bus, org.mpris.MediaPlayer2.<name>: its
-// MediaPlayer2 and MediaPlayer2.Player properties, read once and kept from
-// PropertiesChanged, and the calls the control centre's media controls make.
 class MprisPlayer
 {
 public:
@@ -36,7 +33,6 @@ public:
     MprisPlayer &operator=(const MprisPlayer &) = delete;
 
     const std::string &service() const { return m_service; }
-    // Both interfaces answered once.
     bool isReady() const { return m_rootReady && m_playerReady; }
 
     std::string identity() const;
@@ -47,12 +43,10 @@ public:
     bool canGoPrevious() const;
     bool canPlay() const;
     bool canPause() const;
-    // xesam:title, xesam:artist joined by ", ", mpris:artUrl.
     std::string title() const;
     std::string artist() const;
     std::string artUrl() const;
 
-    // Methods of a player that cannot be controlled are not sent.
     void play();
     void pause();
     void playPause();
@@ -60,7 +54,6 @@ public:
     void next();
     void previous();
 
-    // Any property changed.
     base::Signal<> changed;
     base::Signal<> playbackStatusChanged;
 
@@ -84,10 +77,6 @@ private:
     bool m_playerReady = false;
 };
 
-// The media players on the bus and the one the control centre shows. A
-// playing player stays shown; when it stops, the one that most recently
-// started playing takes over. With none playing, a player that appears is
-// shown, and when the shown one leaves, the most recently active one is.
 class MprisManager
 {
 public:
@@ -99,18 +88,15 @@ public:
 
     MprisPlayer *current() const { return m_current.get(); }
     std::string currentService() const;
-    // The shown player first, then the most recently active.
     std::vector<std::string> availableServices() const;
 
     base::Signal<> currentChanged;
-    // Something of the shown player changed.
     base::Signal<> currentPlayerChanged;
 
 private:
     struct Entry
     {
         std::shared_ptr<MprisPlayer> player;
-        // Raised when the player appears or starts playing.
         uint64_t active = 0;
         base::Subscription statusChanged;
     };

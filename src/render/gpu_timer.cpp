@@ -39,8 +39,7 @@ GpuTimer::Mark &GpuTimer::Mark::operator=(Mark &&other) noexcept
 
 GpuTimer::Mark::~Mark()
 {
-    // Issuing a counter again on a query still in flight is allowed, so the
-    // name is reused without waiting for it.
+    // Issuing a counter again on a query still in flight is allowed.
     if (m_query)
         m_pool->push_back(m_query);
 }
@@ -88,14 +87,13 @@ std::optional<GpuTimer::Time> GpuTimer::reached(const Mark &mark)
     GLuint64 reachedNs = 0;
     reinterpret_cast<PFNGLGETQUERYOBJECTUI64VEXTPROC>(m_getQueryObjectui64)(
             mark.m_query, GL_QUERY_RESULT_EXT, &reachedNs);
-    // A disjoint operation, such as a GPU clock change, voids every result
-    // since the last check, and the clock offset with it.
+    // A disjoint operation voids every result since the last check, and the
+    // clock offset with it.
     GLint disjoint = 0;
     glGetIntegerv(GL_GPU_DISJOINT_EXT, &disjoint);
     if (disjoint)
         return std::nullopt;
-    // The GPU counts on its own clock; read it beside the CPU's to move the
-    // result onto the steady clock, as GPUTimingImpl::CalculateTimerOffset does.
+    // The GPU counts on its own clock, so it is read beside the CPU's.
     GLint64 gpuNow = 0;
     glGetInteger64v(GL_TIMESTAMP_EXT, &gpuNow);
     const Time cpuNow = std::chrono::steady_clock::now();

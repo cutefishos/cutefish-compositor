@@ -11,7 +11,6 @@ namespace cutefish::session {
 
 enum class SessionState {
     Active,
-    // Login has no user desktop to return to.
     Login,
     Locking,
     Locked,
@@ -33,7 +32,6 @@ public:
 
     virtual void onSessionStateChanged(SessionState state) = 0;
 
-    // The outputs the lock covers were added, removed, moved or rescaled.
     virtual void onSessionOutputsChanged() { }
 };
 

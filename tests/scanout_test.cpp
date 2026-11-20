@@ -7,13 +7,6 @@
 //           (Commit)
 //           chromium/src/ui/ozone/platform/drm/gpu/drm_framebuffer.cc (AddFramebuffer)
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// The display-controller half of direct scanout: importing client DMA-BUFs into
-// DRM framebuffers, validating plane configurations with an atomic TEST_ONLY,
-// and falling back to composition whenever any of that does not hold.
-//
-// Adapted for Cutefish: exercises the corresponding behavior with native
-// compositor test doubles and APIs.
 
 #include <algorithm>
 #include <cmath>
@@ -50,7 +43,6 @@ constexpr uint32_t kOverlayPlaneId = 20;
 constexpr uint32_t kSecondOverlayPlaneId = 30;
 constexpr uint64_t kTiled = 0x0100000000000001ull;
 
-// Property ids the fake hands back; only their identity matters.
 enum PropertyId : uint32_t {
     kFbId = 1,
     kCrtcIdProp,
@@ -125,8 +117,6 @@ backend::ScanoutController::Config makeConfig(size_t overlayCount = 2)
     return config;
 }
 
-// A client buffer. The plane fds are real pipe ends so the import path can be
-// exercised end to end; the fake device only ever compares them by value.
 class TestBuffer final : public render::ScanoutBuffer
 {
 public:
@@ -167,7 +157,6 @@ scene::OverlayCandidate makeCandidate(const std::shared_ptr<TestBuffer> &buffer,
     return candidate;
 }
 
-// Stands in for the framebuffer composition would produce.
 backend::PlaneContent compositedContent(uint32_t framebufferId = 55)
 {
     backend::PlaneContent content;
@@ -180,7 +169,6 @@ backend::PlaneContent compositedContent(uint32_t framebufferId = 55)
     return content;
 }
 
-// Reads back a property value the controller programmed for a plane.
 uint64_t propertyValue(const backend::AtomicRequest &request, uint32_t objectId,
                        uint32_t propertyId, bool *found = nullptr)
 {
@@ -236,7 +224,6 @@ TEST_F(ScanoutTest, AFullscreenClientBufferTakesThePrimaryPlane)
     EXPECT_TRUE(planes[0].isDirectScanout());
     EXPECT_EQ(planes[0].planeId, kPrimaryPlaneId);
     EXPECT_EQ(planes[0].buffer, buffer);
-    // Validation is exactly one TEST_ONLY commit and nothing else.
     EXPECT_EQ(m_device->testCommitCount(), 1u);
     EXPECT_EQ(m_device->realCommitCount(), 0u);
 }
@@ -270,7 +257,6 @@ TEST_F(ScanoutTest, AnUnsupportedFormatIsNeverEvenTested)
 
     ASSERT_EQ(planes.size(), 1u);
     EXPECT_FALSE(planes[0].isDirectScanout());
-    // No plane accepts the format, so there is nothing worth asking the kernel.
     EXPECT_EQ(m_device->testCommitCount(), 0u);
 }
 
@@ -315,8 +301,6 @@ TEST_F(ScanoutTest, AFailedImportIsNotRetriedEveryFrame)
     second.primary = makeCandidate(buffer, base::Rect(base::Point(0, 0), kOutputSize), 0);
     m_controller->validate(second, compositedContent(), 0);
 
-    // The failure is a property of the buffer; retrying it costs an ioctl a
-    // frame for as long as the client keeps the buffer alive.
     EXPECT_EQ(m_device->addFramebufferCalls.size(), attempts);
 }
 
@@ -344,8 +328,6 @@ TEST_F(ScanoutTest, TheFramebufferAndItsHandleDieWithTheClientBuffer)
         EXPECT_EQ(m_device->openHandles.size(), 1u);
     }
 
-    // The client went away mid-scanout: nothing may leak, and nothing may be
-    // left registered with the kernel.
     EXPECT_TRUE(m_device->liveFramebuffers.empty());
     EXPECT_TRUE(m_device->openHandles.empty());
     EXPECT_EQ(m_device->closedHandles.size(), 1u);
@@ -370,8 +352,6 @@ TEST_F(ScanoutTest, AFailedAtomicTestFallsBackToComposition)
 
 TEST_F(ScanoutTest, TheTopmostOverlayIsDroppedUntilTheConfigurationPasses)
 {
-    // Upstream's TestPageFlip loop: the hardware runs out of resources for the
-    // last plane, so it is given up and the rest is retested.
     m_device->commitFilter = [](const testing::FakeDrmDevice::Commit &commit) {
         size_t planeCount = 0;
         for (const backend::AtomicProperty &property : commit.request.properties) {
@@ -397,8 +377,6 @@ TEST_F(ScanoutTest, TheTopmostOverlayIsDroppedUntilTheConfigurationPasses)
 
 TEST_F(ScanoutTest, DirectScanoutSurvivesAnOverlayThatCouldNotBeValidated)
 {
-    // The hardware cannot drive both planes, but the fullscreen buffer on its
-    // own is still worth having: dropping the overlay must not drop it too.
     m_device->commitFilter = [](const testing::FakeDrmDevice::Commit &commit) {
         size_t planeCount = 0;
         for (const backend::AtomicProperty &property : commit.request.properties) {
@@ -437,7 +415,6 @@ TEST_F(ScanoutTest, WithoutOverlayPlanesNothingIsPromotedAboveThePrimary)
 
 TEST_F(ScanoutTest, WithoutAComposedFrameOverlaysAreNotAttempted)
 {
-    // The very first frame has nothing on the primary plane to test against.
     auto buffer = std::make_shared<TestBuffer>(base::Size(320, 240));
     scene::OverlayPlan plan;
     plan.overlays.push_back(makeCandidate(buffer, base::Rect(0, 0, 320, 240), 1));
@@ -488,8 +465,6 @@ TEST_F(ScanoutTest, AnAcquireFenceIsHandedToKmsRatherThanWaitedOn)
     const uint64_t value =
             propertyValue(m_device->commits.back().request, kPrimaryPlaneId, kInFenceFd, &found);
     EXPECT_TRUE(found);
-    // The plane keeps its own duplicate so the frame can be committed again
-    // after the plan is gone; it must still refer to the same pipe.
     const int handed = static_cast<int>(value);
     EXPECT_NE(handed, fds[0]);
     struct stat original = {};
@@ -522,8 +497,6 @@ TEST_F(ScanoutTest, APlaneThatFallsOutOfUseIsSwitchedOff)
     ASSERT_EQ(planes.size(), 2u);
     ASSERT_TRUE(m_controller->commit(planes, false, nullptr, 0, nullptr));
 
-    // The next frame composites everything again. Leaving the overlay alone
-    // would keep a buffer nothing owns any more on screen.
     ASSERT_TRUE(m_controller->commit({compositedContent()}, false, nullptr, 0, nullptr));
 
     const backend::AtomicRequest &request = m_device->commits.back().request;
@@ -543,12 +516,9 @@ TEST_F(ScanoutTest, ScanoutIsGivenUpAndTakenBackWithoutAStaleBuffer)
     ASSERT_TRUE(m_controller->commit(planes, false, nullptr, 0, nullptr));
     const uint32_t clientFramebuffer = planes[0].framebufferId;
 
-    // Back to composition: the primary plane must be handed the composited
-    // framebuffer in the same commit, never left showing the client's.
     ASSERT_TRUE(m_controller->commit({compositedContent(77)}, false, nullptr, 0, nullptr));
     EXPECT_EQ(propertyValue(m_device->commits.back().request, kPrimaryPlaneId, kFbId), 77u);
 
-    // And back to scanout, on the framebuffer that was cached all along.
     scene::OverlayPlan again;
     again.primary = makeCandidate(buffer, base::Rect(base::Point(0, 0), kOutputSize), 0);
     planes = m_controller->validate(again, compositedContent(77), 0);
@@ -600,7 +570,6 @@ TEST_F(ScanoutTest, AModesetClearsWhatAPreviousMasterLeftBehind)
         EXPECT_EQ(propertyValue(modeset, plane, kCrtcIdProp), 0u);
     }
 
-    // A page flip leaves the colour pipeline and unused planes alone.
     ASSERT_TRUE(m_controller->commit({compositedContent()}, false, nullptr, 42, nullptr));
     const backend::AtomicRequest &flip = m_device->commits.back().request;
     bool found = true;
@@ -609,7 +578,6 @@ TEST_F(ScanoutTest, AModesetClearsWhatAPreviousMasterLeftBehind)
     propertyValue(flip, kOverlayPlaneId, kFbId, &found);
     EXPECT_FALSE(found);
 
-    // Our own hardware cursor keeps its plane through a modeset.
     m_controller->setHardwareCursor(true);
     ASSERT_TRUE(
             m_controller->commit({compositedContent()}, /*modeset=*/true, nullptr, 42, nullptr));
@@ -621,7 +589,6 @@ namespace {
 
 constexpr uint32_t kCtm = 300, kGammaLut = 301, kGammaLutSize = 302, kDegammaLut = 303;
 
-// A CRTC with a CTM, a gamma LUT of `lutSize` entries, both or neither.
 backend::ScanoutController::Config colorConfig(bool ctm, uint64_t lutSize)
 {
     auto config = makeConfig();
@@ -652,7 +619,6 @@ TEST_F(ScanoutTest, ATintRidesTheNextPageFlipAsACtm)
     bool found = false;
     const uint64_t blob = propertyValue(flip, kCrtcId, kCtm, &found);
     ASSERT_TRUE(found);
-    // The gamma LUT is unset beside the CTM, not left as a previous master set it.
     EXPECT_EQ(propertyValue(flip, kCrtcId, kGammaLut, &found), 0u);
     EXPECT_TRUE(found);
 
@@ -665,7 +631,6 @@ TEST_F(ScanoutTest, ATintRidesTheNextPageFlipAsACtm)
     for (const size_t i : {1, 2, 3, 5, 6, 7})
         EXPECT_EQ(ctm[i], 0u) << i;
 
-    // Once the CRTC has it, flips leave the colour pipeline alone.
     ASSERT_TRUE(m_controller->commit({compositedContent()}, false, nullptr, 0, nullptr));
     propertyValue(m_device->commits.back().request, kCrtcId, kCtm, &found);
     EXPECT_FALSE(found);
@@ -686,7 +651,6 @@ TEST_F(ScanoutTest, AModesetKeepsTheTint)
     EXPECT_EQ(propertyValue(modeset, kCrtcId, kDegammaLut, &found), 0u);
     EXPECT_TRUE(found);
 
-    // A display waking up modesets again, and comes back tinted.
     ASSERT_TRUE(m_controller->commit({compositedContent()}, true, nullptr, 42, nullptr));
     EXPECT_EQ(propertyValue(m_device->commits.back().request, kCrtcId, kCtm), blob);
 }
@@ -715,7 +679,6 @@ TEST_F(ScanoutTest, WithoutColourPropertiesNothingIsTinted)
     EXPECT_FALSE(m_controller->supportsColorTransform());
     EXPECT_FALSE(m_controller->setColorTransform(kWarm));
 
-    // A gamma LUT of one entry cannot hold a line.
     m_controller = std::make_unique<backend::ScanoutController>(m_device.get(),
                                                                 colorConfig(false, 1));
     EXPECT_FALSE(m_controller->supportsColorTransform());
@@ -809,8 +772,6 @@ TEST_F(ScanoutTest, ARequestedReleaseFenceAsksTheCrtcForOne)
     bool found = false;
     propertyValue(m_device->commits.back().request, kCrtcId, kOutFencePtr, &found);
     EXPECT_TRUE(found);
-    // The fake never writes an fd back, so no fence comes out - which is the
-    // same fallback a driver without OUT_FENCE_PTR produces.
     EXPECT_FALSE(releaseFence.isValid());
 }
 
@@ -822,7 +783,6 @@ TEST_F(ScanoutTest, AFailedCommitReportsFailureAndKeepsNoState)
 
     EXPECT_FALSE(m_controller->commit({compositedContent()}, false, nullptr, 0, nullptr));
 
-    // Nothing was programmed, so the next commit has no plane to switch off.
     m_device->commitFilter = nullptr;
     ASSERT_TRUE(m_controller->commit({compositedContent()}, false, nullptr, 0, nullptr));
     bool found = false;
@@ -845,9 +805,7 @@ TEST_F(ScanoutTest, DisablingTurnsTheCrtcAndItsPlanesOff)
 
 TEST_F(ScanoutTest, TwoFramebuffersOverTheSameBufferShareOneHandle)
 {
-    // drmPrimeFDToHandle hands out one handle per underlying buffer; closing it
-    // while a second framebuffer still references it would be a driver-visible
-    // use-after-free.
+    // drmPrimeFDToHandle returns one handle per underlying buffer, shared by every framebuffer on it.
     auto buffer = std::make_shared<TestBuffer>(kOutputSize);
     const render::DmaBufAttributes &attributes = buffer->scanoutAttributes();
 
@@ -872,8 +830,6 @@ TEST_F(ScanoutTest, ABufferOnAPlaneIsHeldUntilTheFrameRetires)
     auto planes = m_controller->validate(plan, compositedContent(), 0);
     ASSERT_TRUE(planes[0].isDirectScanout());
 
-    // The output takes a scanout reference at commit and gives it back when the
-    // flip that replaced the frame completes.
     for (backend::PlaneContent &content : planes)
         content.buffer->onScanoutAcquired();
     EXPECT_EQ(buffer->scanoutCount, 1);
@@ -885,15 +841,12 @@ TEST_F(ScanoutTest, ABufferOnAPlaneIsHeldUntilTheFrameRetires)
 
 namespace {
 
-// The pending/on-screen frame pair DrmOutput keeps, in the same sequence it
-// drives them, so the retention rules can be exercised without GBM or EGL.
 struct FrameQueue {
     std::vector<backend::PlaneContent> pending;
     std::vector<backend::PlaneContent> onScreen;
 
     void submit(std::vector<backend::PlaneContent> planes)
     {
-        // A frame replaced before it ever flipped never reached the display.
         release(pending);
         for (backend::PlaneContent &content : planes) {
             if (content.buffer)
@@ -1041,8 +994,6 @@ TEST_F(ScanoutTest, ADelayedPageFlipKeepsBothFramesBuffersHeld)
     queue.flip();
     EXPECT_EQ(first->scanoutCount, 1);
 
-    // The flip for the second frame has not arrived yet, so the display may
-    // still be showing either buffer and neither may go back to its client.
     scene::OverlayPlan secondPlan;
     secondPlan.primary = makeCandidate(second, base::Rect(base::Point(0, 0), kOutputSize), 0);
     queue.submit(m_controller->validate(secondPlan, compositedContent(), 0));
@@ -1066,13 +1017,9 @@ TEST_F(ScanoutTest, SuspendAndResumeKeepTheScannedOutBufferHeld)
     queue.submit(m_controller->validate(plan, compositedContent(), 0));
     queue.flip();
 
-    // The session went away. The buffer is still what the CRTC will come back
-    // to, so it stays held across the whole suspend.
     ASSERT_TRUE(m_controller->disable());
     EXPECT_EQ(buffer->scanoutCount, 1);
 
-    // Resuming re-commits the retained configuration as a blocking modeset,
-    // which is what avoids needing a third buffer to come back on screen.
     ASSERT_TRUE(m_controller->commit(queue.onScreen, /*modeset=*/true, nullptr, 42, nullptr));
     EXPECT_EQ(buffer->scanoutCount, 1);
     EXPECT_EQ(propertyValue(m_device->commits.back().request, kPrimaryPlaneId, kFbId),
@@ -1092,14 +1039,11 @@ TEST_F(ScanoutTest, AClientDestroyedMidScanoutLeavesItsBufferOnTheScreen)
     queue.submit(m_controller->validate(plan, compositedContent(), 0));
     queue.flip();
 
-    // Everything the compositor held goes away: the surface, the wl_buffer,
-    // the client. The plane still references the storage.
     plan = scene::OverlayPlan();
     buffer.reset();
     EXPECT_EQ(raw->scanoutCount, 1);
     EXPECT_EQ(m_device->liveFramebuffers.size(), 1u);
 
-    // Only retiring the frame lets the buffer and its framebuffer go.
     queue.releaseAll();
     EXPECT_TRUE(m_device->liveFramebuffers.empty());
     EXPECT_TRUE(m_device->openHandles.empty());
@@ -1131,7 +1075,6 @@ TEST(CrossGpuScanout, CpuTransferCopiesRowsAndRetiresFramebufferBeforeDumbBuffer
 
 TEST(CrossGpuScanout, EachBufferIsImportedOrCopiedOnceAndRetiredWithIt)
 {
-    // The buffers come from the rendering GPU; the scanout device is the fake.
     const int fd = ::open("/dev/dri/renderD128", O_RDWR | O_CLOEXEC);
     if (fd < 0)
         GTEST_SKIP() << "No render node to allocate buffers on";
@@ -1148,7 +1091,6 @@ TEST(CrossGpuScanout, EachBufferIsImportedOrCopiedOnceAndRetiredWithIt)
         ASSERT_NE(imported, nullptr);
         EXPECT_EQ(cutefish::backend::DrmFramebuffer::importForBuffer(&device, bo), imported);
         EXPECT_EQ(device.addFramebufferCalls.size(), 1u);
-        // A copy replaces the import, and is filled again rather than made again.
         const std::vector<uint8_t> pixels(4 * 4 * 4, 7);
         auto *copy = cutefish::backend::DrmFramebuffer::copyForBuffer(&device, bo, pixels.data(),
                                                                       16);
@@ -1169,9 +1111,7 @@ TEST(CrossGpuScanout, EachBufferIsImportedOrCopiedOnceAndRetiredWithIt)
 
 TEST(SharedFileScanout, AClientBufferTakesTheRenderersHandleAndNeverClosesIt)
 {
-    // KMS and the renderer share the card's file, so the renderer's import of a
-    // client buffer holds the GEM handle KMS gets for it. The render node plays
-    // that file; the fake device is its KMS side.
+    // KMS and the renderer share the card's file, so they share the GEM handle of a client buffer.
     const int fd = ::open("/dev/dri/renderD128", O_RDWR | O_CLOEXEC);
     if (fd < 0)
         GTEST_SKIP() << "No render node to allocate buffers on";
@@ -1212,7 +1152,6 @@ TEST(SharedFileScanout, AClientBufferTakesTheRenderersHandleAndNeverClosesIt)
         EXPECT_TRUE(device.closedHandles.empty());
         EXPECT_TRUE(handleIsOpen());
 
-        // A buffer KMS rejects must not take the handle with it either.
         device.addFramebufferFails = true;
         EXPECT_FALSE(cutefish::backend::DrmFramebuffer::fromDmaBuf(&device, attributes));
         EXPECT_TRUE(device.closedHandles.empty());
@@ -1304,9 +1243,6 @@ TEST_F(ScanoutTest, YuvNeedsColorStateEvenWhenAdvertisedByThePlane)
 namespace cutefish {
 namespace {
 
-// A secure commit's request must leave nothing of the previous session's frame
-// programmed: the whole point is that the shield is not merely painted over an
-// application buffer that is still on a plane.
 void expectPlaneDisabled(const backend::AtomicRequest &request, uint32_t planeId)
 {
     bool foundFb = false;
@@ -1323,8 +1259,6 @@ void expectPlaneDisabled(const backend::AtomicRequest &request, uint32_t planeId
 
 TEST_F(ScanoutTest, ASecureCommitDisablesTheOverlayPlanesOfThePreviousFrame)
 {
-    // A frame of the active session: a client buffer on an overlay above the
-    // composited desktop.
     scene::OverlayPlan plan;
     plan.overlays.push_back(
             makeCandidate(std::make_shared<TestBuffer>(base::Size(64, 64)), base::Rect(10, 10, 64, 64), 1));
@@ -1332,7 +1266,6 @@ TEST_F(ScanoutTest, ASecureCommitDisablesTheOverlayPlanesOfThePreviousFrame)
     ASSERT_EQ(session.size(), 2u);
     ASSERT_TRUE(m_controller->commit(session, false, nullptr, 42, nullptr));
 
-    // Locking: composited primary only, committed securely.
     const size_t before = m_device->commits.size();
     ASSERT_TRUE(m_controller->commit({compositedContent()}, false, nullptr, 42, nullptr, true));
     ASSERT_EQ(m_device->commits.size(), before + 1);
@@ -1345,9 +1278,6 @@ TEST_F(ScanoutTest, ASecureCommitDisablesTheOverlayPlanesOfThePreviousFrame)
 
 TEST_F(ScanoutTest, ASecureCommitDisablesPlanesThisControllerNeverProgrammed)
 {
-    // Nothing has been committed, so the controller's own record of active
-    // planes is empty. A plane left live by a modeset, a previous compositor or
-    // a commit that failed still has to be cleared.
     ASSERT_TRUE(m_controller->commit({compositedContent()}, false, nullptr, 42, nullptr, true));
 
     const auto &request = m_device->commits.back().request;
@@ -1357,8 +1287,6 @@ TEST_F(ScanoutTest, ASecureCommitDisablesPlanesThisControllerNeverProgrammed)
 
 TEST_F(ScanoutTest, AnOrdinaryCommitStillOnlyDisablesWhatItProgrammed)
 {
-    // The secure path is additional, not a replacement: an unlocked session
-    // must not pay for programming every plane on every frame.
     ASSERT_TRUE(m_controller->commit({compositedContent()}, false, nullptr, 42, nullptr));
 
     const auto &request = m_device->commits.back().request;
@@ -1369,8 +1297,6 @@ TEST_F(ScanoutTest, AnOrdinaryCommitStillOnlyDisablesWhatItProgrammed)
 
 TEST_F(ScanoutTest, ASecureDirectScanoutConfigurationIsNotSecure)
 {
-    // Belt and braces for the DrmOutput predicate: a client buffer on the
-    // primary plane is an application plane however the commit was flagged.
     backend::PlaneContent direct = compositedContent();
     direct.buffer = std::make_shared<TestBuffer>(kOutputSize);
     EXPECT_FALSE(backend::DrmOutput::isSecureConfiguration({direct}));

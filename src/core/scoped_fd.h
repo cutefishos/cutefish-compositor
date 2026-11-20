@@ -11,7 +11,6 @@
 
 namespace cutefish {
 
-// Owning file descriptor. Stands in for base::ScopedFD.
 class ScopedFd
 {
 public:

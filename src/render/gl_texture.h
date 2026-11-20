@@ -13,8 +13,7 @@
 
 namespace cutefish::render {
 
-// The GL textures alive, from a list every GlTexture is on; they are made
-// and destroyed on the thread of the one context, the main thread.
+// Made and destroyed on the main thread, the one context's.
 struct GlTextureUsage {
     struct Count {
         size_t textures = 0;
@@ -27,14 +26,12 @@ struct GlTextureUsage {
         const char *label = nullptr;
         uint64_t bytes = 0;
     };
-    // Kept by the compositor, and EGLImage imports of clients' buffers.
     Count owned;
     Count imported;
-    // The compositor's own by size: under 64 KiB, 256 KiB, 1 MiB, 4 MiB, larger.
+    // Under 64 KiB, 256 KiB, 1 MiB, 4 MiB, larger.
     Count bySize[5];
-    // By label, null for the textures nobody labelled.
+    // Null for the textures nobody labelled.
     std::vector<std::pair<const char *, Count>> byLabel;
-    // The compositor's own of 4 MiB or more.
     std::vector<Large> large;
 };
 
@@ -42,9 +39,8 @@ struct GlTextureUsage {
 class GlTexture : public Texture
 {
 public:
-    // `target` is GL_TEXTURE_2D for uploaded pixels and GL_TEXTURE_EXTERNAL_OES
-    // for EGLImage imports; passed as a plain enum so this header stays free of
-    // the GL headers.
+    // GL_TEXTURE_2D for uploaded pixels, GL_TEXTURE_EXTERNAL_OES for EGLImage
+    // imports.
     GlTexture(uint32_t name, const base::Size &size, PixelFormat format = PixelFormat::Rgba8888,
               uint32_t target = 0x0DE1 /* GL_TEXTURE_2D */,
               std::shared_ptr<EglContext> context = {});
@@ -64,11 +60,10 @@ public:
 
     uint32_t target() const { return m_target; }
 
-    // The context the texture belongs to; null for one deleted on whatever is current.
+    // Null for one deleted on whatever is current.
     const std::shared_ptr<EglContext> &context() const { return m_context; }
 
-    // RGBA texels, a third more with mipmaps; what the driver rounds it to is
-    // not counted.
+    // What the driver rounds it to is not counted.
     uint64_t bytes() const;
     static GlTextureUsage usage();
 
@@ -95,13 +90,11 @@ public:
     std::unique_ptr<Texture> create(const base::Size &size, const uint8_t *pixels, int stride,
                                     PixelFormat format);
     bool update(Texture *texture, const uint8_t *pixels, int stride, PixelFormat format);
-    // Only `damage`, in texture pixels, is read from `pixels` and replaced.
+    // `damage` is in texture pixels.
     bool update(Texture *texture, const uint8_t *pixels, int stride, PixelFormat format,
                 const base::Region &damage);
 
 private:
-    // `rect` of the buffer at `pixels` into the same place of the bound
-    // texture, or, with `create`, the whole buffer as its new image.
     void uploadPixels(const base::Size &size, const base::Rect &rect, const uint8_t *pixels, int stride,
                       bool create);
     bool unpacksRows();

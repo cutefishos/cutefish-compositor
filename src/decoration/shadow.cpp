@@ -35,9 +35,6 @@ base::Size scaled(const base::Size &size, int factor)
     return {size.width() * factor, size.height() * factor};
 }
 
-// The longest range of `vertical` rows (or columns) across which every row of
-// the flattened outline is the same: no edge but ones parallel to the run
-// passes through it, and no edge across it starts or ends inside.
 Run longestStraightRun(const std::vector<std::vector<ui::PointF>> &polygons, bool vertical)
 {
     const auto along = [vertical](const ui::PointF &p) {
@@ -97,8 +94,7 @@ ShadowGeometry::ShadowGeometry(const base::Size &windowSize, int radius, const S
     , m_style(style)
     , m_silhouette(silhouette)
 {
-    // Internal assets have a bounded physical footprint. Scale 1 is the output
-    // contract today; integer raster scales 2..4 are exercised independently.
+    // Integer raster scales 2..4 only, with a bounded physical footprint.
     if (windowSize.isEmpty() || windowSize.width() > (1 << 20) || windowSize.height() > (1 << 20)
         || rasterScale < 1 || rasterScale > 4 || m_radius < 0
         || m_radius > windowSize.width() / 2 || m_radius > windowSize.height())
@@ -112,8 +108,7 @@ ShadowGeometry::ShadowGeometry(const base::Size &windowSize, int radius, const S
             || (layer.offset.y() < -32 || layer.offset.y() > 32) || !std::isfinite(layer.opacity)
             || layer.opacity < 0 || layer.opacity > 1)
             return;
-        // Adapt GetMargin's union of offset exterior extents. Our discrete
-        // Gaussian is explicitly truncated at 3 sigma, not blur()/2.
+        // The discrete Gaussian is truncated at 3 sigma.
         const int reach = static_cast<int>(std::ceil(3 * layer.sigma));
         m_margins = base::Insets(std::max(m_margins.left(), reach - layer.offset.x()),
                                  std::max(m_margins.top(), reach - layer.offset.y()),
@@ -132,7 +127,6 @@ ShadowGeometry::ShadowGeometry(const base::Size &windowSize, int radius, const S
             const Run run = longestStraightRun(polygons, vertical);
             const int begin = int(std::ceil(run.begin)) + reach;
             const int end = int(std::floor(run.end)) - reach;
-            // Stretching fewer than two rows saves nothing.
             return end - begin >= 2 ? std::pair {begin, end} : std::pair {extent, extent};
         };
         const auto [top, bottom] = stretch(true, windowSize.height());
@@ -166,8 +160,6 @@ ShadowGeometry::ShadowGeometry(const base::Size &windowSize, int radius, const S
         }
         return;
     }
-    // Full blur support plus corner space before the one-logical-pixel
-    // aperture, with an extra sample of constant edge for linear filtering.
     const int fixed = int(std::ceil(m_radius * 1.5)) + support + offset + 1;
     m_canonicalSize = base::Size(std::min(windowSize.width(), 2 * fixed + 1),
                                  std::min(windowSize.height(), 2 * fixed + 1));
@@ -201,7 +193,6 @@ base::Rect ShadowGeometry::paintBounds() const
 
 std::string ShadowGeometry::key() const
 {
-    // Only a cache key: the number format need not match anything stored.
     std::string result = std::format(
             "shadow-v5:{}:{}:{}:{}:{}:{}{}{}{}", m_canonicalSize.width(), m_canonicalSize.height(),
             m_radius, m_scale, render::continuousCorners() ? 1 : 0, m_corners.topLeft ? 1 : 0,
@@ -234,8 +225,6 @@ std::unique_ptr<render::Texture> ShadowGeometry::render(render::Renderer &render
 
     const base::Rect box(base::Point(m_margins.left() * m_scale, m_margins.top() * m_scale),
                          scaled(m_canonicalSize, m_scale));
-    // A path has no shader: it is rasterized whole, then the stretched runs are
-    // left out but for one sample. Black, so only its coverage is carried.
     ui::Bitmap mask;
     if (!m_silhouette.isEmpty()) {
         const ui::Bitmap full = render::rasterizeShape(
@@ -268,7 +257,6 @@ std::unique_ptr<render::Texture> ShadowGeometry::render(render::Renderer &render
         renderer.pushRoundedClip({base::RectF(box), double(m_radius * m_scale)});
         renderer.fillRect(box, black);
         renderer.popRoundedClip();
-        // A square corner fills the quarter of the box its arc would round.
         const base::RectF bounds(box);
         const base::SizeF quarter = bounds.size() / 2;
         if (!m_corners.topLeft)
@@ -296,9 +284,8 @@ render::Texture *shadowTexture(render::Renderer &renderer, const ShadowGeometry 
     return textures.front().get();
 }
 
-// `start` to `end` with both corners on physical pixels. The renderer widens
-// a target to every pixel it touches, so a slice edge inside a pixel would
-// paint that pixel under both slices that meet there.
+// Both corners on physical pixels: the renderer widens a target to every pixel
+// it touches.
 base::RectF placeSlice(const render::Renderer &renderer, const base::PointF &start,
                        const base::PointF &end)
 {
@@ -307,7 +294,7 @@ base::RectF placeSlice(const render::Renderer &renderer, const base::PointF &sta
     return base::RectF::fromEdges(first.x(), first.y(), last.x(), last.y());
 }
 
-// The unit square of a slice to `source`, in texture coordinates of `size`.
+// In texture coordinates of `size`.
 base::AffineTransform sliceMapping(const base::RectF &source, const base::SizeF &size)
 {
     return base::AffineTransform(source.width() / size.width(), 0, 0, source.height() / size.height(),
@@ -324,8 +311,8 @@ void paintShadow(render::Renderer &renderer, const ShadowGeometry &geometry,
     render::Texture *image = shadowTexture(renderer, geometry);
     if (!image)
         return;
-    // The shadow meets the body where the window clips it, moved by `snap` with
-    // its surface, so the pixel along an edge never gets part of the darkest row.
+    // Moved by `snap` with its surface, so the edge pixel never gets part of
+    // the darkest row.
     const base::Size window = geometry.paintBounds().marginsRemoved(geometry.margins()).size();
     const base::RectF body = renderer.pixelsInside(
             base::RectF(base::PointF(position), base::SizeF(window)).translated(snap));
@@ -336,7 +323,6 @@ void paintShadow(render::Renderer &renderer, const ShadowGeometry &geometry,
     for (size_t i = 0; i < 9; ++i) {
         const base::Rect source = geometry.sources()[i];
         const base::Rect target = geometry.targets()[i];
-        // The middle is the window's own.
         if (i == 4 || source.isEmpty() || target.isEmpty())
             continue;
         const base::PointF start(place(target.left(), window.width(), body.left(), body.right()),
@@ -347,8 +333,7 @@ void paintShadow(render::Renderer &renderer, const ShadowGeometry &geometry,
         const base::RectF placed = placeSlice(renderer, start, end);
         if (placed.isEmpty() || !renderer.drawsInto(placed.toEnclosingRect()))
             continue;
-        // A stretched cut lies in a constant run and any other joins slices
-        // drawn at one scale, so filtering across it reads what one image would.
+        // Filtering across a cut reads what one image would.
         slices.push_back({placed, sliceMapping(base::RectF(source), base::SizeF(image->size()))});
     }
     renderer.drawTextureMappedRects(image, slices, opacity);
@@ -363,8 +348,6 @@ void paintStretchedShadow(render::Renderer &renderer, const ShadowGeometry &geom
     render::Texture *image = shadowTexture(renderer, geometry);
     if (!image)
         return;
-    // The margins keep their size and only the span under the window scales,
-    // so the shadow still meets the window's edges.
     const auto map = [](int value, int from, int to) {
         if (value <= 0)
             return value;

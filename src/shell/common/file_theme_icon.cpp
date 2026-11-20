@@ -17,9 +17,7 @@ namespace {
 
 struct FileIcons
 {
-    // Rasters that reached the icon cache.
     std::set<std::string> loaded;
-    // Rasters on the pool, and who waits for them.
     std::map<std::string, std::vector<std::function<void()>>> loading;
 };
 
@@ -55,7 +53,6 @@ bool load(const std::string &name, int size, double scale, std::function<void()>
             for (const std::function<void()> &callback : waiting)
                 callback();
         });
-        // One cached already is done at once.
         if (icons.loaded.contains(key))
             return true;
     }

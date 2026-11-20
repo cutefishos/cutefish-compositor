@@ -11,11 +11,6 @@
 
 namespace cutefish::wm {
 
-// How much shadow a window casts. Upstream these are dip elevations carried in
-// a window property (kNone, kDefault, kInactiveWindow, kActiveWindow,
-// kMenuOrTooltip) and turned into blur/offset by ui::Shadow. Cutefish keeps
-// FishUI's own two-lobe style table instead, so the enum names the role and
-// decoration::Metrics owns the numbers.
 enum class ShadowElevation {
     None,
     Popup,

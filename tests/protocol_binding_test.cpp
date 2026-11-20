@@ -6,9 +6,6 @@
 //           chromium/src/components/exo/wayland/clients/test/client_version_test.cc
 //           chromium/src/components/exo/wayland/clients/security_delegate_binding_test.cc
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: binds the globals ProtocolGlobals registers, over
-// socketpair clients, and checks the registry filter for the restricted ones.
 
 #include <gtest/gtest.h>
 
@@ -47,8 +44,6 @@ using cutefish::testing::knownInterfaces;
 
 namespace {
 
-// No executable is allowlisted: every restricted global needs the trusted shell,
-// except what the one computer-use client, if any, may see.
 class DenyingSecurityDelegate final : public wayland::SecurityDelegate
 {
 public:
@@ -82,8 +77,7 @@ struct Client {
 
     ~Client()
     {
-        // Local destruction only, so a connection that already failed is fine
-        // and the server sees each object go with the client.
+        // Local destruction only, so a connection that already failed is fine.
         for (wl_proxy *proxy : bound)
             wl_proxy_destroy(proxy);
         if (registry)
@@ -148,7 +142,6 @@ protected:
         return connectTo(fds[1]);
     }
 
-    // A client on `fd`, the other end of a connection the compositor made.
     std::unique_ptr<Client> connectTo(int fd)
     {
         auto client = std::make_unique<Client>();
@@ -188,15 +181,13 @@ protected:
         return result;
     }
 
-    // Drops disconnected clients, so each check starts from a quiet server.
     void settle()
     {
         for (int i = 0; i < 10; ++i)
             m_server.dispatch(std::chrono::milliseconds(0));
     }
 
-    // Binds `interface` at `version` on a fresh connection; true when the
-    // compositor accepted it and answered a roundtrip.
+    // True when the compositor accepted the bind and answered a roundtrip.
     bool bindsCleanly(const std::string &interface, uint32_t version, bool trusted)
     {
         auto client = connect(trusted);
@@ -221,7 +212,6 @@ protected:
                 EXPECT_TRUE(bindsCleanly(interface, version, trusted)) << "version " << version;
             EXPECT_FALSE(bindsCleanly(interface, global.version + 1, trusted));
         }
-        // Still serving after all of that.
         auto client = connect(trusted);
         for (const auto &[interface, global] : globals)
             EXPECT_TRUE(client->globals.contains(interface)) << interface;
@@ -272,18 +262,14 @@ TEST_F(ProtocolBindingTest, OrdinaryClientsDoNotSeeRestrictedGlobals)
         EXPECT_FALSE(ordinary->globals.contains(restricted)) << restricted;
         EXPECT_TRUE(trusted->globals.contains(restricted)) << restricted;
     }
-    // Only the input method the compositor spawned may drive text input.
     for (const char *inputMethod : {"zwp_input_method_manager_v2", "zwp_virtual_keyboard_manager_v1"}) {
         EXPECT_FALSE(ordinary->globals.contains(inputMethod)) << inputMethod;
         EXPECT_FALSE(trusted->globals.contains(inputMethod)) << inputMethod;
     }
-    // What the ordinary client sees, the shell sees too.
     for (const auto &[interface, global] : ordinary->globals)
         EXPECT_TRUE(trusted->globals.contains(interface)) << interface;
 }
 
-// The computer-use service binds output capture at startup, before the user
-// lets it capture anything, and never learns the window list.
 TEST_F(ProtocolBindingTest, TheComputerUseServiceBindsOutputCaptureButSeesNoWindows)
 {
     auto client = connect(false, true);
@@ -305,8 +291,6 @@ TEST_F(ProtocolBindingTest, TheComputerUseServiceBindsOutputCaptureButSeesNoWind
     EXPECT_EQ(0, wl_display_get_error(client->display));
 }
 
-// A program that posts key events binds a virtual keyboard, and nothing of
-// the input method's.
 TEST_F(ProtocolBindingTest, ATypistSeesTheVirtualKeyboardAlone)
 {
     auto client = connect(false, false, true);
@@ -319,9 +303,6 @@ TEST_F(ProtocolBindingTest, ATypistSeesTheVirtualKeyboardAlone)
     EXPECT_EQ(0, wl_display_get_error(client->display));
 }
 
-// The recorder the shell starts captures on the connection the compositor made
-// for it, and on nothing else: neither its executable nor the connection makes
-// it the shell.
 TEST_F(ProtocolBindingTest, ACaptureConnectionSeesTheCaptureGlobalsAlone)
 {
     const int fd = m_globals->privileged()->createCaptureConnection();
@@ -347,8 +328,6 @@ TEST_F(ProtocolBindingTest, ACaptureConnectionSeesTheCaptureGlobalsAlone)
     EXPECT_EQ(0, wl_display_get_error(recorder->display));
 }
 
-// Exo's security binding checks: a hidden global stays out of reach even when
-// its name is guessed.
 TEST_F(ProtocolBindingTest, AGuessedRestrictedGlobalCannotBeBound)
 {
     const auto trusted = connect(true)->globals;
@@ -368,8 +347,6 @@ TEST_F(ProtocolBindingTest, AGuessedRestrictedGlobalCannotBeBound)
     }
 }
 
-// Exo's InterfaceBinding: version 0 and one past the advertised version are
-// refused, every version from 1 to the advertised one binds and answers.
 TEST_F(ProtocolBindingTest, InterfaceBindingVersionSkew)
 {
     const auto globals = connect()->globals;
@@ -391,8 +368,6 @@ TEST_F(ProtocolBindingTest, TrustedInterfaceBindingVersionSkew)
     checkVersionSkew(restricted, true);
 }
 
-// Everything bound at once, then the connection dropped without a single
-// destructor request: the server unwinds every resource on its own.
 TEST_F(ProtocolBindingTest, BindingEverythingAndDisconnecting)
 {
     for (bool trusted : {false, true}) {

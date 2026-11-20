@@ -4,9 +4,6 @@
 //
 // Upstream: chromium/src/components/exo/surface.cc
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: integrates the upstream behavior with native
-// compositor types and ownership.
 
 #include "compositor/surface.h"
 
@@ -47,8 +44,8 @@ bool transformSwapsAxes(Transform transform)
     }
 }
 
-// SkRegion, and base::Region after it, cannot represent a rect whose extent
-// reaches INT32_MAX; clients send exactly that to mean "all of it".
+// SkRegion cannot represent an extent reaching INT32_MAX, which clients send to
+// mean "all of it".
 base::Rect clampDamage(const base::Rect &rect)
 {
     constexpr int kMax = 0x7FFFFFFE;
@@ -63,12 +60,12 @@ base::Rect clampDamage(const base::Rect &rect)
 // The size of a surface without a buffer.
 constexpr base::Size kNoSize(-1, -1);
 
-// Held commits across all surfaces, so that the common case never walks a tree.
+// So that the common case never walks a tree.
 size_t s_heldCommits = 0;
 uint64_t s_commitSequence = 0;
 
-// A readability watch on the main loop, removed with its owner. The watch may
-// remove itself from its own callback, so the id is shared with it.
+// The watch may remove itself from its own callback, so the id is shared with
+// it.
 class FenceWatch
 {
 public:
@@ -113,8 +110,8 @@ bool rectFContains(const base::Rect &outer, const ui::RectF &inner)
 
 } // namespace
 
-// Everything one wl_surface.commit carries, taken out of pending state when the
-// client sends it, so later requests cannot leak into a commit that waits.
+// Taken out of pending state when the client sends it, so later requests cannot
+// leak into a commit that waits.
 struct Surface::CommitRequest {
     struct Fence {
         // Readable once signalled: a sync_file or a syncobj eventfd.
@@ -156,8 +153,8 @@ struct Surface::CommitRequest {
 
     uint64_t sequence = 0;
     ExtendedState state;
-    // Holds the cached attachment's claim on client storage, and keeps the
-    // contents a client destroys its wl_buffer under while the commit waits.
+    // Keeps the contents alive if the client destroys its wl_buffer while the
+    // commit waits.
     std::shared_ptr<Buffer> buffer;
     bool attachedBuffer = false;
     bool explicitSyncBuffer = false;
@@ -201,13 +198,12 @@ Surface::~Surface()
 {
     *m_lifetime = nullptr;
     // Out of the compositor's list before anything is notified: an observer may
-    // enumerate surfaces, and must not be handed one that is being destroyed.
+    // enumerate surfaces.
     if (m_compositor)
         m_compositor->surfaceDestroyed(this);
 
-    // Observers next: they hold raw pointers to this surface and must drop
-    // them before any of its state is torn down. One observer's handler may
-    // destroy another observer, so re-check membership on every step.
+    // Observers hold raw pointers to this surface and may destroy each other,
+    // so membership is re-checked on every step.
     for (SurfaceObserver *observer : std::vector<SurfaceObserver *>(m_observers)) {
         if (hasSurfaceObserver(observer))
             observer->onSurfaceDestroying(this);
@@ -234,7 +230,6 @@ Surface::~Surface()
         if (auto content = weak.lock())
             content->complete({});
     }
-    // Cancel every callback the client is still waiting on.
     for (auto *list : {&m_pending.frameCallbacks, &m_cached.frameCallbacks, &m_state.frameCallbacks,
                        &m_inFlightFrameCallbacks}) {
         for (const FrameCallback &callback : *list)
@@ -247,8 +242,8 @@ Surface::~Surface()
             buffer->onDetach();
     }
 
-    // Releases that never reached a buffer are signalled here rather than left
-    // for a client that would wait on them forever.
+    // Releases that never reached a buffer are signalled, or the client would
+    // wait forever.
     for (auto *state : {&m_pending, &m_cached, &m_state}) {
         if (state->release)
             state->release->signal(render::SyncFence());
@@ -283,8 +278,8 @@ void Surface::setAcquirePoint(std::shared_ptr<render::DrmSyncobj> timeline, uint
 
 void Surface::setBufferRelease(std::shared_ptr<BufferRelease> release)
 {
-    // A release replaced before it was ever committed is still owed: the client
-    // is waiting on that timeline point and nothing else will signal it.
+    // A replaced release is still owed: the client is waiting on that timeline
+    // point.
     if (m_pending.release && m_pending.release != release)
         m_pending.release->signal(render::SyncFence());
     m_pending.release = std::move(release);
@@ -414,8 +409,7 @@ void Surface::commit()
     if (request->buffer) {
         if (state.acquireTimeline) {
             ScopedFd signalled = state.acquireTimeline->signalEventFd(state.acquirePoint);
-            // The kernel cannot wait for a point it has no fence for yet; take
-            // whatever is there now.
+            // The kernel cannot wait for a point it has no fence for yet.
             if (!signalled.isValid())
                 state.acquireFence = state.acquireTimeline->exportFence(state.acquirePoint);
             request->addFence(std::move(signalled));
@@ -485,8 +479,8 @@ void Surface::applyCommit(CommitRequest &request)
         m_cached.release = std::move(incoming.release);
     }
     incoming.acquireFence.reset();
-    // A release committed without a buffer applies to nothing, and the protocol
-    // layer has already raised no_buffer; signal it rather than strand it.
+    // A release committed without a buffer has already raised no_buffer; signal
+    // it rather than strand it.
     if (incoming.release) {
         incoming.release->signal(render::SyncFence());
         incoming.release.reset();
@@ -499,7 +493,7 @@ void Surface::applyCommit(CommitRequest &request)
     incoming.frameCallbacks.clear();
     if (request.held) {
         // Children added or removed while the commit waited are already in the
-        // live lists; the commit places the others.
+        // live lists.
         const auto isIn = [](const SubSurfaceList &list, Surface *surface) {
             return std::any_of(list.begin(), list.end(), [surface](const auto &e) {
                 return e.surface == surface;
@@ -515,13 +509,11 @@ void Surface::applyCommit(CommitRequest &request)
     }
     m_cachedSubSurfaces = std::move(request.subSurfaces);
 
-    // Exo SubSurface::OnSurfaceCommit: early out when synchronized with parent.
     if (!isSynchronized())
         commitDesynchronized();
 
-    // Exo runs this through SurfaceDelegate::OnSurfaceCommit, which owns the
-    // hierarchy commit above. Cutefish notifies afterwards instead, so a role
-    // owner sees committed state. Handlers may destroy other observers.
+    // Notified after the hierarchy commit, so a role owner sees committed
+    // state; handlers may destroy other observers.
     for (SurfaceObserver *observer : std::vector<SurfaceObserver *>(m_observers)) {
         if (!*alive)
             return;
@@ -618,8 +610,8 @@ void Surface::applyCachedState()
     m_cached.basicState.offset = {};
     if (m_cached.buffer) {
         auto incoming = m_cached.buffer->buffer.lock();
-        // Attach before detach, including when cached/current share a buffer.
-        // A prior upload by another surface must not release our cached pixels.
+        // Attach before detach, so a prior upload by another surface cannot
+        // release our cached pixels.
         if (incoming)
             incoming->onAttach();
         if (auto outgoing = m_state.buffer ? m_state.buffer->buffer.lock() : nullptr)
@@ -641,8 +633,7 @@ void Surface::applyCachedState()
         m_textureDirty = true;
         m_movedAheadOfContent = false;
     }
-    // Damage invalidates the committed contents, not released client storage.
-    // A new attachment is required before uploading that storage again.
+    // A new attachment is required before uploading released storage again.
     if (mappingChanged || m_cached.fullDamage) {
         m_uploadAll = true;
     } else {
@@ -682,8 +673,8 @@ void Surface::applyCachedState()
     updateSubSurfaceStacking();
     if (m_node) {
         m_node->setGeometry(base::Rect(m_position, contentSize()));
-        // The opaque region is committed state and can change without the
-        // buffer changing, so it is applied here rather than at upload.
+        // The opaque region can change without the buffer, so it is applied
+        // here rather than at upload.
         m_node->setOpaque(isFullyOpaque());
         m_node->setBackgroundBlur(backgroundBlurRect(), backgroundBlurRadius(), glass(),
                                   backgroundBlurShape());
@@ -718,10 +709,8 @@ bool Surface::hasSurfaceObserver(const SurfaceObserver *observer) const
     return std::find(m_observers.begin(), m_observers.end(), observer) != m_observers.end();
 }
 
-// Port of the hit_test_region_ half of Exo Surface::CommitSurfaceHierarchy.
-// The local region is this surface's own input region clipped to its content;
-// the full region unions in every subsurface, which is what a parent's hit test
-// needs before descending.
+// The full region unions in every subsurface, which a parent's hit test needs
+// before descending.
 void Surface::setExternalInputRegion(std::optional<base::Region> region)
 {
     m_externalInputRegion = std::move(region);
@@ -753,7 +742,6 @@ void Surface::updateHitTestRegion()
 void Surface::commitSurfaceHierarchy(bool synchronized)
 {
     const auto alive = m_lifetime;
-    // Port of Exo Surface::CommitSurfaceHierarchy, without Viz resource assembly.
     if (m_needsCommitSurface && (synchronized || !isSynchronized())) {
         for (SurfaceObserver *observer : std::vector<SurfaceObserver *>(m_observers)) {
             if (hasSurfaceObserver(observer) && !observer->onSurfaceStateApplying(this))
@@ -765,7 +753,6 @@ void Surface::commitSurfaceHierarchy(bool synchronized)
         if (!*alive)
             return;
     }
-    // Synchronously commit all cached state of the sub-surface and descendants.
     std::vector<std::shared_ptr<Surface *>> children;
     for (const auto &entry : m_subSurfaces)
         if (entry.surface != this)
@@ -851,14 +838,13 @@ void Surface::removeSubSurface(Surface *child)
         child->m_node->setVisible(false);
     }
     updateSubSurfaceStacking();
-    // The hit-test stack holds raw pointers and is otherwise rebuilt only at
-    // this surface's next commit; the child may be freed before that, and a
-    // pointer motion in between would walk it.
+    // The hit-test stack holds raw pointers to the child, which may be freed
+    // before the next commit.
     updateHitTestRegion();
     if (m_compositor)
         m_compositor->scheduleRepaint();
-    // Either side may have waited only behind the other's commits. Not from
-    // here: this runs inside protocol requests and surface destruction.
+    // Not from here: this runs inside protocol requests and surface
+    // destruction.
     if (s_heldCommits) {
         for (Surface *surface : {this, child}) {
             core::mainLoop()->post([alive = surface->lifetimeToken()] {
@@ -878,8 +864,8 @@ void Surface::setSubSurfacePosition(Surface *child, const base::Point &position)
 
 bool Surface::placeSubSurface(Surface *child, Surface *reference, bool above)
 {
-    // Exo DoPlaceAboveOrBelow's list splice, with an explicit parent sentinel.
-    // Unlike upstream's above-only parent special case this also supports below.
+    // The parent sentinel allows placing a child below the parent as well as
+    // above.
     if (child == reference)
         return false;
     auto find = [&](Surface *surface) {
@@ -960,8 +946,7 @@ base::Size Surface::contentSizeOf(const ExtendedState &state)
                 ? base::Size(scaled.height(), scaled.width())
                 : scaled;
     }
-    // Acts as an implicit viewport destination; a client viewport arrives in
-    // logical units already.
+    // A client viewport arrives in logical units already.
     const double clientScale = state.basicState.clientScale;
     if (clientScale != 1)
         content = base::Size(std::max(1, base::roundToInt(content.width() / clientScale)),
@@ -998,7 +983,7 @@ base::AffineTransform Surface::surfaceToBuffer() const
         return {};
 
     using base::AffineTransform;
-    // Exo ToBufferTransformMatrix: normalized raw buffer to transformed buffer.
+    // Normalized raw buffer to transformed buffer coordinates.
     AffineTransform transform;
     switch (bufferTransform()) {
     case Transform::Normal:
@@ -1030,7 +1015,6 @@ base::AffineTransform Surface::surfaceToBuffer() const
         transformed = transformed.transposed();
     transformed = transformed / std::max(1, bufferScale());
     const base::RectF source = crop().value_or(base::RectF(transformed));
-    // Exo's crop normalization and inverse buffer transform, retaining corner orientation.
     return AffineTransform::fromScale(source.width() / content.width(),
                                       source.height() / content.height())
             * AffineTransform::fromTranslate(source.x(), source.y())
@@ -1068,8 +1052,7 @@ base::Rect Surface::surfaceRectToBuffer(const base::Rect &rect) const
 {
     if (contentSize().isEmpty())
         return {};
-    // Linear sampling blends neighbours, but a texel changes only where the
-    // buffer did; outward rounding keeps the partly covered ones.
+    // Outward rounding keeps the texels that linear sampling partly covers.
     return surfaceToBuffer()
             .mapRect(base::RectF(rect))
             .toEnclosingRect()
@@ -1119,8 +1102,8 @@ void Surface::setPosition(const base::Point &position)
     m_position = position;
     if (m_node) {
         m_node->setGeometry(base::Rect(m_position, contentSize()));
-        // The opaque region is committed state and can change without the
-        // buffer changing, so it is applied here rather than at upload.
+        // The opaque region can change without the buffer, so it is applied
+        // here rather than at upload.
         m_node->setOpaque(isFullyOpaque());
         m_node->setBackgroundBlur(backgroundBlurRect(), backgroundBlurRadius(), glass(),
                                   backgroundBlurShape());
@@ -1141,8 +1124,8 @@ bool Surface::updateTexture(render::Renderer &renderer)
     // Texture uploads run after protocol dispatch, which may destroy wl_buffer.
     auto uploadBuffer = std::move(m_uploadBuffer);
     std::shared_ptr<Buffer> buffer = uploadBuffer ? uploadBuffer : this->buffer();
-    // Chromium retires resize buffers before the next repaint. Resource
-    // destruction is not a null attachment; keep the last uploaded contents.
+    // Resource destruction is not a null attachment; the last uploaded contents
+    // stay.
     if (!buffer && hasContents())
         return false;
 
@@ -1155,13 +1138,11 @@ bool Surface::updateTexture(render::Renderer &renderer)
 
     m_node->setAcquireFence(buffer->acquireFence().duplicate());
 
-    // A DMA-BUF is sampled where the client left it; there is nothing to upload
-    // and nothing to consume, so the release waits for detach instead. The same
-    // storage is what the display controller may scan out.
+    // A DMA-BUF is sampled in place, so the release waits for detach instead.
     if (std::shared_ptr<render::Texture> imported = buffer->texture()) {
         m_node->setTexture(std::move(imported));
-        // Aliased so that holding the scanout view keeps the whole wl_buffer
-        // alive while KMS is still displaying it.
+        // Aliased so the scanout view keeps the whole wl_buffer alive while KMS
+        // shows it.
         if (render::ScanoutBuffer *scanout = buffer->scanoutBuffer())
             m_node->setScanoutBuffer(std::shared_ptr<render::ScanoutBuffer>(buffer, scanout));
         else
@@ -1177,8 +1158,7 @@ bool Surface::updateTexture(render::Renderer &renderer)
 
     render::Texture *existing = m_node->texture();
     bool uploaded = false;
-    // Outside its damage the buffer holds what the texture already has, as
-    // wlroots and mutter take it; exo copies shm whole into shared images.
+    // Outside its damage the buffer holds what the texture already has.
     const base::Region damage = std::exchange(m_uploadAll, false)
             ? base::Region(base::Rect(base::Point(), buffer->size()))
             : m_uploadDamage;
@@ -1195,21 +1175,17 @@ bool Surface::updateTexture(render::Renderer &renderer)
         uploaded = texture != nullptr;
         m_node->setTexture(std::move(texture));
     }
-    // The client pulled its storage away mid-copy; the texture holds zeros
-    // rather than content, so show nothing.
+    // The client pulled its storage away mid-copy, so the texture holds zeros.
     if (!buffer->endPixelAccess()) {
         m_node->setTexture(nullptr);
         uploaded = false;
     }
 
-    // The pixels now live in a compositor-owned texture, so the client may
-    // reuse its storage.
     buffer->onContentsConsumed();
     return uploaded;
 }
 
-// The content covers its whole geometry with no transparency, which is what
-// lets a display controller put it on a plane without blending.
+// Lets a display controller put it on a plane without blending.
 bool Surface::isFullyOpaque() const
 {
     const base::Size size = contentSize();

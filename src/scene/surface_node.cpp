@@ -42,8 +42,6 @@ void SurfaceNode::setOpaque(bool opaque)
     if (m_opaque == opaque)
         return;
     m_opaque = opaque;
-    // An alpha buffer under a full opaque region is drawn opaque, as content()
-    // promises; blended, a backdrop darkened in place keeps the previous frame.
     if (m_texture)
         m_texture->contentOpaque = opaque;
     notifyChanged();
@@ -85,18 +83,15 @@ void SurfaceNode::render(render::Renderer &renderer) const
 
 void SurfaceNode::paint(render::Renderer &renderer, const base::Rect &absoluteGeometry) const
 {
-    // Content the display controller put on a hardware plane must not also be
-    // composited, or the two would blend on top of each other.
+    // Content on a hardware plane must not also be composited.
     if (!m_texture || absoluteGeometry.isEmpty() || (isPromotedToOverlay() && !renderer.capturing))
         return;
-    // Left out of a partial repaint, the surface is still the one on screen.
     if (!renderer.drawsInto(absoluteGeometry)) {
         if (m_alpha > 0)
             renderer.recordPresentation(m_presentationContent, absoluteGeometry);
         return;
     }
-    // The client may still be writing this buffer; the wait is queued on the
-    // GPU, so composition does not block the compositor thread.
+    // The wait is queued on the GPU, so composition does not block.
     renderer.waitFence(m_acquireFence);
     const float alpha = m_alpha * renderer.opacityScale;
     if (m_contentShape) {
@@ -113,8 +108,7 @@ void SurfaceNode::paint(render::Renderer &renderer, const base::Rect &absoluteGe
         renderer.recordPresentation(m_presentationContent, absoluteGeometry);
 }
 
-// Blurs what is behind the whole surface tree: subsurfaces placed below this
-// surface are drawn after the blur, not blurred into it.
+// Subsurfaces placed below this surface are drawn after the blur, not blurred into it.
 void SurfaceNode::paintBackdrop(render::Renderer &renderer, const base::Rect &absoluteGeometry) const
 {
     if (!m_texture || absoluteGeometry.isEmpty() || (isPromotedToOverlay() && !renderer.capturing))
@@ -126,10 +120,6 @@ void SurfaceNode::paintBackdrop(render::Renderer &renderer, const base::Rect &ab
                                 damageId());
 }
 
-// The second stage: what the subsurfaces below drew, over what was behind them.
-// It stays in a window's snapshot (its open, close and overview frames), which
-// holds the subsurfaces though not what is behind the window: the blur there
-// is of them alone, drawn again for every snapshot.
 void SurfaceNode::paintOverChildrenBelow(render::Renderer &renderer, const base::Rect &absoluteGeometry) const
 {
     if (!hasSubsurfaceBlur() || absoluteGeometry.isEmpty())

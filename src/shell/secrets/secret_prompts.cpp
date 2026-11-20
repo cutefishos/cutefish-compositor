@@ -73,7 +73,6 @@ void SecretPrompts::start()
 {
     if (m_agent)
         return;
-    // The system bus's services only now: a development instance never starts.
     if (m_systemServices) {
         m_network = networkmanager::Client::instance();
         m_bluetooth = bluez::Manager::shared();
@@ -111,8 +110,6 @@ void SecretPrompts::start()
     pairingChanged();
 }
 
-// The prompts stay up with what was typed in them, still answering the same
-// requests.
 void SecretPrompts::retranslate()
 {
     m_agent->retranslate();
@@ -124,7 +121,6 @@ void SecretPrompts::retranslate()
 
 void SecretPrompts::networkRequestChanged()
 {
-    // A VPN asks for its own set of secrets in a window of its own.
     const bool pending = m_agent->pending();
     const bool vpn = m_agent->kind() == NetworkSecretAgent::Kind::VpnSecrets;
     SecretDialog *shown = !pending ? nullptr : vpn ? static_cast<SecretDialog *>(m_vpn.get()) : m_wireless.get();
@@ -156,7 +152,6 @@ void SecretPrompts::pairingChanged()
         m_pairing->refresh();
         return;
     }
-    // Left over from whatever the manager did before this request.
     m_bluetooth->clearError();
     m_pairing->open();
 }

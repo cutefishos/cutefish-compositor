@@ -14,12 +14,6 @@
 using namespace cutefish::auth;
 using cutefish::test::TemporaryDirectory;
 
-// What these defend is the property the whole design rests on: the only thing
-// that can unlock a session is a backend that said the credential was correct,
-// and it can do it once.
-
-// The login screen offers every session, prefers Cutefish, and hands the choice
-// to the backend with the attempt that may start it.
 TEST(AuthControllerTest, LoginStartsTheChosenSession)
 {
     FakeBackend backend;
@@ -36,7 +30,6 @@ TEST(AuthControllerTest, LoginStartsTheChosenSession)
 
     controller.authenticate("hunter2");
     EXPECT_EQ(backend.lastSession, "gnome");
-    // Settled while the attempt is in flight.
     controller.setSessionIndex(1);
     EXPECT_EQ(controller.sessionIndex(), 0);
 }
@@ -45,7 +38,6 @@ TEST(AuthControllerTest, LoginOffersTheAccountsInsteadOfATypedName)
 {
     FakeBackend backend;
     AuthController controller(AuthController::Login, &backend);
-    // The backend's last user is preferred wherever it is listed.
     controller.setUsers({"alice", "tester"});
     EXPECT_EQ(controller.userName(), "tester");
     EXPECT_EQ(controller.userIndex(), 1);
@@ -57,7 +49,6 @@ TEST(AuthControllerTest, LoginOffersTheAccountsInsteadOfATypedName)
     controller.setUserIndex(7);
     EXPECT_EQ(controller.userName(), "alice");
 
-    // A single account is simply chosen.
     controller.setUsers({"bob"});
     EXPECT_EQ(controller.userName(), "bob");
     EXPECT_FALSE(controller.canPickUser());
@@ -119,8 +110,6 @@ TEST(AuthControllerTest, EveryDesktopNameReachesTheSessionEnvironment)
               environment.end());
 }
 
-// Exec lines split on whitespace, double quotes grouping and """ a literal
-// quote.
 TEST(AuthControllerTest, SplitsOnWhitespaceAndQuotes)
 {
     EXPECT_EQ(splitCommand("  a  b\tc "), (std::vector<std::string> {"a", "b", "c"}));
@@ -131,8 +120,6 @@ TEST(AuthControllerTest, SplitsOnWhitespaceAndQuotes)
     EXPECT_TRUE(splitCommand("").empty());
 }
 
-// The login and lock difference is the backend, and nothing else: the same
-// controller class, driven the same way, produces the same states.
 TEST(AuthControllerTest, BothModesShareOneController)
 {
     for (auto mode : {AuthController::Login, AuthController::Lock}) {
@@ -171,7 +158,6 @@ TEST(AuthControllerTest, FailureNeverAccepts)
 
     EXPECT_EQ(failures, 5);
     EXPECT_EQ(successes, 0);
-    // The one that matters: no number of rejections is an unlock.
     EXPECT_EQ(backend.acceptCount, 0);
 }
 
@@ -193,8 +179,6 @@ TEST(AuthControllerTest, FailureResetsAndClears)
     EXPECT_TRUE(controller.errorMessage().empty());
     EXPECT_EQ(backend.resetCount, 1);
 
-    // And the screen still works afterwards, which is the part a stuck error
-    // state would break.
     controller.authenticate("right");
     backend.succeed();
     EXPECT_EQ(controller.state(), AuthController::Succeeded);
@@ -210,8 +194,6 @@ TEST(AuthControllerTest, SuccessAcceptsExactlyOnce)
 
     controller.authenticate("right");
 
-    // A backend that reports success more than once - a duplicated greetd
-    // response, a racing PAM verdict - still unlocks one session.
     backend.succeed();
     backend.succeed();
     backend.succeed();
@@ -258,8 +240,6 @@ TEST(AuthControllerTest, AuthenticateWhileBusyIsIgnored)
     EXPECT_EQ(backend.lastSecret, "first");
 }
 
-// A lock for a user who has no password to give: the unlock is the
-// controller's own, once, and the backend hears nothing of it.
 TEST(AuthControllerTest, WithoutAPasswordTheLockUnlocksOnceWithoutTheBackend)
 {
     FakeBackend backend;

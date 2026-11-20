@@ -26,63 +26,33 @@ namespace cutefish::wm {
 class Window;
 class WindowManager;
 
-// When the dock gives way to windows. The shell's dock setting, adapted.
-// Upstream: ShelfAutoHideBehavior.
 enum class DockAutoHideBehavior {
     Never,
     Always,
-    // A maximized or fullscreen window on the dock's output pushes it away.
     WhenObstructed,
 };
 
-// Whether the dock is parked on screen for good, or comes and goes with the
-// pointer and the workspace. Upstream: ShelfVisibilityState.
 enum class DockVisibilityState {
     Visible,
     AutoHide,
 };
 
-// Where an auto-hiding dock is right now. Upstream: ShelfAutoHideState.
 enum class DockAutoHideState {
     Shown,
     Hidden,
 };
 
-// What the windows on an output ask of the dock. Upstream: WorkspaceWindowState.
 enum class WorkspaceState {
     Default,
     Maximized,
     Fullscreen,
 };
 
-// Decides, for every dock and panel the shell maps, whether it is on
-// screen right now, and slides it off its screen edge when it is not. The dock
-// itself only draws: it never unmaps, and it learns nothing about the pointer.
-// A panel such as the menu bar follows the same rules, minus the setting: it
-// only gives way to a fullscreen window.
-//
-// Two decisions, as upstream: the visibility state comes from the setting and
-// from the windows on the dock's output; the auto-hide state, only meaningful
-// under AutoHide, from what would be interrupted by hiding - the pointer on the
-// dock or at its edge, a menu of the dock's, the launchpad - and from whether
-// there is a window to make room for at all. Showing, and hiding because the
-// pointer left, wait kAutoHideDelayMs; anything else hides at once.
-// A panel along the top edge comes back to the pointer over a fullscreen
-// window only once the window has declared its bars; it then tells the
-// window when it comes and goes, keeps itself shown while the pointer is over
-// those bars, and pushes the window down with it when the window asks for
-// that.
-// A dock or panel that maps slides in from its edge, as the session starts.
-// The window overview pushes the panels off their edge as it comes in,
-// following its progress, and lets them back as it leaves.
-//
 // Must be destroyed before the WindowManager it observes.
 class DockLayoutManager : public WindowObserver
 {
 public:
-    // The strip along the dock's screen edge that brings a hidden dock back.
     static constexpr int kRevealStripPx = 5;
-    // Upstream: kAutoHideDelayMS.
     static constexpr int kAutoHideDelayMs = 200;
     static constexpr int kSlideDurationMs = 200;
 
@@ -92,32 +62,21 @@ public:
     DockAutoHideBehavior behavior() const { return m_behavior; }
     void setBehavior(DockAutoHideBehavior behavior);
 
-    // While the session starts behind the startup cover every dock and panel
-    // waits past its edge, and slides in once it is released.
     void setSessionStarting(bool starting);
 
-    // While the session ends every dock and panel slides away and the desktop's
-    // icons go, leaving the wallpaper; they come back if it carries on.
     void setSessionEnding(bool ending);
 
-    // Both answer for a window this manager treats as a dock; anything else is
-    // Visible and Shown.
+    // Anything not treated as a dock is Visible and Shown.
     DockVisibilityState visibilityState(const Window *dock) const;
     DockAutoHideState autoHideState(const Window *dock) const;
 
     WorkspaceState workspaceStateFor(const base::Rect &output) const;
 
-    // Re-evaluates every dock now. Every observer below funnels into this.
     void update();
 
-    // Moves every running slide, and the panels with the overview, to
-    // `frameTimeMs`, on the clock output frames are timed with. Called before
-    // each frame is drawn; the animation asks for the next frame itself while
-    // it runs.
+    // `frameTimeMs` is on the output frame clock. Called before each frame is drawn.
     void advance(double frameTimeMs);
     bool isSliding(const Window *dock) const;
-
-    // --- WindowObserver ---
 
     void onWindowBoundsChanged(Window *window, const base::Rect &oldBounds) override;
     void onWindowStateTypeChanged(Window *window, WindowStateType oldType) override;
@@ -135,18 +94,13 @@ private:
         DockAutoHideState autoHide = DockAutoHideState::Shown;
         ScreenEdge edge = ScreenEdge::Bottom;
         base::Timer autoHideTimer {core::mainLoop()};
-        // Upstream: last_seen_mouse_position_was_over_shelf_.
         bool pointerOver = false;
         bool sliding = false;
         double slideStarted = -1;
         base::Point slideFrom;
         base::Point slideTo;
-        // Where its own state puts it, before the overview: drawn this far
-        // from its bounds, and not drawn at all when parked.
         base::Point offset;
         bool parked = false;
-        // A top panel's fullscreen window and the offset it was last told,
-        // and the window it pushes down, if any.
         uint64_t revealedOver = 0;
         int revealSent = 0;
         uint64_t pushed = 0;
@@ -154,33 +108,21 @@ private:
 
     Dock *dockFor(Window *window);
     const Dock *dockFor(const Window *window) const;
-    // A dock or panel just mapped starts past its screen edge and slides in,
-    // without the reveal delay; one its state hides stays parked there.
     void enter(Window *dock, Dock &entry);
     void updateDock(Window *dock, Dock &entry);
     void updateAutoHideStateNow(Window *dock);
     DockVisibilityState computeVisibility(const Window *dock, const base::Rect &output) const;
-    // `revealing`: the dock is shown or on its way, so the pointer anywhere on
-    // it keeps it, not only at the edge strip.
     DockAutoHideState computeAutoHideState(const Window *dock, const Dock &entry,
                                            const base::Rect &output, bool revealing) const;
     bool isAwayForSession() const { return m_sessionStarting || m_sessionEnding; }
     bool hasVisibleWindow(const base::Rect &output) const;
-    // The window the workspace state of the output follows.
     const Window *topmostWindowFor(const base::Rect &output) const;
-    // The fullscreen window on the output that is active, or that the active
-    // window is a dialog of; none while anything else is active.
     Window *fullscreenWindowFor(const base::Rect &output) const;
     bool isTopBar(const Window *dock, const Dock &entry, const base::Rect &output) const;
-    // Tells the fullscreen window under a top panel where the panel is going,
-    // and picks the window it pushes.
     void updateReveal(Window *dock, Dock &entry);
     bool isLaunchpadShowing(const base::Rect &output) const;
     void applyAutoHideState(Window *dock, Dock &entry, DockAutoHideState state);
-    // Aims the dock at where its current state puts it: on screen, or just
-    // past its edge. Animated unless the dock is already parked there.
     void slideTo(Window *dock, Dock &entry, const base::Point &offset);
-    // Draws the dock where its own offset and the overview put it.
     void present(Window *dock, const Dock &entry);
     void requestFrame();
 
@@ -190,7 +132,6 @@ private:
     bool m_sessionEnding = false;
     std::map<Window *, std::unique_ptr<Dock>> m_docks;
     std::optional<base::PointF> m_pointer;
-    // How far in the overview was at the last frame, 0 to 1.
     double m_overviewProgress = 0;
     std::vector<base::Subscription> m_managerSignals;
 };

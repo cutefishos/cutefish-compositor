@@ -26,7 +26,6 @@ namespace cutefish::shell {
 
 static constexpr std::chrono::milliseconds kChevronFade {150};
 
-// The light/ artwork's ink, for glyphs drawn in its place.
 static constexpr ui::Color kLightArtwork = ui::Color::rgb(0x383838);
 static constexpr ui::Color kWhite = ui::Color::rgb(0xFFFFFF);
 
@@ -48,7 +47,6 @@ void SvgIcon::paint(ui::Painter &painter)
 {
     if (m_file.empty())
         return;
-    // On whole device pixels, as FishUI's IconItem puts its pixmap.
     const ui::Rect device = painter.snappedRect(localRect());
     const double scale = painter.scale();
     const ui::PointF offset = painter.offset();
@@ -182,7 +180,6 @@ void CardItem::updateIcon()
 void CardItem::layout()
 {
     const ui::Theme &theme = ui::Theme::current();
-    // A theme change relays the card out; the artwork follows it here.
     updateIcon();
     const double padding = theme.largeSpacing;
     const double height = geometry().height;
@@ -195,8 +192,6 @@ void CardItem::layout()
     m_status->setFontSize(theme.smallFontSize());
     m_status->setColor(panel::secondaryTextColor());
     m_status->setVisible(!m_status->text().empty());
-    // The chevron's slot stays clear while it is hidden, so the text never
-    // elides afresh under the pointer.
     double right = geometry().width - padding;
     if (m_hasDetail) {
         const double size = DetailChevron::kSize;
@@ -337,7 +332,6 @@ void IconButton::pointerRelease(const ui::PointerEvent &event)
         onClicked();
 }
 
-// MprisItem's buttons: 28 px each, 6 apart.
 static constexpr double kButtonSize = 28;
 
 MediaTile::MediaTile()
@@ -406,7 +400,6 @@ void MediaTile::updateArtwork()
     for (IconButton *button : {m_previous, m_play, m_next})
         button->setSurfaceColor(panel::tileInkColor());
 
-    // Album art from a file; anything else keeps the default cover.
     std::string path;
     if (m_state.hasPlayer && base::url::isLocalFile(m_state.artUrl))
         path = base::url::toLocalFile(m_state.artUrl).value_or(std::string());
@@ -431,8 +424,6 @@ void MediaTile::layout()
     m_art->setGeometry(art);
     m_art->setSourceSize({content, content});
 
-    // The last glyph lines up with the sliders' tracks: the artwork keeps 3.125
-    // of its 16 units clear, and 2px more make up for the tracks' rounded ends.
     const double iconInset = (kButtonSize - kButtonSize * 0.75) / 2;
     const double rightMargin = -iconInset - (kButtonSize - iconInset * 2) * 3.125 / 16 + 2;
     const double spacing = theme.smallSpacing;
@@ -459,7 +450,6 @@ void MediaTile::paint(ui::Painter &painter)
     panel::paintTile(painter, localRect());
     if (m_artReady)
         return;
-    // The cards' plate colour under the default cover, inside its mask.
     const ui::Color surface = panel::tileInkColor();
     const ui::RectF art = m_cover->geometry();
     painter.fillRoundedRect(art, ui::Theme::current().smallRadius,
@@ -522,8 +512,6 @@ void DeviceUsersTile::retranslate()
 
 double DeviceUsersTile::inset() const
 {
-    // The icon centred where the cards' plates are, its gap to the tile's
-    // edges the same on every side.
     return ui::Theme::current().largeSpacing + (CardItem::kPlateSize - kIconSize) / 2;
 }
 

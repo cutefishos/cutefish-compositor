@@ -14,28 +14,24 @@
 
 namespace cutefish::shell {
 
-// The counts applications put on their icons, such as unread messages, as
-// they send them in com.canonical.Unity.LauncherEntry's Update signal: the
-// launcher URI application://<desktop id>.desktop and the properties that
-// changed. A count shows while count-visible is true and the count is above
-// zero, and goes with the connection that sent it.
+// Counts from com.canonical.Unity.LauncherEntry's Update signal, shown while
+// count-visible is true and the count is above zero.
 class ApplicationBadges
 {
 public:
-    // `bus` may be null: no application has a count then.
+    // `bus` may be null.
     explicit ApplicationBadges(base::dbus::Connection *bus);
     ~ApplicationBadges();
 
     ApplicationBadges(const ApplicationBadges &) = delete;
     ApplicationBadges &operator=(const ApplicationBadges &) = delete;
 
-    // The count shown for a desktop id, ignoring case; 0 for none.
+    // Ignores case; 0 for none.
     int64_t count(const std::string &desktopId) const;
 
     // The desktop id of a launcher URI; empty for any other URI.
     static std::string desktopId(const std::string &uri);
 
-    // A count appeared, changed or went away.
     base::Signal<> changed;
 
 private:

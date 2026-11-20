@@ -4,9 +4,6 @@
 //
 // Upstream: chromium/src/components/exo/seat_observer.h
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: integrates the upstream behavior with native
-// compositor types and ownership.
 
 #ifndef CUTEFISH_INPUT_SEAT_OBSERVER_H_
 #define CUTEFISH_INPUT_SEAT_OBSERVER_H_
@@ -22,11 +19,10 @@ class SeatObserver
 public:
     virtual ~SeatObserver() = default;
 
-    // Called when a new surface receives keyboard focus.
     virtual void onSurfaceFocused(compositor::Surface* gainedFocus,
                                   compositor::Surface* lostFocus) = 0;
 
-    // Cursor image ownership changed; independent of keyboard/selection focus.
+    // Independent of keyboard and selection focus.
     virtual void onCursorChanged() { }
 
     virtual void onCursorPositionChanged() { }
@@ -34,8 +30,7 @@ public:
     // Called after the seat's xkb modifier state has been updated.
     virtual void onKeyboardModifierUpdated() {}
 
-    // Called after the seat's keymap was replaced; the modifier state was
-    // carried over into the new keymap.
+    // The modifier state was carried over into the new keymap.
     virtual void onKeyboardLayoutUpdated() {}
 
     virtual void onKeyRepeatSettingsChanged() {}

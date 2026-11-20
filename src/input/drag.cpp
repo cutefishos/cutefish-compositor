@@ -22,10 +22,8 @@
 
 namespace cutefish::input {
 
-// ash's kCancelAnimationDuration.
 static constexpr double kReturnDurationMs = 250;
 
-// The let go icon's shrink and fade.
 static constexpr double kVanishDurationMs = 200;
 
 static base::Rect roundedRect(const base::RectF &rect)
@@ -128,9 +126,7 @@ bool DragOffer::drop(const std::function<void()> &notifyDestination)
     if (!canDrop())
         return false;
     m_state = State::Dropped;
-    // A self-drop shares Chromium's source and destination controller. If
-    // dnd_drop_performed arrives first it can clear the destination while
-    // ending the nested drag loop, losing the drop and its finish request.
+    // A client's self-drop shares one controller: dnd_drop_performed first would clear the destination and lose the drop.
     if (notifyDestination) {
         m_deliveringDrop = true;
         notifyDestination();
@@ -167,8 +163,6 @@ bool DragOffer::finish()
         m_finishDeferred = true;
         return true;
     }
-    // A source gone since the drop has nobody left to tell; the finish is
-    // still a timely one.
     if (m_source->alive()) {
         m_source->finished();
         m_source->invalidate();
@@ -546,7 +540,6 @@ void DragController::end(bool released)
     if (returns)
         startReturn(std::move(home));
     ended();
-    // Nothing to slide back: home at once, after the end.
     if (m_returning && !m_returnNode)
         finishReturn();
 }
@@ -600,7 +593,6 @@ void DragController::startReturn(std::unique_ptr<scene::SurfaceNode> node)
     if (!node)
         return;
     m_returnFrom = node->position();
-    // The icon keeps its offset from the pointer position.
     m_returnTo = m_returnFrom + (m_home - m_location).toPoint();
     m_returnOpacity = node->alpha();
     m_returnStarted = -1;
@@ -781,8 +773,7 @@ void DragController::onSurfaceCommit(compositor::Surface *surface)
 {
     if (surface == m_icon)
         updateIcon();
-    // Only a destroyed origin ends the drag, as in exo: Chrome hides the window
-    // it drags by its tab when merging it into another, and drags on.
+    // Only a destroyed origin ends the drag: a client may hide the window it drags and drag on.
     if (surface == m_target && !surface->isMapped())
         leave();
 }

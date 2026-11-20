@@ -4,9 +4,6 @@
 //
 // Upstream: chromium/src/ui/display/display_layout.cc
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: resolve a bounded layout graph, including primary
-// rerooting and minimum shared-edge normalization, without Ash display state.
 
 #include "display/display_layout.h"
 

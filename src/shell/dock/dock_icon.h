@@ -24,11 +24,6 @@ namespace cutefish::shell {
 class CountBadge;
 class DockWindow;
 
-// One slot of the dock (an application, a minimized window or the trash):
-// the icon, or a minimized window's thumbnail with its
-// application's badge, the application's count, the running dot, and the
-// slot's hit area. The view's geometry is that hit area: the dock's whole
-// thickness and half the gap to each neighbour.
 class DockIcon : public ui::View
 {
 public:
@@ -42,78 +37,57 @@ public:
     ~DockIcon() override;
 
     Kind kind() const { return m_kind; }
-    // The application's id, or the minimized window's id as text.
     const std::string &key() const { return m_key; }
     void setKey(std::string key) { m_key = std::move(key); }
     uint64_t windowId() const { return m_windowId; }
     void setWindowId(uint64_t id) { m_windowId = id; }
 
-    // A theme icon's name, or an SVG file for the launchpad.
     void setIcon(std::string name, bool file = false);
     const std::string &iconName() const { return m_iconName; }
     void setToolTip(std::string text) { m_toolTip = std::move(text); }
     const std::string &toolTipText() const { return m_toolTip; }
     void setRunning(bool running);
     bool isRunning() const { return m_running; }
-    // The running dot: not while the icon appears, only once it is whole.
     bool isDotShown() const { return m_running && m_opacity == 1; }
-    // A minimized window's image; null shows the icon.
+    // Null shows the icon.
     void setThumbnail(const ui::Bitmap *thumbnail, double aspect);
     bool hasThumbnail() const { return !m_thumbnail.isNull(); }
-    // The badge fades in 140 ms on OutCubic once the window has landed;
-    // the first value is taken at once.
     void setBadgeOpacity(double opacity);
     double badgeOpacity() const { return m_badgeOpacity; }
-    // The application's count on the icon's corner; 0 for none.
+    // 0 for none.
     void setCount(int64_t count);
     CountBadge *countBadge() const { return m_countBadge; }
 
-    // Where the icon is in this view, and how the slot draws it: scaled
-    // about the icon's centre, and its opacity.
     void setIconRect(const ui::RectF &rect);
     ui::RectF iconRect() const { return m_iconRect; }
-    // Drawn `scale` times the icon rect's size with its side that faces the
-    // screen edge in place. A nonzero `rasterSize` is the size the artwork is
-    // drawn at while the dock is magnified, scaled to what is shown; 0 draws
-    // it exactly as at rest.
+    // A nonzero `rasterSize` is the artwork's raster size while magnified; 0
+    // draws it as at rest.
     void setMagnification(double scale, int rasterSize);
     double magnification() const { return m_magnification; }
-    // The icon rect as magnified, in this view.
     ui::RectF magnifiedIconRect() const;
-    // Draws the artwork at `size` ahead of the first magnified frame.
     void prepareMagnifiedSize(int size);
-    // The slot and the icon in the parent's coordinates as laid out without
-    // magnification.
+    // In the parent's coordinates.
     void setRestGeometry(const ui::RectF &slot, const ui::RectF &icon);
     ui::RectF restGeometry() const { return m_restGeometry; }
     ui::RectF restIconRect() const { return m_restIconRect; }
     void setPresentation(double scale, double opacity);
     void setPresentationOpacity(double opacity);
-    // Bounces once away from the screen edge as its application starts; one
-    // already bouncing runs on.
     void bounce();
     bool isBouncing() const;
-    // The icon's offset for the bounce, in whole device pixels.
+    // In whole device pixels.
     ui::PointF bounceOffset() const;
     double presentationScale() const { return m_scale; }
     double presentationOpacity() const { return m_opacity; }
-    // The running dot, in this view.
     void setDotRect(const ui::RectF &rect);
 
-    // Pressed, or holding its open menu: the icon is dimmed, except while
-    // it is dragged.
     bool isDimmed() const { return (m_pressed || m_menuOpen) && !m_dragHidden; }
     bool isPointerOver() const { return m_hovered; }
     void setMenuOpen(bool open);
-    // Pressing it and moving starts a drag (DockWindow::iconDragRequested).
     void setDraggable(bool draggable) { m_draggable = draggable; }
-    // Away as a drag: nothing of it is drawn in its slot.
     void setDragHidden(bool hidden);
     bool isDragHidden() const { return m_dragHidden; }
-    // A drag hovers it: the trash dims as a press does.
     void setDropHover(bool hover);
     bool isDropHover() const { return m_dropHover; }
-    // Lets go of the press a drag took over: the drag hears the release.
     void releasePress();
 
     bool acceptsPointer() const override { return true; }
@@ -134,10 +108,7 @@ private:
 
     void paintThumbnail(ui::Painter &painter, const ui::RectF &slot);
     ui::RectF thumbnailRect(const ui::RectF &slot) const;
-    // Where the artwork is drawn before it is scaled to the magnified icon.
     ui::RectF artworkRect() const;
-    // For a child at `rect`: scaled by `scale` about the artwork's centre,
-    // moved with the bounce, and while magnified onto the icon's exact centre.
     ui::Transform artworkTransform(const ui::RectF &rect, double scale) const;
     void updateFace();
     void updateMask();
@@ -153,16 +124,12 @@ private:
     bool m_iconIsFile = false;
     std::string m_toolTip;
     bool m_running = false;
-    // The icon: a theme icon, or the launchpad's artwork.
     ui::ThemeIcon *m_themeFace = nullptr;
     SvgFace *m_svgFace = nullptr;
-    // The pressed look: the icon's silhouette in black at 0.4 over it.
     ui::ThemeIcon *m_themeMask = nullptr;
     SvgFace *m_svgMask = nullptr;
-    // A minimized window's application.
     ui::ThemeIcon *m_badge = nullptr;
     ThumbnailFace *m_thumbnailFace = nullptr;
-    // The pressed look of a thumbnail: its shape and the badge in black at 0.5.
     ThumbnailMask *m_thumbnailMask = nullptr;
     ui::Image m_thumbnail;
     double m_thumbnailAspect = 1;
@@ -171,7 +138,6 @@ private:
     double m_badgeTarget = 1;
     bool m_badgeSet = false;
     std::unique_ptr<ui::Animation> m_badgeFade;
-    // Above the icon and its pressed look.
     CountBadge *m_countBadge = nullptr;
     ui::RectF m_iconRect;
     ui::RectF m_dotRect;
@@ -179,7 +145,6 @@ private:
     ui::RectF m_restIconRect;
     double m_magnification = 1;
     int m_rasterSize = 0;
-    // What prepareMagnifiedSize() drew last.
     std::string m_preparedName;
     int m_preparedSize = 0;
     double m_preparedScale = 0;
@@ -197,7 +162,6 @@ private:
     bool m_dragHidden = false;
     bool m_dropHover = false;
     int m_pressedButton = -1;
-    // Holding the left button opens the menu like a right click.
     base::Timer m_holdTimer;
     bool m_held = false;
 };

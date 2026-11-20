@@ -92,7 +92,6 @@ Value describe(const wm::Window *window)
             buttons.push_back(rectArray(button));
         object.insert("captionButtons", std::move(buttons));
     }
-    // What the plane planner and the blur see of the window's surfaces.
     Value::Array surfaces;
     const auto collect = [&](const auto &self, const scene::Node *node) -> void {
         if (!node)

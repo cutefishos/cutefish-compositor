@@ -37,11 +37,9 @@ void SlideOutNode::slideOut(DeskSwitchNode::Frames frames, const base::Rect &win
 {
     if (frames.empty())
         return;
-    // Upstream GetWindowEndTransform: just past the edge on the target's side.
     const int distance = goingLeft ? -(window.right() - output.left())
                                    : output.right() - window.left();
     const int64_t now = m_now();
-    // Slides end where they are drawn; with no output drawing, they end here.
     std::erase_if(m_slides, [now](const Slide &slide) {
         return now - slide.start >= slideDuration();
     });
@@ -63,7 +61,6 @@ void SlideOutNode::render(render::Renderer &renderer) const
         if (frame == slide.frames.end() || !frame->second)
             continue;
         const double t = std::clamp(double(now - slide.start) / duration, 0.0, 1.0);
-        // gfx::Tween::EASE_IN.
         const double offset = slide.distance * t * t;
         renderer.drawTextureF(frame->second.get(),
                               base::RectF(viewport.x() + offset, viewport.y(), viewport.width(),
@@ -74,7 +71,6 @@ void SlideOutNode::render(render::Renderer &renderer) const
     std::erase_if(m_slides, [now, duration](const Slide &slide) {
         return now - slide.start >= duration;
     });
-    // Once more after the last slide ends, to repaint without it.
     notifyChanged();
 }
 

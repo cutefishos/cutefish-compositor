@@ -196,9 +196,7 @@ struct InputMethodManager::Impl : InputMethodRelay, input::SeatObserver {
 
     bool typist(wl_client *client) const { return !authorized(client) && typists && typists(client); }
 
-    // A typist's keys are in its own terms when it binds Command itself, as
-    // every typist does: Ctrl for Command and Meta for Control. The
-    // KeyTranslator takes Command as Meta under the Command convention.
+    // A typist's keys are in its own terms: Ctrl for Command and Meta for Control.
     uint32_t typedKey(uint32_t key) const
     {
         if (m_seat->shortcutConvention() != input::ShortcutConvention::Command)

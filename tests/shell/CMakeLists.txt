@@ -1,5 +1,3 @@
-# The shell backends' tests. Each runs on the test main's loop and, with
-# DBUS, on a private session bus.
 function(cutefish_add_shell_test name)
     cmake_parse_arguments(PARSE_ARGV 1 arg "DBUS" "" "")
     add_executable(${name} ${name}.cpp ${PROJECT_SOURCE_DIR}/tests/gtest_toolkit_main.cpp)

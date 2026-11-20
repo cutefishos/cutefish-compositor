@@ -22,8 +22,7 @@ namespace cutefish::clipboard {
 
 namespace {
 
-// Writes one payload to a receiver without blocking, and deletes itself once
-// done, failed, or stalled for ten seconds.
+// Deletes itself once done, failed, or stalled for ten seconds.
 class Writer
 {
 public:

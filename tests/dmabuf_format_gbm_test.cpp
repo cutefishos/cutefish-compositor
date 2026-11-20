@@ -4,9 +4,6 @@
 //
 // Upstream: chromium/src/components/exo/wayland/test/integration/buffer_checker_test.cc
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: allocates each advertised format and modifier with GBM
-// and imports it through the renderer the compositor samples client buffers with.
 
 #include <GLES3/gl3.h>
 #include <drm_fourcc.h>
@@ -42,7 +39,6 @@ Bo allocate(gbm_device *device, uint32_t format, uint64_t modifier)
                                             GBM_BO_USE_RENDERING));
 }
 
-// Every plane, as a client would send them in zwp_linux_buffer_params_v1.
 render::DmaBufAttributes attributesFor(gbm_bo *bo, uint32_t format, uint64_t modifier)
 {
     render::DmaBufAttributes attributes;
@@ -61,9 +57,6 @@ render::DmaBufAttributes attributesFor(gbm_bo *bo, uint32_t format, uint64_t mod
 
 } // namespace
 
-// Exo's CanUseAnyReportedBufferFormats and CanUseAnyReportedBufferModifiers:
-// whatever the compositor advertises and the GPU can allocate must import and
-// draw, or a client following the advertisement gets params.failed.
 TEST(DmaBufFormatGbm, EveryAdvertisedFormatThatAllocatesImportsAndDraws)
 {
     const char *devicePath = std::getenv("CUTEFISH_TEST_DRM_DEVICE");
@@ -98,8 +91,6 @@ TEST(DmaBufFormatGbm, EveryAdvertisedFormatThatAllocatesImportsAndDraws)
         for (uint64_t modifier : modifiers) {
             ++advertised;
             const Bo bo = allocate(device.get(), format, modifier);
-            // Formats GBM cannot allocate, such as most YUV layouts, are the
-            // client's own problem, as exo counts them as unsupported usages.
             if (!bo)
                 continue;
             ++allocated;

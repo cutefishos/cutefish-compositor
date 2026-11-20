@@ -23,11 +23,8 @@ namespace cutefish::backend {
 
 namespace {
 
-// drmPrimeFDToHandle hands out the same GEM handle for the same underlying
-// buffer, so closing one framebuffer's handle would pull it out from under any
-// other framebuffer importing the same buffer. The handles are reference
-// counted per device to keep that from happening. A device whose file the
-// renderer shares never gets here: Mesa holds the same handles there.
+// drmPrimeFDToHandle returns the same GEM handle for the same buffer, so
+// handles are reference counted per device.
 using HandleCounts = std::map<std::pair<const DrmDeviceApi *, uint32_t>, int>;
 
 HandleCounts &handleCounts()
@@ -244,8 +241,8 @@ DrmFramebuffer::fromDmaBuf(DrmDeviceApi *device, const render::DmaBufAttributes 
     params.modifier = attributes.modifier;
     params.planeCount = attributes.planes.size();
 
-    // As Ozone's GbmPixmap: the renderer imported the buffer on this file too
-    // and got the same GEM handles, which only Mesa may close.
+    // The renderer imported the buffer on this file too, so only Mesa may close
+    // these GEM handles.
     if (gbm_device *gbm = device->gbmDevice()) {
         gbm_bo *bo = importThroughGbm(gbm, attributes);
         if (!bo)

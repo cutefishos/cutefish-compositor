@@ -39,14 +39,12 @@ namespace dbus = base::dbus;
 
 static const base::LogCategory cfScreenshot("cutefish.shell.screenshot");
 
-// The names saves are writing, so two captures in one second pick two.
 struct ScreenCapture::SavingNames {
     std::mutex mutex;
     std::set<std::string> taken;
 };
 
-// The centre rounded down to the pixel before the middle, one less than ours
-// for even sizes; it decides which screen a rectangle is on.
+// One less than ours for even sizes; it decides which screen a rectangle is on.
 static base::Point roundedDownCenter(const base::Rect &rect)
 {
     return base::Point(rect.x() + (rect.width() - 1) / 2, rect.y() + (rect.height() - 1) / 2);
@@ -64,7 +62,7 @@ static std::string timestamp()
     return std::format("{} at {}", date, time);
 }
 
-// On a worker: the first free name, taken until released.
+// On a worker: the name stays taken until released.
 static std::string uniqueName(ScreenCapture::SavingNames &names, const std::string &folder,
                               const std::string &stem, const std::string &suffix)
 {
@@ -80,7 +78,6 @@ static std::string uniqueName(ScreenCapture::SavingNames &names, const std::stri
     return path;
 }
 
-// Every screen side by side as the user sees them, at the finest scale.
 static ui::Bitmap combine(const std::vector<ui::Bitmap> &images, const std::vector<base::Rect> &geometries)
 {
     base::Rect bounds;
@@ -144,13 +141,9 @@ ScreenCapture::ScreenCapture(Shell *shell, ScreenCaptureServices services)
             m_service->emitPropertiesChanged({"recording"});
         notifyChanged();
     }));
-    // Its microphone use shows under Screenshot, as its notifications do.
     m_recording->onStarted = [this](int64_t pid) { m_shell->tasks().claimProcess(pid, "cutefish-screenshot"); };
     m_recording->onStopped = [this](int64_t pid) { m_shell->tasks().releaseProcess(pid); };
 
-    // What is under a still pointer changes as windows come, go, move and are
-    // raised; Ash picks again on the same occasions. The dock grows and
-    // shrinks with them, which moves the toolbar's place.
     TaskWindows &windows = m_shell->taskWindows();
     m_subscriptions.push_back(windows.windowChanged.connect([this](uint64_t, uint32_t changes) {
         if (changes & (kGeometryChange | kStateChange)) {
@@ -252,7 +245,6 @@ const Shell::Output *ScreenCapture::outputAt(const base::Point &point) const
 
 const Shell::Output *ScreenCapture::toolbarScreen() const
 {
-    // The dock's screen: the toolbar sits right above the dock.
     if (const std::optional<CaptureDock> panel = dock()) {
         if (const Shell::Output *output = outputAt(roundedDownCenter(panel->geometry)))
             return output;
@@ -274,7 +266,6 @@ base::Rect ScreenCapture::toolbarArea() const
     const base::Rect geometry = output->bounds;
     // Inclusive bottom edges, one less than ours.
     int bottom = geometry.bottom() - 1 - kToolbarScreenMargin;
-    // Right above the dock when it runs along the bottom.
     if (const std::optional<CaptureDock> panel = dock(); panel && panel->bottom && geometry.intersects(panel->geometry))
         bottom = panel->geometry.y() - kToolbarGap;
     return base::Rect(geometry.x(), geometry.y(), geometry.width(), bottom - geometry.y() + 1);
@@ -318,7 +309,6 @@ void ScreenCapture::takePartialScreenshot(bool toClipboard)
 void ScreenCapture::startCaptureMode()
 {
     if (m_active) {
-        // The same shortcut closes the toolbar again, or stops its timer.
         if (m_style == Style::Toolbar)
             end();
         return;
@@ -443,7 +433,6 @@ ScreenCapture::Picked ScreenCapture::resolve(const base::Point &point) const
         if (const TaskWindow *task = m_shell->taskWindows().window(window->id())) {
             picked.kind = PickedKind::Window;
             picked.geometry = task->geometry;
-            // A window that fills its area has square corners.
             picked.radius = task->maximized || task->fullscreen ? 0 : kWindowRadius;
         }
         break;
@@ -490,12 +479,10 @@ ScreenCapture::Target ScreenCapture::targetFor(const Picked &picked) const
         target.window = picked.id;
         break;
     case PickedKind::Dock:
-        // The compositor draws the glass, the rim and the shadow around it.
         target.outputs = {picked.output};
         target.dock = true;
         break;
     case PickedKind::Panel:
-        // As it is seen: the glass behind it is the compositor's.
         target.outputs = {picked.output};
         target.region = picked.geometry;
         break;
@@ -578,7 +565,6 @@ void ScreenCapture::perform(bool toClipboard)
         break;
     }
     case Screen: {
-        // A picture of every screen; a recording of the one with the toolbar.
         const Shell::Output *toolbar = toolbarScreen();
         if (!toolbar)
             return;
@@ -610,7 +596,6 @@ void ScreenCapture::chooseFolder()
     m_chooser->setMode(ui::FileChooser::Mode::OpenFolder);
     m_chooser->setTitle(tr("Choose a Folder"));
     m_chooser->setCurrentFolder(video ? m_settings->videoFolder() : m_settings->imageFolder());
-    // Back to the toolbar either way, the way it was left.
     const auto reopen = [this, alive = std::weak_ptr<bool>(m_alive)] {
         core::mainLoop()->post([this, alive] {
             if (alive.expired())
@@ -697,8 +682,6 @@ void ScreenCapture::schedule(const Target &target, bool toClipboard, const base:
     m_countdown = seconds;
     m_pending = [this, target, toClipboard] { execute(target, toClipboard); };
     m_countdownTimer.start();
-    // The screen stays usable until the capture is taken; a click elsewhere
-    // takes the keyboard back from the interface.
     for (const auto &overlay : m_overlays)
         overlay->setPassThrough(true);
     notifyChanged();
@@ -715,8 +698,7 @@ void ScreenCapture::execute(const Target &target, bool toClipboard)
         startRecording(target);
         return;
     }
-    // The crosshair or the camera is the pointer until the window under it
-    // sets its own again; a picture that shows the pointer waits for that.
+    // A picture that shows the pointer waits until the window under it sets its own.
     if (wasActive && m_settings->showPointer()) {
         m_settle = std::make_unique<base::Timer>();
         m_settle->setSingleShot(true);
@@ -741,7 +723,6 @@ void ScreenCapture::captureImage(const Target &target, bool toClipboard)
     }
     wm::WindowManager *manager = m_shell->windowManager();
     if (target.desktop) {
-        // The desktop alone, without the windows over it.
         wm::Window *desktop = manager->windowById(target.desktop);
         std::shared_ptr<compositor::CaptureSource> source;
         if (m_services.desktop && !target.outputs.empty())
@@ -781,7 +762,6 @@ void ScreenCapture::captureImage(const Target &target, bool toClipboard)
                                  deliverImages(std::move(images), geometries, toClipboard);
                                  return;
                              }
-                             // The portion, at the screen's own pixel density.
                              const ui::Bitmap &image = images.front();
                              const base::Rect geometry = geometries.front();
                              if (image.isNull() || geometry.isEmpty()) {
@@ -833,7 +813,6 @@ void ScreenCapture::saveImages(std::vector<ui::Bitmap> pictures)
 {
     const std::string folder = m_settings->imageFolder();
     const std::string stem = "Screenshot " + timestamp();
-    // PNG compression of a whole screen takes long enough to show.
     m_jobs.push_back(base::runInThread(
             [folder, stem, pictures = std::move(pictures), names = m_saving] {
                 std::vector<std::string> saved;
@@ -879,7 +858,7 @@ void ScreenCapture::startRecording(const Target &target)
     const std::string folder = m_settings->videoFolder();
     const std::string stem = "Screen Recording " + timestamp();
     m_recordingStarting = true;
-    // The folder and the name on a worker; the recorder needs both first.
+    // On a worker; the recorder needs both first.
     m_jobs.push_back(base::runInThread(
             [folder, stem, names = m_saving] {
                 std::error_code error;

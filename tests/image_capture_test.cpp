@@ -42,7 +42,6 @@ public:
         return image;
     }
 
-    // A readback the test collects by hand, as the GPU would finish it.
     struct Pending : render::PendingImage {
         ui::Bitmap image;
         int *taken = nullptr;
@@ -326,7 +325,6 @@ TEST_F(ImageCaptureTest, AFrameInItsBufferIsReadyOnceDrawn)
     manager->drawn(16, 1000000123);
     ASSERT_TRUE(roundtrip());
     EXPECT_EQ(ready, 0);
-    // Not held back for the flip, behind which the next composition is queued.
     manager->drawn(17, 1000000123);
     ASSERT_TRUE(roundtrip());
     EXPECT_EQ(ready, 1);
@@ -359,7 +357,6 @@ TEST_F(ImageCaptureTest, AReadbackReachesTheBufferWhenTheFrameIsPresented)
     makeFrame();
     submit();
     ASSERT_TRUE(roundtrip());
-    // Nothing waited on the GPU while composing.
     EXPECT_EQ(renderer.taken, 0);
     auto *bytes = static_cast<uint8_t *>(pixels);
     EXPECT_EQ(bytes[16], 0xab);
@@ -478,8 +475,6 @@ TEST_F(ImageCaptureTest, LaterFramesWaitForACompositionInsteadOfForcingOne)
     ASSERT_EQ(ready, 1);
     repaint = false;
 
-    // A video consumer asks again at once; a static screen must not be
-    // recomposed for it.
     ext_image_copy_capture_frame_v1_destroy(frame);
     frame = nullptr;
     wl_buffer_destroy(buffer);
@@ -493,7 +488,6 @@ TEST_F(ImageCaptureTest, LaterFramesWaitForACompositionInsteadOfForcingOne)
     ASSERT_TRUE(roundtrip());
     EXPECT_FALSE(repaint);
     EXPECT_TRUE(manager->hasPending(model.name));
-    // Nor is cursor motion damage to a session that does not paint cursors.
     manager->cursorChanged();
     EXPECT_FALSE(repaint);
 
@@ -552,7 +546,6 @@ TEST_F(ImageCaptureTest, CursorMotionIsDamageToACursorPaintingSession)
 
 TEST_F(ImageCaptureTest, DamageIsReportedSinceTheSessionsPreviousFrame)
 {
-    // The tree an output session tracks damage against.
     scene::Node root("root");
     root.setGeometry(base::Rect(0, 0, 8, 6));
     auto *child = root.addChild(std::make_unique<scene::Node>("child"));
@@ -568,7 +561,6 @@ TEST_F(ImageCaptureTest, DamageIsReportedSinceTheSessionsPreviousFrame)
     manager->presented(17, 1000000123);
     ASSERT_TRUE(roundtrip());
     ASSERT_EQ(ready, 1);
-    // Nothing was known before the first frame: all of it changed.
     ASSERT_EQ(damageRects.size(), 1u);
     EXPECT_EQ(damageRects.front(), base::Rect(0, 0, 8, 6));
 
@@ -634,7 +626,6 @@ TEST_F(ImageCaptureTest, ACopiedOutputFrameStandsInOnlyWhenItHoldsWhatTheSession
     composited = Composited::WithoutCursor;
     EXPECT_EQ(capture(0), std::pair(0, 0));
     EXPECT_EQ(capture(withCursors), std::pair(0, 1));
-    // A frame with a software cursor in it is no capture for a session without one.
     composited = Composited::WithCursor;
     EXPECT_EQ(capture(0), std::pair(1, 0));
     EXPECT_EQ(capture(withCursors), std::pair(0, 0));
@@ -655,12 +646,10 @@ TEST_F(ImageCaptureTest, DmaBufTargetsAreAdvertisedFromTheRendererProbe)
 
         dev_t captureDmaBufDevice() const override { return 42; }
     } withDmaBuf;
-    // Sessions created before there was a renderer stay SHM-only.
     EXPECT_EQ(dmabufDevice, 0u);
     EXPECT_TRUE(dmabufFormats.empty());
 
     manager->setRenderer(&withDmaBuf);
-    // The fixture's session listener records the constraints of any session.
     auto *second = ext_image_copy_capture_manager_v1_create_session(copies, source, 0);
     ext_image_copy_capture_session_v1_add_listener(second, sessionListener(), this);
     ASSERT_TRUE(roundtrip());
@@ -681,7 +670,6 @@ TEST_F(ImageCaptureTest, RevokedAuthorizationFails)
     EXPECT_EQ(failed, EXT_IMAGE_COPY_CAPTURE_FRAME_V1_FAILURE_REASON_STOPPED);
 }
 
-// The computer-use service binds the managers before the user lets it capture.
 class ImageCaptureBeforeConsentTest : public ImageCaptureTest
 {
 protected:
@@ -718,8 +706,6 @@ TEST_F(ImageCaptureTest, ALockedSessionHoldsCaptureUntilUnlocked)
     ASSERT_TRUE(sessionController.requestLock());
     submit();
     ASSERT_TRUE(roundtrip());
-    // Not rendered rather than filtered: no capture path has to be trusted to
-    // leave the desktop out of the frame. The request outlives the lock.
     EXPECT_EQ(failed, -1);
     EXPECT_EQ(ready, 0);
     EXPECT_TRUE(manager->hasPending(model.name));
@@ -739,8 +725,6 @@ TEST_F(ImageCaptureTest, ALockedSessionHoldsCaptureUntilUnlocked)
 
 TEST_F(ImageCaptureTest, ACaptureInFlightWhenLockingStartsFails)
 {
-    // Asked for, rendered and copied while the session was still active: the
-    // frame is finished in every sense except being handed over.
     makeFrame();
     submit();
     ASSERT_TRUE(roundtrip());
@@ -751,13 +735,10 @@ TEST_F(ImageCaptureTest, ACaptureInFlightWhenLockingStartsFails)
     manager->failPending();
     ASSERT_TRUE(roundtrip());
 
-    // Rejecting only new requests would let this one complete after the screen
-    // was supposed to be secure. The session lives on, so the client may retry.
     EXPECT_EQ(failed, EXT_IMAGE_COPY_CAPTURE_FRAME_V1_FAILURE_REASON_UNKNOWN);
     EXPECT_EQ(ready, 0);
     EXPECT_FALSE(manager->hasPending(model.name));
 
-    // And the presentation it was waiting for cannot revive it.
     manager->presented(17, 1000000123);
     ASSERT_TRUE(roundtrip());
     EXPECT_EQ(ready, 0);

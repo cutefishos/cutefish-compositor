@@ -2,10 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// The menu bar's app menus as the compositor draws them, in a bar of the
-// test's own: entries, places, opening, switching, keys, the user's, the
-// application's and the desktop's menus, on a private session bus.
-
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -63,8 +59,6 @@ dbus::Variant layout(int32_t id, dbus::VariantMap properties, std::vector<dbus::
     return dbus::Variant(Layout(id, std::move(properties), std::move(children)));
 }
 
-// A main menu as a window gives it through cutefish_main_menu_v1, kept in
-// memory; it records what the bar asks of it.
 class FakeMainMenu : public compositor::MenuModel
 {
 public:
@@ -94,8 +88,6 @@ public:
         itemChanged(id);
     }
 
-    // As a main menu's client changes it: each insertion and removal on its
-    // own, the removed entry still there while its menu hears.
     void insert(int32_t parent, int32_t id, const std::string &label)
     {
         add(parent, id, label);
@@ -146,7 +138,6 @@ dbus::Variant submenu()
     return dbus::Variant(std::string("submenu"));
 }
 
-// A menu exporter of the test's own; every call and event is recorded.
 class FakeMenuExporter
 {
 public:
@@ -187,25 +178,21 @@ public:
 
     int count(const std::string &what) const { return int(std::count(calls.begin(), calls.end(), what)); }
     bool called(const std::string &what) const { return count(what) > 0; }
-    // The "opened" events, whichever menu they were for.
     int openedEvents() const
     {
         return int(std::count_if(calls.begin(), calls.end(),
                                  [](const std::string &call) { return call.ends_with(" opened"); }));
     }
 
-    // The application says the menu `parent` changed under it.
     void layoutUpdated(int32_t parent = 0) { object.emitSignal("LayoutUpdated", ++revision, parent); }
 
     dbus::Object object;
     std::map<int32_t, dbus::Variant> layouts;
     std::vector<std::string> calls;
     uint32_t revision = 1;
-    // After an event is answered.
     std::function<void(int32_t id, const std::string &event)> onEvent;
 };
 
-// The desktop's File and Edit menus.
 std::shared_ptr<FakeMainMenu> desktopMenus()
 {
     auto menu = std::make_shared<FakeMainMenu>();
@@ -219,9 +206,6 @@ std::shared_ptr<FakeMainMenu> desktopMenus()
     return menu;
 }
 
-// The menu bar's part the app menus need: a 32 px panel along the top, its
-// slot from the left edge clipped to 1000 px, and a press elsewhere on the
-// bar closing the menus.
 class TestBar final : public shell::Component, public shell::BarContext
 {
 public:
@@ -398,7 +382,6 @@ protected:
         return result;
     }
 
-    // An entry's rect in the bar.
     ui::RectF entryRect(size_t index) const { return view->entry(index)->geometry(); }
 
     base::PointF entryCentre(size_t index) const
@@ -407,7 +390,6 @@ protected:
         return {rect.x + rect.width / 2, rect.y + rect.height / 2};
     }
 
-    // The open menu's window as the window manager placed it.
     std::optional<base::Rect> menuBounds() const
     {
         ui::Menu *menu = view->openMenu();
@@ -420,8 +402,6 @@ protected:
         return window->wmWindow()->bounds();
     }
 
-    // The desktop as the file manager has it: a Desktop window whose surface
-    // has the File and Edit main menu.
     std::unique_ptr<shell::ShellWindow> showDesktop(const std::shared_ptr<FakeMainMenu> &menu)
     {
         auto desktop = std::make_unique<shell::ShellWindow>(shell.get(), wm::WindowRole::Desktop);
@@ -433,8 +413,6 @@ protected:
         return desktop;
     }
 
-    // A focused terminal window whose menus `application` exports at
-    // /MenuBar, once the bar shows `count` entries.
     void showTerminal(test::DBusTestClient &application, size_t count)
     {
         shell::TaskWindow terminal;
@@ -448,7 +426,6 @@ protected:
         frame();
     }
 
-    // The first row of the open menu, chosen from the keyboard.
     void chooseFirstRow()
     {
         key(KEY_DOWN);
@@ -460,17 +437,14 @@ protected:
 
 TEST_F(AppMenusTest, TheUserEntryAloneWithNothingFocusedAndNoDesktopMenu)
 {
-    // Nothing focused is the desktop: its name, with no menus of its own yet.
     EXPECT_TRUE(view->model().isDesktop());
     ASSERT_EQ(titles(), (std::vector<std::string> {"", "Desktop"}));
     EXPECT_EQ(shell::AppMenusModel::Kind::User, view->model().rows()[0].kind);
     EXPECT_EQ(shell::AppMenusModel::Kind::Application, view->model().rows()[1].kind);
 
-    // The user's entry: 46 wide, its plate 9 from the screen edge.
     EXPECT_EQ(ui::RectF(0, 0, 46, 32), entryRect(0));
     EXPECT_EQ(9, view->entry(0)->leftInset());
     EXPECT_EQ(3, view->entry(0)->rightInset());
-    // The next abuts it, 24 wider than its title.
     EXPECT_EQ(46, entryRect(1).x);
     EXPECT_EQ(3, view->entry(1)->leftInset());
 }
@@ -485,21 +459,18 @@ TEST_F(AppMenusTest, TheUserMenuOpensUnderItsPlateAndClosesOnASecondClick)
     ui::Menu *menu = view->openMenu();
     ASSERT_NE(nullptr, menu);
     EXPECT_TRUE(menu->isOpen());
-    // Plate's left edge, the popup margin under the bar.
     const auto bounds = menuBounds();
     ASSERT_TRUE(bounds);
     EXPECT_EQ(9, bounds->x());
     EXPECT_EQ(38, bounds->y());
     EXPECT_EQ(1u, manager.popupGrabs().size());
 
-    // Again on the open entry: closed.
     click(entryCentre(0).x(), 16);
     EXPECT_EQ(-1, view->currentIndex());
     EXPECT_FALSE(menu->isOpen());
     EXPECT_FALSE(view->entry(0)->isChecked());
     EXPECT_TRUE(manager.popupGrabs().empty());
 
-    // A second click soon enough to make a double click closes it too.
     click(entryCentre(0).x(), 16);
     ASSERT_EQ(0, view->currentIndex());
     input.onPointerButton(at(time += 5), BTN_LEFT, true);
@@ -509,11 +480,9 @@ TEST_F(AppMenusTest, TheUserMenuOpensUnderItsPlateAndClosesOnASecondClick)
     EXPECT_FALSE(menu->isOpen());
     EXPECT_TRUE(manager.popupGrabs().empty());
 
-    // The right button opens nothing.
     click(entryCentre(0).x(), 16, BTN_RIGHT);
     EXPECT_EQ(-1, view->currentIndex());
 
-    // Escape closes it; so does a press on the bar between the entries.
     click(entryCentre(0).x(), 16);
     ASSERT_EQ(0, view->currentIndex());
     key(KEY_ESC);
@@ -523,7 +492,6 @@ TEST_F(AppMenusTest, TheUserMenuOpensUnderItsPlateAndClosesOnASecondClick)
     ASSERT_EQ(0, view->currentIndex());
     click(1200, 16);
     EXPECT_EQ(-1, view->currentIndex());
-    // A press outside the bar and the menus ends the grab.
     click(entryCentre(0).x(), 16);
     ASSERT_EQ(0, view->currentIndex());
     click(700, 500);
@@ -536,22 +504,17 @@ TEST_F(AppMenusTest, TheDesktopShowsItsMainMenu)
     const std::shared_ptr<FakeMainMenu> menu = desktopMenus();
     const auto desktop = showDesktop(menu);
     ASSERT_EQ(titles(), (std::vector<std::string> {"", "Desktop", "File", "Edit"}));
-    // The application's name is bold, its menus regular; File's plate starts
-    // where its entry does, plus the inset.
     const double file = entryRect(2).x;
     EXPECT_EQ(entryRect(1).x + entryRect(1).width, file);
 
     click(entryCentre(2).x(), 16);
     ASSERT_EQ(2, view->currentIndex());
-    // The desktop hears that File is about to open, once.
     EXPECT_EQ(1, menu->prepared(1));
     const auto bounds = menuBounds();
     ASSERT_TRUE(bounds);
     EXPECT_EQ(int(std::lround(file + 3)), bounds->x());
     EXPECT_EQ(38, bounds->y());
 
-    // Moving onto Edit while File is open switches to Edit's menu; the
-    // grab stays with the bar.
     move(entryCentre(3).x(), 16);
     frame();
     ASSERT_EQ(3, view->currentIndex());
@@ -562,7 +525,6 @@ TEST_F(AppMenusTest, TheDesktopShowsItsMainMenu)
     EXPECT_EQ(1, menu->closedCount(1));
     EXPECT_EQ(1, menu->prepared(2));
 
-    // Right wraps around to the user's entry, Left comes back.
     key(KEY_RIGHT);
     EXPECT_EQ(0, view->currentIndex());
     key(KEY_LEFT);
@@ -571,15 +533,12 @@ TEST_F(AppMenusTest, TheDesktopShowsItsMainMenu)
     EXPECT_EQ(2, view->currentIndex());
     EXPECT_EQ(1u, manager.popupGrabs().size());
 
-    // Down lights New Window, Return chooses it: the desktop hears the
-    // choice and the menu goes.
     key(KEY_DOWN);
     key(KEY_ENTER);
     EXPECT_EQ(-1, view->currentIndex());
     EXPECT_TRUE(manager.popupGrabs().empty());
     EXPECT_EQ(std::vector<int32_t> {10}, menu->activated);
 
-    // Without a menu open, moving along the bar opens nothing.
     move(entryCentre(2).x(), 16);
     move(entryCentre(3).x(), 16);
     EXPECT_EQ(-1, view->currentIndex());
@@ -587,8 +546,6 @@ TEST_F(AppMenusTest, TheDesktopShowsItsMainMenu)
 
 TEST_F(AppMenusTest, TheDesktopsProcessOtherWindowsDoNotShowItsMenus)
 {
-    // The file manager's daemon draws the desktop and owns the browser
-    // windows: a focused browser window shows no File/Edit of the desktop's.
     const auto desktop = showDesktop(desktopMenus());
     ASSERT_EQ(titles(), (std::vector<std::string> {"", "Desktop", "File", "Edit"}));
 
@@ -605,7 +562,6 @@ TEST_F(AppMenusTest, TheDesktopsProcessOtherWindowsDoNotShowItsMenus)
     EXPECT_EQ(2u, shown.size());
     EXPECT_EQ(shown.end(), std::find(shown.begin(), shown.end(), "File"));
 
-    // Back on the desktop, its menus return.
     windows->setActive(0);
     ASSERT_TRUE(test::runUntil([&] { return view->model().isDesktop() && view->model().count() == 4; }));
     EXPECT_EQ(titles(), (std::vector<std::string> {"", "Desktop", "File", "Edit"}));
@@ -634,10 +590,8 @@ TEST_F(AppMenusTest, AnApplicationShowsItsNameItsMenusAndTheirChanges)
     ASSERT_TRUE(test::runUntil([&] { return view->model().count() == 5; }));
     frame();
     EXPECT_FALSE(view->model().isDesktop());
-    // The entry's name; mnemonic markers gone; hidden menus have no entry.
     EXPECT_EQ(titles(), (std::vector<std::string> {"", "Terminal", "File", "View", "Run"}));
 
-    // The application entry: Hide Terminal, Hide Others, Quit.
     click(entryCentre(1).x(), 16);
     ASSERT_EQ(1, view->currentIndex());
     key(KEY_DOWN);
@@ -649,18 +603,15 @@ TEST_F(AppMenusTest, AnApplicationShowsItsNameItsMenusAndTheirChanges)
     key(KEY_ENTER);
     EXPECT_EQ("quit " + std::to_string(id), windows->requests.back());
 
-    // A plain action entry is triggered, not opened.
     click(entryCentre(4).x(), 16);
     EXPECT_EQ(-1, view->currentIndex());
     EXPECT_TRUE(test::runUntil([&] { return exporter.called("Event 4 clicked"); }));
 
-    // The application asks for View (its Alt+V): it opens from the keyboard.
     exporter.object.emitSignal("ItemActivationRequested", int32_t(2), uint32_t(0));
     ASSERT_TRUE(test::runUntil([&] { return view->currentIndex() == 3; }));
     frame();
     ASSERT_TRUE(menuBounds());
 
-    // A renamed menu renames its entry; the open one stays open.
     exporter.object.emitSignal("ItemsPropertiesUpdated",
                                std::vector<std::tuple<int32_t, dbus::VariantMap>> {
                                        {4, {{"label", dbus::Variant(std::string("_Go"))}}}},
@@ -669,14 +620,12 @@ TEST_F(AppMenusTest, AnApplicationShowsItsNameItsMenusAndTheirChanges)
     EXPECT_EQ(3, view->currentIndex());
     EXPECT_TRUE(view->openMenu() && view->openMenu()->isOpen());
 
-    // Another application takes the bar: the open menu goes.
     windows->setActive(0);
     ASSERT_TRUE(test::runUntil([&] { return view->model().isDesktop(); }));
     EXPECT_EQ(-1, view->currentIndex());
     EXPECT_TRUE(manager.popupGrabs().empty());
     EXPECT_EQ(titles(), (std::vector<std::string> {"", "Desktop"}));
 
-    // The user's menu stays open across a switch.
     click(entryCentre(0).x(), 16);
     ASSERT_EQ(0, view->currentIndex());
     windows->setActive(id);
@@ -687,7 +636,6 @@ TEST_F(AppMenusTest, AnApplicationShowsItsNameItsMenusAndTheirChanges)
 
 TEST_F(AppMenusTest, AMainMenuShowsItsApplicationMenuUnderTheName)
 {
-    // Archiver's main menu: its application menu (About, Quit) and File.
     auto menu = std::make_shared<FakeMainMenu>();
     menu->add(0, 1, "Archiver", compositor::MenuItem::Role::Application);
     menu->add(1, 10, "About Archiver");
@@ -704,12 +652,8 @@ TEST_F(AppMenusTest, AMainMenuShowsItsApplicationMenuUnderTheName)
     windows->setActive(id);
     ASSERT_TRUE(test::runUntil([&] { return view->model().count() == 3; }));
     frame();
-    // Ready at once; the application menu has no entry of its own, and
-    // without a desktop entry the name is its title, not the window's.
     EXPECT_EQ(titles(), (std::vector<std::string> {"", "Archiver", "File"}));
 
-    // The name opens it, in place of the bar's Hide and Quit; the
-    // application hears that it is about to open.
     click(entryCentre(1).x(), 16);
     ASSERT_EQ(1, view->currentIndex());
     frame();
@@ -720,7 +664,6 @@ TEST_F(AppMenusTest, AMainMenuShowsItsApplicationMenuUnderTheName)
     EXPECT_TRUE(windows->requests.empty());
     EXPECT_EQ(1, menu->closedCount(1));
 
-    // An entry the application renames while its menu is open changes there.
     click(entryCentre(2).x(), 16);
     ASSERT_EQ(2, view->currentIndex());
     frame();
@@ -753,8 +696,6 @@ TEST_F(AppMenusTest, AnApplicationThatLeavesTakesItsOpenMenu)
     ASSERT_EQ(2, view->currentIndex());
     ASSERT_TRUE(view->openMenu() && view->openMenu()->isOpen());
 
-    // Its exporter leaves the bus with the menu up: the menu closes, and
-    // nothing reaches the menu client that went with the exporter.
     exporter.reset();
     application.reset();
     ASSERT_TRUE(test::runUntil([&] { return view->currentIndex() == -1; }));
@@ -776,9 +717,6 @@ TEST_F(AppMenusTest, AnOpenMenuStaysOpenWhenTheApplicationRenumbersItsMenus)
     ASSERT_EQ(2, view->currentIndex());
     ASSERT_TRUE(test::runUntil([&] { return exporter.called("Event 1 opened"); }));
 
-    // The application lays out its whole bar again under new ids while File
-    // is open: File stays open where it was, shows the new File's entries
-    // once they are in, and is not opened again.
     exporter.layouts.clear();
     exporter.layouts[0] = layout(0, {},
                                  {layout(101, {{"label", label("_File")}, {"children-display", submenu()}}),
@@ -796,7 +734,6 @@ TEST_F(AppMenusTest, AnOpenMenuStaysOpenWhenTheApplicationRenumbersItsMenus)
     EXPECT_EQ(1u, manager.popupGrabs().size());
     EXPECT_EQ(1, exporter.openedEvents());
 
-    // Its rows are the new File's, and closing reaches the new File.
     chooseFirstRow();
     EXPECT_EQ(-1, view->currentIndex());
     ASSERT_TRUE(test::runUntil([&] { return exporter.called("Event 101 closed"); }));
@@ -805,7 +742,6 @@ TEST_F(AppMenusTest, AnOpenMenuStaysOpenWhenTheApplicationRenumbersItsMenus)
     EXPECT_FALSE(exporter.called("Event 1 closed"));
     EXPECT_EQ(1, exporter.openedEvents());
 
-    // Moving on still switches menus.
     click(entryCentre(2).x(), 16);
     ASSERT_EQ(2, view->currentIndex());
     move(entryCentre(3).x(), 16);
@@ -828,7 +764,6 @@ TEST_F(AppMenusTest, OnlyAClickChoosesAPlainActionEntry)
     showTerminal(application, 5);
     ASSERT_EQ(titles(), (std::vector<std::string> {"", "Terminal", "File", "Run", "Edit"}));
 
-    // With File open, moving onto Run leaves File open.
     click(entryCentre(2).x(), 16);
     ASSERT_EQ(2, view->currentIndex());
     move(entryCentre(3).x(), 16);
@@ -836,13 +771,11 @@ TEST_F(AppMenusTest, OnlyAClickChoosesAPlainActionEntry)
     EXPECT_EQ(2, view->currentIndex());
     EXPECT_TRUE(view->openMenu() && view->openMenu()->isOpen());
 
-    // Right and Left pass over it.
     key(KEY_RIGHT);
     EXPECT_EQ(4, view->currentIndex());
     key(KEY_LEFT);
     EXPECT_EQ(2, view->currentIndex());
 
-    // The application asking for it opens nothing either.
     key(KEY_ESC);
     ASSERT_EQ(-1, view->currentIndex());
     exporter.object.emitSignal("ItemActivationRequested", int32_t(4), uint32_t(0));
@@ -851,7 +784,6 @@ TEST_F(AppMenusTest, OnlyAClickChoosesAPlainActionEntry)
     EXPECT_EQ(-1, view->currentIndex());
     EXPECT_FALSE(exporter.called("Event 4 clicked"));
 
-    // A click chooses it, and closes the open menu.
     click(entryCentre(2).x(), 16);
     ASSERT_EQ(2, view->currentIndex());
     click(entryCentre(3).x(), 16);
@@ -868,10 +800,8 @@ TEST_F(AppMenusTest, AMenusLayoutUpdateAfterItShowedIsNotLost)
     exporter.layouts[0] = layout(0, {}, {layout(1, {{"label", label("_File")}, {"children-display", submenu()}})});
     exporter.layouts[1] = layout(1, {}, {layout(10, {{"label", label("_Open")}})});
     showTerminal(application, 3);
-    // Readied for the bar: asked AboutToShow and fetched.
     ASSERT_TRUE(test::runUntil([&] { return exporter.count("GetLayout 1") == 1; }));
 
-    // The application changes File and says so: the next show has it.
     exporter.layouts[1] = layout(1, {}, {layout(11, {{"label", label("_Save")}})});
     exporter.layoutUpdated(1);
     ASSERT_TRUE(test::runUntil([&] { return exporter.count("GetLayout 1") == 2; }));
@@ -897,8 +827,7 @@ TEST_F(AppMenusTest, ARootLayoutUpdateRefreshesLoadedMenus)
     test::runFor(std::chrono::milliseconds(50));
     const int fetched = exporter.count("GetLayout 1");
 
-    // A layout update of the root, as some exporters send for any change,
-    // with every id kept: the open File is fetched again and changes.
+    // A layout update of the root, as some exporters send for any change.
     exporter.layouts[1] = layout(1, {}, {layout(11, {{"label", label("_Save")}})});
     exporter.layoutUpdated();
     ASSERT_TRUE(test::runUntil([&] { return exporter.count("GetLayout 1") > fetched; }));
@@ -908,7 +837,6 @@ TEST_F(AppMenusTest, ARootLayoutUpdateRefreshesLoadedMenus)
     chooseFirstRow();
     EXPECT_TRUE(test::runUntil([&] { return exporter.called("Event 11 clicked"); }));
 
-    // Closed, File changes again: it is current when it next shows.
     exporter.layouts[1] = layout(1, {}, {layout(12, {{"label", label("_Close")}})});
     const int roots = exporter.count("GetLayout 0");
     exporter.layoutUpdated();
@@ -942,9 +870,6 @@ TEST_F(AppMenusTest, AnOpenMenuStaysOpenWhenAMainMenuIsBuiltAgain)
     ASSERT_EQ(2, view->currentIndex());
     ASSERT_EQ(1, menu->prepared(1));
 
-    // The client takes every entry of its bar away and makes them again,
-    // one request at a time: the bar changes once, and File stays open on
-    // the new File without the client hearing of another opening.
     int changes = 0;
     auto subscription = view->model().rowsChanged.connect([&] { ++changes; });
     menu->remove(1);
@@ -971,7 +896,6 @@ TEST_F(AppMenusTest, AnOpenMenuStaysOpenWhenAMainMenuIsBuiltAgain)
 
 TEST_F(AppMenusTest, AnOpenSubmenuStaysOpenWhenOpeningItRenumbersTheMenus)
 {
-    // View > Toolbars, every id in it offset by `base`.
     const auto lay = [](FakeMenuExporter &exporter, int32_t base) {
         exporter.layouts.clear();
         exporter.layouts[0] =
@@ -987,8 +911,6 @@ TEST_F(AppMenusTest, AnOpenSubmenuStaysOpenWhenOpeningItRenumbersTheMenus)
     test::DBusTestClient application;
     FakeMenuExporter exporter(application.connection.get(), "/MenuBar");
     lay(exporter, 0);
-    // An application that lays out its whole menu again under new ids each
-    // time Toolbars opens.
     int32_t base = 0;
     int toolbarsOpened = 0;
     exporter.onEvent = [&](int32_t id, const std::string &event) {
@@ -1013,7 +935,6 @@ TEST_F(AppMenusTest, AnOpenSubmenuStaysOpenWhenOpeningItRenumbersTheMenus)
     test::runFor(std::chrono::milliseconds(200));
     frame();
 
-    // Both menus stay open, now on the new ids, and Toolbars was opened once.
     EXPECT_EQ(1, toolbarsOpened);
     EXPECT_EQ(1000, base);
     EXPECT_EQ(1001, view->model().rows()[2].id);
@@ -1021,7 +942,6 @@ TEST_F(AppMenusTest, AnOpenSubmenuStaysOpenWhenOpeningItRenumbersTheMenus)
     ASSERT_TRUE(view->openMenu()->submenu(0) && view->openMenu()->submenu(0)->isOpen());
     EXPECT_EQ(2, exporter.openedEvents());
 
-    // Its lit first row is the new Menu Bar; closing reaches the new ids.
     key(KEY_ENTER);
     EXPECT_EQ(-1, view->currentIndex());
     ASSERT_TRUE(test::runUntil([&] { return exporter.called("Event 1001 closed"); }));

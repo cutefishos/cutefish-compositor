@@ -401,8 +401,7 @@ Image TextRenderer::renderText(std::string_view text, int pixelSize, const rende
 
         const bool scalable = FT_IS_SCALABLE(face);
         if (rasterDensity > 1 && scalable) {
-            // In 26.6 fixed point, so a fractional density hints the glyphs at
-            // the size they end up on screen.
+            // 26.6 fixed point.
             if (FT_Set_Char_Size(face, 0, FT_F26Dot6(std::lround(pixelSize * rasterDensity * 64)),
                                  72, 72))
                 continue;

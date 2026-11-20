@@ -4,9 +4,6 @@
 //
 // Upstream: chromium/src/components/exo/wayland/xdg_shell.cc
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: integrates the upstream behavior with native
-// compositor types and ownership.
 
 #include "wayland/protocols/xdg_shell.h"
 
@@ -43,9 +40,6 @@ namespace {
 using cutefish::wm::ResizeEdge;
 using cutefish::wm::ShellSurface;
 using cutefish::wm::WindowStateType;
-
-////////////////////////////////////////////////////////////////////////////////
-// xdg_positioner_interface:
 
 void xdg_positioner_destroy(wl_client*, wl_resource* resource)
 {
@@ -94,8 +88,7 @@ void xdg_positioner_set_offset(wl_client*, wl_resource* resource, int32_t x, int
     getUserDataAs<WaylandPositioner>(resource)->setOffset(base::Point(x, y));
 }
 
-// Version 3. Empty, as in Weston and Exo: Cutefish recomputes a popup's
-// position whenever its parent moves anyway.
+// Empty: a popup's position is recomputed whenever its parent moves anyway.
 void xdg_positioner_set_reactive(wl_client*, wl_resource*) { }
 
 void xdg_positioner_set_parent_size(wl_client*, wl_resource*, int32_t, int32_t) { }
@@ -115,9 +108,6 @@ const struct xdg_positioner_interface xdg_positioner_implementation = {
     xdg_positioner_set_parent_configure,
 };
 
-////////////////////////////////////////////////////////////////////////////////
-// xdg_surface state:
-
 // The user data of an xdg_surface resource. A role resource may outlive it -
 // the protocol forbids it, but a client can still get there - so the back
 // reference goes through a token this object clears on the way out.
@@ -131,10 +121,8 @@ std::vector<WaylandXdgSurface*>& liveXdgSurfaces()
     return surfaces;
 }
 
-// The state behind one xdg_wm_base. Exo leaves xdg_wm_base.pong
-// NOTIMPLEMENTED and Ash has no hung-window handling, so this is Cutefish's
-// own: one ping at a time, and a timeout that marks every toplevel created
-// through this xdg_wm_base unresponsive, since the whole client has stalled.
+// One ping at a time, and a timeout that marks every toplevel of this xdg_wm_base unresponsive,
+// since the whole client has stalled.
 struct WaylandWmBase {
     WaylandWmBase(WaylandXdgShell* shell, wl_resource* resource)
         : shell(shell)
@@ -241,8 +229,7 @@ void WaylandWmBase::setResponsive(bool responsive)
     }
 }
 
-// Sends the xdg_surface.configure that closes any role configure sequence, and
-// returns its serial. Upstream: HandleXdgSurfaceConfigureCallback.
+// Sends the xdg_surface.configure that closes any role configure sequence, and returns its serial.
 uint32_t sendSurfaceConfigure(wl_resource* xdgSurfaceResource, SerialTracker* serialTracker)
 {
     const uint32_t serial = serialTracker->nextSerial(SerialTracker::OTHER_EVENT);
@@ -250,9 +237,6 @@ uint32_t sendSurfaceConfigure(wl_resource* xdgSurfaceResource, SerialTracker* se
     wl_client_flush(wl_resource_get_client(xdgSurfaceResource));
     return serial;
 }
-
-////////////////////////////////////////////////////////////////////////////////
-// xdg_toplevel_interface:
 
 ResizeEdge resizeEdgeFromXdg(uint32_t edges)
 {
@@ -284,10 +268,8 @@ enum class DragSerial {
     Touch,
 };
 
-// An interactive move or resize is only allowed from a serial the compositor
-// really handed this client for a pointer press or a touch-down, and only while
-// that press is still down. Without both checks any client could grab any
-// window. A touch drag checks the second half when it looks for its point.
+// Only from a serial this client really got for a press or touch-down still held; otherwise any
+// client could grab any window.
 DragSerial dragSerial(WaylandXdgShell* shell, uint32_t serial)
 {
     const std::optional<SerialTracker::EventType> type =
@@ -363,7 +345,7 @@ public:
                         sendWmCapabilities(toplevel, state.maximizable);
                     }
                 }
-                // Qt drops the xdg resizing state; window hints carry it too.
+                // Some toolkits drop the xdg resizing state; window hints carry it too.
                 if (state.resizing != *sentResizing) {
                     *sentResizing = state.resizing;
                     WaylandXdgSurface* surfaceData = *token;
@@ -384,9 +366,8 @@ public:
                     addToplevelState(&states, XDG_TOPLEVEL_STATE_MAXIMIZED);
                 if (state.stateType == WindowStateType::Fullscreen) {
                     addToplevelState(&states, XDG_TOPLEVEL_STATE_FULLSCREEN);
-                    // A window that was maximized before it went fullscreen
-                    // keeps that state as far as the client is concerned. X11
-                    // applications, and so most toolkits, rely on it.
+                    // A window maximized before it went fullscreen stays maximized to the client;
+                    // most toolkits rely on it.
                     if (state.restoreStateType == WindowStateType::Maximized)
                         addToplevelState(&states, XDG_TOPLEVEL_STATE_MAXIMIZED);
                 }
@@ -510,8 +491,7 @@ void xdg_toplevel_set_app_id(wl_client*, wl_resource* resource, const char* appI
         shellSurface->setApplicationId(base::strings::sanitizedUtf8(appId));
 }
 
-// Cutefish has no window menu yet. It belongs to the decoration, but nothing
-// in v0.1 draws menus; a client that asks for one simply gets nothing.
+// There is no window menu; a client that asks for one gets nothing.
 void xdg_toplevel_show_window_menu(wl_client*, wl_resource*, wl_resource*, uint32_t, int32_t,
                                    int32_t)
 {
@@ -609,9 +589,6 @@ const struct xdg_toplevel_interface xdg_toplevel_implementation = {
     xdg_toplevel_unset_fullscreen, xdg_toplevel_set_minimized,
 };
 
-////////////////////////////////////////////////////////////////////////////////
-// xdg_popup_interface:
-
 class WaylandPopup
 {
 public:
@@ -680,8 +657,7 @@ private:
 // window geometry, which is what xdg_positioner uses.
 base::Rect popupWorkArea(WaylandXdgShell* shell, ShellSurface* parent)
 {
-    // Exo constrains popups to the work area of the display nearest the parent,
-    // including shell-owned menus.
+    // Popups are constrained to the work area of the display nearest the parent, shell-owned menus included.
     wm::WindowManager* manager = shell->windowManager();
     const wm::Window* owner = parent->ownerWindow();
     base::Rect workArea =
@@ -738,9 +714,6 @@ const struct xdg_popup_interface xdg_popup_implementation = {
     xdg_popup_grab,
     xdg_popup_reposition,
 };
-
-////////////////////////////////////////////////////////////////////////////////
-// xdg_surface_interface:
 
 void xdg_surface_destroy(wl_client*, wl_resource* resource)
 {
@@ -869,9 +842,6 @@ const struct xdg_surface_interface xdg_surface_implementation = {
     xdg_surface_set_window_geometry, xdg_surface_ack_configure,
 };
 
-////////////////////////////////////////////////////////////////////////////////
-// xdg_wm_base_interface:
-
 void xdg_wm_base_destroy(wl_client* client, wl_resource* resource)
 {
     if (getUserDataAs<WaylandWmBase>(resource)->shell->hasXdgSurfaceForClient(client)) {
@@ -906,8 +876,7 @@ void xdg_wm_base_get_xdg_surface(wl_client* client, wl_resource* resource, uint3
                                "surface has already been assigned a role");
         return;
     }
-    // Like exo, a buffer already on the surface is not an error. The shell's
-    // menu bar popups have hit it under load, and the error kills the shell.
+    // A buffer already on the surface is not an error: raising it under load would kill the shell.
 
     wl_resource* xdgSurfaceResource =
         wl_resource_create(client, &xdg_surface_interface, wl_resource_get_version(resource), id);
@@ -956,9 +925,6 @@ void bindXdgShell(wl_client* client, void* data, uint32_t version, uint32_t id)
 }
 
 } // namespace
-
-////////////////////////////////////////////////////////////////////////////////
-// WaylandXdgShell:
 
 WaylandXdgShell::WaylandXdgShell(compositor::Compositor* compositor,
                                  wm::WindowManager* windowManager, input::Seat* seat,

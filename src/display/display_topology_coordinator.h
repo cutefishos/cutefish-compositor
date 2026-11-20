@@ -23,11 +23,10 @@ public:
     DisplayTopologyCoordinator(const DisplayTopologyCoordinator &) = delete;
     DisplayTopologyCoordinator &operator=(const DisplayTopologyCoordinator &) = delete;
     void invalidate();
-    // The first reconciliation. Unlike invalidate(), it does not carry over
-    // the startup layout, which nobody chose: unsaved displays get defaults.
+    // Unlike invalidate(), the startup layout is not carried over: unsaved
+    // displays get defaults.
     void start();
 
-    // Whether the reconciliation succeeded.
     base::Signal<bool> reconciled;
 
 private:

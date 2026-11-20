@@ -4,9 +4,6 @@
 //
 // Upstream: chromium/src/ui/display/manager/test/fake_display_delegate.cc
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: callbacks and snapshots use the native display
-// contract without Chromium task runners.
 
 #include "fake_native_display_delegate.h"
 

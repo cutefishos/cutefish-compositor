@@ -281,7 +281,6 @@ void MprisManager::add(const std::string &service)
     added.statusChanged = added.player->playbackStatusChanged.connect([this, service] { statusChanged(service); });
     m_entries.push_back(std::move(added));
 
-    // Nothing playing is interrupted by showing the newcomer.
     if (!m_current || !playing(*m_current))
         show(m_entries.back().player);
 }

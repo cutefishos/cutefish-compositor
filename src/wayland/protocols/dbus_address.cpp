@@ -20,8 +20,6 @@ bool isAsciiDigit(char c)
     return c >= '0' && c <= '9';
 }
 
-// Splits `text` at `separator` and checks every element with `valid`; there
-// must be at least `minimum` elements and none may be empty.
 template<typename Valid>
 bool validElements(std::string_view text, char separator, size_t minimum, Valid valid)
 {

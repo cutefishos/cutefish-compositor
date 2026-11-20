@@ -40,7 +40,6 @@ double FingerTrack::position(double timeMs) const
     if (after != m_samples.end())
         return lerp(*std::prev(after), *after, timeMs);
 
-    // Ahead of the newest event: along the last two, not far.
     const Sample &newest = m_samples.back();
     if (m_samples.size() < 2)
         return newest.position;
@@ -56,8 +55,6 @@ double FingerTrack::releaseVelocity(double releaseTimeMs) const
 {
     if (m_samples.size() < 2 || releaseTimeMs - m_samples.back().timeMs > kAssumeReleaseStoppedMs)
         return 0;
-    // A first-degree least-squares fit over the recent samples, back to where
-    // the fingers last paused.
     const double newest = m_samples.back().timeMs;
     auto first = std::prev(m_samples.end());
     while (first != m_samples.begin()) {

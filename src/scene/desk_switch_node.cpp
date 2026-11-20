@@ -36,13 +36,11 @@ double tween(double x1, double y1, double x2, double y2, double t)
     return motion::cubicBezier(x1, y1, x2, y2, t);
 }
 
-// gfx::Tween::ACCEL_20_DECEL_100.
 double accel20Decel100(double t)
 {
     return tween(0.2, 0, 0, 1, t);
 }
 
-// gfx::Tween::ACCEL_20_DECEL_60, the curve a minimize flies on.
 double accel20Decel60(double t)
 {
     return tween(0.2, 0, 0.4, 1, t);
@@ -53,8 +51,6 @@ int scaled(int durationMs)
     return std::max(1, int(std::lround(durationMs * motion::durationScale())));
 }
 
-// Frames land on whole device pixels, so they stay as sharp as the desk
-// underneath instead of shimmering between two pixels while they move.
 double snapped(double offset, double scale)
 {
     return scale > 0 ? std::round(offset * scale) / scale : offset;
@@ -90,7 +86,6 @@ void DeskSwitchNode::start(Type type, int desks, int startingDesk, int endingDes
     for (auto &[output, texture] : frames) {
         if (!texture)
             continue;
-        // What paintCoveredContent() draws is on black, opaque throughout.
         texture->contentOpaque = true;
         m_frames[output][startingDesk] = std::move(texture);
     }
@@ -133,8 +128,6 @@ void DeskSwitchNode::addDesk(int desk)
         return;
     const auto index = std::distance(m_strip.begin(), m_strip.lower_bound(desk));
     m_strip.insert(desk);
-    // A frame put in on the left moves everything already shown one place
-    // right; the strip shifts with it so what is on screen stays put.
     const double now = m_now();
     if (index <= std::lround(position(now)))
         shiftStrip(1, now);
@@ -241,8 +234,6 @@ bool DeskSwitchNode::hasSettled(double now, double distance, double scale) const
         return now - m_animationStart >= m_animation.durationMs;
     if (m_motion != Motion::Spring)
         return false;
-    // Within half a device pixel, and slower than a pixel a frame: the next
-    // frame would be this one.
     const double pixels = distance * std::max(scale, 1.0);
     return std::abs(m_spring.value(now) - m_spring.target()) * pixels < 0.5
             && std::abs(m_spring.velocity(now)) * pixels < 60;
@@ -280,8 +271,6 @@ bool DeskSwitchNode::replaceAnimation(int endingDesk)
 
 std::optional<int> DeskSwitchNode::updateSwipeAnimation(double deskDelta, double timeMs)
 {
-    // The fingers catch the strip where it is shown: sliding on its own, or
-    // coasting since they paused rather than lifted.
     const bool coasted = m_motion == Motion::Tracking && m_coast
             && timeMs > m_coastStart - kResampleLatencyMs + kResampleMaxPredictionMs;
     if (m_motion != Motion::Tracking || coasted) {
@@ -300,8 +289,6 @@ std::optional<int> DeskSwitchNode::updateSwipeAnimation(double deskDelta, double
     m_reachedEdge = m_position < 0 || m_position > last;
     notifyChanged();
 
-    // Close to the end of the strip, the desk beyond it needs a frame; one at
-    // a time. Without a move there is no way to tell which end.
     if (deskDelta == 0 || !endingScreenshotTaken())
         return std::nullopt;
     const bool movingLeft = deskDelta < 0;
@@ -331,15 +318,11 @@ int DeskSwitchNode::flickTarget(double position, double velocity) const
 void DeskSwitchNode::updateCoast()
 {
     m_coast.reset();
-    // Fingers that lift leave the pad at speed; ones that stop to hold slow
-    // down first. The fit over 100 ms lags a stop, so the last events decide.
     const std::optional<double> velocity = m_fingers.recentVelocity();
     if (!velocity || std::abs(*velocity) < kFlickVelocity)
         return;
-    // It takes over where the resampled fingers stop, past the newest event.
     const double from = m_fingers.predictionEnd();
     const double position = fingerPosition(from);
-    // Pulled past an end, the fingers hold it until they let go.
     if (position < 0 || position > double(m_strip.size()) - 1)
         return;
     m_coastStart = from + kResampleLatencyMs;
@@ -353,7 +336,6 @@ int DeskSwitchNode::endSwipeAnimation(double timeMs)
         return m_endingDesk;
     const double now = m_now();
     if (m_motion == Motion::Tracking && m_coast) {
-        // Already on its way since the fingers stopped reporting.
         m_spring = *m_coast;
         m_motion = Motion::Spring;
         m_fingers.clear();
@@ -365,7 +347,6 @@ int DeskSwitchNode::endSwipeAnimation(double timeMs)
         double velocity = m_motion == Motion::Tracking ? m_fingers.releaseVelocity(timeMs) : 0;
         const double current = position(now);
         const int last = int(m_strip.size()) - 1;
-        // Flung from beyond an end, it comes straight back.
         if ((current < 0 && velocity < 0) || (current > last && velocity > 0))
             velocity = 0;
         settle(now, current, flickTarget(current, velocity), velocity, kSettleResponse);
@@ -373,7 +354,6 @@ int DeskSwitchNode::endSwipeAnimation(double timeMs)
 
     int slot = int(std::lround(m_spring.target()));
     if (!endingScreenshotTaken() && *std::next(m_strip.begin(), slot) != m_captureDesk) {
-        // The frame being copied will not be shown after all.
         const int pending = std::exchange(m_captureDesk, -1);
         for (auto &[output, frames] : m_frames)
             frames.erase(pending);
@@ -384,8 +364,6 @@ int DeskSwitchNode::endSwipeAnimation(double timeMs)
             slot -= 1;
         }
     }
-    // A frame still being copied shows once it is taken, the strip already
-    // on its way.
     m_endingDesk = *std::next(m_strip.begin(), slot);
     return m_endingDesk;
 }
@@ -444,8 +422,6 @@ void DeskSwitchNode::paintCoveredContent(render::Renderer &renderer) const
         return;
     const auto &siblings = parent()->children();
     const auto end = std::find(siblings.begin(), siblings.end(), this);
-    // Nothing under a sibling that covers the whole output shows, so the
-    // frame starts there: at the overview, while it is up.
     auto first = siblings.begin();
     for (auto it = siblings.begin(); it != end; ++it) {
         if ((*it)->isVisible() && (*it)->occludesOutput(renderer))
@@ -469,7 +445,6 @@ void DeskSwitchNode::takeFrame(render::Renderer &renderer, const base::Rect &vie
         texture.reset();
     else
         texture->contentOpaque = true;
-    // A frame that could not be copied shows black rather than holding the rest up.
     output->second[m_captureDesk] = std::move(texture);
 
     const int desk = m_captureDesk;
@@ -494,7 +469,6 @@ void DeskSwitchNode::renderStrip(render::Renderer &renderer, const base::Rect &v
     const double current = position(now);
     float endingAlpha = 1;
     if (m_type == Type::Quick) {
-        // The ending desk's frame starts transparent and fades in as the strip moves.
         endingAlpha = 0;
         if (m_motion == Motion::Tween) {
             const double t = std::clamp((now - m_animationStart)
@@ -530,12 +504,9 @@ void DeskSwitchNode::renderStrip(render::Renderer &renderer, const base::Rect &v
             place(desk, slot);
         ++slot;
     }
-    // The ending desk goes over the others, as its layer is added last upstream.
     if (endingSlot >= 0)
         place(m_endingDesk, endingSlot);
 
-    // Black only where no frame covers, between the desks and past the ends:
-    // a full-screen fill under full-screen frames is most of a frame's GPU time.
     std::vector<std::pair<double, double>> covered;
     for (const Draw &draw : draws) {
         if (draw.alpha >= 1)
@@ -567,7 +538,6 @@ void DeskSwitchNode::renderHitTheWall(render::Renderer &renderer, const base::Re
     const auto output = m_frames.find(renderer.outputContext().outputId);
     if (output == m_frames.end() || !output->second.count(0))
         return;
-    // Out towards the edge with EASE_OUT, back with EASE_IN.
     const double half = scaled(kHitTheWallDurationMs);
     const double t = std::clamp((now - m_animationStart) / half, 0.0, 2.0);
     const double amount = t < 1 ? 1 - std::pow(1 - t, 2) : 1 - std::pow(t - 1, 2);
@@ -593,8 +563,6 @@ void DeskSwitchNode::render(render::Renderer &renderer) const
 {
     if (!isActive() || !isVisible())
         return;
-    // Motion steps on the frame's slot on the display, not on when it was
-    // drawn, the way WindowAnimation does.
     const double now = renderer.frameTime >= 0 ? renderer.frameTime : double(m_now());
     const auto &context = renderer.outputContext();
     const base::Rect viewport =
@@ -618,8 +586,6 @@ void DeskSwitchNode::render(render::Renderer &renderer) const
     if (renderer.capturing)
         return;
     if (m_motion == Motion::Tracking) {
-        // Until the resampled position catches up with the newest event, or
-        // for as long as the strip coasts.
         const double pixels = slotDistance(viewport.width()) * std::max(context.scale, 1.0);
         const bool coasting = m_coast
                 && (std::abs(m_coast->value(now) - m_coast->target()) * pixels >= 0.5

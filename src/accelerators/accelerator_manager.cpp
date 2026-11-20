@@ -4,9 +4,6 @@
 //
 // Upstream: chromium/src/ui/base/accelerators/accelerator_manager.cc
 // Revision: 8abbac30b9cf2fe976422c58c000c94685648b65
-//
-// Adapted for Cutefish: integrates the upstream behavior with native
-// compositor types and ownership.
 
 #include "accelerators/accelerator_manager.h"
 
@@ -90,7 +87,6 @@ void AcceleratorManager::TargetInfo::registerWithPriority(AcceleratorTarget *tar
         m_hasPriorityHandler = true;
         m_targets.push_front(target);
     } else {
-        // Normal-priority targets go after the priority handler, most recent first.
         m_targets.insert(m_hasPriorityHandler ? std::next(m_targets.begin()) : m_targets.begin(),
                          target);
     }

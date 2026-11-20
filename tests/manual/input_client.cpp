@@ -3,15 +3,6 @@
 // found in the LICENSE file.
 
 // Libwayland-only input hardware demo.
-//
-// Two independent shm windows, each containing a subsurface panel, plus a
-// cursor surface. Everything it observes is printed, and the colours change so
-// that pointer focus, keyboard focus and subsurface hit testing are visible on
-// a real screen rather than only in the log.
-//
-// There is no xdg-shell yet, so the compositor cascades new surfaces by a fixed
-// step. The demo creates unmapped spacer surfaces between its two windows to
-// push them far enough apart not to overlap.
 
 #include <cstdio>
 #include <cerrno>
@@ -126,7 +117,6 @@ void fill(const Buffer& buffer, uint32_t color)
         buffer.pixels[i] = color;
 }
 
-// A border, so the extent of each surface is unmistakable on screen.
 void fillWithBorder(const Buffer& buffer, uint32_t body, uint32_t border)
 {
     for (int y = 0; y < buffer.height; ++y) {
@@ -154,7 +144,6 @@ void redraw(Window& window)
     wl_surface_commit(window.surface);
 }
 
-// Which window and panel a surface belongs to, or nullptr.
 Window* windowForSurface(State& state, wl_surface* surface, bool* isPanel)
 {
     for (Window& window : state.windows) {
@@ -233,8 +222,8 @@ const wl_pointer_listener pointerListener = {
     [](void*, wl_pointer*, uint32_t axis, int32_t discrete) {
         std::printf("pointer: axis_discrete %u steps=%d\n", axis, discrete);
     },
-    nullptr, // axis_value120
-    nullptr, // axis_relative_direction
+    nullptr,
+    nullptr,
 };
 
 const wl_keyboard_listener keyboardListener = {
@@ -408,8 +397,6 @@ int main()
         return 1;
     }
 
-    // A cursor image with a hole in the middle at the hotspot, so a
-    // misplaced hotspot is obvious.
     state.cursorSurface = wl_compositor_create_surface(state.compositor);
     state.cursorBuffer = createBuffer(state, kCursorSize, kCursorSize);
     for (int y = 0; y < kCursorSize; ++y) {
@@ -425,8 +412,6 @@ int main()
 
     createWindow(state, state.windows[0], "left");
 
-    // Push the second window clear of the first: the compositor still places
-    // surfaces on a fixed cascade.
     std::vector<wl_surface*> spacers;
     for (int i = 0; i < kSpacerSurfaces; ++i)
         spacers.push_back(wl_compositor_create_surface(state.compositor));

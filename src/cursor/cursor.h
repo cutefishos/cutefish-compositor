@@ -19,9 +19,6 @@ class Seat;
 
 namespace cutefish::cursor {
 
-// Composited in the existing scene, or handed to a hardware cursor plane when
-// one is available. No Aura window, helper process or private Wayland connection
-// is needed either way.
 class Cursor final : public input::SeatObserver
 {
 public:
@@ -33,36 +30,27 @@ public:
     void onCursorChanged() override;
     void onCursorPositionChanged() override;
 
-    // The hardware cursor plane, when the output has one. Null puts the cursor
-    // back in the scene. A sink that refuses an image does the same, per image.
+    // Null puts the cursor back in the scene.
     void setSink(render::CursorSink *sink);
     void setScale(double scale);
     void setTheme(const std::string &theme, int size);
-    // The theme and logical size in use, after the fallbacks setTheme() applies.
     const std::string &theme() const { return m_theme; }
     int size() const { return m_size; }
     std::function<void()> themeChanged;
     void paintForCapture(render::Renderer &renderer) const;
 
-    // Where paintForCapture() would draw, in global logical coordinates; empty
-    // while the cursor is hidden. Capture damage tracking needs it because a
-    // hardware cursor moves without touching the scene.
+    // In global logical coordinates; empty while the cursor is hidden.
     base::RectF captureBounds() const;
 
-    // Re-derives the image from the seat and reprograms the sink even when
-    // nothing the cursor tracks changed. Locking uses it: the KMS cursor plane
-    // keeps the last image it was handed, so a session cursor would otherwise
-    // still be on screen above the secure scene.
+    // Reprograms the sink even when nothing changed: the KMS cursor plane keeps its last image.
     void refresh();
 
-    // Whether the current image is on the sink rather than in the scene.
     bool isHardware() const { return m_hardware; }
 
-    // The current image's hotspot in the image the plane gets, in device pixels.
+    // In device pixels of the image the plane gets.
     base::Point deviceHotspot() const;
 
-    // While held, neither the sink nor the scene shows the cursor: a compositor
-    // starting up leaves the previous one's on the plane until its displays settle.
+    // While held, neither the sink nor the scene shows the cursor.
     void setHeld(bool held);
 
 private:

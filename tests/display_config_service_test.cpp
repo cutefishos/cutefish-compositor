@@ -30,7 +30,6 @@ struct NightLightCall {
     std::chrono::milliseconds duration;
 };
 
-// The session is never on screen here: the night light goes through anyway.
 struct Service {
     display::DisplayManager manager;
     test::FakeNativeDisplayDelegate delegate;
@@ -109,7 +108,6 @@ TEST_F(DisplayConfigServiceTest, AStrengthThatIsNotANumberIsRefused)
     EXPECT_FALSE(service.nightLight);
 }
 
-// The night light's exception does not open the configuration writes.
 TEST_F(DisplayConfigServiceTest, OtherWritesStillNeedTheSessionOnScreen)
 {
     Service service;
@@ -120,8 +118,6 @@ TEST_F(DisplayConfigServiceTest, OtherWritesStillNeedTheSessionOnScreen)
     EXPECT_EQ(reply.error().name, "org.cutefish.DisplayConfig1.Error.Unauthorized");
 }
 
-// The signature clients expect: the XML once listed one string too few after
-// `as`.
 TEST_F(DisplayConfigServiceTest, StateKeepsItsSignature)
 {
     Service service;
@@ -133,7 +129,6 @@ TEST_F(DisplayConfigServiceTest, StateKeepsItsSignature)
               "sstta(sssssssasssiiuuua(iiiiiiubbs))a(ssasiiiiiiiiuub)a(ssui)st");
 }
 
-// Introspection names every argument, as the interface XML does.
 TEST_F(DisplayConfigServiceTest, IntrospectionNamesTheArguments)
 {
     Service service;

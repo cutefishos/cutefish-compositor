@@ -23,10 +23,8 @@ namespace cutefish::xwayland {
 namespace {
 constexpr uint32_t chunkSize = 64 * 1024;
 constexpr size_t transferLimit = 64;
-// How long a transfer may stall before it is given up.
 constexpr std::chrono::milliseconds kTransferTimeout(10000);
 
-// A stalled transfer's end, started.
 std::unique_ptr<base::Timer> transferTimeout(std::function<void()> expired)
 {
     auto timer = std::make_unique<base::Timer>(core::mainLoop());

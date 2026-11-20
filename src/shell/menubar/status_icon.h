@@ -20,39 +20,27 @@ namespace cutefish::shell {
 
 class Battery;
 
-// A bar icon that opens a panel, with an optional dot after
-// it and an optional label, 12 px of the item on either side of them.
 class StatusIcon : public BarItem
 {
 public:
     explicit StatusIcon(BarContext *bar);
 
-    // The bar's own artwork, menubar/<dark|light>/<name>.svg.
     void setIconName(std::string name);
-    // A FishUI glyph in the bar's colour, in place of the artwork.
     void setGlyph(std::string name);
     void setIconWidth(double width);
     void setLabel(std::string label);
-    // The dot after the icon; none when unset.
+    // None when unset.
     void setIndicatorColor(std::optional<ui::Color> color);
 
-    // The battery's level, yellow with `powerSaver`, and its percentage with
-    // `percentage`; hidden without a battery.
     void showBattery(const Battery &battery, bool percentage, bool powerSaver);
-    // The Wi-Fi state; hidden without Wi-Fi hardware.
     void showNetwork(const MenuBarIndicators::Network &network);
-    // Bluetooth's glyph, struck through while it is off; hidden without an
-    // adapter.
     void showBluetooth(const MenuBarIndicators::Bluetooth &bluetooth);
 
     const std::string &iconName() const { return m_iconName; }
     const std::string &glyph() const { return m_glyph; }
 
-    // 12 + content + 12, as the bar's row lays it out.
     double preferredWidth() const;
-    // The content's width changed.
     std::function<void()> onPreferredWidthChanged;
-    // The bar's look changed.
     void updateLook();
 
 protected:
@@ -75,8 +63,6 @@ private:
     BarLabel *m_text = nullptr;
 };
 
-// The clock: its text centred over its plate, the plate reaching 9 px from
-// the screen's edge.
 class ClockItem : public BarItem
 {
 public:
@@ -94,8 +80,6 @@ private:
     BarLabel *m_label;
 };
 
-// The stop buttons of a screen recording and of an agent's control: a
-// single-colour glyph in the bar's colour.
 class StopItem : public BarItem
 {
 public:

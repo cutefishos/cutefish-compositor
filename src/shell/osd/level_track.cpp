@@ -84,11 +84,9 @@ void LevelTrack::paint(ui::Painter &painter)
     const ui::RectF fillRect {0, 0, height + travel * m_drawn, height};
     painter.drawRoundedRect(fillRect, pill, fill, hairline, outline);
 
-    // The knob, lifted by a shadow: FishUI's DropShadow of radius 3 works in
-    // device pixels, a deviation of (3 dpr + 1) / 3.3333 of them.
+    // The shadow's deviation is (3 dpr + 1) / 3.3333 device pixels.
     const ui::RectF knob {fillRect.width - height, 0, height, height};
     const double sigma = (3 * painter.scale() + 1) / 3.3333 / painter.scale();
-    // The sunken knob stands out by its ring; its shadow only softens it.
     painter.drawShadow(knob, height / 2, sigma,
                        ui::color(m_sunken ? toolkit::CompositorColor::LevelTrackSunkenKnobShadow
                                           : toolkit::CompositorColor::LevelTrackKnobShadow),
@@ -99,7 +97,6 @@ void LevelTrack::paint(ui::Painter &painter)
 
     if (!m_icon.empty()) {
         painter.save();
-        // The light artwork on a white fill.
         const bool tinted = dark && !m_sunken;
         painter.multiplyOpacity(tinted ? 0.85 : 0.7);
         const ui::RectF icon {(height - kIconSize) / 2, (height - kIconSize) / 2, kIconSize,

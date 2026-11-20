@@ -26,20 +26,16 @@ using cutefish::i18n::trNoop;
 
 namespace cutefish::shell {
 
-// FishUI.ConfirmDialog's metrics.
 static constexpr double kMargin = 16;
 static constexpr double kBottomMargin = 12;
 static constexpr double kMinimumWidth = 336;
 static constexpr double kTextSize = 14;
 static constexpr double kButtonSpacing = 8;
-// A press that moves this far moves the window.
 static constexpr double kDragDistance = 10;
 static constexpr int kDemiBold = 600;
 
 static const char *const kText = trNoop("Every application is asked to quit first, so you can save your work.");
 
-// The dialog's window content: the title and text, the buttons at the bottom
-// right; a drag anywhere else moves the window.
 class PowerDialog::Content final : public ui::View
 {
 public:
@@ -82,8 +78,6 @@ public:
         return std::max(kMinimumWidth, actions + 2 * kMargin);
     }
 
-    // The labels take the text width outright, so the window is never first
-    // mapped one wrapped line short.
     double textWidth() const { return width() - 2 * kMargin; }
 
     double height() const
@@ -200,12 +194,10 @@ void PowerDialog::open(Action action)
         auto content = std::make_unique<Content>(this);
         m_content = content.get();
         m_window->setContentView(std::move(content));
-        // Kept above applications, as the compositor's always-on-top hint.
         m_window->surface()->setAlwaysOnTop(true);
         m_window->onCloseRequested = [this] { finish(false); };
         ui::EmbeddedWindow *window = m_window->window();
         window->addShortcut(ui::NoModifier, ui::key::Escape, [this] { finish(false); });
-        // Return confirms even while Cancel holds the focus.
         window->addShortcut(ui::NoModifier, ui::key::Return, [this] { finish(true); });
         window->addShortcut(ui::NoModifier, ui::key::KeypadEnter, [this] { finish(true); });
     }

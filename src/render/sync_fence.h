@@ -7,9 +7,6 @@
 //               hardware_display_plane_manager_atomic.cc
 //               (CreateMergedGpuFenceFromFDs)
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: gfx::GpuFenceHandle becomes a plain owned sync_file fd
-// and sync_merge() is issued directly, since libsync is an Android library.
 
 #ifndef CUTEFISH_RENDER_SYNC_FENCE_H_
 #define CUTEFISH_RENDER_SYNC_FENCE_H_
@@ -23,12 +20,7 @@
 
 namespace cutefish::render {
 
-// One kernel sync_file: a fence that becomes signalled when the GPU or display
-// work behind it has completed.
-//
-// An invalid fence means "nothing to wait for", which is always safe to treat
-// as already signalled. That is what makes the implicit-sync fallback work:
-// every path here accepts an empty fence and does nothing.
+// An invalid fence means nothing to wait for and counts as signalled.
 class SyncFence
 {
 public:
@@ -53,22 +45,17 @@ public:
     // A second reference to the same fence. Invalid fences duplicate as invalid.
     SyncFence duplicate() const;
 
-    // Whether the fence has already been signalled. Never blocks; an invalid
-    // fence counts as signalled.
+    // Never blocks; an invalid fence counts as signalled.
     bool isSignaled() const;
 
-    // When the fence was signalled, in nanoseconds of CLOCK_MONOTONIC: the
-    // latest of the fences it holds, as gfx::GpuFence::GetMaxTimestamp reads
-    // it. Empty while unsignalled, and for anything but a sync_file.
+    // In nanoseconds of CLOCK_MONOTONIC, the latest of its fences; empty while
+    // unsignalled or for anything but a sync_file.
     std::optional<int64_t> signalTimeNs() const;
 
-    // Blocks until signalled or `timeoutMs` elapses (-1 waits forever). Only
-    // the fallback paths call this: with KMS IN_FENCE_FD or a GPU-side wait
-    // available the steady state never blocks the compositor thread.
+    // `timeoutMs` -1 waits forever.
     bool wait(int timeoutMs = -1) const;
 
-    // A fence signalled when every input fence is. Invalid inputs are skipped,
-    // so merging nothing yields an invalid, already-signalled fence.
+    // Invalid inputs are skipped, so merging nothing yields an invalid fence.
     static SyncFence merge(std::vector<SyncFence> fences);
 
 private:

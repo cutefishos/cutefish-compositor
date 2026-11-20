@@ -18,15 +18,8 @@ class ClipboardHistory;
 class ClipboardPickerView;
 class ShellWindow;
 
-// The clipboard history's picker: a 720 x 440 glass card centred in the primary
-// output's work area, opened by org.cutefish.ClipboardHistory.toggle on the
-// compositor's shortcut. As a Picker window it only borrows the keyboard:
-// the application in front stays active, gets the keyboard back when the
-// card goes, and receives the paste. Losing the keyboard while shown (a
-// press elsewhere, another window activated) closes it.
-//
-// Ash's equivalent is ClipboardHistoryControllerImpl with its menu; the card
-// and its keys are Cutefish's own.
+// As a Picker window it only borrows the keyboard: the application in front stays
+// active and receives the paste. Losing the keyboard while shown closes it.
 class ClipboardPicker : public Component
 {
 public:
@@ -42,7 +35,6 @@ public:
     void close();
     void toggle();
 
-    // Where the card goes: centred in the primary output's work area.
     base::Rect geometry() const;
 
 private:

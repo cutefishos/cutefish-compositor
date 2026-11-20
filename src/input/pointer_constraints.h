@@ -4,11 +4,6 @@
 //
 // Upstream: chromium/src/components/exo/pointer.h (pointer constraints)
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: Exo keeps constraints on each client Pointer and
-// captures through aura. Here every client pointer drives the one physical
-// pointer, so the constraints belong to the Seat and the InputManager applies
-// the active one to motion.
 
 #ifndef CUTEFISH_INPUT_POINTER_CONSTRAINTS_H_
 #define CUTEFISH_INPUT_POINTER_CONSTRAINTS_H_
@@ -38,53 +33,38 @@ public:
     PointerConstraints &operator=(const PointerConstraints &) = delete;
     ~PointerConstraints() override;
 
-    // Exo's Pointer::ConstrainPointer. A surface that already has a constraint
-    // refuses the new one, which is then told so and is defunct.
+    // A surface that already has a constraint refuses the new one, which is told so and is defunct.
     bool add(PointerConstraintDelegate *delegate);
 
-    // The delegate is being destroyed.
     void remove(PointerConstraintDelegate *delegate);
 
     PointerConstraintDelegate *active() const { return m_active; }
 
     bool isLocked() const;
 
-    // Re-evaluates the active constraint after anything it depends on changed:
-    // pointer focus, the active window, the pointer location, a committed
-    // region, a drag or the session lock.
     void update();
 
-    // Where motion from `from` to `to`, both in output coordinates, ends under
-    // the active confinement.
+    // `from` and `to` are in output coordinates.
     base::PointF confine(const base::PointF &from, const base::PointF &to) const;
 
-    // Exo's UnconstrainPointerByUserAction: breaks the active constraint and
-    // refuses any until a click permits them again, so an application cannot
-    // take the pointer straight back. Returns whether one was active.
+    // Refuses any constraint until a click permits them again. Returns whether one was active.
     bool breakByUserAction();
 
-    // A press on `surface`, which permits capture again if it is constrained.
     void onPointerPressed(compositor::Surface *surface);
 
-    // Moves the pointer, with a motion event, where a lock's cursor hint puts
-    // it once the lock ends. Set by the input manager.
     std::function<void(const base::PointF &)> warp;
 
-    // compositor::SurfaceObserver:
     void onSurfaceDestroying(compositor::Surface *surface) override;
 
 private:
     bool canActivate(PointerConstraintDelegate *delegate) const;
 
-    // The delegate's region clipped to its surface's input region, in surface
-    // coordinates.
+    // In surface coordinates.
     base::Region effectiveRegion(PointerConstraintDelegate *delegate) const;
 
-    // Where the active lock's cursor hint puts the pointer, in output
-    // coordinates.
+    // In output coordinates.
     std::optional<base::PointF> hintPosition() const;
 
-    // Exo's UnconstrainPointer and RemoveConstraintDelegate.
     void deactivate();
     void erase(PointerConstraintDelegate *delegate);
 

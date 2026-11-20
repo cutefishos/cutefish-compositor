@@ -18,7 +18,6 @@ drmModeModeInfo makeMode(int width, int height, uint32_t type = 0, int clock = 0
     mode.htotal = width + 100;
     mode.vtotal = height + 50;
     mode.type = type;
-    // Default to roughly 60Hz for the chosen totals.
     mode.clock = clock ? clock : static_cast<int>(mode.htotal * mode.vtotal * 60.0 / 1000.0);
     return mode;
 }
@@ -58,7 +57,6 @@ TEST(DrmSelection, TheBootDisplayThenOzonesDriversComeFirst)
                                    {"/dev/dri/card3", "rockchip", false}}),
               std::vector<std::string>({"/dev/dri/card2", "/dev/dri/card1", "/dev/dri/card0",
                            "/dev/dri/card3"}));
-    // The card the firmware booted on wins over any driver preference.
     EXPECT_EQ(orderDisplayDevices({{"/dev/dri/card0", "i915", false},
                                    {"/dev/dri/card1", "nvidia-drm", true}}),
               std::vector<std::string>({"/dev/dri/card1", "/dev/dri/card0"}));
@@ -160,7 +158,6 @@ TEST(DrmSelection, NoModeWhenTheConnectorReportsNone)
 TEST(DrmSelection, PicksACompatibleCrtc)
 {
     const std::vector<uint32_t> crtcs = {40, 41, 42};
-    // Only index 1 and 2 are compatible.
     EXPECT_EQ(selectCrtc(0b110, crtcs, 0, 0), 41u);
 }
 
@@ -174,7 +171,6 @@ TEST(DrmSelection, SkipsCrtcsAlreadyInUse)
 {
     const std::vector<uint32_t> crtcs = {40, 41, 42};
     EXPECT_EQ(selectCrtc(0b111, crtcs, 0b011, 0), 42u);
-    // The attached CRTC does not win when it is taken.
     EXPECT_EQ(selectCrtc(0b111, crtcs, 0b100, 42), 40u);
 }
 

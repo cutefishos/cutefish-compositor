@@ -1,8 +1,3 @@
-# The shell's components drawn in the compositor, one static library each,
-# on src/shell (internal windows) and their backends.
-
-# The desktop background: the shared wallpaper decode, one node per output
-# and the menu bar's backdrop rules.
 find_package(CutefishClients REQUIRED COMPONENTS appearance)
 add_library(cutefish-shell-wallpaper STATIC
     src/shell/wallpaper/bar_backdrop.cpp
@@ -15,7 +10,6 @@ add_library(cutefish-shell-wallpaper STATIC
 target_link_libraries(cutefish-shell-wallpaper PUBLIC cutefish-shell Cutefish::AppearanceClient)
 target_link_libraries(cutefish-compositor PRIVATE cutefish-shell-wallpaper)
 
-# The on-screen display: org.cutefish.Osd and its level panel.
 add_library(cutefish-shell-osd STATIC
     src/shell/osd/level_track.cpp
     src/shell/osd/level_track.h
@@ -27,7 +21,6 @@ target_link_libraries(cutefish-shell-osd PUBLIC cutefish-shell cutefish-shell-me
     Cutefish::AudioClient)
 target_link_libraries(cutefish-compositor PRIVATE cutefish-shell-osd)
 
-# The dock: its view, window and input on the dock's backend.
 add_library(cutefish-shell-dock-view STATIC
     src/shell/dock/dock_icon.cpp
     src/shell/dock/dock_icon.h
@@ -44,7 +37,6 @@ add_library(cutefish-shell-dock-view STATIC
 target_link_libraries(cutefish-shell-dock-view PUBLIC cutefish-shell cutefish-shell-dock)
 target_link_libraries(cutefish-compositor PRIVATE cutefish-shell-dock-view)
 
-# The clipboard history's picker on the clipboard backend.
 add_library(cutefish-shell-clipboard-view STATIC
     src/shell/clipboard/clipboard_picker.cpp
     src/shell/clipboard/clipboard_picker.h
@@ -54,15 +46,12 @@ add_library(cutefish-shell-clipboard-view STATIC
 target_link_libraries(cutefish-shell-clipboard-view PUBLIC cutefish-shell cutefish-shell-clipboard)
 target_link_libraries(cutefish-compositor PRIVATE cutefish-shell-clipboard-view)
 
-# The sheets offering force quit for applications that stopped responding.
 add_library(cutefish-shell-notresponding STATIC
     src/shell/notresponding/not_responding_sheets.cpp
     src/shell/notresponding/not_responding_sheets.h
 )
 target_link_libraries(cutefish-shell-notresponding PUBLIC cutefish-shell)
 target_link_libraries(cutefish-compositor PRIVATE cutefish-shell-notresponding)
-# The screen capture interface: org.cutefish.Screenshot, its overlays,
-# toolbar and Options, pictures and recordings.
 add_library(cutefish-shell-screenshot STATIC
     src/shell/screenshot/capture_clipboard.cpp
     src/shell/screenshot/capture_clipboard.h
@@ -84,7 +73,6 @@ add_library(cutefish-shell-screenshot STATIC
 target_link_libraries(cutefish-shell-screenshot PUBLIC cutefish-shell cutefish-shell-common
     cutefish-wayland cutefish-wayland-private-shell Cutefish::AudioClient)
 target_link_libraries(cutefish-compositor PRIVATE cutefish-shell-screenshot)
-# The session's secret agents (NetworkManager, BlueZ) and their prompts.
 find_package(CutefishClients REQUIRED COMPONENTS networkmanager bluez)
 add_library(cutefish-shell-secrets STATIC
     src/shell/secrets/bluetooth_pairing_dialog.cpp
@@ -105,7 +93,6 @@ add_library(cutefish-shell-secrets STATIC
 target_link_libraries(cutefish-shell-secrets PUBLIC cutefish-shell
     Cutefish::NetworkManagerClient Cutefish::BluezClient)
 target_link_libraries(cutefish-compositor PRIVATE cutefish-shell-secrets)
-# The notification banners and the notification centre on their backend.
 add_library(cutefish-shell-notification-view STATIC
     src/shell/notification/notification_card.cpp
     src/shell/notification/notification_card.h
@@ -122,7 +109,6 @@ add_library(cutefish-shell-notification-view STATIC
 )
 target_link_libraries(cutefish-shell-notification-view PUBLIC cutefish-shell cutefish-shell-notification)
 target_link_libraries(cutefish-compositor PRIVATE cutefish-shell-notification-view)
-# The launchpad: its window, grid, folders, search and paging on the launchpad's backend.
 add_library(cutefish-shell-launchpad-view STATIC
     src/shell/launchpad/launchpad_cell.cpp
     src/shell/launchpad/launchpad_cell.h
@@ -145,7 +131,6 @@ add_library(cutefish-shell-launchpad-view STATIC
 target_link_libraries(cutefish-shell-launchpad-view PUBLIC cutefish-shell cutefish-shell-launchpad
     cutefish-shell-wallpaper)
 target_link_libraries(cutefish-compositor PRIVATE cutefish-shell-launchpad-view)
-# The control centre, the status panels and the power dialog.
 find_package(CutefishClients REQUIRED COMPONENTS networkmanager bluez audio)
 add_library(cutefish-shell-controlcenter STATIC
     src/shell/controlcenter/control_center.cpp
@@ -171,7 +156,6 @@ target_link_libraries(cutefish-shell-controlcenter PUBLIC cutefish-shell cutefis
     cutefish-shell-menubar cutefish-shell-notification Cutefish::NetworkManagerClient
     Cutefish::BluezClient Cutefish::AudioClient)
 target_link_libraries(cutefish-compositor PRIVATE cutefish-shell-controlcenter)
-# The menu bar's items, which the lock screen shows too.
 add_library(cutefish-shell-bar-items STATIC
     src/shell/menubar/bar_item.cpp
     src/shell/menubar/bar_item.h
@@ -180,7 +164,6 @@ add_library(cutefish-shell-bar-items STATIC
     src/shell/menubar/status_icon.h
 )
 target_link_libraries(cutefish-shell-bar-items PUBLIC cutefish-shell cutefish-shell-menubar)
-# The menu bar: its window, tray, status icons and clock on the bar's backend.
 find_package(CutefishClients REQUIRED COMPONENTS appearance)
 add_library(cutefish-shell-menubar-view STATIC
     src/shell/menubar/menu_popup.cpp
@@ -201,5 +184,4 @@ add_library(cutefish-shell-menubar-view STATIC
 target_link_libraries(cutefish-shell-menubar-view PUBLIC cutefish-shell cutefish-shell-bar-items
     cutefish-shell-menubar cutefish-shell-wallpaper Cutefish::AudioClient)
 target_link_libraries(cutefish-compositor PRIVATE cutefish-shell-menubar-view)
-# The menu bar's app menus.
 include(src/shell/menubar/app_menus.cmake)

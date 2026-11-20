@@ -4,9 +4,6 @@
 //
 // Upstream: chromium/src/ui/display/manager/configure_displays_task_unittest.cc
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: tests use the revisioned request and structured-error
-// contract without Chromium display tasks.
 
 #include <gtest/gtest.h>
 
@@ -95,7 +92,6 @@ TEST(DisplayConfigurationValidator, RejectsStaleUnknownUnsupportedAndAllDisabled
                   .error.code,
               display::DisplayErrorCode::UnsupportedMode);
 
-    // D-Bus carries both as plain integers.
     requested = configuration(hardware);
     requested.displays[1].rotation = display::DisplayRotation(7);
     EXPECT_EQ(display::DisplayConfigurationValidator::validateExtended(hardware, 7, requested)

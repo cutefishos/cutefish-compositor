@@ -5,12 +5,6 @@
 // Upstream: chromium/src/components/viz/service/display/overlay_strategy_fullscreen.cc
 //           chromium/src/components/viz/service/display/overlay_strategy_single_on_top.cc
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Scene-level scanout eligibility: what the compositor is willing to hand to a
-// hardware plane before any hardware is consulted.
-//
-// Adapted for Cutefish: exercises the corresponding behavior with native
-// compositor test doubles and APIs.
 
 #include <gtest/gtest.h>
 
@@ -48,8 +42,6 @@ private:
     render::DmaBufAttributes m_attributes;
 };
 
-// A texture stands in for real content; the planner only checks that one is
-// there, never what is in it.
 class TestTexture final : public render::Texture
 {
 public:
@@ -64,8 +56,6 @@ private:
     base::Size m_size;
 };
 
-// Builds a surface node with everything scanout needs, ready to be spoiled one
-// property at a time.
 scene::SurfaceNode *addSurface(scene::Node *parent, const base::Rect &geometry, bool opaque = true)
 {
     auto *node = static_cast<scene::SurfaceNode *>(
@@ -104,7 +94,6 @@ TEST_F(OverlayCandidateTest, AFullscreenOpaqueSurfaceTakesThePrimaryPlane)
     EXPECT_TRUE(plan.primary.opaque);
     EXPECT_EQ(plan.primary.displayRect, base::Rect(base::Point(0, 0), kOutputSize));
     EXPECT_EQ(plan.primary.sourceRect, base::Rect(base::Point(0, 0), kOutputSize));
-    // With the whole output on one plane there is nothing left to overlay.
     EXPECT_TRUE(plan.overlays.empty());
 }
 
@@ -129,8 +118,6 @@ TEST_F(OverlayCandidateTest, AScaledSurfaceIsNotScannedOut)
             m_scene.root()->addChild(std::make_unique<scene::SurfaceNode>()));
     node->setGeometry(base::Rect(base::Point(0, 0), kOutputSize));
     node->setTexture(std::make_shared<TestTexture>(kOutputSize));
-    // The buffer is half the size of the geometry, so a plane would have to
-    // scale it. The planner never asks a plane to do that.
     node->setScanoutBuffer(std::make_shared<TestScanoutBuffer>(base::Size(960, 540)));
     node->setOpaque(true);
 
@@ -150,7 +137,6 @@ TEST_F(OverlayCandidateTest, ASurfaceClippedByTheOutputIsNotScannedOut)
 TEST_F(OverlayCandidateTest, ASurfaceWithoutADmaBufIsNotScannedOut)
 {
     scene::SurfaceNode *surface = addSurface(m_scene.root(), base::Rect(base::Point(0, 0), kOutputSize));
-    // Shm content: composited from a compositor-owned texture, never scanned out.
     surface->setScanoutBuffer(nullptr);
 
     EXPECT_FALSE(propose().hasDirectScanout());
@@ -167,8 +153,6 @@ TEST_F(OverlayCandidateTest, AHiddenSurfaceIsNotProposed)
 TEST_F(OverlayCandidateTest, ContentAboveTheFullscreenSurfaceBlocksDirectScanout)
 {
     addSurface(m_scene.root(), base::Rect(base::Point(0, 0), kOutputSize));
-    // A cursor, a panel, anything drawn afterwards: the fullscreen surface is
-    // no longer the topmost thing on screen.
     auto *overlayColor = static_cast<scene::ColorNode *>(m_scene.root()->addChild(
             std::make_unique<scene::ColorNode>(render::Color {1.0f, 0.0f, 0.0f, 1.0f})));
     overlayColor->setGeometry(base::Rect(100, 100, 64, 64));
@@ -235,7 +219,6 @@ TEST_F(OverlayCandidateTest, AnAnimationOverTheSceneBlocksEveryPlane)
     auto *animation = static_cast<scene::WindowAnimation *>(
             m_scene.root()->addChild(std::make_unique<scene::WindowAnimation>()));
     animation->setGeometry(base::Rect(base::Point(0, 0), kOutputSize));
-    // The surface sits inside the effect, which composites its whole subtree.
     addSurface(animation, base::Rect(base::Point(0, 0), kOutputSize));
 
     EXPECT_TRUE(propose().isEmpty());
@@ -246,14 +229,11 @@ TEST_F(OverlayCandidateTest, ScanoutIsGivenUpAndTakenBackAsTheSceneChanges)
     scene::SurfaceNode *surface = addSurface(m_scene.root(), base::Rect(base::Point(0, 0), kOutputSize));
     ASSERT_TRUE(propose().hasDirectScanout());
 
-    // Something is drawn over it: back to composition, with no intermediate
-    // state in which neither path owns the content.
     auto *notification = static_cast<scene::ColorNode *>(m_scene.root()->addChild(
             std::make_unique<scene::ColorNode>(render::Color {1.0f, 1.0f, 1.0f, 1.0f})));
     notification->setGeometry(base::Rect(0, 0, 300, 80));
     EXPECT_FALSE(propose().hasDirectScanout());
 
-    // And away again: scanout resumes on the very next plan.
     m_scene.root()->removeChild(notification);
     const scene::OverlayPlan plan = propose();
     ASSERT_TRUE(plan.hasDirectScanout());
@@ -309,8 +289,6 @@ TEST_F(OverlayCandidateTest, OutputScaleFallsBackAndResetRestoresPromotion)
 
 TEST_F(OverlayCandidateTest, AFullscreenBufferOfTheModeSizeScansOutAtAFractionalScale)
 {
-    // A 2160x1440 mode at 150% is 1440x960 logical; the fullscreen client
-    // draws a buffer of the mode's size.
     const base::Size pixels(2160, 1440);
     const base::Rect logical(base::Point(), base::Size(1440, 960));
     m_scene.setSize(logical.size());
@@ -323,12 +301,9 @@ TEST_F(OverlayCandidateTest, AFullscreenBufferOfTheModeSizeScansOutAtAFractional
     EXPECT_EQ(plan.primary.sourceRect, base::Rect(base::Point(), pixels));
     EXPECT_TRUE(plan.overlays.empty());
 
-    // A buffer of the logical size would have to be scaled by the plane.
     surface->setScanoutBuffer(std::make_shared<TestScanoutBuffer>(logical.size()));
     EXPECT_FALSE(scene::proposeOverlays(*m_scene.root(), pixels, 2, 1.5).hasDirectScanout());
 
-    // Not fullscreen: an unoccluded opaque surface is not an overlay either, as
-    // its logical bounds are not device pixels.
     surface->setScanoutBuffer(std::make_shared<TestScanoutBuffer>(pixels));
     surface->setGeometry(base::Rect(base::Point(0, 0), base::Size(1440, 900)));
     const scene::OverlayPlan partial = scene::proposeOverlays(*m_scene.root(), pixels, 2, 1.5);

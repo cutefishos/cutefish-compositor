@@ -4,9 +4,6 @@
 //
 // Upstream: chromium/src/components/exo/seat.cc
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: integrates the upstream behavior with native
-// compositor types and ownership.
 
 #include "input/seat.h"
 #include "base/auto_reset.h"
@@ -149,8 +146,7 @@ void Seat::setCursorHiddenByTouch(bool hidden)
     if (m_cursorHiddenByTouch == hidden)
         return;
     m_cursorHiddenByTouch = hidden;
-    // Hover goes with the cursor, as aura's mouse exit with EF_CURSOR_HIDE
-    // clears it; the next mouse event enters again where the pointer is.
+    // Hover goes with the cursor; the next mouse event enters again where the pointer is.
     if (hidden)
         clearPointerFocus();
     notifyCursorChanged();
@@ -161,7 +157,6 @@ void Seat::onTouchDown(Timestamp timestamp, int32_t id, const base::PointF &root
     // A drag owns the seat: no client gets a new point until it ends.
     if (m_wasShutdown || m_drag.grabsInput())
         return;
-    // A locked session targets its secure container only, as the pointer does.
     base::PointF surfaceLocation;
     compositor::Surface *target = findTargetSurfaceIn(
             m_compositor, inputRootFor(m_compositor, m_sessionGate), rootLocation, &surfaceLocation);
@@ -328,8 +323,7 @@ void Seat::updateCursorPosition(const base::PointF &position)
 
 void Seat::notifySurfaceFocused(compositor::Surface *gainedFocus, compositor::Surface *lostFocus)
 {
-    // A keyboard may be destroyed from within a focus callback, so iterate a
-    // copy. Exo gets the same protection from base::ObserverList.
+    // A keyboard may be destroyed from within a focus callback, so iterate a copy.
     for (SeatObserver *observer : std::vector<SeatObserver *>(m_observers)) {
         if (std::find(m_observers.begin(), m_observers.end(), observer) != m_observers.end())
             observer->onSurfaceFocused(gainedFocus, lostFocus);
@@ -367,9 +361,7 @@ bool Seat::allowsFocus(const compositor::Surface *surface) const
 
 void Seat::setFocusedSurface(compositor::Surface *surface, bool borrowed)
 {
-    // A refused surface clears focus rather than leaving the old one behind:
-    // the surface that held focus before a lock is exactly what must not keep
-    // receiving keys.
+    // A refused surface clears focus, so what held it before a lock stops receiving keys.
     if (surface && !allowsFocus(surface))
         surface = nullptr;
     borrowed = borrowed && surface;
@@ -488,7 +480,6 @@ void Seat::onPointerButton(Timestamp timestamp, const base::PointF &rootLocation
         return;
 
     m_pointerLocation = rootLocation;
-    // Command+click is Ctrl+click to the client.
     if (pressed)
         m_keyTranslator.flushModifiers(timestamp);
     if (m_drag.grabsInput()) {
@@ -499,13 +490,9 @@ void Seat::onPointerButton(Timestamp timestamp, const base::PointF &rootLocation
     if (changed == NoButton)
         return;
 
-    // The pressed set is updated before dispatch so that a pointer entering a
-    // surface during this event reports the button as already down, which is
-    // what wl_pointer.enter's caller expects.
+    // Updated before dispatch, so a pointer entering during this event reports the button as down.
     updatePointerButtonState(evdevButton, pressed);
 
-    // The first press takes the implicit grab, so the rest of the drag stays
-    // with this surface however far the pointer travels.
     if (pressed && !m_pointerGrabSurface) {
         base::PointF surfaceLocation;
         setPointerGrabSurface(findTargetSurface(m_compositor, rootLocation, &surfaceLocation));
@@ -556,9 +543,7 @@ ButtonFlags Seat::dragSerial(compositor::Surface *origin, uint32_t serial) const
 
 void Seat::endPointerGrabIfReleased()
 {
-    // wl_pointer's implicit grab ends once the last button is up, where aura
-    // drops its pressed handler on any release. Only after the release has been
-    // delivered: it still belongs to the grabbed surface.
+    // wl_pointer's implicit grab ends once the last button is up, after the release is delivered to it.
     if (m_pressedButtons == NoButton)
         setPointerGrabSurface(nullptr);
 }

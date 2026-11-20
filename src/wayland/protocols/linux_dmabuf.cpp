@@ -4,11 +4,6 @@
 //
 // Upstream: chromium/src/components/exo/wayland/zwp_linux_dmabuf.cc
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: gfx::NativePixmapHandle becomes render::DmaBufAttributes
-// and Display::CreateLinuxDMABufBuffer becomes Compositor::createDmaBufBuffer.
-// The plane_idx, already_used and out_of_bounds checks are protocol-mandated
-// errors upstream leaves to its GPU import; they are explicit here.
 
 #include "wayland/protocols/linux_dmabuf.h"
 
@@ -35,9 +30,6 @@ namespace cutefish::wayland {
 
 namespace {
 
-////////////////////////////////////////////////////////////////////////////////
-// wl_buffer_interface:
-
 void buffer_destroy(wl_client*, wl_resource* resource)
 {
     wl_resource_destroy(resource);
@@ -52,9 +44,6 @@ void handleBufferReleaseCallback(wl_resource* resource)
     if (!isClientDestroyed(client))
         wl_client_flush(client);
 }
-
-////////////////////////////////////////////////////////////////////////////////
-// linux_buffer_params_interface:
 
 struct LinuxBufferParams {
     struct Plane {
@@ -80,8 +69,7 @@ void linux_buffer_params_destroy(wl_client*, wl_resource* resource)
     wl_resource_destroy(resource);
 }
 
-// Returns false and posts already_used when `params` has already created a
-// buffer. Every request but destroy is invalid from then on.
+// Every request but destroy is invalid once `params` has created a buffer.
 bool checkNotUsed(wl_resource* resource, LinuxBufferParams* params)
 {
     if (!params->used)
@@ -125,9 +113,7 @@ uint64_t dmaBufSize(int fd)
     return end <= 0 ? 0 : static_cast<uint64_t>(end);
 }
 
-// Every plane must describe a range that actually exists inside its fd. Not in
-// upstream Exo, which lets the GPU import fail instead; the protocol names an
-// error for it, and diagnosing that error beats diagnosing a blank window.
+// Every plane must describe a range that actually exists inside its fd.
 bool validatePlaneRanges(wl_resource* resource, const LinuxBufferParams* params, int32_t height)
 {
     for (const auto& [index, plane] : params->planes) {
@@ -191,7 +177,6 @@ bool validateLinuxBufferParams(wl_resource* resource, int32_t width, int32_t hei
         return false;
     }
 
-    // Validate that we have planes 0..numPlanes-1.
     for (uint32_t i = 0; i < numPlanes; ++i) {
         if (!params->planes.contains(i)) {
             wl_resource_post_error(resource, ZWP_LINUX_BUFFER_PARAMS_V1_ERROR_INCOMPLETE,
@@ -286,9 +271,6 @@ const struct zwp_linux_buffer_params_v1_interface linux_buffer_params_implementa
     linux_buffer_params_destroy, linux_buffer_params_add, linux_buffer_params_create,
     linux_buffer_params_create_immed
 };
-
-////////////////////////////////////////////////////////////////////////////////
-// linux_dmabuf_interface:
 
 void linux_dmabuf_destroy(wl_client*, wl_resource* resource)
 {

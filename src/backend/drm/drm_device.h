@@ -4,9 +4,6 @@
 //
 // Upstream: chromium/src/ui/ozone/platform/drm/common/drm_wrapper.h
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: wraps the compositor-owned DRM descriptor behind its
-// small injectable ioctl interface.
 
 #ifndef CUTEFISH_BACKEND_DRM_DRM_DEVICE_H_
 #define CUTEFISH_BACKEND_DRM_DRM_DEVICE_H_
@@ -15,8 +12,7 @@
 
 namespace cutefish::backend {
 
-// DrmDeviceApi over a real DRM file descriptor. The fd stays owned by the
-// session and the GBM device by DrmBackend, which opens both.
+// The fd is owned by the session and the GBM device by DrmBackend.
 class DrmDevice final : public DrmDeviceApi
 {
 public:
@@ -58,8 +54,7 @@ private:
     int m_fd = -1;
     gbm_device *m_gbm = nullptr;
     base::Size m_maxCursorSize;
-    // drmModeSetCursor2 carries the hotspot; drivers without it need the
-    // caller to fold the hotspot into the cursor position instead.
+    // Without drmModeSetCursor2 the caller folds the hotspot into the position.
     bool m_hasCursor2 = true;
     bool m_cursorWaitsForFlips = false;
     bool m_flipTimesMarkRefresh = false;

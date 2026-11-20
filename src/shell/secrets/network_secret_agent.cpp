@@ -84,7 +84,7 @@ NetworkSecretAgent::NetworkSecretAgent(networkmanager::Client *client, base::dbu
         return;
     exportAgent();
 
-    // Registered with every NetworkManager that starts; one that quit took its requests along.
+    // Registered with every NetworkManager that starts.
     m_readySubscription = m_client->readyChanged.connect([this] { readyChanged(); });
     m_changedSubscription = m_client->changed.connect([this] { dismissStalePrompts(); });
     if (m_client->ready())
@@ -364,7 +364,6 @@ void NetworkSecretAgent::getSecrets(base::dbus::MethodCall &call)
 
     m_lookups.push_back(request);
     m_store->load(request.uuid, settingName, [this, id = request.id](const SecretStore::Secrets &secrets) {
-        // Cancelled or replaced meanwhile: nothing to answer.
         const auto it = std::find_if(m_lookups.begin(), m_lookups.end(),
                                      [id](const Request &request) { return request.id == id; });
         if (it == m_lookups.end())
@@ -523,9 +522,7 @@ void NetworkSecretAgent::connectWireless(const std::string &devicePath, const st
     if (!m_requests.empty() && m_requests.front().accessPointPath == accessPointPath)
         return;
 
-    // Another network was picked: the prompt switches to it, and whatever
-    // Wi-Fi password was being asked for is given up, as connecting to this
-    // one would.
+    // Another network was picked: any Wi-Fi password being asked for is given up.
     for (size_t i = m_requests.size(); i-- > 0;) {
         const Request &request = m_requests[i];
         if (request.accessPointPath.empty()) {
@@ -582,7 +579,6 @@ void NetworkSecretAgent::respondFields(const std::map<std::string, std::string> 
         request.values[key] = value;
     replyVpn(request, request.values);
 
-    // As for Wi-Fi, typed secrets the agent keeps are the agent's to store.
     for (const VpnSecretField &field : request.fields) {
         const auto value = values.find(field.key);
         if (value == values.end() || value->second.empty() || request.uuid.empty())
@@ -647,8 +643,6 @@ void NetworkSecretAgent::dismissStalePrompts()
     if (!m_client->ready())
         return;
 
-    // A prompt for a network that went out of range, a device that went away,
-    // or a device that started connecting elsewhere is out of date.
     bool headChanged = false;
     for (size_t i = m_requests.size(); i-- > 0;) {
         const Request &request = m_requests[i];

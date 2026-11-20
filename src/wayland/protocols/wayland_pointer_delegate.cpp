@@ -4,12 +4,6 @@
 //
 // Upstream: chromium/src/components/exo/wayland/wayland_pointer_delegate.cc
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: integrates the upstream behavior with native
-// compositor types and ownership.
-//
-// Adaptation: the aura scroll unit and its conversion factor are gone; libinput
-// already reports wheel clicks and finger scrolls in the units Wayland wants.
 
 #include "wayland/protocols/wayland_pointer_delegate.h"
 
@@ -26,10 +20,7 @@ namespace cutefish::wayland {
 
 namespace {
 
-// Weston, the reference compositor, treats one wheel click as 10 axis units,
-// and every toolkit calibrates against that. Offsets arrive here already in
-// those units; these constants only recover the click fractions for
-// axis_value120 and axis_discrete.
+// One wheel click is 10 axis units, which every toolkit calibrates against; offsets arrive in those units.
 constexpr double kWaylandScrollUnit = 10.0;
 constexpr int kValue120PerClick = 120;
 
@@ -73,10 +64,7 @@ void WaylandPointerDelegate::onPointerEnter(compositor::Surface *surface,
         return;
     m_pendingValue120 = {};
 
-    // Exo notes the open question of whether buttons already down should be
-    // reported before the enter. The protocol has no way to say so, and
-    // toolkits do not expect it, so the flags are only used to seed our own
-    // state.
+    // Buttons already down are not reported before the enter; the flags only seed our own state.
     const auto serial = m_serialTracker->nextSerial(SerialTracker::POINTER_ENTER);
     CF_DEBUG(cfCursorTransitions) << "enter pointer" << wl_resource_get_id(m_pointerResource)
                                   << "client" << client() << "serial" << serial << "surface"
@@ -156,8 +144,7 @@ void WaylandPointerDelegate::onPointerScroll(input::Timestamp timestamp,
                                              : WL_POINTER_AXIS_SOURCE_FINGER);
     }
 
-    // Exo negates here because aura's scroll axes point the other way. libinput
-    // already reports positive as down/right, which is Wayland's sense.
+    // libinput already reports positive as down/right, which is Wayland's sense.
     const double xValue = offset.x();
     const double yValue = offset.y();
 
@@ -187,10 +174,8 @@ void WaylandPointerDelegate::sendWheelSteps(uint32_t axis, double value)
     if (version < WL_POINTER_AXIS_DISCRETE_SINCE_VERSION)
         return;
 
-    // Exo rounds every wheel event up to a whole click, which holds for aura's
-    // wheel events. A high-resolution wheel reports fractions of one, so they
-    // add up until a click is complete, as in KWin and wlroots; turning back
-    // starts over.
+    // A high-resolution wheel reports fractions of a click, which add up until a click is complete;
+    // turning back starts over.
     int &pending = m_pendingValue120[axis];
     if ((pending > 0 && value120 < 0) || (pending < 0 && value120 > 0))
         pending = 0;

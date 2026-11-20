@@ -24,13 +24,9 @@ struct WindowVisualState {
     render::RoundedShape shape;
     // Empty unless the outline follows a client-described body instead of shape.
     render::RoundedShape outlineShape;
-    // A body of any outline; outlineShape then only bounds it.
     ui::Path outlinePath;
-    // Where the outline is cut off, in the same coordinates as outlineShape:
-    // a body reaching past the window ends there rather than closing.
+    // In the same coordinates as outlineShape.
     base::RectF outlineClip;
-    // Where the client surface drawing the body sits; the surface is snapped to
-    // physical pixels, so the clip and outline have to move with it.
     base::Point surfaceOrigin;
     render::Color outlineColor;
     render::Color highlightColor {0, 0, 0, 0};
@@ -48,17 +44,12 @@ struct WindowVisualState {
     friend bool operator==(const WindowVisualState &, const WindowVisualState &) = default;
 };
 
-// Dark outline one stroke outside the shape, highlight on its outermost pixels.
 void paintWindowOutline(render::Renderer &renderer, const render::RoundedShape &shape,
                         const WindowVisualState &state, float opacity = 1);
 
-// The same around state.outlinePath, rasterized as it is and then placed by
-// `transform`, so an animation stretches it instead of rasterizing every frame.
 void paintShapeOutline(render::Renderer &renderer, const WindowVisualState &state,
                        const base::AffineTransform &transform, float opacity = 1);
 
-// How far the client body moves with its surface onto physical pixels, for a
-// window whose node sits at `position`.
 base::PointF clientBodySnap(const render::Renderer &renderer, const WindowVisualState &state,
                        const base::PointF &position);
 
@@ -77,8 +68,6 @@ public:
         if (state == m_state)
             return;
         if (state.dimOpacity != m_state.dimOpacity) {
-            // Fades from wherever a fade in flight got to, so a dialog closed
-            // mid-fade reverses instead of jumping.
             m_dimFrom = m_dimPresented;
             m_dimStarted = -1;
             m_dimFading = true;
@@ -93,7 +82,6 @@ public:
     base::Rect absolutePaintBounds() const override
     {
         base::RectF bounds = m_state.shape.bounds;
-        // The outline is at most one physical pixel wide, so one logical pixel covers it.
         if (m_state.drawOutline)
             bounds |= m_state.outlined().bounds.adjusted(-1, -1, 1, 1);
         return bounds.translated(absolutePosition()).toEnclosingRect();
@@ -108,12 +96,9 @@ public:
         return m_state.clipContent || m_state.drawOutline || m_state.dimOpacity > 0 || m_dimFading;
     }
 
-    // Input follows client regions, including resize margins outside the visual clip.
     void render(render::Renderer &renderer) const override;
 
 private:
-    // The dim presented by this frame; steps on the renderer's frame time like
-    // WindowAnimation, so it is settled in render() rather than by a timer.
     float presentedDim(const render::Renderer &renderer) const;
 
     WindowVisualState m_state;

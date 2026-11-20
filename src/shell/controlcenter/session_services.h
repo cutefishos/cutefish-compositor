@@ -15,10 +15,7 @@ class NotificationSettings;
 class Shell;
 class MenuBar;
 
-// The session's: NetworkManager and BlueZ on the system bus, PipeWire,
-// org.cutefish.Privacy's switches, the Appearance service, and the bar's
-// backend for MPRIS, brightness, battery and power profiles. `notifications`
-// may be null (no Do Not Disturb).
+// `notifications` may be null.
 std::unique_ptr<ControlCenterServices> createSessionServices(Shell *shell, MenuBar &menuBar,
                                                              NotificationSettings *notifications);
 

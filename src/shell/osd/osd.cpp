@@ -23,10 +23,9 @@ namespace dbus = base::dbus;
 
 static const base::LogCategory cfOsd("cutefish.shell.osd");
 
-// Ash's volume step, on PipeWire's scale where 1 is normal.
+// On PipeWire's scale, where 1 is normal.
 static constexpr double kNormalVolume = 1.0;
 static constexpr double kVolumeStep = kNormalVolume * 0.04;
-// powerd's sixteen brightness steps.
 static constexpr double kBrightnessStep = 100.0 / 16;
 
 Osd::Osd(Shell *shell, std::unique_ptr<OsdLevels> levels)
@@ -130,7 +129,6 @@ void Osd::place()
 void Osd::applyGlass()
 {
     const bool dark = ui::Theme::current().darkMode;
-    // PanelStyle.glassTint on PopupGlass.
     const render::GlassParams glass = dark ? popupGlass(0.10, 0.10, 0.11, 0.75)
                                            : popupGlass(0.90, 0.90, 0.92, 0.72);
     m_window->setBackgroundBlur(base::Rect(0, 0, kWidth, kHeight), int(kRadius), glass);
@@ -318,7 +316,6 @@ void Osd::stepKeyboardBrightness(int steps)
     const int maximum = m_levels->keyboardMaximum();
     if (maximum <= 0)
         return;
-    // A backlight has a few levels or many; at most ten steps either way.
     const int step = std::max(1, int(std::lround(maximum / 10.0)));
     const int index = int(std::lround(double(keyboardBrightness()) / step)) + steps;
     const int value = std::clamp(index * step, 0, maximum);

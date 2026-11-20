@@ -24,7 +24,6 @@ constexpr render::Color kBlack {0, 0, 0, 1};
 constexpr render::Color kWhite {1, 1, 1, 1};
 constexpr render::Color kRingColor {1, 1, 1, 0.85f};
 constexpr render::Color kSelectionColor {1, 1, 1, 0.55f};
-// The title's plate is white glass: a blur of the window under it, lit.
 constexpr render::Color kTitlePlateColor {1, 1, 1, 0.72f};
 constexpr render::Color kTitleColor {0, 0, 0, 0.85f};
 constexpr render::Color kClosePlateColor {0.16f, 0.16f, 0.16f, 0.92f};
@@ -42,8 +41,6 @@ constexpr double kRingWidth = 2;
 constexpr double kRingOffset = 3;
 constexpr double kLabelGap = 6;
 constexpr double kPlusSize = 14;
-// Shadows reach this far outside a window; a window this far off an output
-// draws nothing there.
 constexpr int kShadowMargin = 64;
 constexpr size_t kCacheLimit = 32;
 constexpr motion::TimingCurve kLinear {0, 0, 1, 1};
@@ -53,8 +50,6 @@ double snap(double value, double scale)
     return scale > 0 ? std::round(value * scale) / scale : value;
 }
 
-// Every edge on a device pixel, so a window at rest is as sharp as it is on
-// the desk and one in motion does not shimmer between two pixels.
 base::RectF snapped(const base::RectF &rect, double scale)
 {
     return base::RectF::fromEdges(snap(rect.left(), scale), snap(rect.top(), scale),
@@ -68,7 +63,6 @@ base::RectF lerp(const base::RectF &a, const base::RectF &b, double t)
                   a.height() + (b.height() - a.height()) * t);
 }
 
-// `rect` moved and scaled as `from` is onto `to`.
 base::RectF mapped(const base::RectF &rect, const base::RectF &from, const base::RectF &to)
 {
     if (from.isEmpty())
@@ -125,8 +119,6 @@ findDesk(const std::vector<OverviewDeskBarNode::Desk> &desks, uintptr_t id)
     });
 }
 
-// `rect` rounded relative to `rest`, so a moving one lands on the pixels it
-// rests on rather than a pixel late.
 base::RectF snappedFrom(const base::RectF &rect, const base::RectF &rest, double scale)
 {
     const base::RectF base = snapped(rest, scale);
@@ -136,7 +128,6 @@ base::RectF snappedFrom(const base::RectF &rect, const base::RectF &rest, double
                   base.height() + snap(rect.height() - rest.height(), scale));
 }
 
-// `rect` scaled by `scale` about the centre of its top edge.
 base::RectF scaledFromTop(const base::RectF &rect, double scale)
 {
     if (scale == 1)
@@ -269,7 +260,6 @@ void OverviewNode::setItems(std::vector<Item> items, bool animate)
     std::vector<base::RectF> from;
     from.reserve(items.size());
     if (animate) {
-        // Each window already shown sets off from where it is headed now.
         const double t = layoutProgress(now);
         std::map<const WindowAnimation *, base::RectF> current;
         for (size_t i = 0; i < m_items.size(); ++i) {
@@ -320,7 +310,6 @@ double OverviewNode::progress(double timeMs) const
     case Motion::Tracking:
         if (m_coast && timeMs > m_coastStart)
             return m_coast->value(timeMs);
-        // The resampled fingers can be predicted past an end.
         return std::clamp(m_fingers.empty()
                                   ? m_position
                                   : m_fingers.position(timeMs
@@ -348,11 +337,6 @@ double OverviewNode::target() const
 motion::Tween OverviewNode::tweenTo(double now, double from, double target,
                                     double velocity) const
 {
-    // The start bent to the fingers' speed: a slow release speeds up gently, a
-    // fast one only slows down. ACCEL_20_DECEL_100 bent the same way surges to
-    // four times the average speed right after the release. Less of the way
-    // takes less time, though more than its share, so a short way back is not
-    // a snap.
     const double duration =
             kTransitionDurationMs * std::sqrt(std::min(std::abs(target - from), 1.0));
     return motion::Tween(now, from, target, duration, velocity, motion::kQuickStart);
@@ -399,14 +383,11 @@ void OverviewNode::startTracking()
 
 void OverviewNode::updateTracking(double delta, double timeMs)
 {
-    // The fingers catch the progress where it is shown: moving on its own,
-    // or coasting since they paused rather than lifted.
     const bool coasted = m_motion == Motion::Tracking && m_coast
             && timeMs > m_coastStart - motion::FingerTrack::kResampleLatencyMs
                             + motion::FingerTrack::kResampleMaxPredictionMs;
     if (m_motion != Motion::Tracking || coasted)
         startTracking();
-    // Stops dead at either end, so the fingers turning back move it at once.
     m_position = std::clamp(m_position + delta, 0.0, 1.0);
     m_fingers.add(timeMs, m_position);
     updateCoast();
@@ -416,8 +397,6 @@ void OverviewNode::updateTracking(double delta, double timeMs)
 void OverviewNode::updateCoast()
 {
     m_coast.reset();
-    // Fingers that lift leave the pad at speed; ones that stop to hold slow
-    // down first, which the last events show before the fit does.
     const std::optional<double> velocity = m_fingers.recentVelocity();
     if (!velocity || std::abs(*velocity) < kFlickVelocity)
         return;
@@ -433,7 +412,6 @@ double OverviewNode::endTracking(double timeMs)
         return target();
     const double now = double(m_now());
     if (m_coast) {
-        // Already on its way since the fingers stopped reporting.
         m_tween = *m_coast;
         m_motion = Motion::Tween;
         m_fingers.clear();
@@ -443,7 +421,6 @@ double OverviewNode::endTracking(double timeMs)
     }
     double velocity = m_fingers.releaseVelocity(timeMs);
     const double current = progress(now);
-    // Flung against an end it already stands at.
     if ((current <= 0 && velocity < 0) || (current >= 1 && velocity > 0))
         velocity = 0;
     double target = current >= 0.5 ? 1 : 0;
@@ -457,8 +434,6 @@ double OverviewNode::endTracking(double timeMs)
 
 bool OverviewNode::backdropCovers(const base::Rect &viewport) const
 {
-    // The first thing drawn that is opaque over the whole output; anything
-    // drawn before it ends up under it.
     const std::function<bool(const Node &)> covers = [&](const Node &node) {
         if (!node.isVisible())
             return false;
@@ -521,9 +496,6 @@ void OverviewNode::render(render::Renderer &renderer) const
     const base::Rect viewport = viewportOf(renderer, *this);
     const double progress = this->progress(now);
 
-    // The desktop is drawn darkened rather than under a dim pass, and one
-    // that covers the output opaquely is darkened in place, with no clear and
-    // no blending under it: full-output passes an iGPU can ill afford.
     const float dim = kDimOpacity * float(std::clamp(progress, 0.0, 1.0));
     const bool inPlace = !renderer.capturing && backdropCovers(viewport);
     if (!inPlace)
@@ -533,8 +505,6 @@ void OverviewNode::render(render::Renderer &renderer) const
     renderer.opacityScale = opacity * (1 - dim);
     renderer.overwriteOpaque = inPlace;
     for (const Node *node : m_backdrop) {
-        // In place, drawn live as backdropCovers() saw it: a window's snapshot
-        // is padded with transparent texels and would blend over the last frame.
         if (inPlace)
             node->Node::render(renderer);
         else
@@ -569,8 +539,6 @@ void OverviewNode::advance(double now) const
     case Motion::Still:
         break;
     case Motion::Tracking: {
-        // Until the resampled position catches up with the newest event, or
-        // for as long as it coasts.
         const bool coasting = m_coast && !m_coast->isFinished(now);
         if (coasting || m_fingers.isCatchingUp(now))
             notifyChanged();
@@ -579,7 +547,6 @@ void OverviewNode::advance(double now) const
     case Motion::Tween:
         if (m_tween.isFinished(now))
             landed(now);
-        // The landing frame, or the next one of the motion.
         notifyChanged();
         break;
     }
@@ -668,7 +635,6 @@ void OverviewNode::renderChrome(render::Renderer &renderer, const base::Rect &vi
     const auto rectOf = [&](int index) {
         return snapped(presentedRect(index, 1, now), scale);
     };
-    // Around the body, its corners the body's grown by the gap between them.
     const auto ring = [&](int index, const render::Color &color) {
         render::RoundedShape shape = restingBody(index, rectOf(index));
         shape.bounds = shape.bounds.adjusted(-kRingOffset, -kRingOffset, kRingOffset, kRingOffset);
@@ -686,7 +652,6 @@ void OverviewNode::renderChrome(render::Renderer &renderer, const base::Rect &vi
     const int titled = hovered >= 0 ? hovered : selected;
     if (titled >= 0 && viewport.intersects(rectOf(titled).toEnclosingRect())) {
         const base::RectF rect = rectOf(titled);
-        // In the middle of the window, no wider than it leaves room for.
         const int maxWidth = std::min(kTitleMaxWidth,
                                       int(rect.width() - 4 * kTitlePaddingX));
         base::SizeF size;
@@ -765,8 +730,6 @@ void OverviewDeskBarNode::setBars(std::vector<Bar> bars)
         const auto old = std::find_if(m_bars.begin(), m_bars.end(), [&](const Bar &other) {
             return other.output == bar.output;
         });
-        // A bar new to its output, as the overview comes in or the output
-        // changes, is put up as it is.
         if (old == m_bars.end())
             continue;
         BarMotion &was = m_motions[size_t(old - m_bars.begin())];
@@ -817,13 +780,11 @@ void OverviewDeskBarNode::setBars(std::vector<Bar> bars)
             motion.newDesk.moveTo(old->newDesk, bar.newDesk, now);
         }
     }
-    // What was leaving an output that is gone, or a bar taken down, goes with it.
     std::erase_if(m_leaving, [&](const Leaving &leaving) {
         return std::none_of(bars.begin(), bars.end(), [&](const Bar &bar) {
             return bar.output == leaving.bar.output;
         });
     });
-    // No bars only takes the overview down; the previews wait for its return.
     if (!bars.empty()) {
         std::erase_if(m_previews, [&](const auto &entry) {
             return std::none_of(bars.begin(), bars.end(), [&](const Bar &bar) {
@@ -861,7 +822,6 @@ base::RectF OverviewDeskBarNode::closeButtonRect(const base::RectF &preview)
 
 double OverviewDeskBarNode::slideOffset(const Bar &bar, double progress)
 {
-    // Out of sight above the output's top edge at 0.
     return -(1 - std::clamp(progress, 0.0, 1.0)) * (bar.bounds.bottom() - bar.output.top());
 }
 
@@ -873,14 +833,11 @@ void OverviewDeskBarNode::updatePreview(render::Renderer &renderer, const Bar &b
     const base::RectF bounds = bar.desks[desk].bounds;
     Preview &preview = m_previews[previewKey(bar, bar.desks[desk].id)];
     const bool live = bar.desks[desk].active && now - preview.drawnAt >= kPreviewRefreshMs;
-    // Moved along the bar it shows the same; only a new size draws it again.
     const bool sameSize = std::abs(preview.bounds.width() - bounds.width()) < 1e-6
             && std::abs(preview.bounds.height() - bounds.height()) < 1e-6;
     if (preview.texture && !preview.stale && !live && sameSize
         && preview.scale == renderer.rasterScale())
         return;
-    // One a frame, so the first frames of a swipe are not spent on all of
-    // them; the rest show what they last did, or nothing, one frame longer.
     if (m_previewsLeft <= 0) {
         notifyChanged();
         return;
@@ -973,7 +930,6 @@ void OverviewDeskBarNode::renderNewDesk(render::Renderer &renderer, const base::
     if (opacity <= 0)
         return;
     const double density = renderer.rasterScale();
-    // Frosted, as the title plate is, over the dimmed desk under it.
     render::GlassParams blur;
     blur.opacity = opacity;
     renderer.pushRoundedClip({rect, kPreviewRadius});
@@ -997,7 +953,6 @@ void OverviewDeskBarNode::renderBar(render::Renderer &renderer, const Bar &bar,
     const float opacity = float(std::clamp(progress, 0.0, 1.0));
     bool moving = false;
 
-    // Under the rest, which move over them.
     for (const Leaving &leaving : m_leaving) {
         if (leaving.bar.output != bar.output)
             continue;
@@ -1019,7 +974,6 @@ void OverviewDeskBarNode::renderBar(render::Renderer &renderer, const Bar &bar,
         return snappedFrom(placement->rect(rest, now).translated(0, offset), at, density);
     };
 
-    // The dragged desk last, over the ones it passes.
     std::vector<int> order;
     for (int index = 0; index < int(bar.desks.size()); ++index) {
         if (!bar.desks[index].dragged)
@@ -1074,7 +1028,6 @@ void OverviewDeskBarNode::render(render::Renderer &renderer) const
             renderBar(renderer, bar, index < m_motions.size() ? &m_motions[index] : nullptr,
                       progress, now);
     }
-    // A window dragged to a desk goes over the bar.
     m_overview->renderDragged(renderer);
 }
 

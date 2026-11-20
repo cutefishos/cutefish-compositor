@@ -4,9 +4,6 @@
 //
 // Upstream: chromium/src/ui/display/types/display_snapshot.cc
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: validate stable snapshots and exact timing-based
-// mode identities without Chromium display or gfx dependencies.
 
 #include "display/display_types.h"
 

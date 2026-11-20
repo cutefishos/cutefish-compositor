@@ -24,7 +24,6 @@ namespace cutefish::shell {
 
 static const base::LogCategory cfClipboard("cutefish.shell.clipboard");
 
-// The list shows one line; a longer title only costs layout.
 static constexpr size_t kTitleLength = 300;
 
 static std::string fileName(const std::string &path)
@@ -104,7 +103,6 @@ void ClipboardHistoryModel::lookUpIcons()
     }
     if (wanted.empty())
         return;
-    // A file's type may need a look into it.
     m_iconJob = runOnFileThread(
             [wanted] {
                 std::map<std::string, std::string> icons;
@@ -145,7 +143,6 @@ std::string ClipboardHistoryModel::title(int row) const
         return base::strings::simplified(text);
     }
     case ClipboardEntry::Kind::Image: {
-        // An image in the clipboard history, with the time it was copied.
         std::string time;
         if (item.copied) {
             const time_t seconds = time_t(*item.copied / 1000);

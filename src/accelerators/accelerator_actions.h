@@ -4,12 +4,6 @@
 //
 // Upstream: chromium/src/ash/public/cpp/accelerator_actions.h
 // Revision: 8abbac30b9cf2fe976422c58c000c94685648b65
-//
-// Adapted for Cutefish: the launchpad, the lock screen, the window actions,
-// the application menu's Quit, Hide and Hide Others, desks, screen capture and
-// the volume, microphone, brightness and keyboard backlight keys. Media keys
-// control the current player regardless of focus; browser, IME, accessibility,
-// tablet and debug actions have nothing to act on.
 
 #ifndef CUTEFISH_ACCELERATORS_ACCELERATOR_ACTIONS_H_
 #define CUTEFISH_ACCELERATORS_ACCELERATOR_ACTIONS_H_
@@ -26,16 +20,13 @@ namespace cutefish::accelerators {
 // Persisted and exposed over D-Bus by name, never by value, so the order here
 // is free to change.
 enum class AcceleratorAction : uint32_t {
-    // General.
     ToggleAppList,
     LockScreen,
 
-    // Windows.
     CycleForwardMru,
     CycleBackwardMru,
     ToggleMaximized,
     WindowMinimize,
-    // The application menu's Quit, Hide and Hide Others.
     QuitApplication,
     HideApplication,
     HideOtherApplications,
@@ -46,7 +37,6 @@ enum class AcceleratorAction : uint32_t {
     MoveActiveWindowBetweenDisplays,
     ToggleOverview,
     ToggleShowDesktop,
-    // Desks.
     DesksActivateDeskLeft,
     DesksActivateDeskRight,
     DesksMoveActiveItemLeft,
@@ -63,7 +53,6 @@ enum class AcceleratorAction : uint32_t {
     DesksActivate7,
     DesksToggleAssignToAllDesks,
 
-    // Screen capture, performed by the shell.
     TakeScreenshot,
     TakeScreenshotToClipboard,
     TakePartialScreenshot,
@@ -71,17 +60,14 @@ enum class AcceleratorAction : uint32_t {
     StartCaptureMode,
     StopScreenRecording,
 
-    // The clipboard history, performed by the shell.
     ToggleClipboardHistory,
 
-    // Playback of the current MPRIS player.
     MediaPlayPause,
     MediaPause,
     MediaPrevious,
     MediaNext,
     MediaStop,
 
-    // Device keys, performed by the shell, which shows the new level.
     VolumeMuteToggle,
     VolumeDown,
     VolumeUp,
@@ -103,8 +89,7 @@ constexpr AcceleratorActionId toActionId(AcceleratorAction action)
 std::string acceleratorActionName(AcceleratorAction action);
 std::optional<AcceleratorAction> acceleratorActionFromName(std::string_view name);
 
-// Every action, in declaration order. An action need not have a default
-// binding to exist: it is then listed with none until the user adds one.
+// An action need not have a default binding to exist.
 std::vector<AcceleratorAction> allAcceleratorActions();
 
 } // namespace cutefish::accelerators

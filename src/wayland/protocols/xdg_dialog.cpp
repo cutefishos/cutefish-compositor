@@ -20,8 +20,7 @@ namespace {
 
 using cutefish::wm::ShellSurface;
 
-// The user data of an xdg_dialog_v1. The protocol lets the xdg_toplevel go
-// first; the dialog object is inert from then on.
+// The protocol lets the xdg_toplevel go first; the dialog object is inert from then on.
 class WaylandXdgDialog
 {
 public:
@@ -78,9 +77,6 @@ private:
     DestroyListener m_toplevelDestroy {};
 };
 
-////////////////////////////////////////////////////////////////////////////////
-// xdg_dialog_v1_interface:
-
 void dialog_destroy(wl_client *, wl_resource *resource)
 {
     wl_resource_destroy(resource);
@@ -101,9 +97,6 @@ const struct xdg_dialog_v1_interface dialog_implementation = {
         dialog_set_modal,
         dialog_unset_modal,
 };
-
-////////////////////////////////////////////////////////////////////////////////
-// xdg_wm_dialog_v1_interface:
 
 void wm_dialog_destroy(wl_client *, wl_resource *resource)
 {

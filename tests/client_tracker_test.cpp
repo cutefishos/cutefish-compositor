@@ -90,9 +90,7 @@ TEST_F(ClientTrackerTest, ClientRegistersAndDeregistersSuccessfully)
     EXPECT_EQ(0, m_tracker->trackedClientCount());
 }
 
-// A client's resources are torn down after destruction has begun but before the
-// wl_client itself is freed. The tracker must already report the client as
-// destroyed at that point.
+// A client's resources are torn down after its destruction begins and before the wl_client is freed.
 TEST_F(ClientTrackerTest, ClientTaggedDestroyedAfterDestructionStarted)
 {
     wl_client* client = createClient();
@@ -118,8 +116,6 @@ TEST_F(ClientTrackerTest, ClientTaggedDestroyedAfterDestructionStarted)
     EXPECT_TRUE(data.destructorRan);
 }
 
-// Destroying the tracker while clients are still alive must not leave dangling
-// listeners on their destroy signals.
 TEST_F(ClientTrackerTest, TrackerOutlivedByItsClients)
 {
     wl_client* client = createClient();

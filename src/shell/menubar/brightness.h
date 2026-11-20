@@ -14,10 +14,6 @@
 
 namespace cutefish::shell {
 
-// The display backlight as cutefish-services keeps it
-// (org.cutefish.Services.Brightness): its percent, whether there is one, and
-// the sliders' and keys' changes. Everything is asynchronous; the setter does
-// not report back, brightnessChanged does.
 class Brightness
 {
 public:
@@ -41,8 +37,6 @@ private:
     bool m_enabled = false;
 };
 
-// The keyboard backlight through UPower's KbdBacklight; unavailable while
-// UPower has none, when the keys do nothing.
 class KeyboardBrightness
 {
 public:

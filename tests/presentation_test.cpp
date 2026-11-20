@@ -223,7 +223,6 @@ TEST_F(PresentationTest, AnotherOutputsFrameLeavesContentToItsOwnOutput)
     surface->setPosition({2000, 100});
     request();
     surface->commit();
-    // The left output renders first and shows nothing of the surface.
     const auto first = drawOn(left);
     compositor.abandonUnsubmittedPresentation(left, first);
     EXPECT_TRUE(results.empty());

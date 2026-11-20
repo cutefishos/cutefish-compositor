@@ -30,12 +30,8 @@ namespace cutefish::shell {
 class Shell;
 class ShellWindow;
 
-// The shell's windows as one more client of the seat: a pointer, a keyboard
-// and a touch device whose delegates accept only the shell's surfaces and
-// hand the events to their toolkit windows. Targeting, implicit grabs,
-// focus, the session gate, popup grabs and the cursor therefore work as they
-// do for a Wayland client's surfaces, as Ash's widgets and exo's surfaces
-// share one aura event dispatcher.
+// The shell's windows as one more client of the seat, so targeting, grabs,
+// focus and the cursor work as for a Wayland client's surfaces.
 class ShellInput
 {
 public:
@@ -44,16 +40,12 @@ public:
     ShellInput &operator=(const ShellInput &) = delete;
     ~ShellInput();
 
-    // The shell window owning `surface`, if any.
     ShellWindow *windowForSurface(const compositor::Surface *surface) const;
-    // Where the pointer and the keyboard are, among the shell's windows.
     ShellWindow *pointerWindow() const { return m_pointerWindow; }
     ShellWindow *keyboardWindow() const { return m_keyboardWindow; }
 
-    // The toolkit's modifier mask for the keys held now, as clients see them.
     uint32_t modifiers() const;
 
-    // Called by ShellWindow; not part of the public API.
     void cursorShapeChanged(ShellWindow *window);
     void windowDestroying(ShellWindow *window);
 
@@ -80,9 +72,7 @@ private:
     std::vector<std::unique_ptr<GestureDelegate>> m_gestureDelegates;
     ShellWindow *m_pointerWindow = nullptr;
     ShellWindow *m_keyboardWindow = nullptr;
-    // Touch points down on a shell window, by id.
     std::map<int32_t, ShellWindow *> m_touchPoints;
-    // The window a touchpad gesture began on, which gets the rest of it.
     ShellWindow *m_gestureWindow = nullptr;
     base::Timer m_repeatTimer;
     uint32_t m_repeatCode = 0;

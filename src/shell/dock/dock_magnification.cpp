@@ -14,14 +14,12 @@ namespace cutefish::shell {
 
 namespace {
 
-// A critically damped spring is within 1 % of its target, from rest, after
-// this many time constants: (1 + x) e^-x = 0.01.
+// A critically damped spring from rest is within 1 % of its target after this
+// many time constants.
 constexpr double kSettledTimeConstants = 6.64;
-// Closer than this, with as little speed left, it is there.
 constexpr double kOffsetSnap = 1e-2;
 
-// The spring toward `target` over `seconds`, solved exactly so any frame
-// interval steps it the same way.
+// Solved exactly, so any frame interval steps it the same way.
 void spring(double &value, double &velocity, double target, double settleMs, double seconds, double snap)
 {
     const double rate = kSettledTimeConstants / (settleMs / 1000);
@@ -44,8 +42,6 @@ DockMagnification::DockMagnification(double focus, double amount, double peak, d
 {
     if (amount <= 0 || peak <= 1 || slot <= 0)
         return;
-    // The slot centred on the focus averages the profile over its length;
-    // the height makes that average the peak.
     const double half = std::numbers::pi * slot / (2 * m_radius);
     const double average = (1 + std::sin(half) / half) / 2;
     m_height = std::min(amount, 1.0) * (peak - 1) / average;
@@ -60,7 +56,6 @@ double DockMagnification::map(double position) const
 
 double DockMagnification::displacement(double offset) const
 {
-    // The integral of the profile above 1, from the focus to `offset`.
     if (offset >= m_radius)
         return m_height * m_radius / 2;
     if (offset <= -m_radius)
@@ -91,7 +86,6 @@ bool DockMagnifier::track(double along)
     if (m_tracking && along == m_pointer)
         return false;
     if (!m_tracking) {
-        // Still drawn magnified somewhere: the focus glides from there.
         m_offset = amount() > 0 ? focus() - along : 0;
         m_offsetVelocity = 0;
         m_tracking = true;
@@ -153,9 +147,8 @@ void DockMagnifier::updateTarget()
 
 void DockMagnifier::advance(double nowMs)
 {
-    // At most a frame interval a frame: a frame drawn at once early in an idle
-    // refresh is stamped when it was drawn, ahead of its slot, so the next
-    // stamp is up to two intervals on although the two show a refresh apart.
+    // Capped at one frame interval: a frame drawn early in an idle refresh is
+    // stamped ahead of its slot.
     const double elapsedMs = m_lastMs < 0 ? DockPresentation::kFrameIntervalMs
                                           : std::clamp(nowMs - m_lastMs, 0.0, DockPresentation::kFrameIntervalMs);
     m_lastMs = nowMs;

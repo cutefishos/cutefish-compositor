@@ -27,7 +27,6 @@ ui::MenuItemState stateOf(const compositor::MenuItem &item)
     return item.toggleState == 1 ? ui::MenuItemState::On : ui::MenuItemState::Mixed;
 }
 
-// The first of the entry's key combinations.
 KeyEquivalent keyEquivalentOf(const compositor::MenuItem &item)
 {
     KeyEquivalent result;
@@ -53,15 +52,12 @@ KeyEquivalent keyEquivalentOf(const compositor::MenuItem &item)
 // What the menus' closures share with the popup: the model is null once it
 // or the popup is gone, so a menu still on its way out reaches nothing.
 struct MenuPopup::State {
-    // The entry a toolkit menu shows, read by its closures as they run, so
-    // that the menu can move to an entry that took its place.
     struct Binding {
         int32_t id = 0;
         bool root = false;
     };
 
-    // A toolkit menu showing one entry's submenu, and the entries its rows
-    // were made from (-1 for a separator). `alive` expires with the menu.
+    // -1 marks a separator; `alive` expires with the menu.
     struct Shown {
         ui::Menu *menu = nullptr;
         std::weak_ptr<void> alive;
@@ -136,8 +132,6 @@ void MenuPopup::wire(const std::shared_ptr<State> &state, ui::Menu &menu, int32_
     auto alive = std::make_shared<char>(0);
     auto binding = std::make_shared<State::Binding>(State::Binding {id, root});
     state->shown[id] = {target, alive, binding, {}, {}};
-    // The application fills the menu as it is about to show, and the rows
-    // show what has arrived so far.
     menu.onAboutToShow = [state, target, binding] {
         if (!state->model)
             return;
@@ -216,7 +210,6 @@ void MenuPopup::fill(const std::shared_ptr<State> &state, ui::Menu &menu, int32_
         menu.clear();
         return;
     }
-    // Until its entries are in, the menu keeps the rows it has.
     if (!parent->childrenLoaded)
         return;
 
@@ -225,7 +218,6 @@ void MenuPopup::fill(const std::shared_ptr<State> &state, ui::Menu &menu, int32_
         const compositor::MenuItem *child = model->item(childId);
         if (!child || !child->visible)
             continue;
-        // A separator is only worth a line between two entries.
         if (child->separator && (rows.empty() || rows.back()->separator))
             continue;
         rows.push_back(child);
@@ -240,8 +232,6 @@ void MenuPopup::fill(const std::shared_ptr<State> &state, ui::Menu &menu, int32_
         submenus.push_back(!row->separator && (row->hasSubmenu || !row->children.empty()));
     }
 
-    // Rows of the same kinds as before change in place, so an open submenu
-    // stays open; one whose entry has a new id follows it.
     State::Shown &shown = state->shown[id];
     bool rebuild = ids.size() != shown.rows.size() || submenus != shown.submenus;
     for (size_t index = 0; !rebuild && index < ids.size(); ++index)
@@ -259,7 +249,6 @@ void MenuPopup::fill(const std::shared_ptr<State> &state, ui::Menu &menu, int32_
         std::erase_if(state->shown, [](const auto &entry) { return entry.second.alive.expired(); });
     }
 
-    // Rows are counted as the menu counts them, separators included.
     for (size_t index = 0; index < rows.size(); ++index) {
         const compositor::MenuItem *row = rows[index];
         if (row->separator) {
@@ -271,7 +260,6 @@ void MenuPopup::fill(const std::shared_ptr<State> &state, ui::Menu &menu, int32_
         if (rebuild) {
             if (submenus[index]) {
                 wire(state, *menu.addSubmenu(text), row->id, false);
-                // Its rows ready for when it opens.
                 if (!row->childrenLoaded)
                     model->refresh(row->id);
             } else {
@@ -295,8 +283,6 @@ void MenuPopup::fill(const std::shared_ptr<State> &state, ui::Menu &menu, int32_
             if (!text.empty())
                 menu.setItemShortcut(index, text);
         }
-        // A name the theme has; a picture of the application's own is not
-        // shown.
         const bool themed = !row->iconName.empty() && !ui::themeIconPath(row->iconName, 22).empty();
         if (themed || !rebuild)
             menu.setItemIcon(index, themed ? row->iconName : std::string());

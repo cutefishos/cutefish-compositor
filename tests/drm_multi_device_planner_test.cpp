@@ -4,9 +4,6 @@
 //
 // Upstream: chromium/src/ui/ozone/platform/drm/gpu/drm_gpu_display_manager_unittest.cc
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: tests cover partial cross-device rollback, transfer
-// fallback, complete tile groups, and hardware clone capability gating.
 
 #include <gtest/gtest.h>
 
@@ -78,7 +75,6 @@ TEST(DrmMultiDevicePlanner, ChoosesBoundedCrossGpuFallbacks)
               backend::CrossGpuTransfer::DmaBufImport);
     EXPECT_EQ(backend::chooseCrossGpuTransfer({false, false, false, true, 1280 * 720}),
               backend::CrossGpuTransfer::CpuCopy);
-    // A 4K screen still gets a copy; anything larger does not.
     EXPECT_EQ(backend::chooseCrossGpuTransfer({false, false, false, true, 3840 * 2160}),
               backend::CrossGpuTransfer::CpuCopy);
     EXPECT_EQ(backend::chooseCrossGpuTransfer({false, false, false, true, 5120 * 2880}),

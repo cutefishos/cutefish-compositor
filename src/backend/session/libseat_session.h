@@ -16,14 +16,13 @@ struct libseat;
 
 namespace cutefish::backend {
 
-// Session backed by libseat (seatd or logind).
 class LibseatSession : public Session
 {
 public:
     ~LibseatSession() override;
 
-    // Opens the seat and pumps libseat until the initial enable event arrives.
-    // Returns nullptr if no seat could be acquired.
+    // Pumps libseat until the initial enable event; null if no seat could be
+    // acquired.
     static std::unique_ptr<LibseatSession> create();
 
     std::string seatName() const override { return m_seatName; }

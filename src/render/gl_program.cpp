@@ -52,8 +52,8 @@ GLuint linkProgram(const char *vertexSource, const char *fragmentSource)
     }
     glAttachShader(program, vertex);
     glAttachShader(program, fragment);
-    // Fixed locations, so the state a nested pass saves and restores stops at
-    // GlProgram::kAttributeCount instead of every slot the GPU has.
+    // Fixed locations, so a nested pass saves only GlProgram::kAttributeCount
+    // attributes.
     glBindAttribLocation(program, GlProgram::kPositionAttribute, "aPosition");
     glBindAttribLocation(program, GlProgram::kTexCoordAttribute, "aTexCoord");
     glLinkProgram(program);
@@ -129,9 +129,8 @@ GLint GlProgram::attribute(const char *name) const
 
 std::string fragmentPrecisionDefines()
 {
-    // Some drivers omit GL_FRAGMENT_PRECISION_HIGH even though highp works.
-    // Query the current context instead of silently using half precision for
-    // output coordinates, rounded coverage and glass normals.
+    // Some drivers omit GL_FRAGMENT_PRECISION_HIGH even though highp works, so
+    // the context is queried.
     GLint range[2] = {};
     GLint precision = 0;
     glGetShaderPrecisionFormat(GL_FRAGMENT_SHADER, GL_HIGH_FLOAT, range, &precision);

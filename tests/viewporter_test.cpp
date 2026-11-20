@@ -76,7 +76,6 @@ TEST_F(ViewporterTest, SetCrop)
 
 TEST_F(ViewporterTest, SetCropAndBufferTransform)
 {
-    // Exo's asymmetric crop and exact normalized bounding rectangles.
     const base::RectF expected[] = {
         {0.03125, 0.1875, 0.40625, 0.0625}, {0.875, 0.0625, 0.03125, 0.8125},
         {0.5625, 0.75, 0.40625, 0.0625},    {0.09375, 0.125, 0.03125, 0.8125},

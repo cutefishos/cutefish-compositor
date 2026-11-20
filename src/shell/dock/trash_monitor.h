@@ -18,28 +18,19 @@
 
 namespace cutefish::shell {
 
-// Whether any of the user's trashes holds something, for the dock's trash
-// icon: the home trash and every volume's $topdir/.Trash/$uid and
-// $topdir/.Trash-$uid, found from the mount table as the file manager finds
-// them. Looked into on a worker, since a slow mount must not hold the
-// compositor; followed through the trashes' files/ folders, the entries that
-// would create one, and the mount table.
+// Looked into on a worker, since a slow mount must not hold the compositor.
 class TrashMonitor
 {
 public:
-    // Tests give a mount table and a home trash of their own.
     explicit TrashMonitor(std::string mountTable = "/proc/self/mountinfo", std::string homeTrash = {});
     ~TrashMonitor();
 
     TrashMonitor(const TrashMonitor &) = delete;
     TrashMonitor &operator=(const TrashMonitor &) = delete;
 
-    // Until the first look, the trash counts as empty.
     bool isEmpty() const { return m_empty; }
-    // Whether a watch could not be added and is tried again, for tests.
     bool isRetrying() const { return m_retry.isActive(); }
 
-    // What the dock's trash does, through the session's file manager.
     static void moveToTrash(const std::vector<std::string> &paths,
                             base::dbus::Connection *bus = base::dbus::Connection::session());
     static void emptyTrash(base::dbus::Connection *bus = base::dbus::Connection::session());
@@ -49,12 +40,10 @@ public:
 
     struct State {
         bool empty = true;
-        // files/ of each trash.
         std::vector<std::string> paths;
-        // A directory, and the names in it whose coming or going matters.
         std::map<std::string, std::vector<std::string>> entries;
     };
-    // The trashes and whether one holds something; any thread.
+    // Any thread.
     static State look(const std::string &mountTable, const std::string &homeTrash);
 
 private:

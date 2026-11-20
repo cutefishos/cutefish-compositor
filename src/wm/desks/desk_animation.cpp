@@ -36,7 +36,6 @@ DeskAnimationBase::DeskAnimationBase(DesksController *controller, int endingDesk
 
 DeskAnimationBase::~DeskAnimationBase()
 {
-    // Replaced before it finished.
     if (!m_finished)
         releaseNode();
 }
@@ -79,8 +78,7 @@ void DeskAnimationBase::launch()
         });
     });
 
-    // The starting frames cover the desk content on every output now, so the
-    // ending desk can be activated without the user seeing it happen.
+    // The starting frames cover the desk content now, so the ending desk can be activated unseen.
     onStartingDeskScreenshotTakenInternal(m_endingDesk);
     takeEndingScreenshot(m_endingDesk);
 }
@@ -94,7 +92,6 @@ void DeskAnimationBase::takeEndingScreenshot(int desk)
 void DeskAnimationBase::onEndingDeskScreenshotTaken()
 {
     m_screenshotTimeout.stop();
-    // The fingers move the strip, and set it sliding when they let go.
     if (m_isContinuousGestureAnimation)
         return;
     m_node->startAnimation();
@@ -105,7 +102,6 @@ void DeskAnimationBase::onDeskSwitchAnimationFinished()
     if (std::exchange(m_finished, true))
         return;
     m_screenshotTimeout.stop();
-    // The desk is activated behind the frames, which then go.
     onDeskSwitchAnimationFinishedInternal();
     releaseNode();
     m_controller->onAnimationFinished(this);
@@ -158,11 +154,8 @@ bool DeskActivationAnimation::startNode()
 
 bool DeskActivationAnimation::replace(bool movingLeft, DesksSwitchSource source)
 {
-    // Replacing an animation of another source is not supported.
     if (source != m_source)
         return false;
-    // Another swipe catches the strip wherever it is; it asks for the desks
-    // beyond as the fingers pull it along. Upstream steps the ending desk on.
     if (m_isContinuousGestureAnimation) {
         m_chosenDesk = m_endingDesk;
         return true;
@@ -191,7 +184,6 @@ bool DeskActivationAnimation::updateSwipeAnimation(double deskDelta, double time
     const std::optional<int> ending = m_node->updateSwipeAnimation(deskDelta, timeMs);
     if (!ending)
         return true;
-    // Activate the desk beyond the strip's end and take its frame.
     m_endingDesk = *ending;
     prepareDeskForScreenshot(*ending);
     takeEndingScreenshot(*ending);
@@ -204,11 +196,8 @@ bool DeskActivationAnimation::endSwipeAnimation(double timeMs)
         return false;
     m_endingDesk = m_node->endSwipeAnimation(timeMs);
     m_chosenDesk = -1;
-    // A frame dropped with the swipe will not report back.
     if (m_node->endingScreenshotTaken())
         stopScreenshotTimeout();
-    // The desk it lands on is active as the fingers lift, not once it settles:
-    // a swipe back to a desk already in the strip activates nothing on its way.
     if (Desk *desk = m_controller->deskAt(m_endingDesk))
         activateDeskDuringAnimation(desk, m_updateWindowActivation);
     return true;
@@ -221,7 +210,6 @@ void DeskActivationAnimation::onStartingDeskScreenshotTakenInternal(int endingDe
 
 void DeskActivationAnimation::onDeskSwitchAnimationFinishedInternal()
 {
-    // A replaced ending desk that had its frame already was never activated.
     if (Desk *desk = m_controller->deskAt(m_endingDesk))
         activateDeskDuringAnimation(desk, m_updateWindowActivation);
 }
@@ -241,8 +229,6 @@ DeskRemovalAnimation::DeskRemovalAnimation(DesksController *controller, int desk
 
 bool DeskRemovalAnimation::startNode()
 {
-    // In place of the removed desk's frame the strip is black, and its windows
-    // stay where they are on top while the desk they go to slides in.
     const Desk *removed = m_controller->deskAt(m_deskToRemove);
     auto still = m_controller->takeWindowScreenshots([this, removed](const Window *window) {
         return m_controller->deskOf(window) == removed;
@@ -271,7 +257,6 @@ void DeskRemovalAnimation::onDeskSwitchAnimationFinishedInternal()
     Desk *removed = m_controller->deskAt(m_deskToRemove);
     if (!removed)
         return;
-    // Without the animation the ending desk was never activated.
     if (removed == m_controller->activeDesk()) {
         m_controller->removeDeskInternal(removed, /*deskSwitched=*/false);
         return;

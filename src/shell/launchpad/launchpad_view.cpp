@@ -34,12 +34,8 @@ using Clock = std::chrono::steady_clock;
 using cutefish::i18n::tr;
 
 static const ui::Color kWhite {255, 255, 255, 255};
-// AllAppsView's highlightMoveDuration, and how long a slide or swap keeps
-// the wheel and the reorder dwell waiting by default.
 static constexpr std::chrono::milliseconds kSlideDuration {300};
 static constexpr std::chrono::milliseconds kSettleDuration {270};
-// Flickable's drag threshold, and the speed past which a released flick
-// turns the page rather than settling on the nearest one.
 static constexpr double kFlickThreshold = 10;
 static constexpr double kFlickVelocity = 400;
 
@@ -48,15 +44,12 @@ static int jsRound(double value)
     return int(std::floor(value + 0.5));
 }
 
-// Centred: the parent's centre less half the size, that half
-// rounded, so a half pixel goes up and to the left.
+// A half pixel rounds up and to the left.
 static double centred(double start, double extent, double size)
 {
     return start + jsRound(extent / 2 - jsRound(size / 2));
 }
 
-// The count on an icon: an application's own, or the sum of a folder's
-// applications'.
 static int64_t badgeCount(const ApplicationBadges &badges, const LaunchpadModel &model, const std::string &id)
 {
     if (!LaunchpadItem::isFolderId(id))
@@ -69,7 +62,6 @@ static int64_t badgeCount(const ApplicationBadges &badges, const LaunchpadModel 
     return count;
 }
 
-// The name a new folder starts with, numbered past the folders that have it.
 static std::string newFolderName(const LaunchpadModel &model)
 {
     std::set<std::string> names;
@@ -84,16 +76,12 @@ static std::string newFolderName(const LaunchpadModel &model)
     return name;
 }
 
-// One page of the grid. It slides by its transform, so a page in motion is
-// drawn from its texture.
 class LaunchpadView::Page final : public ui::View
 {
 public:
     Page() { setName("launchpad-page"); }
 };
 
-// Behind the pages: a click hides the launchpad, a drag pages as the
-// ListView's flick did.
 class LaunchpadView::Pages final : public ui::View
 {
 public:
@@ -154,12 +142,10 @@ LaunchpadView::LaunchpadView(Launchpad &launchpad, LaunchpadWallpaper &wallpaper
     m_searchTimer.setInterval(std::chrono::milliseconds(150));
     m_searchTimer.onTimeout = [this] { applySearch(m_search->text()); };
     m_reorderTimer.setSingleShot(true);
-    // Passing through the grid on the way to the dock must not rearrange it.
     m_reorderTimer.setInterval(std::chrono::milliseconds(450));
     m_reorderTimer.onTimeout = [this] {
         if (m_hoveredId.empty() || !m_reorderPending)
             return;
-        // Wait out the previous swap's animation.
         if (settling()) {
             m_reorderTimer.start();
             return;
@@ -174,8 +160,6 @@ LaunchpadView::LaunchpadView(Launchpad &launchpad, LaunchpadWallpaper &wallpaper
         if (hovered)
             requestMove(hovered->page() * m_metrics.pageCount + hovered->index());
     };
-    // Only a drag reorder slides the icons; this keeps them sliding a moment
-    // after a swap.
     m_reorderAnimation.setSingleShot(true);
     m_reorderAnimation.setInterval(std::chrono::milliseconds(400));
     m_edgeTimer.setInterval(std::chrono::milliseconds(600));
@@ -188,7 +172,6 @@ LaunchpadView::LaunchpadView(Launchpad &launchpad, LaunchpadWallpaper &wallpaper
             scrollNextPage();
     };
 
-    // A burst of model changes asks once.
     m_preloadTimer.setSingleShot(true);
     m_preloadTimer.setInterval(std::chrono::milliseconds(0));
     m_preloadTimer.onTimeout = [this] { preloadIcons(); };
@@ -270,8 +253,6 @@ void LaunchpadView::setShown(bool shown)
 
 bool LaunchpadView::acceptsFocus() const
 {
-    // A press elsewhere leaves the search field focused, so a click that
-    // dismisses the launchpad hides it as it was.
     return !m_search->hasFieldFocus();
 }
 
@@ -383,8 +364,6 @@ void LaunchpadView::updateBackdrop()
         cell->setBackdrop(backdrop);
 }
 
-// The cell menu is made when it opens: an open one closes. The search
-// stays.
 void LaunchpadView::retranslate()
 {
     if (m_menu)
@@ -403,7 +382,6 @@ void LaunchpadView::syncCells()
     const auto &rows = model.rows();
     const bool animate = animatesReorder();
 
-    // Pages are added and removed one by one; their cells stay.
     const int total = rows.empty() ? 0 : m_metrics.pagesFor(int(rows.size()));
     while (int(m_pages.size()) < total) {
         Page *page = m_pagesView->addChild<Page>();
@@ -425,7 +403,6 @@ void LaunchpadView::syncCells()
             cell = page->addChild<LaunchpadCell>(this, item.id);
             m_cells[item.id] = cell;
         } else if (cell->parent() != page) {
-            // Across pages a cell is a new one there, as a delegate is.
             cell->finishMove();
             std::unique_ptr<ui::View> moved = cell->parent()->takeChild(cell);
             page->addChild(std::move(moved));
@@ -443,8 +420,8 @@ void LaunchpadView::syncCells()
         cell->moveTo({double(rect.x()), double(rect.y())}, animate && samePage);
     }
 
-    // Cells of applications gone go on the next turn: one may be handling
-    // the press that removed it. Those a search leaves out only hide.
+    // Cells of applications gone are destroyed on the next turn: one may be
+    // handling the press that removed it.
     std::set<std::string> all;
     for (const LaunchpadItem &item : model.allItems())
         all.insert(item.id);
@@ -466,7 +443,6 @@ void LaunchpadView::syncCells()
     while (int(m_pages.size()) > total) {
         Page *page = m_pages.back();
         m_pages.pop_back();
-        // Hidden cells move to the first page, which stays while any exist.
         for (const auto &[id, cell] : m_cells) {
             if (cell->parent() == page && !m_pages.empty())
                 m_pages.front()->addChild(page->takeChild(cell));
@@ -480,8 +456,6 @@ void LaunchpadView::syncCells()
         retire(m_pagesView->takeChild(page));
     }
     for (const auto &[id, cell] : m_cells) {
-        // Cells parked on the pages view while there are no pages go back to
-        // a page as soon as one exists.
         if (cell->parent() == m_pagesView && !m_pages.empty())
             m_pages.front()->addChild(m_pagesView->takeChild(cell));
     }
@@ -709,7 +683,6 @@ void LaunchpadView::openFolder(const std::string &folder, bool editName)
         return;
     if (m_menu)
         m_menu->close();
-    // The panel grows out of the folder's icon.
     ui::RectF from;
     const auto &rows = m_launchpad.applications().rows();
     const auto row = std::find_if(rows.begin(), rows.end(),
@@ -750,7 +723,6 @@ void LaunchpadView::applySearch(const std::string &text)
 
 void LaunchpadView::flushSearch()
 {
-    // Keys typed within the debounce act on the filtered list, not the stale one.
     if (!m_searchTimer.isActive())
         return;
     m_searchTimer.stop();
@@ -759,7 +731,6 @@ void LaunchpadView::flushSearch()
 
 void LaunchpadView::searchTextChanged()
 {
-    // Search mode follows the text at once; the results after the debounce.
     m_notFound->setVisible(isSearching() && m_launchpad.applications().count() == 0);
     if (m_search->text().empty()) {
         m_searchTimer.stop();
@@ -797,8 +768,6 @@ bool LaunchpadView::searchKey(uint32_t key)
 
 bool LaunchpadView::keyPress(const ui::KeyEvent &event)
 {
-    // An open folder closes on Escape; the arrows and Return, which would
-    // act on the grid behind it, do nothing.
     if (m_folder->isOpen()) {
         switch (event.key) {
         case ui::key::Escape:
@@ -838,8 +807,6 @@ bool LaunchpadView::keyPress(const ui::KeyEvent &event)
     default:
         break;
     }
-    // The first letter or digit starts a search. A shortcut such as Ctrl+A
-    // must not.
     const uint32_t modifiers = event.modifiers & ~uint32_t(ui::ShiftModifier);
     const uint32_t key = event.key;
     const bool letter = (key >= 'a' && key <= 'z') || (key >= 'A' && key <= 'Z');
@@ -856,7 +823,6 @@ bool LaunchpadView::keyPress(const ui::KeyEvent &event)
 bool LaunchpadView::scroll(const ui::ScrollEvent &event)
 {
     if (event.precise || event.stop) {
-        // Fingers page only sideways; up and down do nothing.
         if (!m_scroller && window()) {
             m_scroller = std::make_unique<ui::Scroller>(window(), static_cast<ui::Scroller::Target *>(this));
             m_scroller->setPaged(true);
@@ -871,13 +837,10 @@ bool LaunchpadView::scroll(const ui::ScrollEvent &event)
 
 void LaunchpadView::handleWheel(const ui::ScrollEvent &event)
 {
-    // Wheels count down as angleDelta counts up.
     const double delta = event.value120Y != 0 ? -event.value120Y : -event.value120X;
     if (delta == 0)
         return;
     m_wheelReset.start();
-    // Nothing pages until the slide has finished: the rest of a quick spin
-    // would otherwise flip the next page at once.
     if (settling()) {
         m_wheelAccumulated = 0;
         return;
@@ -917,7 +880,6 @@ void LaunchpadView::backgroundMoved(ui::PointF position)
         m_swiping = true;
         m_pressContentX = m_contentX + dx;
     }
-    // DragOverBounds: past either end the content follows at half the rate.
     double x = m_pressContentX - dx;
     const double maximum = pageX(pageTotal() - 1);
     if (x < 0)
@@ -937,7 +899,6 @@ void LaunchpadView::backgroundReleased(ui::PointF position)
         return;
     m_backgroundPressed = false;
     if (!m_flicking) {
-        // Anything that is not an icon, the search field or the dots dismisses.
         dismissRequested();
         return;
     }
@@ -949,7 +910,6 @@ void LaunchpadView::backgroundReleased(ui::PointF position)
         if (seconds > 0)
             velocity = (position.x - x0) / seconds;
     }
-    // SnapOneItem: at most one page from where the press started.
     int page = nearestPage();
     const int from = std::clamp(int(std::lround(m_pressContentX / std::max(1.0, geometry().width))), 0,
                                 std::max(0, pageTotal() - 1));
@@ -991,7 +951,6 @@ void LaunchpadView::openMenu(LaunchpadCell *cell, ui::PointF windowPosition)
         menu->addItem(tr("Ungroup"), [&model, id] { model.ungroupFolder(id); });
     } else {
         menu->addItem(tr("Open"), [&launchpad, id] { launchpad.applications().launch(id); });
-        // Folders change only outside a search.
         if (!isSearching()) {
             if (model.folderOf(id).empty()) {
                 menu->addItem(tr("New Folder"), [this, &model, id] {
@@ -1048,7 +1007,6 @@ bool LaunchpadView::startCellDrag(LaunchpadCell *cell, ui::View *icon)
     const double size = m_metrics.iconSize;
     source.hotSpot = {size / 2, size / 2};
     if (ui::Window *window = this->window()) {
-        // icon.grabToImage(): the icon as drawn, at the window's scale.
         source.iconScale = window->scale();
         source.icon = cell->dragImage(source.iconScale);
     }
@@ -1065,7 +1023,6 @@ bool LaunchpadView::startCellDrag(LaunchpadCell *cell, ui::View *icon)
     m_launchpad.applications().beginReorder();
     m_draggedId = cell->id();
     cell->setDragging(true);
-    // Losing the activation to the drag must not hide the launchpad.
     m_launchpad.setDragging(true);
     return true;
 }
@@ -1078,7 +1035,6 @@ void LaunchpadView::endDrag()
     m_hoveredId.clear();
     m_reorderPending = false;
     setMergeTarget({});
-    // A folder the drag left stays up only while its cell is dragged.
     if (m_folder->isDetached())
         m_folder->close();
     if (m_draggedId.empty())
@@ -1123,7 +1079,6 @@ void LaunchpadView::applyMove()
     }
     if (from < 0 || from == to)
         return;
-    // In a folder as in the grid, the cells the move displaces slide.
     startSettle(kSettleDuration);
     m_reorderAnimation.start();
     if (folder.empty())
@@ -1134,7 +1089,6 @@ void LaunchpadView::applyMove()
 
 void LaunchpadView::requestMerge()
 {
-    // As a move: after the drag has finished.
     const std::string id = m_draggedId;
     const std::string target = m_mergeTargetId;
     std::weak_ptr<bool> alive = m_alive;
@@ -1158,8 +1112,6 @@ void LaunchpadView::merge(const std::string &id, const std::string &target)
 
 bool LaunchpadView::canDrop(const ui::DropOffer &offer) const
 {
-    // The whole surface takes the drag, so the cursor never says "no drop"
-    // between the icons.
     return offer.hasMimeType(kDesktopIdMimeType);
 }
 
@@ -1193,8 +1145,6 @@ uint32_t LaunchpadView::drop(const ui::DragEvent &event)
     if (!m_mergeTargetId.empty() && !m_draggedId.empty()) {
         requestMerge();
     } else if (m_reorderPending && !m_draggedId.empty()) {
-        // A swap rebinds the hovered slot, so moving again here would undo
-        // the dwell's move.
         if (m_folder->isOpen()) {
             if (const LaunchpadCell *hovered = m_folder->cell(m_hoveredId))
                 requestMove(hovered->index());
@@ -1238,7 +1188,6 @@ bool LaunchpadView::updateFolderDragTarget(ui::PointF position)
     LaunchpadModel &model = m_launchpad.applications();
     const std::string folder = m_folder->folder();
     if (m_folder->panelRect().contains(position)) {
-        // The panel's sides page the folder while the drag rests there.
         const int edge = m_folder->edgeAt(position);
         if (edge != m_edge) {
             m_edge = edge;
@@ -1251,7 +1200,6 @@ bool LaunchpadView::updateFolderDragTarget(ui::PointF position)
             setHovered({});
             return true;
         }
-        // Within the panel the drag reorders the folder's applications.
         std::string hovered;
         const int index = m_folder->indexAt(position);
         const LaunchpadItem *item = model.item(folder);
@@ -1260,7 +1208,6 @@ bool LaunchpadView::updateFolderDragTarget(ui::PointF position)
         setHovered(hovered);
         return true;
     }
-    // Out of the panel, the application leaves its folder for the grid.
     setHovered({});
     if (!m_draggedId.empty() && model.folderOf(m_draggedId) == folder) {
         m_folder->detach();
@@ -1276,8 +1223,6 @@ void LaunchpadView::updateDragTarget(ui::PointF position)
     if (updateFolderDragTarget(position))
         return;
 
-    // The edge areas, above the cells, page every 600 ms while the drag
-    // rests in them.
     int edge = 0;
     bool inEdge = false;
     if (m_shown && !isSearching() && pageTotal() > 1) {
@@ -1300,8 +1245,6 @@ void LaunchpadView::updateDragTarget(ui::PointF position)
             m_edgeTimer.stop();
     }
 
-    // The cell under the drag, by its resting slot on the page shown, and
-    // the icon there a drop would make a folder with.
     std::string hovered;
     std::string mergeTarget;
     if (!inEdge && !isSearching() && m_currentPage >= 0) {
@@ -1315,7 +1258,6 @@ void LaunchpadView::updateDragTarget(ui::PointF position)
             const auto &rows = m_launchpad.applications().rows();
             if (column < m_metrics.columns && row < m_metrics.rows && index < int(rows.size()))
                 hovered = rows[size_t(index)].id;
-            // Only an application goes into a folder, and not onto itself.
             if (!hovered.empty() && hovered != m_draggedId && !m_draggedId.empty()
                 && !LaunchpadItem::isFolderId(m_draggedId)) {
                 const base::Rect slot = m_metrics.cellRect(index % m_metrics.pageCount);
@@ -1337,8 +1279,8 @@ void LaunchpadView::preloadIcons()
     ui::Window *window = this->window();
     if (!window || window->size().width <= 0)
         return;
-    // A page whose icons rasterise as it slides in stalls the slide, so the
-    // icons rasterise on the pool ahead of the first show and of every page.
+    // Icons rasterise on the pool ahead of time: rasterising while a page
+    // slides in stalls the slide.
     const LaunchpadMetrics metrics = LaunchpadMetrics::compute(
             base::Size(int(std::lround(window->size().width)), int(std::lround(window->size().height))),
             m_margins);

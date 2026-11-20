@@ -36,21 +36,19 @@ struct gbm_surface;
 
 namespace cutefish::render {
 
-// OpenGL ES 2 renderer on the EGL GBM platform. Owns the EGL display, config
-// and context; DRM/KMS lives entirely outside it.
+// DRM/KMS lives entirely outside it.
 class EglRenderer : public Renderer, public DmaBufDevice
 {
 public:
     ~EglRenderer() override;
 
-    // `format` is the DRM fourcc the GBM surfaces will use; the EGL config is
-    // matched against it through EGL_NATIVE_VISUAL_ID.
+    // `format` is the DRM fourcc of the GBM surfaces; the EGL config is matched
+    // through EGL_NATIVE_VISUAL_ID.
     static std::unique_ptr<EglRenderer> create(gbm_device *device, uint32_t format);
 
     std::unique_ptr<EglRenderTarget> createTarget(gbm_surface *surface, const base::Size &size);
 
-    // Called before an output destroys its target. Retire renderer-owned
-    // textures while this target/context still exists and forget borrowed pointers.
+    // Must be called before an output destroys its target.
     void releaseTarget(EglRenderTarget *target);
 
     void setOutputContext(OutputRenderContext context) override;
@@ -63,20 +61,18 @@ public:
     void waitFence(const SyncFence &fence) override;
     SyncFence createReleaseFence() override;
 
-    // Repaints the whole target this frame, whatever its buffer holds.
     void invalidateFrame();
 
-    // Multiplies every pixel the frame drew by the gains, as a CRTC's CTM
-    // would after it; for a CRTC that has none.
+    // For a CRTC without a CTM.
     void tintFrame(const ColorTransform &transform);
 
-    // Whether markDrawn() works; otherwise the drawn frame takes a release fence.
+    // Otherwise the drawn frame takes a release fence.
     bool marksDrawn() const { return m_timer.available(); }
 
-    // Marks the end of the frame's commands, without the submission a fence forces.
+    // Without the submission a fence forces.
     GpuTimer::Mark markDrawn();
 
-    // When the GPU got past `mark`, once it has.
+    // Empty until it has.
     std::optional<GpuTimer::Time> drawnAt(const GpuTimer::Mark &mark);
 
     void clear(const Color &color) override;
@@ -129,7 +125,6 @@ public:
     std::unique_ptr<Texture> renderShadow(const base::Size &size, const std::vector<ShadowLobe> &lobes,
                                           const std::function<void()> &paintCaster) override;
 
-    // DmaBufDevice.
     const DmaBufFormats &dmaBufFormats() const override { return m_importer.formats(); }
 
     dev_t dmaBufMainDevice() const override { return m_importer.mainDevice(); }
@@ -149,8 +144,6 @@ public:
 private:
     friend class EglRendererTestAccess;
 
-    // How long frames must have stopped before the blur textures of surfaces
-    // no longer shown go.
     static constexpr std::chrono::seconds kBackdropReleaseDelay {5};
 
     explicit EglRenderer(std::shared_ptr<EglContext> context, gbm_device *device = nullptr);
@@ -163,10 +156,8 @@ private:
     void scheduleBackdropRelease();
     void releaseUnshownBackdrops();
 
-    // What the clip shader was last given through one program. Every draw
-    // wants the clip stack, and most draws in a row want the same one, so the
-    // values are compared here and uploaded only when they differ, as Skia's
-    // GrGLGpu keeps a cache of the GL state it set and skips what is unchanged.
+    // Compared here and uploaded only when they differ, since most draws in a
+    // row want the same clip stack.
     struct ClipUniforms {
         GLuint program = 0;
         GLint count = -1;
@@ -194,8 +185,7 @@ private:
     };
     ClipUniforms &clipUniforms(const GlProgram &program);
 
-    // The per-draw uniforms of the texture programs, resolved once and
-    // uploaded only when a draw changes them.
+    // Resolved once and uploaded only when a draw changes them.
     struct TextureUniforms {
         GLint texture = -1;
         GLint alpha = -1;
@@ -209,19 +199,16 @@ private:
     void drawTextureMappedF(Texture *texture, const base::RectF &target, float alpha,
                             const base::AffineTransform &mapping, const base::AffineTransform &geometry = base::AffineTransform());
 
-    // Two triangles of a texture draw: positions in clip space and texture
-    // coordinates, in quadFor()'s corner order.
+    // Positions in clip space and texture coordinates, in quadFor()'s corner
+    // order.
     struct TextureQuad {
         float vertices[8];
         float texCoords[8];
     };
-    // Where a mapped draw lands and what it samples once native-density
-    // texels are put on physical pixels.
     void alignTextureDraw(const Texture *texture, const base::RectF &target, const base::AffineTransform &mapping,
                           base::RectF &aligned, base::AffineTransform &texelMapping) const;
     void textureQuad(const GlTexture &texture, const base::RectF &target, const base::AffineTransform &mapping,
                      const base::AffineTransform &geometry, TextureQuad &quad) const;
-    // One draw of up to sixteen quads of `texture`.
     void drawTextureQuads(GlTexture *texture, const TextureQuad *quads, size_t count,
                           float alpha);
     void applyRoundedClip(const GlProgram &program);
@@ -235,7 +222,6 @@ private:
     GpuTimer m_timer;
     EglDmaBufImporter m_importer;
     gbm_device *m_device = nullptr;
-    // Probed on first use: which DMA-BUFs this GPU can render captures into.
     mutable std::optional<DmaBufFormats> m_captureFormats;
     mutable dev_t m_captureDevice = 0;
     GlTextureUploader m_upload;
@@ -254,12 +240,10 @@ private:
     EglSwapState m_swapState;
     // The scissor of a partial repaint, in target pixels.
     std::optional<base::Rect> m_repaint;
-    // The framebuffer the current frame composites into.
     unsigned int m_frameFramebuffer = 0;
     EglRenderTarget *m_current = nullptr;
     EglRenderTarget *m_lastTarget = nullptr;
-    // Made the first time something may be released, on the loop of the
-    // thread that draws.
+    // Made on the loop of the thread that draws.
     std::unique_ptr<base::Timer> m_backdropRelease;
     std::chrono::milliseconds m_backdropReleaseDelay = kBackdropReleaseDelay;
     uint64_t m_framesEnded = 0;

@@ -4,9 +4,6 @@
 //
 // Upstream: chromium/src/ui/base/accelerators/accelerator_manager.h
 // Revision: 8abbac30b9cf2fe976422c58c000c94685648b65
-//
-// Adapted for Cutefish: same target/priority model over the Cutefish
-// Accelerator and AcceleratorMap.
 
 #ifndef CUTEFISH_ACCELERATORS_ACCELERATOR_MANAGER_H_
 #define CUTEFISH_ACCELERATORS_ACCELERATOR_MANAGER_H_
@@ -19,21 +16,18 @@
 
 namespace cutefish::accelerators {
 
-// ui::AcceleratorTarget.
 class AcceleratorTarget
 {
 public:
     virtual ~AcceleratorTarget() = default;
 
-    // Returns true if the accelerator was processed.
     virtual bool acceleratorPressed(const Accelerator &accelerator) = 0;
 
     // acceleratorPressed() is only invoked on targets for which this is true.
     virtual bool canHandleAccelerators() const = 0;
 };
 
-// Dispatches accelerators to registered targets. A target registered later
-// has higher priority, and a high-priority handler is tried before all others.
+// A target registered later has higher priority; a priority handler goes first.
 class AcceleratorManager
 {
 public:
@@ -54,7 +48,6 @@ public:
 
     bool isRegistered(const Accelerator &accelerator) const;
 
-    // Tries the targets in priority order; true once one of them handles it.
     bool process(const Accelerator &accelerator);
 
     bool hasPriorityHandler(const Accelerator &accelerator) const;

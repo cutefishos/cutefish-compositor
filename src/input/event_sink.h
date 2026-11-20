@@ -2,9 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// The replacement for ui::EventHandler: something that sees physical input
-// before the seat dispatches it to clients, and may consume it.
-
 #ifndef CUTEFISH_INPUT_EVENT_SINK_H_
 #define CUTEFISH_INPUT_EVENT_SINK_H_
 
@@ -39,15 +36,10 @@ public:
         return false;
     }
 
-    // A touch point landing at `location`. Returning true takes the whole
-    // point: its motion, release or cancellation come here and none of it
-    // reaches a client. A point a client has can still be taken later, by
-    // returning true from its motion or release, as a window drag does once
-    // the client asked to move with it.
+    // Returning true takes the whole point; a point a client has can still be taken from its motion or release.
     virtual bool onTouchDown(Timestamp, int32_t, const base::PointF&) { return false; }
     virtual bool onTouchMotion(Timestamp, int32_t, const base::PointF&) { return false; }
     virtual bool onTouchUp(Timestamp, int32_t) { return false; }
-    // Every point is gone, taken or not.
     virtual void onTouchCancel(Timestamp) { }
 };
 

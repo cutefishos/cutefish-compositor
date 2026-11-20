@@ -4,11 +4,6 @@
 //
 // Upstream: chromium/src/components/exo/seat.h
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: integrates the upstream behavior with native
-// compositor types and ownership.
-//
-// Cutefish owns xkb state, client event dispatch, selection and drag capture.
 
 #ifndef CUTEFISH_INPUT_SEAT_H_
 #define CUTEFISH_INPUT_SEAT_H_
@@ -50,7 +45,6 @@ class SeatObserver;
 class SessionGate;
 class Touch;
 
-// A group of input devices, and the input focus they share.
 class Seat : public compositor::SurfaceObserver
 {
 public:
@@ -59,8 +53,7 @@ public:
     Seat &operator=(const Seat &) = delete;
     ~Seat() override;
 
-    // After shutdown the seat stops dispatching. Called before the clients are
-    // torn down, so a Pointer or Keyboard being destroyed cannot re-enter.
+    // Called before the clients are torn down, so a Pointer or Keyboard being destroyed cannot re-enter.
     void shutdown();
 
     bool wasShutdown() const { return m_wasShutdown; }
@@ -86,7 +79,6 @@ public:
         m_keyTranslator.setConvention(convention);
     }
 
-    // Replaces the keymap of every keyboard; see XkbTracker::updateKeyboardLayout.
     // Keys held across the change stay held in the new state.
     bool setKeyboardLayout(const std::string &name);
 
@@ -101,9 +93,7 @@ public:
 
     void setDragIconContainer(scene::Node *container) { m_dragIconContainer = container; }
 
-    // The scene node cursor surfaces are parented into while they are the
-    // pointer image. Null leaves the cursor unrendered, which is what the
-    // protocol tests use.
+    // Null leaves the cursor unrendered.
     scene::Node *cursorContainer() const { return m_cursorContainer; }
 
     void setCursorContainer(scene::Node *container) { m_cursorContainer = container; }
@@ -125,8 +115,7 @@ public:
 
     base::PointF cursorPosition() const { return m_cursorPosition; }
 
-    // A touch hides the pointer until the mouse moves, clicks or scrolls
-    // again, as wm::CompoundEventFilter does on a touch press.
+    // A touch hides the pointer until the mouse moves, clicks or scrolls again.
     bool cursorHiddenByTouch() const { return m_cursorHiddenByTouch; }
 
     // Hiding also takes the pointer's focus away, so that no hover is left.
@@ -149,60 +138,39 @@ public:
 
     ShortcutsInhibition *shortcutsInhibition() { return &m_shortcutsInhibition; }
 
-    // The user took the pointer and the keyboard back from the focused window:
-    // breaks its pointer constraint and its shortcuts inhibitor until the next
-    // click on it. Returns whether either was active.
+    // Breaks the focused window's pointer constraint and shortcuts inhibitor until the next click on it.
+    // Returns whether either was active.
     bool breakInputCapture();
 
     clipboard::SelectionController *primarySelection() { return &m_primarySelection; }
 
     clipboard::SelectionController *selection() { return &m_selection; }
 
-    // --- Focus ---
-
-    // Whether the session lets a surface hold focus and where input may be
-    // targeted at all. Null leaves the seat unrestricted, which is what the
-    // protocol-only tests want.
+    // Null leaves the seat unrestricted.
     void setSessionGate(SessionGate *gate);
 
     SessionGate *sessionGate() const { return m_sessionGate; }
 
-    // Whether `surface` may hold keyboard or pointer focus. Every focus path -
-    // the window manager, xdg-activation, Xwayland, the pointer's own hit test
-    // - goes through this, so a locked session has one place to fail closed.
+    // Every focus path goes through this, so a locked session has one place to fail closed.
     bool allowsFocus(const compositor::Surface *surface) const;
 
     compositor::Surface *focusedSurface() const { return m_focusedSurface; }
 
-    // Whether the focused surface only borrows the keys; see setFocusedSurface().
     bool focusIsBorrowed() const { return m_focusBorrowed; }
 
-    // The surface the client pointers are focused on, if any.
     compositor::Surface *pointerFocus() const;
 
-    // The window manager sets this from window activation. The surface is
-    // expected to be a root surface: keyboard focus follows the hierarchy, not
-    // the individual subsurface that was hit.
-    // A `borrowed` focus takes the keys without taking focus from the client
-    // that has it: that client gets no leave, since toolkits deactivate on one,
-    // and no new key presses until focus returns.
+    // `surface` is expected to be a root surface. A `borrowed` focus takes the keys without a leave
+    // for the client that has it, since toolkits deactivate on one.
     void setFocusedSurface(compositor::Surface *surface, bool borrowed = false);
 
-    // Makes every pointer leave whatever it is focused on. The window manager
-    // uses it when the pointer moves onto compositor-owned content.
     void clearPointerFocus();
 
-    // The surface holding the implicit pointer grab: the one a press was
-    // delivered to, which keeps every pointer event until the last button is
-    // released, wherever the pointer travels. Counterpart of aura's
-    // WindowEventDispatcher::mouse_pressed_handler_.
+    // The surface a press was delivered to, which keeps every pointer event until the last button is released.
     compositor::Surface *pointerGrabSurface() const { return m_pointerGrabSurface; }
 
-    // Updates the pressed keys and the compositor's xkb state, without telling
-    // clients. What they get comes out of dispatchKey(): each delivered key,
-    // then the modifiers it changed, as wlroots, KWin and Mutter send them: Qt
-    // and GTK read a modifier key's own event against the state before it, and
-    // would otherwise see Meta's press without Meta.
+    // Does not tell clients: dispatchKey() sends each key, then the modifiers it changed, since
+    // clients read a modifier key's event against the state before it.
     bool updateKeyState(uint32_t evdevCode, bool pressed);
     void notifyKeyboardModifiers();
     // After a key the clients never got: a Caps Lock toggled on the lock
@@ -214,8 +182,7 @@ public:
 
     void setInputMethodFilter(KeyFilter filter) { m_inputMethodFilter = std::move(filter); }
 
-    // Delivers a key that already went through the KeyTranslator, e.g. one the
-    // input method forwards.
+    // For a key that already went through the KeyTranslator.
     void dispatchKeyToClients(Timestamp timestamp, uint32_t evdevCode, bool pressed);
 
     // Presses `codes` in order and releases them in reverse, as keys clients
@@ -229,10 +196,7 @@ public:
     // The delivered keys clients hold pressed, less those the input method took.
     std::map<uint32_t, KeyState> clientPressedKeys() const;
 
-    // --- Physical event entry points, called by InputManager ---
-
-    // Every pointer event carries the location, as it does in Exo, so a button
-    // that arrives before any motion is still placed correctly.
+    // Every pointer event carries the location, so a button before any motion is still placed correctly.
     // `relative` is the physical motion behind this location, if there was one.
     void onPointerMotion(Timestamp timestamp, const base::PointF &rootLocation,
                          const RelativeMotion *relative = nullptr);
@@ -248,9 +212,7 @@ public:
     void onPointerGestureEnd(Timestamp timestamp, GestureType type, bool cancelled);
     void onKey(Timestamp timestamp, uint32_t evdevCode, bool pressed);
 
-    // A new touch point is targeted once, at the surface it lands on; the
-    // rest of its events follow it there. `rootLocation` is in output
-    // coordinates. Frames close each batch from the device.
+    // A new touch point is targeted once, at the surface it lands on. `rootLocation` is in output coordinates.
     void onTouchDown(Timestamp timestamp, int32_t id, const base::PointF &rootLocation);
     void onTouchMotion(Timestamp timestamp, int32_t id, const base::PointF &rootLocation);
     void onTouchUp(Timestamp timestamp, int32_t id);
@@ -262,9 +224,7 @@ public:
         base::PointF location;
     };
 
-    // The newest point still down that a client was given on `root` or a
-    // surface below it, and where it is now. What a move or resize requested
-    // with a touch-down serial follows, as ash follows its gesture target.
+    // What a move or resize requested with a touch-down serial follows.
     std::optional<TouchPoint> touchPointOn(const compositor::Surface *root) const;
     // Takes point `id` from the clients that have it. Each is sent a cancel,
     // which ends every point it had.
@@ -272,22 +232,16 @@ public:
 
     base::PointF pointerLocation() const { return m_pointerLocation; }
 
-    // The surface under `location` in `root`'s subtree. Every handler asking
-    // during one pointer motion gets the one answer, as aura resolves a located
-    // event's target once for all its handlers. Outside a motion, and for a
-    // press, whose activation may restack, it is searched afresh.
+    // Cached for one pointer motion; a press, whose activation may restack, searches afresh.
     compositor::Surface *pointerTargetAt(scene::Node *root, const base::PointF &location,
                                          base::PointF *surfaceLocation);
-    // Brackets the dispatch of one pointer motion.
     void beginPointerMotion();
     void endPointerMotion();
 
     ButtonFlags pressedButtons() const { return m_pressedButtons; }
 
-    // Currently pressed keys, keyed by physical evdev code.
+    // Keyed by physical evdev code.
     const std::map<uint32_t, KeyState> &pressedKeys() const { return m_pressedKeys; }
-
-    // --- Registration, used by Pointer and Keyboard ---
 
     void addPointer(Pointer *pointer);
     void removePointer(Pointer *pointer);
@@ -296,7 +250,6 @@ public:
     void addTouch(Touch *touch);
     void removeTouch(Touch *touch);
 
-    // compositor::SurfaceObserver:
     void onSurfaceDestroying(compositor::Surface *surface) override;
 
 private:
@@ -338,7 +291,6 @@ private:
         uint64_t order = 0;
     };
 
-    // Points a client was given, until they are lifted or cancelled.
     std::map<int32_t, DeliveredTouch> m_touchPoints;
     uint64_t m_touchOrder = 0;
 

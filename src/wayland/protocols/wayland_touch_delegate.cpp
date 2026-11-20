@@ -4,8 +4,6 @@
 //
 // Upstream: chromium/src/components/exo/wayland/wayland_touch_delegate.cc
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: see wayland_touch_delegate.h.
 
 #include "wayland/protocols/wayland_touch_delegate.h"
 

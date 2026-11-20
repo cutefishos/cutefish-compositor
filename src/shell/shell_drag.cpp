@@ -27,11 +27,8 @@ namespace cutefish::shell {
 
 namespace {
 
-// What a drop may read: a few file lists or a picture, not a disk image.
 constexpr size_t kMaxDropData = 16 * 1024 * 1024;
 
-// Writes `data` into `fd` from the main loop, then closes it; a reader that
-// goes away ends it early.
 void writeAsync(int fd, std::string data)
 {
     const int flags = fcntl(fd, F_GETFL);
@@ -73,7 +70,6 @@ void writeAsync(int fd, std::string data)
         close(fd);
 }
 
-// Reads `fd` to its end from the main loop, then hands over what came.
 void readAsync(int fd, std::function<void(std::string data)> done)
 {
     const int flags = fcntl(fd, F_GETFL);
@@ -97,7 +93,6 @@ void readAsync(int fd, std::function<void(std::string data)> done)
                 continue;
             if (count < 0 && errno == EAGAIN)
                 return;
-            // The end, an error, or more than a drop may carry.
             const bool complete = count == 0;
             core::mainLoop()->unwatch(reader->watch);
             close(reader->fd);
@@ -117,7 +112,6 @@ uint32_t lowestAction(uint32_t actions)
     return actions & (~actions + 1);
 }
 
-// The drag icon: the source's bitmap, uploaded like an shm buffer.
 class BitmapBuffer final : public compositor::Buffer
 {
 public:
@@ -143,7 +137,6 @@ private:
 
 } // namespace
 
-// A shell view's drag, as a client's wl_data_source.
 class ShellDrag::DataSource final : public clipboard::DataSource
 {
 public:
@@ -179,7 +172,6 @@ private:
     uint32_t m_action = 0;
 };
 
-// A drag over a shell window, as its views see it.
 class ShellDrag::Offer final : public ui::DropOffer
 {
 public:
@@ -247,7 +239,6 @@ ShellDrag::ShellDrag(Shell *shell)
     m_subscriptions.push_back(
             drag->dropped.connect([this](input::DragOffer *offer) { dropped(offer); }));
     m_subscriptions.push_back(drag->ended.connect([this] {
-        // The icon's content went to the return animation if it slides home.
         m_icon.reset();
         m_iconBuffer.reset();
     }));

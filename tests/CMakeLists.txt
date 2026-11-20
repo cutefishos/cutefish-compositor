@@ -5,15 +5,11 @@ endif()
 pkg_check_modules(WaylandClient REQUIRED IMPORTED_TARGET wayland-client)
 find_program(DBUS_RUN_SESSION dbus-run-session REQUIRED)
 
-# loop_test_util.h: waiting on the main loop in every test.
 add_library(cutefish-test-loop STATIC loop_test_util.cpp)
 target_link_libraries(cutefish-test-loop PUBLIC cutefish-core)
 
 # cutefish_add_test(name [DBUS] libraries...)
-# A GoogleTest binary on gtest_toolkit_main.cpp, whose main loop runs the
-# timers, fd watches, posted tasks and sd-bus connections of the code under
-# test while it waits (loop_test_util.h). DBUS runs it on a private session
-# bus.
+# DBUS runs it on a private session bus.
 function(cutefish_add_test name)
     cmake_parse_arguments(PARSE_ARGV 1 arg "DBUS" "" "")
     add_executable(${name} ${name}.cpp gtest_toolkit_main.cpp)
@@ -80,8 +76,6 @@ cutefish_add_test(drm_hotplug_monitor_test cutefish-backend)
 cutefish_add_test(gpu_boost_policy_test cutefish-backend)
 cutefish_add_test(libseat_session_test cutefish-backend)
 
-# Manual wl_shm client. Not registered with ctest: it needs a running
-# compositor and a screen to look at.
 add_executable(cutefish-shm-demo manual/shm_client.cpp)
 target_link_libraries(cutefish-shm-demo PRIVATE PkgConfig::WaylandClient)
 
@@ -103,8 +97,7 @@ cutefish_add_test(main_menu_protocol_test cutefish-wayland-shell cutefish-waylan
 cutefish_add_test(gtk_shell_protocol_test cutefish-wayland-shell PkgConfig::WaylandClient)
 cutefish_add_test(protocol_binding_test cutefish-wayland-globals PkgConfig::WaylandClient)
 set_tests_properties(protocol_binding_test PROPERTIES TIMEOUT 60)
-# Seeded random request sequences against every global; with clang,
-# -DCUTEFISH_LIBFUZZER=ON builds it for libFuzzer and AddressSanitizer instead.
+# CUTEFISH_LIBFUZZER needs clang.
 option(CUTEFISH_LIBFUZZER "Build protocol_fuzzer for libFuzzer" OFF)
 add_executable(protocol_fuzzer protocol_fuzzer.cpp)
 target_include_directories(protocol_fuzzer PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
@@ -135,23 +128,15 @@ cutefish_add_test(xdg_decoration_protocol_test cutefish-wayland-shell cutefish-w
 add_executable(cutefish-subsurface-demo manual/subsurface_client.cpp)
 target_link_libraries(cutefish-subsurface-demo PRIVATE PkgConfig::WaylandClient)
 
-# Manual xdg-shell demo. --script runs the whole toplevel state machine
-# and exits, which is what the VT harness drives.
 add_executable(cutefish-xdg-demo manual/xdg_client.cpp)
 target_link_libraries(cutefish-xdg-demo PRIVATE PkgConfig::WaylandClient cutefish-protocols)
 
-# Manual xdg-decoration demo. Draws only its client area, so everything
-# around it on screen is the compositor's own frame.
 add_executable(cutefish-decoration-demo manual/decoration_client.cpp)
 target_link_libraries(cutefish-decoration-demo
     PRIVATE PkgConfig::WaylandClient cutefish-protocols)
 
-# Development harness that plays the session's role for the shell: it obtains a
-# privileged Wayland connection from a running compositor and execs a program
-# with it. Not registered with ctest; it needs a compositor and a shell.
 add_executable(cutefish-shell-session-launcher manual/shell_session_launcher.cpp)
 
-# Manual input demo. Needs a running compositor, a screen and a mouse.
 add_executable(cutefish-input-demo manual/input_client.cpp)
 target_link_libraries(cutefish-input-demo PRIVATE PkgConfig::WaylandClient PkgConfig::Xkbcommon)
 target_compile_definitions(subsurface_output_protocol_test PRIVATE
@@ -187,8 +172,6 @@ cutefish_add_test(hot_corner_test cutefish-accelerators)
 cutefish_add_test(cursor_test cutefish-cursor)
 cutefish_add_test(output_cursor_router_test cutefish-cursor)
 
-# DMA-BUF scanout: eligibility, plane assignment, the atomic commit
-# path, explicit synchronization and the hardware cursor.
 cutefish_add_test(overlay_candidate_test cutefish-scene)
 cutefish_add_test(plane_assignment_test cutefish-backend PkgConfig::Libdrm)
 cutefish_add_test(sync_fence_test cutefish-sync cutefish-compositor-core)
@@ -265,7 +248,7 @@ cutefish_add_test(window_visual_pixel_test cutefish-decoration cutefish-render)
 set_tests_properties(window_visual_pixel_test PROPERTIES ENVIRONMENT "LIBGL_ALWAYS_SOFTWARE=1;EGL_PLATFORM=surfaceless")
 add_executable(toolkit-resize-client visuals/toolkit_client.cpp)
 target_link_libraries(toolkit-resize-client PRIVATE Cutefish::Toolkit)
-# DBUS: the GTK clients activate portal and gvfs services on the session bus.
+# The GTK clients activate portal and gvfs services on the session bus.
 cutefish_add_test(window_visual_toolkit_test DBUS cutefish-wayland-input cutefish-wayland-shell
     cutefish-decoration cutefish-render PkgConfig::WaylandClient)
 target_compile_definitions(window_visual_toolkit_test PRIVATE
@@ -318,7 +301,6 @@ cutefish_add_test(shell_test cutefish-shell cutefish-computer-control cutefish-s
 target_sources(shell_test PRIVATE ${PROJECT_SOURCE_DIR}/src/core/computer_control_environment.cpp)
 cutefish_add_test(shell_gpu_pixel_test cutefish-shell cutefish-render)
 set_tests_properties(shell_gpu_pixel_test PROPERTIES ENVIRONMENT "LIBGL_ALWAYS_SOFTWARE=1;EGL_PLATFORM=surfaceless")
-# The shell components' memory, step by step; by hand.
 add_executable(cutefish-shell-memory-bench manual/shell_memory_bench.cpp)
 target_include_directories(cutefish-shell-memory-bench PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(cutefish-shell-memory-bench PRIVATE cutefish-shell-osd cutefish-shell-dock-view
@@ -331,7 +313,6 @@ set_tests_properties(panel_gpu_pixel_test PROPERTIES ENVIRONMENT "LIBGL_ALWAYS_S
 cutefish_add_test(switcher_gpu_pixel_test cutefish-switcher cutefish-render)
 set_tests_properties(switcher_gpu_pixel_test PROPERTIES ENVIRONMENT "LIBGL_ALWAYS_SOFTWARE=1;EGL_PLATFORM=surfaceless")
 cutefish_add_test(auth_ui_test DBUS cutefish-auth)
-# The catalogs, for the lock screen's longest translations.
 target_compile_definitions(auth_ui_test PRIVATE CUTEFISH_PO_DIR="${PROJECT_SOURCE_DIR}/po")
 cutefish_add_test(greetd_backend_test cutefish-auth)
 cutefish_add_test(screen_saver_service_test DBUS cutefish-session)
@@ -362,8 +343,7 @@ target_compile_definitions(input_method_launcher_test PRIVATE
 add_dependencies(input_method_launcher_test input_method_launched_client)
 set_tests_properties(input_method_launcher_test PROPERTIES TIMEOUT 60)
 
-# Sanitizer builds run several times slower than the per-test timeouts above
-# allow for; configure with -DCUTEFISH_TEST_TIMEOUT_SCALE=5 for those.
+# Sanitizer builds need a scale of about 5.
 set(CUTEFISH_TEST_TIMEOUT_SCALE 1 CACHE STRING "Multiplier for every test's TIMEOUT")
 if(NOT CUTEFISH_TEST_TIMEOUT_SCALE EQUAL 1)
     get_directory_property(cutefish_all_tests TESTS)

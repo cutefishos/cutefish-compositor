@@ -5,11 +5,6 @@
 // Upstream: chromium/src/ui/ozone/platform/drm/gpu/hardware_display_controller.cc
 //           (SetCursor, MoveCursor, NextCursorBuffer)
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// The KMS cursor plane and the compositor's fallback to compositing the cursor.
-//
-// Adapted for Cutefish: exercises the corresponding behavior with native
-// compositor test doubles and APIs.
 
 #include <cmath>
 #include <gtest/gtest.h>
@@ -47,7 +42,6 @@ std::vector<uint8_t> opaquePixels(const cutefish::base::Size &size)
     return std::vector<uint8_t>(static_cast<size_t>(size.width()) * size.height() * 4, 0xFF);
 }
 
-// Records what the compositor asked of a cursor plane, and can refuse.
 class RecordingSink final : public render::CursorSink
 {
 public:
@@ -134,7 +128,6 @@ TEST_F(DrmCursorTest, AnImageIsUploadedWithItsHotspot)
     EXPECT_TRUE(cursor->isVisible());
     EXPECT_EQ(m_device->cursorCrtc, kCrtcId);
     EXPECT_NE(m_device->cursorHandle, 0u);
-    // The plane is always the full buffer; the image sits in its top left.
     EXPECT_EQ(m_device->cursorSize, m_device->maxCursor);
     EXPECT_EQ(m_device->cursorHotspot, base::Point(5, 3));
 }
@@ -169,8 +162,6 @@ TEST_F(DrmCursorTest, AnImageChangeRepositionsForTheNewHotspot)
 
 TEST_F(DrmCursorTest, TheFirstImageStaysWhereThePreviousMastersCursorWas)
 {
-    // Not moved yet, the plane keeps the kernel's position, which is where the
-    // outgoing compositor left its cursor, until the pointer places it.
     auto cursor = backend::DrmCursor::create(m_device.get(), kCrtcId);
     ASSERT_TRUE(cursor);
     const cutefish::base::Size size(24, 24);
@@ -211,7 +202,6 @@ TEST_F(DrmCursorTest, TheSameImageAgainLeavesThePlaneAlone)
     EXPECT_TRUE(cursor->setImage(pixels.data(), size, size.width() * 4, base::Point(5, 3)));
     EXPECT_EQ(m_device->setCursorCalls, calls);
 
-    // A new hotspot is a new image.
     EXPECT_TRUE(cursor->setImage(pixels.data(), size, size.width() * 4, base::Point(4, 3)));
     EXPECT_EQ(m_device->setCursorCalls, calls + 1);
 
@@ -221,8 +211,6 @@ TEST_F(DrmCursorTest, TheSameImageAgainLeavesThePlaneAlone)
     EXPECT_TRUE(cursor->isVisible());
 }
 
-// A CRTC without colour properties cannot tint its cursor plane, so the image
-// carries the gains, on the channels as the plane reads them.
 TEST_F(DrmCursorTest, ATintScalesTheColoursThePlaneShows)
 {
     auto cursor = backend::DrmCursor::create(m_device.get(), kCrtcId);
@@ -243,7 +231,6 @@ TEST_F(DrmCursorTest, ATintScalesTheColoursThePlaneShows)
     EXPECT_EQ(m_device->setCursorCalls, 2);
     EXPECT_EQ(shown(), std::vector<uint8_t>({50, 50, 40, 255}));
 
-    // A hidden cursor takes the tint with its next image.
     cursor->hide();
     cursor->setTint({});
     EXPECT_EQ(m_device->setCursorCalls, 3);
@@ -359,7 +346,6 @@ TEST_F(DrmCursorTest, AWaitingDriverTakesOnlyTheNewestImageOnceTheFlipLands)
 
 TEST_F(DrmCursorTest, AWaitingDriverStillShowsAHiddenCursorAtOnce)
 {
-    // Whether the plane takes the image decides between it and compositing.
     m_device->cursorWaits = true;
     auto cursor = backend::DrmCursor::create(m_device.get(), kCrtcId);
     ASSERT_TRUE(cursor);
@@ -391,7 +377,6 @@ TEST_F(DrmCursorTest, OtherDriversMoveTheCursorDuringAFlip)
 
 namespace {
 
-// The compositor cursor, with a sink that can be told to refuse.
 struct CursorFixture {
     CursorFixture()
         : compositor(nullptr)
@@ -451,7 +436,6 @@ TEST(HardwareCursorFallback, MotionOnAHardwareCursorDoesNotTouchTheScene)
 
     fixture.input.warpPointer({100, 90});
 
-    // The whole point of the plane: no repaint, one ioctl.
     EXPECT_TRUE(base::fuzzyCompare(fixture.sink.lastPosition, base::PointF(100, 90)))
             << fixture.sink.lastPosition;
     EXPECT_EQ(fixture.node->position(), before);
@@ -490,7 +474,6 @@ TEST(HardwareCursorFallback, DroppingTheSinkPutsTheCursorBackInTheScene)
     fixture.cursor->setSink(&fixture.sink);
     ASSERT_TRUE(fixture.cursor->isHardware());
 
-    // The output went away, taking its cursor plane with it.
     fixture.cursor->setSink(nullptr);
 
     EXPECT_FALSE(fixture.cursor->isHardware());
@@ -518,15 +501,11 @@ TEST(CursorScaling, EveryScaleUsesThePlaneWithDeviceImageAndHotspot)
     cursor::Cursor cursor(seat, *scene.root(), 24);
     RecordingSink sink;
     cursor.setSink(&sink);
-    // Fractional scales included: the next larger artwork is scaled down onto
-    // the plane, floored as ash does, rather than composited per motion.
     for (double scale : {1.0, 1.25, 1.5, 1.75, 2.0, 1.0}) {
         cursor.setScale(scale);
         seat.updateCursorPosition({300, 200});
         EXPECT_TRUE(cursor.isHardware()) << scale;
         EXPECT_TRUE(sink.visible) << scale;
-        // The sink maps the position onto each output; the image and its
-        // hotspot are already the output's pixels.
         EXPECT_TRUE(base::fuzzyCompare(sink.lastPosition, base::PointF(300, 200))) << sink.lastPosition;
         const auto frames = cursor::load(seat.compositorCursorShape(), 24 * int(std::ceil(scale)));
         ASSERT_FALSE(frames.empty());
@@ -546,9 +525,6 @@ TEST(CursorScaling, EveryScaleUsesThePlaneWithDeviceImageAndHotspot)
     cursor.setSink(nullptr);
 }
 
-// The plane of a 2x output got the position scaled twice, once by the cursor
-// and once by the router's mirror transform: the cursor was drawn at twice its
-// real distance from the corner while clicks landed where the pointer was.
 TEST(CursorScaling, AScaledOutputGetsTheScaleOnce)
 {
     scene::Scene scene;
@@ -566,7 +542,6 @@ TEST(CursorScaling, AScaledOutputGetsTheScaleOnce)
     seat.updateCursorPosition({400.5, 250});
     ASSERT_TRUE(cursor.isHardware());
     EXPECT_TRUE(base::fuzzyCompare(output.lastPosition, base::PointF(801, 500))) << output.lastPosition;
-    // Past the middle of the desktop, where the doubled position left the output.
     seat.updateCursorPosition({1000, 700});
     EXPECT_TRUE(base::fuzzyCompare(output.lastPosition, base::PointF(2000, 1400)))
             << output.lastPosition;
@@ -575,8 +550,6 @@ TEST(CursorScaling, AScaledOutputGetsTheScaleOnce)
 
 namespace {
 
-// The cursor across a session lock: a client cursor surface, a hardware plane,
-// and the session state machine that has to take both away.
 struct LockCursorFixture {
     LockCursorFixture()
         : compositor(surfaces)
@@ -634,7 +607,6 @@ struct LockCursorFixture {
     std::shared_ptr<compositor::ShmPool> pool = testsupport::makePool(1 << 20);
 };
 
-// A pointer that accepts everything; the seat's own gate is what is under test.
 class PermissivePointerDelegate : public input::PointerDelegate
 {
 public:
@@ -677,13 +649,10 @@ TEST(SessionLockCursor, LockingTakesTheClientCursorSurfaceOutOfTheScene)
 
     ASSERT_TRUE(fixture.controller.requestLock());
 
-    // The cursor container is the one place nothing else covers, so a surface
-    // left in it would be drawn over the lock screen.
     EXPECT_NE(fixture.clients, clientCursor->node()->parent());
     EXPECT_EQ(nullptr, pointer.focusedSurface());
     EXPECT_FALSE(fixture.seat.hasClientCursorRequest());
     EXPECT_FALSE(fixture.seat.clientCursorShape().has_value());
-    // And the compositor's own cursor is what is showing instead.
     EXPECT_TRUE(fixture.node->isVisible());
 }
 
@@ -699,16 +668,12 @@ TEST(SessionLockCursor, LockingReprogramsTheHardwareCursorPlane)
     window->setPosition({100, 100});
     fixture.seat.onPointerMotion(input::Timestamp(std::chrono::milliseconds(1)), base::PointF(150, 150));
     ASSERT_EQ(window, pointer.focusedSurface());
-    // A client cursor composites through the seat's container, so the plane
-    // gives the cursor back and the session's image is what is on screen.
     compositor::Surface *clientCursor = fixture.makeSurface({16, 16});
     pointer.setCursor(clientCursor, base::Point(2, 2));
     const int uploadsBefore = fixture.sink.setImageCalls;
 
     ASSERT_TRUE(fixture.controller.requestLock());
 
-    // The plane keeps whatever it was last handed, so locking has to reprogram
-    // it rather than assume the image it wants is already there.
     EXPECT_GT(fixture.sink.setImageCalls, uploadsBefore);
     EXPECT_TRUE(fixture.sink.visible);
     EXPECT_TRUE(fixture.cursor->isHardware());
@@ -721,8 +686,6 @@ TEST(SessionLockCursor, WakingWithARefusingPlaneStillLeavesNoSessionCursor)
     ASSERT_TRUE(fixture.cursor->isHardware());
 
     ASSERT_TRUE(fixture.controller.requestLock());
-    // The plane refuses the new image - a wake where the driver has dropped the
-    // cursor buffer, say. It must be hidden, not left showing the old one.
     fixture.sink.accept = false;
     fixture.cursor->refresh();
 

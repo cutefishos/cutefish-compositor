@@ -5,10 +5,6 @@
 // Upstream: chromium/src/ui/ozone/platform/drm/gpu/gbm_pixmap.h
 //           (GbmPixmap::framebuffer(), the framebuffer cached on the buffer)
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: instead of a GbmPixmap holding one DrmFramebuffer, the
-// import slot is keyed by device and opaque, so nothing above the backend has
-// to know that DRM exists.
 
 #ifndef CUTEFISH_RENDER_SCANOUT_H_
 #define CUTEFISH_RENDER_SCANOUT_H_
@@ -22,17 +18,12 @@
 
 namespace cutefish::render {
 
-// Buffer storage a display controller may be able to scan out directly.
-//
-// Implemented by DmaBufBuffer. The same buffer is also what the renderer
-// samples, so importing it for scanout must not disturb the EGLImage import or
-// the plane fds either import holds.
+// Importing for scanout must not disturb the renderer's EGLImage import or the
+// plane fds either import holds.
 class ScanoutBuffer
 {
 public:
-    // A device-side import of this buffer, normally a DRM framebuffer. Cached
-    // on the buffer so a client buffer is imported once rather than once per
-    // frame, and torn down with the buffer that describes it.
+    // Cached on the buffer and torn down with it.
     class Import
     {
     public:
@@ -44,8 +35,7 @@ public:
     // The DMA-BUF description, plane fds included.
     virtual const DmaBufAttributes& scanoutAttributes() const = 0;
 
-    // The import `device` previously cached here, or nullptr. `device` is any
-    // stable pointer identifying the importer.
+    // Null if none; `device` is any stable pointer identifying the importer.
     Import* scanoutImport(const void* device) const
     {
         for (const auto& entry : m_imports) {
@@ -55,9 +45,7 @@ public:
         return nullptr;
     }
 
-    // Caches `import` for `device`, replacing any previous one. A null import
-    // records that the device could not import this buffer, which stops the
-    // scanout path retrying it every frame.
+    // A null import records that the device could not import this buffer.
     Import* setScanoutImport(const void* device, std::unique_ptr<Import> import)
     {
         Import* raw = import.get();
@@ -71,7 +59,6 @@ public:
         return raw;
     }
 
-    // Whether `device` has already tried and failed to import this buffer.
     bool scanoutImportFailed(const void* device) const
     {
         for (const auto& entry : m_imports) {
@@ -81,10 +68,7 @@ public:
         return false;
     }
 
-    // The display controller took a reference for KMS scanout, and gave it up
-    // again once the buffer had left every plane. Releasing the client's
-    // storage waits for the matching release, which is what stops a buffer
-    // still on screen from being handed back to the client.
+    // Releasing the client's storage waits for the matching release.
     virtual void onScanoutAcquired() { }
     virtual void onScanoutReleased(SyncFence fence) { (void)fence; }
 

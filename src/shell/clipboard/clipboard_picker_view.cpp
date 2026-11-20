@@ -25,23 +25,19 @@ using cutefish::i18n::tr;
 
 namespace cutefish::shell {
 
-// The row thumbnails' sourceSize: twice the icon, whatever the scale.
+// Twice the icon, whatever the scale.
 static constexpr int kThumbnailPixels = ClipboardPickerView::kIconSize * 2;
 
-// The picker's surface colour, under the hairlines' ink and the
-// confirmation's plate.
 static ui::Color surfaceColor()
 {
     return ui::color(toolkit::CompositorColor::ClipboardSurface);
 }
 
-// Ink.on(surfaceColor, 0.1): the surfaces are dark in dark mode only.
 static ui::Color hairlineColor()
 {
     return ui::color(toolkit::CompositorColor::ClipboardHairline);
 }
 
-// The largest size of the same aspect ratio that fits in the box.
 static ui::SizeF fitted(double width, double height, double boxWidth, double boxHeight)
 {
     if (width <= 0 || height <= 0)
@@ -50,8 +46,7 @@ static ui::SizeF fitted(double width, double height, double boxWidth, double box
     return {width * ratio, height * ratio};
 }
 
-// The entry's picture, read and decoded on a worker; shrunk to fit `box`
-// (device pixels) when larger, keeping its aspect ratio.
+// On a worker; `box` is in device pixels.
 static ui::Bitmap decodePicture(const std::string &bodyPath, base::Size box)
 {
     std::string bytes;
@@ -84,8 +79,6 @@ bool ClipboardFilterField::keyPress(const ui::KeyEvent &event)
 
 namespace {
 
-// One row of the list: the selection plate, a picture's thumbnail or a
-// file's icon, and the title.
 class PickerRow : public ui::View
 {
 public:
@@ -133,8 +126,7 @@ public:
 
         m_fileIcon->setVisible(m_kind == ClipboardEntry::Kind::Files);
         if (m_kind == ClipboardEntry::Kind::Files) {
-            // The full-colour icon, as the file manager's rows (themeSize: 96);
-            // the small sizes are monochrome glyphs.
+            // The small sizes are monochrome glyphs.
             const double scale = window() ? window()->scale() : 1;
             std::string path = ui::themeIconPath(model.iconName(row), 96, scale);
             if (path.empty())
@@ -162,7 +154,6 @@ protected:
         m_thumbnail->setGeometry({left + (size - fit.width) / 2, iconY + (size - fit.height) / 2, fit.width,
                                   fit.height});
         m_fileIcon->setGeometry({left, iconY, size, size});
-        // A Row with 8 between the icon and the title.
         const double textLeft = m_kind == ClipboardEntry::Kind::Text ? left : left + size + 8;
         m_title->setGeometry({textLeft, 0, std::max(0.0, width - (textLeft - left)), geometry().height});
     }
@@ -209,8 +200,6 @@ private:
 
 } // namespace
 
-// Shift+Delete asks first, inside the card: a plate over everything that
-// swallows the pointer, a question and two buttons.
 class ClipboardPickerView::Overlay : public ui::View
 {
 public:
@@ -252,8 +241,6 @@ public:
 protected:
     void layout() override
     {
-        // A Column of spacing 16 centred in the card: the question over a
-        // Row of the buttons, spacing 12, each centred horizontally.
         const ui::SizeF question = m_question->sizeHint();
         const ui::SizeF cancel = m_cancel->sizeHint();
         const ui::SizeF clear = m_clear->sizeHint();
@@ -305,7 +292,6 @@ ClipboardPickerView::ClipboardPickerView(ClipboardHistory &history)
     , m_empty(addChild<ui::Label>())
     , m_overlay(addChild<Overlay>(this))
 {
-    // The whole header row is the field, for the pointer too.
     m_filter->setFrameVisible(false);
     m_filter->setTextMargins(kPadding, kPadding);
     m_filter->setPlaceholder(tr("Search Clipboard"));
@@ -372,8 +358,6 @@ void ClipboardPickerView::reset()
     m_overlay->updateFont();
 
     setConfirmingClear(false);
-    // Through onTextChanged: the filter goes, the first row is selected and
-    // the list is at its top.
     if (!m_filter->text().empty())
         m_filter->setText({});
     m_history.model().setFilterText({});
@@ -509,7 +493,6 @@ void ClipboardPickerView::removeCurrent()
 
 void ClipboardPickerView::modelChanged()
 {
-    // Thumbnails of entries the history dropped go with them.
     const auto dropped = [this](const std::string &key) { return m_history.store().indexOf(key) < 0; };
     std::erase_if(m_thumbnails, [&dropped](const auto &item) { return dropped(item.first); });
     std::erase_if(m_thumbnailJobs, [&dropped](const auto &item) { return dropped(item.first); });
@@ -550,7 +533,7 @@ void ClipboardPickerView::updatePreview()
     m_previewKey = entry->key;
     m_previewScale = scale;
     m_previewImage->setVisible(false);
-    // sourceSize: the pane in device pixels.
+    // The pane in device pixels.
     const base::Size box(int(std::lround(m_preview->geometry().width * scale)),
                          int(std::lround(m_preview->geometry().height * scale)));
     const std::string path = m_history.store().bodyPath(entry->key);
@@ -571,18 +554,15 @@ void ClipboardPickerView::layout()
     const double height = geometry().height;
     m_filter->setGeometry({double(kPadding), double(kPadding), width - 2 * kPadding, double(kHeaderHeight)});
 
-    // The body below the divider, one padding in.
     const double bodyX = kPadding;
     const double bodyY = kPadding + kHeaderHeight + 1 + kPadding;
     const double bodyWidth = width - 2 * kPadding;
     const double bodyHeight = height - bodyY - kPadding;
-    // The list and the preview each keep one padding from the separator.
     const double listWidth = std::floor((bodyWidth - 1) / 2) - kPadding;
     m_list->setGeometry({bodyX, bodyY, listWidth, bodyHeight});
     const double previewX = listWidth + kPadding + 1 + kPadding;
     m_preview->setGeometry({bodyX + previewX, bodyY, bodyWidth - previewX, bodyHeight});
 
-    // The first line on the first row's centre line, as many lines as fit.
     const double fontHeight = m_previewText->ascent() + m_previewText->descent();
     const double topPadding = std::max(0.0, std::round((kRowHeight - fontHeight) / 2));
     const double lineHeight = m_previewText->sizeHint().height;
@@ -590,7 +570,6 @@ void ClipboardPickerView::layout()
     m_previewText->setMaximumLineCount(lines);
     m_previewText->setGeometry({0, topPadding, bodyWidth - previewX, bodyHeight - topPadding});
 
-    // Fitted to the pane and on its top, centred across.
     const ui::SizeF fit = fitted(m_previewBitmapSize.width, m_previewBitmapSize.height, bodyWidth - previewX,
                                  bodyHeight);
     m_previewImage->setGeometry({(bodyWidth - previewX - fit.width) / 2, 0, fit.width, fit.height});
@@ -605,8 +584,6 @@ void ClipboardPickerView::paint(ui::Painter &painter)
         onPainted();
     const double width = geometry().width;
     const ui::Color ink = hairlineColor();
-    // The divider under the header and the separator between the panes, as
-    // FishUI.RoundedRectangles one logical pixel thick.
     painter.drawRoundedRect({double(kPadding), double(kPadding + kHeaderHeight), width - 2 * kPadding, 1}, {}, ink);
     const double bodyY = kPadding + kHeaderHeight + 1 + kPadding;
     const double listWidth = std::floor((width - 2 * kPadding - 1) / 2) - kPadding;

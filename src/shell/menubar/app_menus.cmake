@@ -1,5 +1,3 @@
-# The menu bar's app menus: the user's menu, the active application's
-# name and its exported menus, and the desktop's menus.
 find_package(CutefishClients REQUIRED COMPONENTS accounts)
 
 add_library(cutefish-shell-app-menus STATIC

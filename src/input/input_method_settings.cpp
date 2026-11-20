@@ -176,8 +176,6 @@ std::vector<std::string> parseDesktopExec(const std::string &exec)
     return command;
 }
 
-// The desktop files under `directory`, sorted, skipping hidden entries and
-// not following links to directories.
 static std::vector<std::string> desktopFiles(const std::string &directory)
 {
     namespace fs = std::filesystem;

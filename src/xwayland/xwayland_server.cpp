@@ -158,9 +158,6 @@ bool XwaylandServer::start(const Options& options)
     return true;
 }
 
-// The X server's own display reservation: a lock file naming a live process,
-// and a filesystem and an abstract socket, both handed to Xwayland with
-// -listenfd once a client arrives.
 bool XwaylandServer::openSockets()
 {
     struct stat directory {};
@@ -445,7 +442,6 @@ void XwaylandServer::reap()
         deferFailure("Xwayland exited");
 }
 
-// SIGTERM, 100 ms for it to work, then SIGKILL and a wait for the end.
 void XwaylandServer::stopProcess()
 {
     if (m_pidWatch)
@@ -511,8 +507,6 @@ void XwaylandServer::readDisplay()
     publish();
 }
 
-// Written to a file of its own and renamed over the target, readable by the
-// user alone.
 bool XwaylandServer::writeReadiness()
 {
     if (m_readinessFile.empty())
@@ -576,7 +570,6 @@ void XwaylandServer::fail(const std::string& error)
     if (m_published && mayRestart()) {
         CF_WARNING(logs()) << "Xwayland lost:" << error << "- restarting";
         teardown(true);
-        // A lazy server waits for the next client again.
         if (m_options.lazy)
             arm();
         else

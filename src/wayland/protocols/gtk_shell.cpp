@@ -81,8 +81,7 @@ void setDBusProperties(wl_client*, wl_resource* resource, const char*, const cha
                                                            applicationPath, busName);
 }
 
-// The menus are all the global is for; GTK does without the rest, as it does
-// on a compositor that offers no gtk_shell1.
+// GTK does without the rest, as it does on a compositor that offers no gtk_shell1.
 void setModal(wl_client*, wl_resource*) {}
 void unsetModal(wl_client*, wl_resource*) {}
 void present(wl_client*, wl_resource*, uint32_t) {}

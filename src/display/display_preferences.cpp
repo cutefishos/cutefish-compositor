@@ -4,9 +4,6 @@
 //
 // Upstream: chromium/src/ash/display/display_prefs.cc
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: an atomic file write and stable monitor keys replace Chrome's
-// preference service while preserving confirmed-only persistence.
 
 #include "display/display_preferences.h"
 #include "display/recommended_scale.h"
@@ -41,7 +38,7 @@ void fail(DisplayError *error, DisplayErrorCode code, const std::string &message
         *error = {code, message, {}};
 }
 
-// A whole number in int's range, else the fallback, as the file has always been read.
+// A whole number in int's range, else the fallback.
 int intValue(const Value &value, int fallback = 0)
 {
     if (!value.isNumber())
@@ -152,7 +149,7 @@ std::string joined(std::vector<std::string> keys)
     return result;
 }
 
-// The member as an object; an empty one when it is missing or of another type.
+// An empty object when it is missing or of another type.
 Value objectMember(const Value &object, std::string_view key)
 {
     const Value &member = object[key];

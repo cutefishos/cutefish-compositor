@@ -23,21 +23,15 @@ namespace cutefish::shell {
 class DBusMenu;
 class TaskManager;
 
-// One tray item: an org.kde.StatusNotifierItem read with one GetAll after
-// each of its change signals, its pictures decoded on a worker.
 class StatusNotifierItem
 {
 public:
-    // Past these, a picture is not decoded.
     static constexpr int kMaxPixmapSide = 4096;
     static constexpr size_t kMaxPixmaps = 16;
 
-    // Whether the icon theme, or the item's own IconThemePath, has an icon of
-    // that name, the path searched last as a fallback.
     using IconExists = std::function<bool(const std::string &name, const std::string &themePath)>;
 
-    // `id` is "service/path". `tasks` may be null: then an item without an
-    // icon of its own has none.
+    // `id` is "service/path"; `tasks` may be null.
     StatusNotifierItem(base::dbus::Connection *bus, std::string id, TaskManager *tasks, IconExists iconExists);
     ~StatusNotifierItem();
 
@@ -46,37 +40,27 @@ public:
 
     const std::string &id() const { return m_id; }
     const std::string &title() const { return m_title; }
-    // The tooltip's title.
     const std::string &toolTip() const { return m_toolTip; }
-    // An icon that exists: IconName, else Id, each as an absolute path to the
-    // file in IconThemePath, else as a theme name as given or as its -symbolic
-    // variant. A theme name is kept, so a new icon theme applies.
+    // A theme name is kept, so a new icon theme applies.
     const std::string &iconName() const { return m_iconName; }
     const std::string &iconThemePath() const { return m_iconThemePath; }
-    // IconPixmap, one per size; empty while decoding or when there are none.
+    // Empty while decoding or when there are none.
     const std::vector<ui::Bitmap> &pixmaps() const { return m_pixmaps; }
-    // The icon of the application's desktop entry, for an item that shows no
-    // usable icon of its own: a theme name or an absolute path.
     const std::string &applicationIcon() const { return m_applicationIcon; }
 
-    // ItemIsMenu: the item only has a menu, which a left click shows too.
     bool itemIsMenu() const { return m_itemIsMenu; }
-    // Status is Passive: the item asks not to be shown (update-notifier
-    // registers its icons and shows them this way), as the protocol says.
     bool isPassive() const { return m_passive; }
 
-    // The exported menu, or null when the item has none; then
-    // requestContextMenu() asks the item to show its own.
+    // Null when the item has none; then requestContextMenu() asks the item to
+    // show its own.
     DBusMenu *menu() const { return m_menu.get(); }
 
-    // The position is the item's, in logical global coordinates: only a hint
-    // for where the application puts its window.
+    // Logical global coordinates, only a hint for the application.
     void activate(int x, int y);
     void secondaryActivate(int x, int y);
     void scroll(int delta, const std::string &orientation);
     void requestContextMenu(int x, int y);
 
-    // Reads the item again, shortly.
     void refresh();
 
     base::Signal<> changed;

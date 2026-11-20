@@ -33,14 +33,11 @@ class CaptureTooltip;
 class ScreenCapture;
 class Shell;
 
-// A glyph or a label on the capture toolbar; a
-// checked one is the current mode.
 class ToolbarButton : public ui::View
 {
 public:
-    // A glyph: the artwork's file, `iconSize` square.
     ToolbarButton(std::string icon, int iconSize, std::string tip);
-    // A label, or with `accent` the filled button that does the capture.
+    // With `accent`, the filled button that does the capture.
     explicit ToolbarButton(std::string text, bool accent = false);
     ~ToolbarButton() override;
 
@@ -51,7 +48,6 @@ public:
     void setTip(std::string tip);
     bool isPressed() const { return m_pressed; }
     bool isPointerOver() const { return m_hovered; }
-    // Options: a label and a chevron instead of the button's own label.
     void setChevron(bool chevron);
 
     ui::SizeF sizeHint() const override;
@@ -60,7 +56,6 @@ public:
     // The press began while the Options menu was up.
     std::function<void()> onPressed;
     std::function<void(uint32_t modifiers)> onClicked;
-    // Hover or a press changed: the tooltip follows.
     std::function<void()> onStateChanged;
 
 protected:
@@ -87,13 +82,9 @@ private:
     ui::Label *m_label = nullptr;
 };
 
-// The capture toolbar: Close, the three ways to take
-// a picture, the three ways to record, Options and the button that does it,
-// on the compositor's glass. Dragged by its background.
 class CaptureToolbar : public ui::View
 {
 public:
-    // DragHandler's threshold, the platform's start drag distance.
     static constexpr double kDragThreshold = 10;
 
     CaptureToolbar(CaptureOverlay *overlay, ScreenCapture *capture, Shell *shell);
@@ -101,21 +92,16 @@ public:
 
     double radius() const;
     ui::SizeF implicitSize() const;
-    // The modes, the recording state and the labels from the capture.
     void update();
-    // A drag of the toolbar, or one on the overlay crossing it: no tooltip.
     bool isDragging() const { return m_dragActive || m_selecting; }
     void setSelecting(bool selecting);
     bool isOptionsOpen() const;
     void closeOptions();
-    // A press anywhere on the overlay, before it is delivered: the Options
-    // menu closes on any press outside it.
+    // Before the press is delivered: the Options menu closes on any press outside it.
     void pressedOutsideMenu();
     void hideTooltip();
-    // Closes the menu and destroys the tooltip's popup, while the overlay's
-    // window they hang from is still there.
+    // While the overlay's window they hang from is still there.
     void releasePopups();
-    // Hides the tooltip when the toolbar does.
     void visibilityChanged();
 
     ToolbarButton *closeButton() const { return m_buttons.front(); }
@@ -126,9 +112,8 @@ public:
     CaptureTooltip *tooltip() const { return m_tooltip.get(); }
     void openOptions();
 
-    // The toolbar was dragged; its rect in the overlay's coordinates.
+    // Its rect is in the overlay's coordinates.
     std::function<void()> onMoved;
-    // The Options menu opened or closed.
     std::function<void()> onOptionsChanged;
 
     bool acceptsPointer() const override { return true; }
@@ -167,10 +152,6 @@ private:
     ui::PointF m_pressPosition;
 };
 
-// The toolbar's tooltip, the dock's bubble: a popup of the overlay of its
-// own size that the next button moves, transparent for input. Up as soon as
-// the pointer is on a button; leaving hides it 150 ms later unless another
-// button takes it.
 class CaptureTooltip
 {
 public:
@@ -182,18 +163,16 @@ public:
     void showFor(ToolbarButton *button);
     void leave(ToolbarButton *button);
     void hideNow();
-    // After a drag: the button under the pointer gets its tooltip.
     void draggingChanged();
-    // Shown, hidden or moved with the toolbar, the Options menu.
     void refresh();
-    // Gone for good, before the overlay's window.
+    // Before the overlay's window.
     void release();
 
     bool isShown() const;
     const std::string &text() const { return m_text; }
     ui::Window *window() const { return m_window.get(); }
     ui::Label *label() const { return m_label; }
-    // The bubble's body in the popup, without the arrow.
+    // Without the arrow.
     const ui::RectF &bodyRect() const { return m_body; }
 
 private:

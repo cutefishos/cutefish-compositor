@@ -14,7 +14,6 @@
 
 namespace cutefish::test {
 
-// A directory under /tmp, removed with everything in it when this goes.
 class TemporaryDirectory : public base::file::TemporaryDirectory
 {
 public:

@@ -178,7 +178,7 @@ void Node::setVisible(bool visible)
 {
     if (m_visible == visible)
         return;
-    notifyChanged(); // Repaint the old coverage when hiding.
+    notifyChanged();
     m_visible = visible;
     if (visible)
         notifyChanged();
@@ -340,7 +340,6 @@ void ColorNode::paint(render::Renderer &renderer, const base::Rect &absoluteGeom
         return;
     render::Color color = m_color;
     if (renderer.overwriteOpaque && m_color.a >= 1) {
-        // Darkened in place, still opaque: nothing under it is blended in.
         color.r *= renderer.opacityScale;
         color.g *= renderer.opacityScale;
         color.b *= renderer.opacityScale;

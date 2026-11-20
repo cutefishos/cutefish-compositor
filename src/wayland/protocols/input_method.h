@@ -18,10 +18,7 @@ namespace cutefish::wayland {
 struct WaylandSeat;
 class InputMethodRelay;
 
-// Where a candidate popup of `size` goes for the text cursor `caret`, both in
-// output coordinates: below the caret, above it when only there it fits, and
-// kept inside `area`. Upstream: views::BubbleFrameView's
-// adjust_if_offscreen, mirroring the arrow and then clamping to the work area.
+// Both in output coordinates: below the caret, above it when only there it fits, kept inside `area`.
 base::Point inputPopupPosition(const base::Rect &caret, const base::Size &size,
                                const base::Rect &area);
 
@@ -42,29 +39,23 @@ public:
     // Releases the globals; must run before the display is destroyed.
     void shutdown();
 
-    // The work area a candidate popup stays inside, for a text cursor in output
-    // coordinates. Unset, popups only follow the cursor.
+    // For a text cursor in output coordinates. Unset, popups only follow the cursor.
     void setPlacementArea(std::function<base::Rect(const base::Rect &caret)> area);
 
     // Restricts input-method and virtual-keyboard binds; unset allows every client.
     void setAuthorizer(std::function<bool(const wl_client *)> authorizer);
 
-    // Other clients that may bind virtual keyboards, whose keys type into the
-    // focused window as if pressed on a keyboard: past the compositor's
-    // shortcuts, not while the session is locked. Unset allows none.
+    // Other clients that may bind virtual keyboards, past the compositor's shortcuts but not while
+    // locked. Unset allows none.
     void setTypists(std::function<bool(const wl_client *)> typists);
 
-    // What text inputs of the compositor's own register with.
     InputMethodRelay *relay() const;
 
-    // A text field of the keyboard-focused client is enabled.
     bool hasFocusedTextInput() const;
 
-    // The input method takes the keys typed into that field, to compose.
     bool grabsKeyboard() const;
 
-    // Commits UTF-8 text to that field as an input method would, keeping the
-    // input method's preedit. False, and nothing sent, without one.
+    // False, and nothing sent, without an enabled text field.
     bool commitText(const std::string &text);
 
     wl_global *textInputGlobal() const;

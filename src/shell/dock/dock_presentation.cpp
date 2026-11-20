@@ -14,7 +14,6 @@ namespace {
 
 bool fuzzyEqual(double a, double b)
 {
-    // qFuzzyCompare(1 + a, 1 + b)
     return std::abs((1 + a) - (1 + b)) * 1e12 <= std::min(std::abs(1 + a), std::abs(1 + b));
 }
 
@@ -64,13 +63,11 @@ void DockPresentation::setKeys(const std::vector<std::string> &keys)
     std::map<std::string, int> rows;
     for (int row = 0; row < int(keys.size()); ++row)
         rows[keys[size_t(row)]] = row;
-    // Rows gone from the source leave.
     for (Entry &entry : m_entries) {
         const auto it = rows.find(entry.key);
         entry.row = it != rows.end() && !entry.leaving ? it->second : -1;
     }
     m_rowCount = int(keys.size());
-    // A change of rows outside a drag takes the gap a drop left open.
     if (!m_dragging)
         m_placeholder = -1;
     std::vector<bool> known(keys.size(), false);
@@ -78,7 +75,6 @@ void DockPresentation::setKeys(const std::vector<std::string> &keys)
         if (entry.row >= 0)
             known[size_t(entry.row)] = true;
     }
-    // New rows, each run spreading from where it starts.
     for (int row = 0; row < m_rowCount; ++row) {
         if (known[size_t(row)])
             continue;
@@ -156,7 +152,6 @@ void DockPresentation::endDrag()
         return;
     const std::string source = m_dragKey;
     const bool removed = m_removeDragSource;
-    // The gap the drop held open, which the dropped icon may now fill.
     const double gapSlot = m_placeholder;
     const double gapGaps = !m_placeholderPinned && m_sectionRow >= 0 ? 1 : 0;
     m_dragging = false;
@@ -167,8 +162,6 @@ void DockPresentation::endDrag()
         if (entry.row < 0)
             continue;
         if (entry.dropped || (removed && entry.key == source)) {
-            // Whole in a gap already open, taking over from the drag image; into a gap
-            // still opening, or its own slot again, it is revealed as a new icon is.
             snapToSlot(entry);
             const bool landsInGap = gapSlot >= 0 && slotIndex(entry.row) == gapSlot
                     && slotGaps(entry.row) == gapGaps;
@@ -215,8 +208,6 @@ void DockPresentation::snapToSlot(Entry &entry)
 
 bool DockPresentation::settledForDrop(const std::string &landing) const
 {
-    // Everything drawn is within half a gap of where the drop leaves it, so the
-    // dropped icon fits its slot whole. After endDrag's reset: the drop's targets.
     const double clear = (pitch() - m_itemSize) / 2;
     const auto near = [clear](double value, double target) { return std::abs(value - target) <= clear; };
     if (m_sectionRow >= 0 && !near(m_sectionCells.value * pitch(), m_sectionRow * pitch()))
@@ -224,7 +215,6 @@ bool DockPresentation::settledForDrop(const std::string &landing) const
     if (!near(length(), m_rowCount * pitch() + (m_sectionRow >= 0 ? sectionExtent() : 0)))
         return false;
     return std::all_of(m_entries.begin(), m_entries.end(), [&](const Entry &entry) {
-        // What is not drawn cannot be in the way: leaving, hidden, or the landing icon.
         if (entry.row < 0 || entry.leaving || entry.appearance.value == 0 || entry.dropped
             || entry.key == landing)
             return true;
@@ -360,7 +350,6 @@ void DockPresentation::tick(uint64_t frameTimeNs)
         tweens.push_back(&entry.gaps);
         tweens.push_back(&entry.appearance);
     }
-    // Drawn as one frame in, wherever within the frame the change arrived.
     for (Tween *tween : tweens) {
         if (tween->pending) {
             tween->pending = false;

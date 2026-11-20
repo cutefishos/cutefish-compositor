@@ -4,9 +4,6 @@
 //
 // Upstream: chromium/src/components/exo/wayland/wayland_keyboard_delegate.h
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: integrates the upstream behavior with native
-// compositor types and ownership.
 
 #ifndef CUTEFISH_WAYLAND_PROTOCOLS_WAYLAND_KEYBOARD_DELEGATE_H_
 #define CUTEFISH_WAYLAND_PROTOCOLS_WAYLAND_KEYBOARD_DELEGATE_H_
@@ -20,8 +17,6 @@ namespace cutefish::wayland {
 
 class SerialTracker;
 
-// Keyboard delegate that accepts events for surfaces owned by the same client
-// as the wl_keyboard resource.
 class WaylandKeyboardDelegate : public input::KeyboardDelegate
 {
 public:
@@ -31,7 +26,6 @@ public:
     WaylandKeyboardDelegate& operator=(const WaylandKeyboardDelegate&) = delete;
     ~WaylandKeyboardDelegate() override;
 
-    // input::KeyboardDelegate:
     bool canAcceptKeyboardEventsForSurface(compositor::Surface* surface) const override;
     void onKeyboardEnter(compositor::Surface* surface,
                          const PressedKeys& pressedKeys) override;
@@ -55,8 +49,7 @@ private:
     input::KeyboardModifiers m_currentModifiers;
 };
 
-// Converts a repeat interval to the rate in Hz that wl_keyboard.repeat_info
-// carries. Exposed for testing.
+// The rate in Hz that wl_keyboard.repeat_info carries.
 int32_t waylandRepeatRate(bool enabled, std::chrono::milliseconds interval);
 
 } // namespace cutefish::wayland

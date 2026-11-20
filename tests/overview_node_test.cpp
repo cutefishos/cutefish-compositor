@@ -2,10 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// The overview node's progress - the tween, the fingers, the ends and
-// the hand-offs between them - on a fake frame clock, and where it draws the
-// windows it moves.
-
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
@@ -104,7 +100,6 @@ struct Fixture {
         window->setGeometry(kWindow);
         window->addChild(std::make_unique<scene::ColorNode>(render::Color {1, 0, 0, 1}))
                 ->setGeometry(base::Rect(base::Point(), kWindow.size()));
-        // Already open: no animation of its own.
         window->finish();
         node->setGeometry(kViewport);
         node->setBackdrop({desktop});
@@ -161,7 +156,6 @@ TEST(OverviewNode, AtZeroItCoversNothingAndDrawsNothing)
     EXPECT_EQ(scene::Node::Content::None, f.node->content());
     EXPECT_FALSE(f.node->occludesOutput(f.renderer));
     f.paint();
-    // The desk as it is: the desktop and the window, each drawn once.
     const auto kinds = f.renderer.kinds();
     EXPECT_EQ(2, std::count(kinds.begin(), kinds.end(), "fill"));
 }
@@ -181,21 +175,17 @@ TEST(OverviewNode, TheShortcutSetsOffAtOnceAndLandsOnTime)
         EXPECT_GE(progress, last);
         EXPECT_LE(progress, 1);
         last = progress;
-        // From rest it gets going at once with no jump: the first frame
-        // covers under 1%, an eighth of the time over a tenth of the way.
         if (f.now - start == 4)
             EXPECT_LT(progress, 0.01);
         if (f.now - start == 32)
             EXPECT_GT(progress, 0.1);
     }
-    // No tail creeping in after its time.
     EXPECT_EQ(1, last);
     f.paint();
     EXPECT_EQ(std::vector<double>({1}), f.finished);
     EXPECT_TRUE(f.node->isSettled());
     EXPECT_EQ(1, f.node->target());
 
-    // And back, to the desk as it was, where it covers nothing again.
     f.node->animateTo(0);
     f.settle();
     EXPECT_EQ(std::vector<double>({1, 0}), f.finished);
@@ -215,7 +205,6 @@ TEST(OverviewNode, TheWindowIsDrawnScaledOntoItsPlace)
     Fixture f;
     f.node->jumpTo(1);
     f.paint();
-    // The window's texture holds its shadow margins, scaled along with it.
     const double scale = kPlace.width() / kWindow.width();
     const base::RectF coverage = base::RectF(kWindow).adjusted(-64, -64, 64, 64);
     const base::RectF expected(kPlace.topLeft() + (coverage.topLeft() - kWindow.topLeft()) * scale,
@@ -226,10 +215,7 @@ TEST(OverviewNode, TheWindowIsDrawnScaledOntoItsPlace)
                                     });
     ASSERT_NE(f.renderer.calls.end(), drawn);
     EXPECT_EQ(expected, drawn->target);
-    // Half its size, it is sampled through mipmaps.
     EXPECT_EQ(1, f.renderer.trilinear.size());
-    // The desktop covers the output: darkened in place, first, with no clear
-    // before it and no dim pass over it.
     ASSERT_GE(f.renderer.calls.size(), 2);
     EXPECT_EQ("fill", f.renderer.calls[0].kind);
     EXPECT_FLOAT_EQ(1 - Node::kDimOpacity, f.renderer.calls[0].color.b);
@@ -263,11 +249,9 @@ TEST(OverviewNode, TheFingersMoveItAndStopAtTheEnds)
         f.now += 10;
         f.node->updateTracking(0.1, double(f.now));
     }
-    // Shown where the fingers were a resampling latency ago.
     const double shown = f.node->progress(double(f.now) + Track::kResampleLatencyMs);
     EXPECT_NEAR(0.5, shown, 1e-9);
 
-    // Far past the end, it stays at the end, and turning back moves it at once.
     for (int step = 0; step < 20; ++step) {
         f.now += 10;
         f.node->updateTracking(0.1, double(f.now));
@@ -287,13 +271,11 @@ TEST(OverviewNode, AHeldReleaseGoesToTheNearerEndAndAFlickGoesOn)
         Fixture f;
         f.node->startTracking();
         if (flick) {
-            // A third of the way, fast.
             for (int step = 0; step < 4; ++step) {
                 f.now += 8;
                 f.node->updateTracking(0.3 / 4, double(f.now));
             }
         } else {
-            // Past half way, then back to a third and held there.
             for (int step = 0; step < 6; ++step) {
                 f.now += 8;
                 f.node->updateTracking(0.1, double(f.now));
@@ -314,7 +296,6 @@ TEST(OverviewNode, ReleasedItCarriesOnAtTheFingersSpeed)
 {
     Fixture f;
     f.node->startTracking();
-    // Past half way slower than a flick: 0.4 a second towards the nearer end.
     for (int step = 0; step < 150; ++step) {
         f.now += 10;
         f.node->updateTracking(0.004, double(f.now));
@@ -323,7 +304,6 @@ TEST(OverviewNode, ReleasedItCarriesOnAtTheFingersSpeed)
     const double now = double(f.now);
     const double speed = (f.node->progress(now + 0.01) - f.node->progress(now)) * 100000;
     EXPECT_NEAR(0.4, speed, 0.02);
-    // On the quick curve: the rest of the way within the shorter time.
     f.now += int64_t(Node::kTransitionDurationMs);
     f.paint();
     EXPECT_EQ(std::vector<double>({1}), f.finished);
@@ -360,7 +340,6 @@ TEST(OverviewNode, TheFingersCatchTheTweenWhereItIsShown)
     ASSERT_LT(before, 0.9);
     f.node->startTracking();
     EXPECT_NEAR(before, f.node->progress(double(f.now)), 1e-9);
-    // And the shortcut catches the fingers the same way.
     f.node->updateTracking(0.1, double(f.now));
     f.now += 20;
     const double tracked = f.node->progress(double(f.now));
@@ -382,7 +361,6 @@ TEST(OverviewNode, ANewLayoutMovesWindowsThereOnATween)
     f.now += kSettleMs;
     EXPECT_EQ(moved, f.rect(1));
 
-    // A dragged window heads home from where it was let go.
     const base::RectF dragged(700, 50, 300, 225);
     f.node->setDragged(0, dragged);
     EXPECT_EQ(dragged, f.rect(1));
@@ -406,13 +384,11 @@ TEST(OverviewNode, TheTitleShowsOnceItIsIn)
     f.node->animateTo(1);
     f.now += 16;
     f.paint();
-    // Not while it moves.
     EXPECT_EQ(0, painted);
     f.settle();
     f.now += 1000;
     f.paint();
     EXPECT_EQ(1, painted);
-    // In the middle of the window.
     const auto targets = [&] {
         std::vector<base::RectF> result;
         for (const auto &call : f.renderer.calls) {
@@ -454,15 +430,12 @@ TEST(OverviewNode, EveryWindowGetsTheOverviewsCornersShadowAndOutline)
     f.paint();
     ASSERT_EQ(1, shadows.size());
     EXPECT_EQ(kPlace, shadows[0].body);
-    // A normal window's corners, at the window's half size.
     EXPECT_EQ(7, shadows[0].radius);
     EXPECT_EQ(1, shadows[0].uniform);
     ASSERT_EQ(1, outlines.size());
     EXPECT_EQ(kPlace, outlines[0].body);
     EXPECT_FLOAT_EQ(1, outlines[0].opacity);
 
-    // Halfway in, at three quarters of its size, the window's own square
-    // corners are halfway to the overview's, and so is its outline.
     shadows.clear();
     outlines.clear();
     f.node->jumpTo(0.5);
@@ -487,7 +460,6 @@ TEST(OverviewNode, ADraggedWindowIsDrawnOverTheDeskBar)
         if (call.kind == "texture")
             targets.push_back(call.target);
     }
-    // Once, by the bar, after everything the overview draws.
     ASSERT_EQ(1, targets.size());
     const double scale = dragged.width() / kWindow.width();
     const base::RectF coverage = base::RectF(kWindow).adjusted(-64, -64, 64, 64);
@@ -502,7 +474,6 @@ namespace {
 using Bar = scene::OverviewDeskBarNode::Bar;
 using DeskBar = scene::OverviewDeskBarNode;
 
-// The outline of an inactive desk preview, drawn on its body.
 constexpr float kOutlineAlpha = 0.22f;
 
 DeskBar::Desk barDesk(uintptr_t id, double x)
@@ -553,8 +524,6 @@ TEST(OverviewNode, OnlyTheActiveDeskIsRingedAndAPressedOneDims)
     deskBar->setBars({bar({active, pressed}, 560)});
     f.paint();
     ASSERT_EQ(2, f.renderer.outlines.size());
-    // The ring stands off the active desk's body; the pressed one keeps the
-    // plain outline on its body.
     EXPECT_EQ(base::RectF(337, 17, 106, 66), f.renderer.outlines[0].bounds);
     EXPECT_EQ(base::RectF(450, 20, 100, 60), f.renderer.outlines[1].bounds);
     EXPECT_FLOAT_EQ(kOutlineAlpha, f.renderer.outlines[1].alpha);
@@ -577,19 +546,16 @@ TEST(OverviewNode, ADraggedDeskFollowsAtOnceOverTheOnesThatEaseAside)
     deskBar->setBars({bar({barDesk(1, 340), barDesk(2, 450)}, 560)});
     f.paint();
 
-    // The first one dragged past the second, which makes way.
     DeskBar::Desk dragged = barDesk(1, 420);
     dragged.dragged = true;
     deskBar->setBars({bar({barDesk(2, 340), dragged}, 560)});
     f.now += DeskBar::kShiftDurationMs / 2;
     f.paint();
     ASSERT_EQ(2, f.renderer.outlines.size());
-    // The second is on its way; the dragged one is where it is put, drawn last.
     EXPECT_GT(f.renderer.outlines[0].bounds.x(), 340);
     EXPECT_LT(f.renderer.outlines[0].bounds.x(), 450);
     EXPECT_EQ(base::RectF(420, 20, 100, 60), f.renderer.outlines[1].bounds);
 
-    // Let go, it eases into its place from where it was dropped.
     deskBar->setBars({bar({barDesk(2, 340), barDesk(1, 450)}, 560)});
     f.now += DeskBar::kShiftDurationMs / 2;
     f.paint();
@@ -610,8 +576,6 @@ TEST(OverviewNode, ANewDeskScalesUpAndFadesInWhileTheRestMoveOver)
     f.paint();
     deskBar->setBars({bar({barDesk(1, 340), barDesk(2, 450)}, 560)});
 
-    // The new desk waits out its fade's delay; the old one sets off from
-    // where it was.
     f.paint();
     ASSERT_EQ(1, f.renderer.outlines.size());
     EXPECT_EQ(base::RectF(400, 20, 100, 60), f.renderer.outlines[0].bounds);
@@ -623,7 +587,6 @@ TEST(OverviewNode, ANewDeskScalesUpAndFadesInWhileTheRestMoveOver)
     EXPECT_LT(340, moving.x());
     EXPECT_GT(400, moving.x());
     EXPECT_EQ(base::SizeF(100, 60), moving.size());
-    // Scaled about the middle of its top edge, partly faded in.
     const base::RectF growing = f.renderer.outlines[1].bounds;
     EXPECT_EQ(20, growing.top());
     EXPECT_NEAR(500, growing.center().x(), 0.5);
@@ -666,7 +629,6 @@ TEST(OverviewNode, ARemovedDeskFadesOutWhereItWasUnderTheRest)
 
 namespace {
 
-// Counts the textures alive, as many as the bar keeps for its desks.
 class PreviewTexture : public render::Texture
 {
 public:
@@ -723,13 +685,11 @@ TEST(OverviewNode, APreviewGoesWithItsDeskAndItsOutput)
     paint();
     EXPECT_EQ(2, renderer.previews);
 
-    // Taken down and put up again without the second desk, removed meanwhile.
     deskBar->setBars({});
     EXPECT_EQ(2, renderer.previews);
     deskBar->setBars({bar({barDesk(1, 400)}, 510)});
     EXPECT_EQ(1, renderer.previews);
 
-    // The output's bounds changed.
     Bar moved = bar({barDesk(1, 400)}, 510);
     moved.output = base::Rect(0, 0, 1200, 800);
     deskBar->setBars({moved});

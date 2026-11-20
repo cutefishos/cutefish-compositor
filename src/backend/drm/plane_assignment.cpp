@@ -17,7 +17,6 @@ namespace cutefish::backend {
 
 namespace {
 
-// Port of HardwareDisplayPlaneManager::IsCompatible.
 bool isCompatible(const DrmPlane& plane, const PlaneRequest& request, int crtcIndex,
                   const std::vector<uint32_t>& used)
 {
@@ -41,9 +40,8 @@ std::vector<PlaneAssignment> assignPlanes(const std::vector<DrmPlane>& planes, i
     std::vector<uint32_t> used;
     assignments.reserve(requests.size());
 
-    // The primary plane is picked first and independently of position: it is
-    // not always the lowest-numbered plane on a CRTC, and letting the ordered
-    // overlay scan below reach it would strand the overlays.
+    // The primary is picked first: it is not always the lowest-numbered plane,
+    // and the ordered overlay scan would strand the overlays.
     for (size_t i = 0; i < requests.size(); ++i) {
         if (!requests[i].isPrimary)
             continue;
@@ -56,9 +54,8 @@ std::vector<PlaneAssignment> assignPlanes(const std::vector<DrmPlane>& planes, i
         used.push_back(plane->id);
     }
 
-    // Overlays keep upstream's single forward pass: planes are enumerated in
-    // ascending id, so never going back is what keeps the z order the caller
-    // asked for from being inverted on the hardware.
+    // A single forward pass over planes in ascending id keeps the requested z
+    // order.
     size_t next = 0;
     for (size_t i = 0; i < requests.size(); ++i) {
         if (requests[i].isPrimary)
@@ -69,7 +66,7 @@ std::vector<PlaneAssignment> assignPlanes(const std::vector<DrmPlane>& planes, i
                 continue;
             assignments.push_back(PlaneAssignment {i, planes[next].id});
             used.push_back(planes[next].id);
-            ++next; // Do not hand the same plane out twice.
+            ++next;
             placed = true;
             break;
         }

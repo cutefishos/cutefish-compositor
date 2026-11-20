@@ -4,13 +4,6 @@
 //
 // Upstream: chromium/src/ash/wm/desks/desks_controller.h and desks_util.cc
 // Revision: 8abbac30b9cf2fe976422c58c000c94685648b65
-//
-// Adapted for Cutefish: the desks, their activation and removal, moving windows
-// between them and the switch animations. Overview, split view, float, saved
-// desks, coral, the undo toast, per-user desks and metrics are not carried over.
-// A desk's windows are the application windows of the normal stacking layer;
-// always-on-top windows and the shell's own windows are on every desk, as
-// upstream keeps them out of the desk containers.
 
 #ifndef CUTEFISH_WM_DESKS_DESKS_CONTROLLER_H_
 #define CUTEFISH_WM_DESKS_DESKS_CONTROLLER_H_
@@ -40,10 +33,8 @@ class WindowManager;
 
 enum class DesksCreationRemovalSource {
     Keyboard,
-    // A programmatic request.
     Api,
     DesksRestore,
-    // The overview's new-desk button, or a window dropped on it.
     Button,
 };
 
@@ -55,7 +46,6 @@ enum class DesksSwitchSource {
     IndexedDeskSwitchShortcut,
     ApiSwitch,
     DeskRestored,
-    // A desk clicked in the overview's desk bar.
     MiniViewButton,
 };
 
@@ -66,25 +56,20 @@ public:
     virtual void onDeskAdded(const Desk *desk) { }
     // After the desk left the list; it is destroyed right after.
     virtual void onDeskRemoved(const Desk *desk) { }
-    // The desk at `from` moved to `to`, the ones between moving over by one.
     virtual void onDeskReordered(int from, int to) { }
     virtual void onDeskActivationChanged(const Desk *activated, const Desk *deactivated) { }
     virtual void onDeskNameChanged(const Desk *desk) { }
     virtual void onDeskSwitchAnimationLaunching() { }
     virtual void onDeskSwitchAnimationFinished() { }
-    // See DesksController::chosenDesk.
     virtual void onChosenDeskChanged() { }
-    // The window moved to another desk, or onto or off every desk.
     virtual void onWindowDeskChanged(Window *window) { }
 };
 
 class DesksController : public ActivationObserver, public WindowObserver
 {
 public:
-    // desks_util's kDesksDefaultLimit.
     static constexpr int kMaxDesks = 8;
 
-    // Takes each output's frame of what `paint` draws; see DeskSwitchNode::start.
     using Screenshotter = std::function<scene::DeskSwitchNode::Frames(
             const std::function<void(render::Renderer &)> &paint)>;
 
@@ -102,10 +87,7 @@ public:
     Desk *deskAt(int index) const;
     Desk *deskById(uint32_t id) const;
 
-    // The desk an animation is heading for, or the active one.
     Desk *targetActiveDesk() const;
-    // The desk a switch has been decided for: a swipe decides as the fingers
-    // lift, though desks it pulls in are active on the way to take frames.
     Desk *chosenDesk() const;
     Desk *nextDesk() const;
     Desk *previousDesk() const;
@@ -114,34 +96,27 @@ public:
     bool canCreateDesks() const;
     bool canRemoveDesks() const;
 
-    // Appends a desk; it is not activated.
     Desk *newDesk(DesksCreationRemovalSource source, const std::string &name = {});
 
-    // Combines `desk` into the desk on its left, or on its right when it is
-    // the first. Removing the active desk slides to that desk first.
     void removeDesk(Desk *desk, DesksCreationRemovalSource source);
 
-    // Upstream ReorderDesk: the desk at `from` goes to `to`. Not while a
-    // desk animation runs, whose strip is laid out by index.
+    // Not while a desk animation runs.
     void reorderDesk(int from, int to);
 
     void activateDesk(Desk *desk, DesksSwitchSource source);
 
-    // Steps to the adjacent desk; with none there the desk content nudges
-    // against the edge. False only while the session is blocked.
+    // False only while the session is blocked.
     bool activateAdjacentDesk(bool goingLeft, DesksSwitchSource source);
 
-    // The four-finger swipe of upstream, three fingers here. Deltas are in
-    // desks, times in milliseconds on the steady clock.
+    // Deltas are in desks, times in milliseconds on the steady clock.
     bool startSwipeAnimation(bool moveLeft);
     void updateSwipeAnimation(double deskDelta, double timeMs);
     void endSwipeAnimation(double timeMs);
 
     bool moveWindowFromActiveDeskTo(Window *window, Desk *target);
-    // Upstream SendToDeskAtIndex: with the move animation, from the active desk.
     void sendToDeskAtIndex(Window *window, int index);
 
-    // The window's desk, or null for a window on every desk.
+    // Null for a window on every desk.
     Desk *deskOf(const Window *window) const;
     bool belongsToActiveDesk(const Window *window) const;
 
@@ -150,19 +125,15 @@ public:
 
     void setDeskName(Desk *desk, const std::string &name);
 
-    // The desk content nudges against the edge it cannot go past.
     void performHitTheWallAnimation(bool goingLeft);
 
     void addObserver(DesksObserver *observer);
     void removeObserver(DesksObserver *observer);
 
-    // Called by WindowManager.
     void onWindowAdded(Window *window);
     void onWindowRemoving(Window *window);
-    // The window's stacking layer or transient parent may have changed.
     void updateWindow(Window *window);
 
-    // Where the switch animations draw, and how the starting frames are taken.
     // Without both, desks switch at once.
     void setSwitchNode(scene::DeskSwitchNode *node) { m_switchNode = node; }
     scene::DeskSwitchNode *switchNode() const { return m_switchNode; }
@@ -174,11 +145,9 @@ public:
 
     DeskAnimationBase *animation() const { return m_animation.get(); }
 
-    // --- ActivationObserver ---
     void onWindowActivating(Window *gainingActive, Window *losingActive) override;
     void onWindowActivated(Window *, Window *) override { }
 
-    // --- WindowObserver ---
     void onWindowTransientParentChanged(Window *window, Window *oldParent) override;
 
 private:
@@ -187,10 +156,8 @@ private:
     friend class DeskActivationAnimation;
     friend class DeskRemovalAnimation;
 
-    // The frames the switch animations take of each output's desk content.
     scene::DeskSwitchNode::Frames takeScreenshots(
             const std::function<void(render::Renderer &)> &paint) const;
-    // The visible windows `filter` picks, alone on transparency, bottom to top.
     scene::DeskSwitchNode::Frames
     takeWindowScreenshots(const std::function<bool(const Window *)> &filter) const;
     int referenceWidth() const;
@@ -202,7 +169,7 @@ private:
     bool moveWindowFromSourceDeskTo(Window *window, Desk *source, Desk *target);
     void performWindowMoveToDeskAnimation(Window *window, bool goingLeft);
 
-    // Puts `window`'s tree on `desk`, or on every desk when null.
+    // Null puts it on every desk.
     void assignWindow(Window *window, Desk *desk);
     void updateDeskVisibility();
     void updateDeskVisibility(Window *window);
@@ -223,7 +190,6 @@ private:
     std::vector<std::unique_ptr<Desk>> m_desks;
     Desk *m_activeDesk = nullptr;
     Desk *m_deskToActivate = nullptr;
-    // Transient roots on a desk.
     std::map<const Window *, Desk *> m_windowDesks;
     std::set<const Window *> m_visibleOnAllDesks;
     bool m_modifying = false;

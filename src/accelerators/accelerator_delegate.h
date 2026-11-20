@@ -2,11 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// What the accelerator commands need from outside the compositor process.
-// Ash performs every action in-process through Shell::Get(); Cutefish's shell
-// UI is a separate process reached over D-Bus, and this is the seam the tests
-// replace.
-
 #ifndef CUTEFISH_ACCELERATORS_ACCELERATOR_DELEGATE_H_
 #define CUTEFISH_ACCELERATORS_ACCELERATOR_DELEGATE_H_
 
@@ -22,14 +17,13 @@ public:
     // org.cutefish.Launchpad.toggle.
     virtual void toggleAppList() = 0;
 
-    // org.cutefish.Screenshot: every screen at once, a part of one chosen
-    // with the pointer, the capture tools, and the end of a recording.
+    // org.cutefish.Screenshot.
     virtual void takeScreenshot(bool toClipboard) = 0;
     virtual void takePartialScreenshot(bool toClipboard) = 0;
     virtual void startCaptureMode() = 0;
     virtual void stopScreenRecording() = 0;
 
-    // org.cutefish.ClipboardHistory.toggle: shows or hides the picker.
+    // org.cutefish.ClipboardHistory.toggle.
     virtual void toggleClipboardHistory() = 0;
 
     // org.cutefish.MenuBar: control the current MPRIS player.
@@ -50,7 +44,6 @@ public:
     virtual void keyboardBrightnessUp() = 0;
 };
 
-// The production delegate.
 class DBusAcceleratorDelegate : public AcceleratorDelegate
 {
 public:

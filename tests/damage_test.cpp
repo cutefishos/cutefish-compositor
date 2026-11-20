@@ -84,7 +84,6 @@ TEST(Damage, BlurUsesCompleteSourcePixels)
     const base::Rect viewport(0, 0, 100, 100);
     tracker.update(root, viewport);
     node->notifyDamage(base::Rect(2, 2, 1, 1));
-    // Its own content lies above its blur, which reads what it did.
     const base::Region damage = tracker.update(root, viewport);
     EXPECT_EQ(damage, base::Region(base::Rect(22, 22, 1, 1)));
     const int halo = render::kBackdropBlurSupport + 2;
@@ -130,10 +129,8 @@ TEST(Damage, ABlurReadsOnlyWhatIsDrawnBeforeIt)
     EXPECT_TRUE(tracker.samples(kept).empty());
     EXPECT_EQ(tracker.freshBackdrops(kept),
               (std::vector<render::KeptBackdrop> {{first->damageId()}, {second->damageId()}}));
-    // Without a kept result, a repaint reaching a blur still takes in all it reads.
     EXPECT_EQ(tracker.samples(), (std::vector<base::Rect> {firstSampled, secondSampled}));
 
-    // The first blur changes, and the second, drawn over it, reads it.
     below->setPosition({10, 50});
     const base::Rect firstChanged(10, 50, 10, 10);
     const base::Rect firstRedone = grown(firstChanged, shown).intersected(firstBlurred);
@@ -149,7 +146,6 @@ TEST(Damage, ABlurReadsOnlyWhatIsDrawnBeforeIt)
               (std::vector<render::KeptBackdrop> {{first->damageId(), firstChanged},
                                                   {second->damageId(), secondChanged}}));
 
-    // A kept result is drawn again as it is where nothing under it changed.
     below->setPosition({600, 400});
     tracker.update(root, viewport);
     below->setPosition({300, 100});
@@ -171,7 +167,6 @@ TEST(Damage, ABlurIsRedoneOnlyWhereItReadsTheChange)
         render::GlassParams glass;
         glass.enabled = glassy;
         node->setBackgroundBlur({0, 0, 600, 400}, 12, glass);
-        // Beside the blur, inside what it reads, and drawn under it.
         auto *beside = root.addChild(std::make_unique<scene::Node>());
         root.lower(beside);
         beside->setGeometry({720, 300, 10, 10});
@@ -196,9 +191,7 @@ TEST(Damage, ABlurIsRedoneOnlyWhereItReadsTheChange)
                 << "glass=" << glassy;
         EXPECT_EQ(tracker.freshBackdrops(kept),
                   (std::vector<render::KeptBackdrop> {{node->damageId(), changed}}));
-        // Without a kept result to redo, it is drawn whole from all it reads.
         EXPECT_EQ(tracker.samples(), std::vector<base::Rect> {sampled});
-        // Nothing changed: drawn as kept.
         EXPECT_TRUE(tracker.update(root, viewport).isEmpty());
         EXPECT_EQ(tracker.freshBackdrops(kept), (std::vector<render::KeptBackdrop> {{node->damageId()}}));
     }
@@ -231,8 +224,6 @@ TEST(Damage, ABlurRepaintsWhenWhatItReadsChangesOutOfSight)
               (std::vector<base::Rect> {base::Rect(100, 100, 50, 50).adjusted(-halo, -halo, halo, halo)}));
 }
 
-// A window texture's blur that the output redoes in part from its kept
-// result changes only where that redo reaches, and reads only around it.
 TEST(Damage, ABlurRedoneInPartOutOfSightRepaintsOnlyThatPart)
 {
     scene::Node root;
@@ -252,7 +243,6 @@ TEST(Damage, ABlurRedoneInPartOutOfSightRepaintsOnlyThatPart)
     const base::Rect viewport(0, 0, 1000, 800);
     tracker.update(root, viewport, 1, 0, backdropChanged);
     EXPECT_TRUE(tracker.update(root, viewport, 1, 0, backdropChanged).isEmpty());
-    // Cut to what the blur samples.
     outside = base::Rect(720, 300, 100, 200);
     const auto [shown, read] = render::backdropReach({}, 1);
     const base::Rect changed(720, 300, 72, 200);
@@ -296,7 +286,6 @@ TEST(Damage, ABlurDrawnAgainWholeReadsEverythingAgain)
     EXPECT_EQ(tracker.update(root, viewport), base::Region(base::Rect(99, 99, 52, 52)));
     EXPECT_EQ(tracker.samples(kept),
               (std::vector<base::Rect> {base::Rect(100, 100, 50, 50).adjusted(-halo, -halo, halo, halo)}));
-    // A tracker of the retained subtree itself is what draws it again.
     EXPECT_TRUE(inner.update(*retained, viewport).isEmpty());
 }
 
@@ -333,7 +322,6 @@ TEST(Damage, RepaintCoversEveryBlurItReaches)
     EXPECT_EQ(render::coverSamples(base::Rect(300, 0, 10, 10), samples, context, size),
               base::Rect(300, 0, 10, 10));
     EXPECT_TRUE(render::coverSamples(base::Rect(), samples, context, size).isEmpty());
-    // The first, once taken in, reaches the second; the third stays out of it.
     EXPECT_EQ(render::coverSamples(base::Rect(0, 0, 30, 30), samples, context, size),
               base::Rect(0, 0, 90, 90));
     EXPECT_EQ(render::coverSamples(base::Rect(0, 0, 100, 100), samples, context, size),
@@ -365,7 +353,6 @@ TEST(Damage, CheckingForDamageLeavesTheHistoryAlone)
 
 TEST(Damage, FractionalTranslatedAndRotatedPhysicalCoverage)
 {
-    // Each rect also takes the pixel a snapped texture can reach past its far edges.
     render::OutputRenderContext context {"test", base::Rect(-100, 50, 80, 60), base::Size(100, 75), 1.25};
     EXPECT_EQ(render::physicalDamage(base::Rect(-99, 51, 2, 2), context, {100, 75}), base::Rect(1, 1, 4, 4));
     context.transform = 1;
@@ -384,8 +371,6 @@ TEST(Damage, FractionalTranslatedAndRotatedPhysicalCoverage)
 
 TEST(Damage, LogicalRepaintTakesInEverythingThatReachesTheRepaint)
 {
-    // Culling by the logical repaint must never skip a rect whose physical
-    // coverage, overhang included, reaches the physical repaint.
     for (const double scale : {1.0, 1.25, 1.5, 1.75, 2.0}) {
         for (uint32_t transform = 0; transform < 4; ++transform) {
             for (const bool letterboxed : {false, true}) {
@@ -476,8 +461,6 @@ TEST(Damage, SynchronizedSurfaceDamageWaitsForParentAndSurvivesUpload)
 
 namespace {
 
-// A parent with one subsurface, both mapped and uploaded, and a tracker that
-// has seen them once. Modelled on exo's SurfaceTest subsurface damage cases.
 struct SubsurfaceDamageFixture {
     scene::Scene scene;
     compositor::Compositor compositor {scene.root()};
@@ -511,7 +494,7 @@ struct SubsurfaceDamageFixture {
     }
 };
 
-// Linear sampling reaches one texel past damage at scale 1, as exo's margin.
+// Linear sampling reaches one texel past the damage at scale 1.
 bool approximately(const base::Region &damage, const base::Rect &expected)
 {
     return damage.boundingRect().contains(expected)
@@ -530,7 +513,6 @@ TEST(Damage, SubsurfaceDamageAggregation)
     f.parent->commit();
     EXPECT_TRUE(approximately(f.update(), base::Rect(32, 32, 16, 16)));
 
-    // A root commit without a child commit must not repeat the child's damage.
     f.parent->damage({0, 0, 16, 16});
     f.parent->commit();
     const base::Region damage = f.update();
@@ -549,7 +531,6 @@ TEST(Damage, SubsurfaceDamageSynchronizedCommitBehavior)
     EXPECT_TRUE(f.child->pendingDamage().isEmpty());
     EXPECT_TRUE(f.update().isEmpty());
 
-    // Pending damage stays behind; the parent applies only what was cached.
     f.child->damage({0, 0, 16, 16});
     f.parent->commit();
     const base::Region damage = f.update();
@@ -580,7 +561,6 @@ TEST(Damage, SubsurfaceReorderDamagesOnlyWhenTheOrderChanges)
     f.parent->commit();
     f.update();
 
-    // Already in this order: nothing to repaint.
     siblingSub->placeAbove(f.child.get());
     f.sub->placeBelow(sibling.get());
     f.parent->commit();

@@ -4,9 +4,6 @@
 //
 // Upstream: chromium/src/ui/display/manager/configure_displays_task.h
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: validate revisioned display requests before DRM
-// planning and return structured errors plus normalized logical bounds.
 
 #pragma once
 

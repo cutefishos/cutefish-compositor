@@ -21,14 +21,10 @@ namespace cutefish::shell {
 
 class NotificationSettings;
 
-// "Now", "5 minutes ago", "1 day ago", or the local date and time in the
-// short format after ten days, as the history's cards show the time.
 std::string friendlyTime(std::optional<int64_t> created, int64_t nowMs);
 
-// Notifications that left the screen, newest first with each application's
-// rows kept together, persisted across sessions in
-// ~/.config/cutefish/notification-history.json, an array of
-// Notification::toJson() records. Read and written on the file thread.
+// Persisted in ~/.config/cutefish/notification-history.json, read and written
+// on the file thread.
 class NotificationHistory : public ListModelSignals
 {
 public:
@@ -45,13 +41,11 @@ public:
     bool isLoaded() const { return m_loaded; }
     const std::vector<Notification> &notifications() const { return m_notifications; }
     int count() const { return int(m_notifications.size()); }
-    // friendlyTime() of the row, now.
     std::string createdText(int row) const;
 
     void add(const Notification &notification);
     void remove(std::vector<int> rows);
     void clearAll();
-    // The relative times went stale while nobody looked: every row changed.
     void updateTime();
 
     base::Signal<> loaded;
@@ -67,11 +61,9 @@ private:
     base::Job m_load;
 };
 
-// The notifications currently shown as banners, oldest first.
 class NotificationBanners : public ListModelSignals
 {
 public:
-    // Past this many banners the oldest goes to the history.
     static constexpr int kMaxBanners = 5;
 
     NotificationBanners(NotificationServer &server, NotificationSettings &settings, NotificationHistory &history);
@@ -80,12 +72,9 @@ public:
     int count() const { return int(m_notifications.size()); }
     int rowOf(uint32_t id) const;
 
-    // Set while the notification centre is open: the banners on screen move
-    // into the history, and new notifications go straight there.
     bool bannersSuppressed() const { return m_bannersSuppressed; }
     void setBannersSuppressed(bool suppressed);
 
-    // The banner timed out; it moves to the history.
     void expired(uint32_t id);
     void close(uint32_t id);
     void invokeDefaultAction(uint32_t id);

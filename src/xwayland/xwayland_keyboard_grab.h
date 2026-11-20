@@ -16,10 +16,8 @@ class PrivilegedClients;
 
 namespace cutefish::xwayland {
 
-// zwp_xwayland_keyboard_grab_manager_v1, for Xwayland alone: an X11 client
-// that grabs the keyboard - a game, a virtual machine viewer - inhibits the
-// compositor's shortcuts while its window has focus, as it would on an X
-// server. Exo has no counterpart.
+// For Xwayland alone: an X11 client that grabs the keyboard inhibits the compositor's shortcuts while
+// its window has focus.
 class XwaylandKeyboardGrab
 {
 public:

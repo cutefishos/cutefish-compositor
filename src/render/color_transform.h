@@ -6,8 +6,7 @@
 
 namespace cutefish::render {
 
-// Gains for the red, green and blue channels of a whole output, applied to the
-// encoded values the display is sent, after composition: night light's tint.
+// Applied to the encoded values the display is sent, after composition.
 struct ColorTransform {
     float red = 1;
     float green = 1;

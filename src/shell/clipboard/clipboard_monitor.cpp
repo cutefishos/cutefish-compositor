@@ -157,7 +157,6 @@ void ClipboardMonitor::onReadable()
         const ssize_t result = read(m_readFd, chunk, sizeof(chunk));
         if (result > 0) {
             m_readSize += result;
-            // A cut-off copy is dropped, not kept in part.
             if (m_readSize > ClipboardStore::kMaxPayloadSize) {
                 cancelRead();
                 return;

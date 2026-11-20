@@ -554,8 +554,7 @@ TEST_F(ViewporterPixelTest, RealDmaBufImportWhenRenderNodeIsAvailable)
     gbm_bo_unmap(bo.get(), mapData);
     ScopedFd plane(gbm_bo_get_fd(bo.get()));
     ASSERT_TRUE(plane.isValid());
-    // The unmap may copy the pixels in on the GPU without waiting, and an
-    // importer that reads the memory itself does not wait either.
+    // Neither the unmap nor an importer reading the memory waits for the GPU copy.
     pollfd written {plane.get(), POLLIN, 0};
     ASSERT_EQ(1, poll(&written, 1, 5000));
     render::DmaBufAttributes attributes;
@@ -666,8 +665,6 @@ TEST_F(ViewporterPixelTest, FractionalOutputEdgesAndPhysicalSnapshotAllocation)
         ASSERT_TRUE(renderer->renderToTexture(snapshot, {3, 5, 17, 19}, [&] {
             renderer->fillRect({3, 5, 17, 19}, {0, 1, 0, 1});
         }));
-        // At a fractional scale the texture is sized for the widest coverage
-        // the bounds can round out to, so a move does not reallocate it.
         const int spare = scale != std::floor(scale) ? 1 : 0;
         EXPECT_EQ(snapshot->size(),
                   base::Size(int(std::ceil(17 * scale)) + spare, int(std::ceil(19 * scale)) + spare));

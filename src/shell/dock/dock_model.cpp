@@ -79,8 +79,8 @@ DockModel::DockModel(TaskManager &tasks, ApplicationLauncher &launcher, std::str
         m_subscriptions.push_back(
                 m_running->changed.connect([this](const std::string &a) { syncApplication(a); }));
     }
-    // The task manager was connected first, so windows are matched to a new
-    // scan before the pins are.
+    // The task manager was connected first, so windows match a new scan before
+    // the pins do.
     m_subscriptions.push_back(m_applications.changed.connect([this] { onApplicationsChanged(); }));
 
     m_pinsJob = runOnFileThread([path = m_pinsPath] { return pinned_applications::load(path); },
@@ -135,7 +135,6 @@ DockItem *DockModel::findByDesktop(const std::string &desktopFile, DesktopEntryP
     if (found)
         return findById(found->id);
 
-    // No longer installed: an item can still name the file it came from.
     if (!desktopFile.empty()) {
         const std::string path = absolutePath(desktopFile);
         for (const auto &item : m_items) {
@@ -146,8 +145,6 @@ DockItem *DockModel::findByDesktop(const std::string &desktopFile, DesktopEntryP
     return findById(desktopFile);
 }
 
-// A pinned bundle keeps its place when its folder goes, as when the disk
-// image it is on is ejected, and shows that it cannot be found.
 static bool isBundle(const DockItem &item)
 {
     return !base::bundle::bundlePath(item.desktopPath).empty();
@@ -248,15 +245,12 @@ void DockModel::clicked(const std::string &id)
         hideLaunchpad();
 
     if (item->windows.empty()) {
-        // A pinned application that is not running starts.
         openNewInstance(item->id);
     } else if (unhide(item)) {
-        // A hidden application comes back whole, to the window it was on.
         if (item->currentActive >= item->windows.size())
             item->currentActive = 0;
         m_windows.activate(item->windows[item->currentActive]);
     } else if (item->windows.size() > 1) {
-        // Several windows: each click shows the next.
         if (++item->currentActive == item->windows.size())
             item->currentActive = 0;
         m_windows.activate(item->windows[item->currentActive]);
@@ -268,7 +262,6 @@ void DockModel::clicked(const std::string &id)
 void DockModel::raiseWindow(const std::string &id)
 {
     DockItem *item = findById(id);
-    // Pinned items and the launchpad have no windows to raise.
     if (!item || item->windows.empty())
         return;
     if (item->currentActive >= item->windows.size())
@@ -314,9 +307,7 @@ void DockModel::activateWindow(uint64_t window)
         return;
     if (hideLaunchpad)
         hideLaunchpad();
-    // A click on the icon then cycles on from this window.
     item->currentActive = size_t(std::find(item->windows.begin(), item->windows.end(), window) - item->windows.begin());
-    // Activating unhides and restores the window.
     m_windows.activate(window);
 }
 
@@ -348,17 +339,14 @@ bool DockModel::openNewInstance(const std::string &id)
     if (hideLaunchpad)
         hideLaunchpad();
 
-    // Without a desktop entry there is no command: the app id is the
-    // client's own choice, and a sandboxed one could name a program it wrote.
+    // Without a desktop entry there is no command: a client's app id could name
+    // a program it wrote.
     const DesktopEntryPtr entry = m_applications.byId(item->id);
     if (!entry && item->missing) {
-        // The runtime looks for a missing bundle again, as when its disk
-        // image is back; the registry reads it again too.
         base::DesktopEntry bundle;
         bundle.id = item->desktopPath;
         m_launcher.launch(bundle);
     } else if (entry && entry->bundle && entry->exec.empty()) {
-        // Nothing runs it yet; the file manager offers to install what does.
         openInFileManager(entry->path);
     } else if (entry) {
         m_launcher.launch(*entry);
@@ -376,16 +364,12 @@ void DockModel::quit(const std::string &id)
     if (!item)
         return;
 
-    // Running without a window, it quits itself.
     if (item->windows.empty()) {
         if (item->running && m_running)
             m_running->quit(item->id);
         return;
     }
 
-    // Quit is the window manager's, as for the menu bar and Command+Q: it
-    // closes the application's windows and later ends what keeps running
-    // without one. One request per application id among the windows.
     std::vector<std::string> quitIds;
     bool anyProcess = false;
     for (uint64_t window : std::vector<uint64_t>(item->windows)) {
@@ -402,8 +386,6 @@ void DockModel::quit(const std::string &id)
         m_windows.quitApplication(window);
     }
 
-    // Without a process the window manager cannot end anything; the runtime
-    // still knows the application by its desktop entry.
     if (anyProcess)
         return;
     std::string runtimeId;
@@ -502,8 +484,6 @@ void DockModel::move(int from, int to, bool commit)
     const int boundary = pinnedCount();
     const bool pinned = m_items[size_t(from)]->isPinned;
     if (pinned != (to < boundary)) {
-        // Only unpinned applications may cross the divider, and only on
-        // release.
         if (commit && !pinned)
             pinAt(from, to);
         return;
@@ -531,8 +511,6 @@ bool DockModel::insert(const std::string &desktopFile, int row, int existingRow)
     if (existingRow >= 0) {
         if (existingRow < firstMovableRow() || existingRow >= count())
             return false;
-        // The item the preview used, even if the registry changed during the
-        // drag.
         existing = m_items[size_t(existingRow)].get();
     }
 
@@ -619,7 +597,6 @@ void DockModel::loadPins(const std::optional<std::vector<std::string>> &saved)
         if (entry) {
             updateFromEntry(item.get(), *entry);
         } else {
-            // Read on a thread, or gone; checkInstalled() tells which.
             item->id = bundle;
             item->desktopPath = bundle;
             item->visibleName = std::filesystem::path(bundle).stem().string();
@@ -636,7 +613,6 @@ void DockModel::loadPins(const std::optional<std::vector<std::string>> &saved)
     rowsInserted(first, added);
     sectionsChanged();
 
-    // Forget pins uninstalled while the shell was not running.
     if (saved && size_t(added - 1) < saved->size())
         savePins();
 }
@@ -656,8 +632,6 @@ void DockModel::onApplicationsChanged()
     if (!m_loaded || m_applications.isLoading())
         return;
 
-    // Running applications follow the task list; the others are kept
-    // current here.
     for (const auto &item : m_items) {
         if (item->fixed || !item->windows.empty())
             continue;
@@ -672,7 +646,6 @@ void DockModel::onApplicationsChanged()
 
 void DockModel::checkInstalled()
 {
-    // A scan is running; its end starts the check again.
     if (m_applications.isLoading())
         return;
 
@@ -685,7 +658,6 @@ void DockModel::checkInstalled()
         DesktopEntryPtr entry = m_applications.byPath(item->desktopPath);
         if (!entry)
             entry = m_applications.byId(item->id);
-        // Uninstalled means the launchpad no longer lists it.
         const bool bundle = isBundle(*item);
         const bool uninstalled = !entry || (!entry->bundle && !entry->shouldShow(desktops));
         if (item->uninstalled == uninstalled)
@@ -700,7 +672,6 @@ void DockModel::checkInstalled()
             continue;
         }
         item->uninstalled = uninstalled;
-        // Removed when nothing runs, otherwise moved among the running ones.
         if (uninstalled && item->isPinned)
             unPinAt(row, pinnedCount() - 1);
         else
@@ -763,8 +734,6 @@ void DockModel::syncApplication(const std::string &application)
         if (item->iconName.empty())
             item->iconName = toLower(application);
     } else if (item->desktopPath.empty()) {
-        // No entry names it, so its window does. One that had an entry keeps
-        // its name through an upgrade; checkInstalled() decides if it is gone.
         const TaskWindow *client = m_windows.window(windows.front());
         const std::string title = client ? client->title : std::string();
         item->visibleName = title.empty() ? application : title;
@@ -786,8 +755,6 @@ void DockModel::onActiveChanged(uint64_t window)
         DockItem *item = m_items[row].get();
         const auto it = std::find(item->windows.begin(), item->windows.end(), window);
         const bool active = it != item->windows.end();
-        // A click on the icon cycles on from the window that is active now,
-        // however it came to be active.
         if (active)
             item->currentActive = size_t(it - item->windows.begin());
         if (item->isActive == active)

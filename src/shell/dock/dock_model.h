@@ -28,9 +28,8 @@ class RunningApplications;
 class TaskManager;
 class TaskWindows;
 
-// The dock's pins, Dock/Pinned in shell.conf: desktop ids in order. Until the
-// user changes them, the session's default list. Read and written on the file
-// thread.
+// Desktop ids in order, under Dock/Pinned in shell.conf; read and written on
+// the file thread.
 namespace pinned_applications {
 
 const std::vector<std::string> &defaults();
@@ -40,49 +39,33 @@ void save(const std::string &path, const std::vector<std::string> &desktopIds);
 
 } // namespace pinned_applications
 
-// One entry of the dock: the launchpad button, a pinned application, or a
-// running one.
 struct DockItem {
-    // The TaskManager application: the desktop id, or the app id of windows
-    // no desktop entry claims.
     std::string id;
     std::string iconName;
     std::string visibleName;
     std::string desktopPath;
-    // Its task-list windows, in the order they opened.
     std::vector<uint64_t> windows;
-    // It has windows, or keeps running without one.
     bool running = false;
-    // Which window a click shows next.
     size_t currentActive = 0;
     bool isActive = false;
     bool isPinned = false;
-    // The launchpad button: always first, never moved.
     bool fixed = false;
-    // The launchpad stopped listing it; a running one can no longer be pinned.
     bool uninstalled = false;
-    // A pinned application bundle whose folder is gone, as when the disk
-    // image it is on was ejected: it keeps its place and shows it is missing.
     bool missing = false;
 
     bool pinnable() const { return !fixed && !desktopPath.empty() && !uninstalled; }
 };
 
-// The dock's applications: the launchpad button, the pinned applications, then
-// the running ones in the order they started.
 class DockModel : public ListModelSignals
 {
 public:
-    // The dock's built-in launchpad button; not backed by a desktop file.
     static constexpr const char *kLaunchpadId = "cutefish-launchpad";
-    // Let the application close its windows before the runtime ends what is
-    // left of it.
     static constexpr std::chrono::milliseconds kQuitGrace{3000};
     // An upgrade can remove a desktop file and put it back seconds later.
     static constexpr std::chrono::milliseconds kUninstallGrace{3000};
 
-    // `pinsPath` is shell.conf. Everything must outlive the model; without
-    // `running`, applications run while they have windows.
+    // Everything must outlive the model; without `running`, applications run
+    // while they have windows.
     DockModel(TaskManager &tasks, ApplicationLauncher &launcher, std::string pinsPath,
               RunningApplications *running = nullptr);
     ~DockModel();
@@ -90,16 +73,10 @@ public:
     DockModel(const DockModel &) = delete;
     DockModel &operator=(const DockModel &) = delete;
 
-    // The launchpad shows and hides through these; the dock never takes the
-    // keyboard, so the launchpad does not lose activation when a dock item
-    // brings up an application.
     std::function<void()> hideLaunchpad;
     std::function<void()> toggleLaunchpad;
-    // An application of the dock's was started from it, one that wants
-    // launch feedback.
     std::function<void(const std::string &id)> launched;
 
-    // The pins and the running applications are in.
     bool isLoaded() const { return m_loaded; }
 
     const std::vector<std::unique_ptr<DockItem>> &items() const { return m_items; }
@@ -107,29 +84,24 @@ public:
     const DockItem &at(int row) const { return *m_items[size_t(row)]; }
     int indexOf(const std::string &id) const;
     int pinnedCount() const;
-    // Rows below this hold the fixed items, which nothing can go before.
     int firstMovableRow() const;
 
-    // org.cutefish.Dock: by desktop path or desktop id.
+    // By desktop path or desktop id.
     void addItem(const std::string &desktopFile);
     void removeItem(const std::string &desktopFile);
     bool isDesktopPinned(const std::string &desktopFile) const;
-    // The row of the desktop file's item, refreshed from its entry; -1.
+    // -1 for none.
     int desktopRow(const std::string &desktopFile);
 
     void clicked(const std::string &id);
     void raiseWindow(const std::string &id);
-    // An application's window, as the window list in its menu chose it.
     void activateWindow(uint64_t window);
     struct WindowInfo {
         uint64_t id;
         std::string title;
         bool active;
     };
-    // The application's windows in the order they opened.
     std::vector<WindowInfo> windows(const std::string &id) const;
-    // The entries the application gives its dock menu, from the first of
-    // its windows that has them.
     std::shared_ptr<compositor::MenuModel> dockMenu(const std::string &id) const;
 
     bool openNewInstance(const std::string &id);
@@ -137,26 +109,18 @@ public:
     void pin(const std::string &id);
     void unPin(const std::string &id);
 
-    // A drag over the dock moves items within their section; only an
-    // unpinned application crosses the divider, and only on release.
     void move(int from, int to, bool commit = false);
     bool dropApplication(const std::string &id, int row, bool pinned);
     bool pinAt(int from, int row);
-    // Pins a desktop file at `row`: a new entry is inserted there, the one it
-    // already has is moved there. The row is counted with that entry still in
-    // its old place, the way a gap opened in front of `row` reads.
+    // `row` counts the existing entry still in its old place.
     bool insert(const std::string &desktopFile, int row, int existingRow = -1);
 
-    // The icon of the entry a window belongs to.
     std::string iconNameForWindow(uint64_t window) const;
-    // The id of the entry a window belongs to; empty if none has it yet.
+    // Empty if none has it yet.
     std::string appIdForWindow(uint64_t window) const;
 
-    // Takes the launchpad button's name again after the session language
-    // changed.
     void retranslate();
 
-    // pinnedCount() may have changed.
     base::Signal<> sectionsChanged;
     base::Signal<> loaded;
 
@@ -187,7 +151,6 @@ private:
     std::string m_pinsPath;
     std::vector<std::unique_ptr<DockItem>> m_items;
     bool m_loaded = false;
-    // The file's list, once read.
     std::optional<std::optional<std::vector<std::string>>> m_savedPins;
     base::Timer m_installedTimer;
     base::Job m_pinsJob;

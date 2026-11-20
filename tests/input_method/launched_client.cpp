@@ -7,9 +7,8 @@
 #include <cstring>
 #include <wayland-client.h>
 
-// Connects through WAYLAND_SOCKET, appends "ime" or "none" to argv[2] depending
-// on whether the input-method global is visible, then exits or stays connected.
-// The "display" mode appends its DISPLAY instead, or "-", and stays.
+// Appends "ime" or "none" to argv[2] for whether the input-method global is visible,
+// or in "display" mode its DISPLAY or "-".
 int main(int argc, char **argv)
 {
     if (argc < 3)

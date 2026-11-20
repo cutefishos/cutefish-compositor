@@ -38,9 +38,7 @@ namespace {
 // Mesa's GBM surfaces hold up to four colour buffers.
 constexpr int kSwapBuffers = 4;
 
-// A mode without timings has no rate; viz paces such a display at
-// BeginFrameArgs::DefaultInterval(), 60 Hz. llround(inf) is undefined, and on
-// amd64 gives a negative period.
+// A mode without timings has no rate and gets 60 Hz; llround(inf) is undefined.
 render::OutputScheduler::Duration framePeriod(double hz)
 {
     return std::chrono::nanoseconds(static_cast<int64_t>(std::llround(1e9 / (hz > 0 ? hz : 60.0))));
@@ -89,14 +87,11 @@ DrmOutput::DrmOutput(DrmDeviceApi *device, Config config, std::function<bool()> 
 {
     m_wakeup.setSingleShot(true);
     m_wakeup.onTimeout = [this] { wakeup(); };
-    // Ozone waits for every flip event, because a stuck GPU process gets
-    // restarted (PageFlipWatchdog). Nothing restarts this process, so an event
-    // the driver loses would hold every later frame for the rest of the session.
+    // Nothing restarts this process, so a lost flip event would stall every
+    // later frame.
     m_flipTimeout.setSingleShot(true);
     m_flipTimeout.setInterval(std::chrono::seconds(1));
     m_flipTimeout.onTimeout = [this] { onFlipTimeout(); };
-    // ChromeOS's triple-buffered BufferQueue: one frame at KMS, one queued
-    // behind it, and the GBM surface's spare buffer for the one being drawn.
     m_scheduler.setMaxPendingFrames(2);
 }
 
@@ -107,7 +102,7 @@ DrmOutput::~DrmOutput()
         retireEvent(std::move(entry.second));
     reportStats();
     m_cursor.reset();
-    releaseScanoutBuffers(); // Existing final GBM teardown, never a timeout path.
+    releaseScanoutBuffers();
 
     if (m_renderer)
         m_renderer->releaseTarget(m_target.get());
@@ -135,8 +130,6 @@ std::unique_ptr<DrmOutput::CompositedBuffer> DrmOutput::acquireComposited(gbm_su
     const base::Size size(gbm_bo_get_width(bo), gbm_bo_get_height(bo));
     auto route = chooseCrossGpuTransfer({!m_backend->usesForeignRenderer(), true, false, false,
                                          int64_t(size.width()) * size.height()});
-    // Whatever the route, the framebuffer is kept on the bo: the surface's two
-    // or three buffers are imported or allocated once, not on every frame.
     if (route == CrossGpuTransfer::Direct) {
         framebuffer = DrmFramebuffer::forBuffer(m_device, bo);
     } else {
@@ -278,7 +271,6 @@ void DrmOutput::setColorTransform(const render::ColorTransform &transform)
     const bool blended = blendsColorTransform();
     m_colorTransform = transform;
     if (m_scanout && m_scanout->setColorTransform(transform)) {
-        // Nothing on screen has to change for it, but only a commit carries it.
         if (m_enabled && m_sessionActive && m_sessionActive()) {
             m_forceFrame = true;
             scheduleFrame(Reason::Scene);
@@ -287,9 +279,8 @@ void DrmOutput::setColorTransform(const render::ColorTransform &transform)
     }
     if (!changed || supportsColorTransform())
         return;
-    // Ash's composited colour matrix, for virtual GPUs. The previous frames'
-    // buffers hold the old tint, so every frame repaints whole until each has
-    // been drawn again.
+    // The previous frames' buffers hold the old tint, so frames repaint whole
+    // until each is redrawn.
     if (blended && !blendsColorTransform())
         m_untintedRepaints = kSwapBuffers;
     if (m_enabled && m_sessionActive && m_sessionActive()) {
@@ -303,9 +294,8 @@ void DrmOutput::setSecureScanout(bool secure)
     if (m_secureScanout == secure)
         return;
     m_secureScanout = secure;
-    // Whatever is on screen right now was composed under the old policy. Until
-    // a frame committed under the new one has been presented, nothing may be
-    // reported as securely presented.
+    // What is on screen was composed under the old policy, so nothing is secure
+    // until a new frame is presented.
     withdrawSecurePresentation();
 }
 
@@ -322,9 +312,7 @@ void DrmOutput::withdrawSecurePresentation()
 
 bool DrmOutput::lastPresentedFrameWasSecure() const
 {
-    // Nothing is on screen, so nothing of the session can be: a DPMS-off or
-    // disabled output must not stall a lock waiting for a frame it will never
-    // produce.
+    // A DPMS-off or disabled output must not stall a lock waiting for a frame.
     if (!m_enabled || m_blanked)
         return true;
     return m_lastPresentedSecure;
@@ -343,9 +331,7 @@ gbm_surface *DrmOutput::createSurface(const base::Size &size) const
                                   GBM_BO_USE_SCANOUT | GBM_BO_USE_RENDERING
                                           | (linear ? GBM_BO_USE_LINEAR : 0));
     };
-    // The render GPU would pick a layout for its own display engine, which
-    // another device rarely imports; linear is the one PRIME layout every
-    // scanout device takes, as mutter and wlroots fall back to for a second GPU.
+    // Linear is the one layout every scanout device imports from another GPU.
     const bool foreign = m_backend->usesForeignRenderer();
     gbm_surface *surface = create(m_linearBuffers || foreign);
     if (!surface && foreign && !m_linearBuffers)
@@ -546,9 +532,8 @@ bool DrmOutput::configure(const std::vector<Configuration> &configuration, bool 
             }
             planes.push_back(item->buffer->primary);
         }
-        // A modeset is where a DPMS wake comes back on screen. A blocked session
-        // has to clear the application planes here too, or the display returns
-        // showing the frame the previous session left on them.
+        // A blocked session must clear the application planes here, or a DPMS
+        // wake shows the previous session's frame.
         const auto request = output->m_scanout->buildRequest(
                 planes, true, item->blob, !change.enabled, output->m_secureScanout);
         batch->candidate.properties.insert(batch->candidate.properties.end(),
@@ -656,11 +641,9 @@ bool DrmOutput::configure(const std::vector<Configuration> &configuration, bool 
         output->m_config.mode = item->mode;
         output->m_scanout->m_config.modeSize = output->size();
         output->m_scanout->m_activePlanes = {output->m_config.planeId};
-        // The modeset carried the colour pipeline.
         output->m_scanout->m_colorPending = false;
         output->m_scanoutFrame.planes = {item->buffer->primary};
         output->m_scanoutFrame.composited = std::move(item->buffer);
-        // The modeset commits blocking, so this frame is already on screen.
         output->m_scanoutFrame.secure =
                 output->m_secureScanout && isSecureConfiguration(output->m_scanoutFrame.planes);
         output->m_lastPresentedSecure = output->m_scanoutFrame.secure;
@@ -680,10 +663,8 @@ bool DrmOutput::configure(const std::vector<Configuration> &configuration, bool 
 bool DrmOutput::fillModesetBuffer(render::EglRenderTarget *target, const base::Size &size,
                                   bool copyScanout)
 {
-    // What the CRTC shows now, another DRM master's last frame or this output's
-    // own, carries over into the new mode instead of a black frame between the
-    // two. A blocked session stays black: a frame it did not compose must not
-    // count as its secure presentation.
+    // The CRTC's current frame carries over into the new mode; a blocked
+    // session stays black.
     render::DmaBufAttributes current;
     const bool copy = copyScanout && (!m_secureScanout || m_carryOverWhileSecure)
             && m_device->exportCrtcFramebuffer(m_config.crtcId, &current) && current.size == size;
@@ -826,8 +807,8 @@ void DrmOutput::disable()
     m_scheduler.suspend();
     for (const uint64_t frame : dropOutstandingFrames())
         frameDiscarded(frame);
-    // An inactive session may still have old scanout references. Keep both
-    // frames until their flip retires or a successful modeset replaces them.
+    // An inactive session may still have old scanout references; both frames
+    // are kept until their flip retires or a modeset replaces them.
     if (m_enabled && m_sessionActive && m_sessionActive() && m_scanout && m_scanout->disable()) {
         releaseScanoutBuffers();
         m_bufferFrame = 0;
@@ -835,9 +816,6 @@ void DrmOutput::disable()
     if (m_cursor)
         m_cursor->hide();
     m_enabled = false;
-    // Waking up has to earn secure presentation again: what was on screen
-    // before the output went dark says nothing about the frame it comes back
-    // with.
     m_lastPresentedSecure = false;
     destroyModeBlob();
 }
@@ -985,10 +963,8 @@ bool DrmOutput::renderFrame(uint64_t frame, bool modeset)
     if (!m_directScanoutEnabled || !m_enabled)
         return false;
 
-    // A plane configuration that passed TEST_ONLY can still be rejected by the
-    // real commit. Composing the same frame without promotions is always
-    // possible, and it is what keeps a failed optimization from dropping a
-    // frame or leaving a stale buffer on screen.
+    // A configuration that passed TEST_ONLY can still fail the real commit; the
+    // frame is then composited.
     CF_WARNING(cfDrm) << "Hardware plane commit failed; compositing this frame instead";
     return renderAttempt(frame, modeset, false, prepared, true);
 }
@@ -1025,10 +1001,8 @@ bool DrmOutput::renderAttempt(uint64_t frame, bool modeset, bool allowPromotion,
         m_prepareCallback(*m_renderer, frame);
     prepared = true;
 
-    // The framebuffer currently on the primary plane stands in for the one this
-    // frame will produce: same size, format and modifier, which is what makes
-    // the atomic test meaningful. Upstream allocates a throwaway buffer for
-    // this; reusing the real one is both cheaper and more accurate.
+    // The primary plane's current framebuffer stands in for this frame's: same
+    // size, format and modifier.
     PlaneContent composited;
     if (!m_scanoutFrame.planes.empty() && !m_scanoutFrame.planes.front().isDirectScanout())
         composited = m_scanoutFrame.planes.front();
@@ -1059,9 +1033,6 @@ bool DrmOutput::renderAttempt(uint64_t frame, bool modeset, bool allowPromotion,
     render::GpuTimer::Mark drawnMark;
     render::SyncFence drawnFence;
     if (direct) {
-        // Nothing to composite: the client's own buffer goes on the primary
-        // plane and the GBM front buffer is left exactly as it was, ready for
-        // the moment scanout stops being possible.
         m_renderer->cancelFrame();
     } else {
         // Plane promotion changes pixels without changing scene revisions.
@@ -1078,9 +1049,6 @@ bool DrmOutput::renderAttempt(uint64_t frame, bool modeset, bool allowPromotion,
         // After the scene and the captures that copy it, which stay untinted.
         if (blended)
             m_renderer->tintFrame(m_colorTransform);
-        // Tells the scheduler how long composition really takes on this GPU.
-        // A fence's export waits for the driver to submit the frame; a
-        // timestamp query rides the swap's own submission.
         if (m_renderer->marksDrawn())
             drawnMark = m_renderer->markDrawn();
         else
@@ -1108,8 +1076,6 @@ bool DrmOutput::renderAttempt(uint64_t frame, bool modeset, bool allowPromotion,
             planes.front() = std::move(primary);
     }
 
-    // The previous flip has not landed, so this frame waits its turn at KMS;
-    // its rendering has already overlapped that wait, which is the point.
     const bool queue = !modeset && m_bufferFrame != 0;
     if (!queue && !commit(planes, modeset, frame)) {
         clearPromotions();
@@ -1140,8 +1106,6 @@ bool DrmOutput::renderAttempt(uint64_t frame, bool modeset, bool allowPromotion,
     }
 
     if (queue) {
-        // The scheduler holds at most one frame behind the flip; a stale one
-        // here would be a bookkeeping slip, and the newer frame wins.
         if (m_queuedFrame) {
             const uint64_t stale = m_queuedFrame->frame;
             retire(m_queuedFrame->submitted, render::SyncFence());
@@ -1163,7 +1127,6 @@ bool DrmOutput::renderAttempt(uint64_t frame, bool modeset, bool allowPromotion,
         m_bufferFrame = frame;
     }
 
-    // Promotion lasts exactly one frame; the next one re-decides from scratch.
     clearPromotions();
     return true;
 }
@@ -1180,11 +1143,8 @@ void DrmOutput::onPageFlip(uint64_t frame, uint32_t seconds, uint32_t microsecon
 {
     if (!m_events.erase(frame))
         return; // One unique kernel event per token.
-    // A driver without vblank (virtio-gpu) stamps every flip with sequence 0,
-    // and its mode's refresh is made up: QEMU's EDID says 75 Hz. The frames
-    // reach a host display running at its own rate, 60 or 120 Hz, where 75 fps
-    // cannot be paced evenly and 60 can. A driver that stamps such flips when
-    // the display took them keeps its mode's refresh.
+    // virtio-gpu stamps every flip with sequence 0 under a made-up refresh, so
+    // such an output is paced at 60 Hz.
     if (!m_unsynced && sequence == 0 && m_lastSequence == 0 && m_completions > 0
         && !m_device->flipTimesMarkRefresh()) {
         m_unsynced = true;
@@ -1266,8 +1226,6 @@ void DrmOutput::onFlipTimeout()
                      << "ms; no longer waiting for it";
     retireEvent(std::move(oldest->second));
     m_events.erase(oldest);
-    // Nothing says the frame reached the screen, so its feedback is discarded,
-    // while frame callbacks and scheduling move on as if it had.
     m_presentations.abandon(frame);
     const auto now = std::chrono::duration_cast<std::chrono::milliseconds>(
             m_now().time_since_epoch());

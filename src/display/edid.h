@@ -9,8 +9,7 @@
 
 namespace cutefish::display {
 
-// What the first 128-byte EDID block says about a monitor. Everything is
-// empty when the block is missing, has no EDID header or fails its checksum.
+// Empty when the block is missing, has no EDID header or fails its checksum.
 struct EdidInfo {
     // SHA-256 over the vendor/product/serial bytes and the serial string.
     std::string key;

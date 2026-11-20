@@ -51,8 +51,7 @@ MenuBarIndicators::Network WirelessStatus::network() const
     return network;
 }
 
-// NM.ActiveConnection: the Wi-Fi connection that is up, the primary one if
-// there are several; a hotspot is not a network this machine is on.
+// A hotspot is not a network this machine is on.
 void WirelessStatus::updateActiveConnection()
 {
     std::string name;

@@ -5,9 +5,6 @@
 // Upstream: chromium/src/components/exo/wayland/wayland_keyboard_delegate_unittest.cc
 //           pointer_unittest.cc, keyboard_unittest.cc. Real libwayland-client adaptation.
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: exercises the corresponding behavior with native
-// compositor test doubles and APIs.
 
 #include <algorithm>
 #include <atomic>
@@ -66,7 +63,6 @@ input::Timestamp at(int ms)
     return input::Timestamp(std::chrono::milliseconds(ms));
 }
 
-// Everything the client observed, in order where order is what is under test.
 struct Observed {
     uint32_t seatCapabilities = 0;
     std::string seatName;
@@ -255,8 +251,7 @@ struct Client {
         return surface;
     }
 
-    // Destroys a surface makeSurface() handed out, so the destructor does not
-    // destroy it a second time.
+    // Destroys a surface makeSurface() handed out, so the destructor does not destroy it again.
     void destroySurface(wl_surface* surface)
     {
         m_surfaces.erase(std::remove(m_surfaces.begin(), m_surfaces.end(), surface),
@@ -406,7 +401,6 @@ struct Client {
         return inhibitor;
     }
 
-    // Destroys a protocol object one of the helpers above handed out.
     void destroy(void* proxy)
     {
         std::erase(m_proxies, static_cast<wl_proxy*>(proxy));
@@ -573,8 +567,6 @@ protected:
     compositor::Compositor compositor {surfaceContainer};
     input::Seat seat {&compositor};
     input::InputManager manager {&seat};
-    // Keyboard focus follows window activation, so these tests need a window
-    // manager.
     wm::WindowManager windowManager {&compositor, &seat};
     wayland::Server server;
 
@@ -654,13 +646,10 @@ protected:
         client.join();
         wl_display_destroy_clients(server.display());
         EXPECT_TRUE(compositor.surfaces().empty());
-        // Focus cleanup: nothing may outlive the client's surfaces.
         EXPECT_EQ(nullptr, seat.focusedSurface());
-        // A window does not outlive its root surface either.
         EXPECT_TRUE(windowManager.windows().empty());
     }
 
-    // The compositor cascades new surfaces; the tests want known positions.
     void place(size_t index, const base::Point& position)
     {
         ASSERT_LT(index, compositor.surfaces().size());
@@ -668,8 +657,6 @@ protected:
         compositor.surfaces()[index]->setPosition(position);
     }
 
-    // Gives the surface at `index` a window at `position`, standing in for
-    // xdg_toplevel, which these surfaces never take.
     void adopt(size_t index, const base::Point& position)
     {
         ASSERT_LT(index, compositor.surfaces().size());
@@ -678,7 +665,6 @@ protected:
         window->setBounds(base::Rect(position, window->bounds().size()));
     }
 
-    // Adopts the surface at `index` at `position` and activates its window.
     // Returns where its content is.
     base::Rect activateWindow(size_t index, const base::Point& position)
     {
@@ -752,7 +738,6 @@ TEST_F(SeatProtocolTest, PointerEnterMotionButtonAndLeaveAreBatchedIntoFrames)
         c.sync();
         EXPECT_EQ("leave", c.observed.pointerEvents[c.observed.pointerEvents.size() - 2]);
         EXPECT_EQ("frame", c.observed.pointerEvents.back());
-        // enter, motion, 2 buttons, leave: one frame each.
         EXPECT_EQ(5, c.observed.pointerFrames);
     });
 }
@@ -772,7 +757,6 @@ TEST_F(SeatProtocolTest, TouchPointsStayWithTheSurfaceTheyWentDownOn)
         c.sync();
         EXPECT_EQ(surface, c.observed.touchSurface);
 
-        // Motion off the surface still belongs to it, in its coordinates.
         check([&] {
             seat.onTouchMotion(at(2), 0, base::PointF(500, 400));
             seat.onTouchFrame();
@@ -851,7 +835,6 @@ TEST_F(SeatProtocolTest, AxisEventsCarrySourceDiscreteAndStop)
             c.sync();
             ASSERT_EQ(1u, c.observed.axisSources.size());
             EXPECT_EQ(uint32_t(WL_POINTER_AXIS_SOURCE_WHEEL), c.observed.axisSources[0]);
-            // Only the axis that moved gets a discrete step.
             ASSERT_EQ(1u, c.observed.axisDiscrete.size());
             EXPECT_EQ(uint32_t(WL_POINTER_AXIS_VERTICAL_SCROLL), c.observed.axisDiscrete[0].first);
             EXPECT_EQ(1, c.observed.axisDiscrete[0].second);
@@ -859,13 +842,11 @@ TEST_F(SeatProtocolTest, AxisEventsCarrySourceDiscreteAndStop)
             ASSERT_EQ(2u, c.observed.axes.size());
             EXPECT_EQ(uint32_t(WL_POINTER_AXIS_VERTICAL_SCROLL), c.observed.axes[1].first);
             EXPECT_EQ(wl_fixed_from_double(10), c.observed.axes[1].second);
-            // axis_discrete must precede its axis event.
             const auto& events = c.observed.pointerEvents;
             const auto discreteAt = std::find(events.begin(), events.end(), "axis_discrete");
             const auto axisAt = std::find(events.begin(), events.end(), "axis");
             EXPECT_LT(discreteAt - events.begin(), axisAt - events.begin());
 
-            // A finger scroll has no discrete steps and ends with axis_stop.
             check([&] {
                 seat.onPointerAxis(at(3), base::PointF(10, 10), base::PointF(-4.5, 2.25), false);
                 seat.onPointerAxisStop(at(4), base::PointF(10, 10));
@@ -875,7 +856,7 @@ TEST_F(SeatProtocolTest, AxisEventsCarrySourceDiscreteAndStop)
             EXPECT_EQ(uint32_t(WL_POINTER_AXIS_SOURCE_FINGER), c.observed.axisSources[1]);
             ASSERT_EQ(4u, c.observed.axes.size());
             EXPECT_EQ(wl_fixed_from_double(-4.5), c.observed.axes[2].second);
-            EXPECT_EQ(1u, c.observed.axisDiscrete.size()); // unchanged
+            EXPECT_EQ(1u, c.observed.axisDiscrete.size());
             EXPECT_EQ(2u, c.observed.axisStops.size());
         },
         7);
@@ -891,7 +872,6 @@ TEST_F(SeatProtocolTest, AVersionEightSeatGetsWheelFractionsAsValue120)
         check([&] {
             place(0, base::Point(0, 0));
             seat.onPointerMotion(at(1), base::PointF(10, 10));
-            // An eighth of a click down, then a whole click left.
             seat.onPointerAxis(at(2), base::PointF(10, 10), base::PointF(0, 1.25), true);
             seat.onPointerAxis(at(3), base::PointF(10, 10), base::PointF(-10, 0), true);
         });
@@ -903,7 +883,6 @@ TEST_F(SeatProtocolTest, AVersionEightSeatGetsWheelFractionsAsValue120)
         EXPECT_EQ(uint32_t(WL_POINTER_AXIS_HORIZONTAL_SCROLL), c.observed.axisValue120[1].first);
         EXPECT_EQ(-120, c.observed.axisValue120[1].second);
         EXPECT_EQ(wl_fixed_from_double(1.25), c.observed.axes[1].second);
-        // axis_value120 must precede its axis event.
         const auto& events = c.observed.pointerEvents;
         const auto value120At = std::find(events.begin(), events.end(), "axis_value120");
         const auto axisAt = std::find(events.begin(), events.end(), "axis");
@@ -921,7 +900,6 @@ TEST_F(SeatProtocolTest, AnOlderSeatCountsWheelFractionsIntoWholeClicks)
             check([&] {
                 place(0, base::Point(0, 0));
                 seat.onPointerMotion(at(1), base::PointF(10, 10));
-                // Seven eighths of a click: no step yet, but every axis value.
                 for (int i = 0; i < 7; ++i)
                     seat.onPointerAxis(at(2 + i), base::PointF(10, 10), base::PointF(0, 1.25), true);
             });
@@ -936,7 +914,6 @@ TEST_F(SeatProtocolTest, AnOlderSeatCountsWheelFractionsIntoWholeClicks)
             ASSERT_EQ(1u, c.observed.axisDiscrete.size());
             EXPECT_EQ(1, c.observed.axisDiscrete[0].second);
 
-            // Turning back drops the fraction gathered the other way.
             check([&] {
                 seat.onPointerAxis(at(10), base::PointF(10, 10), base::PointF(0, 5), true);
                 for (int i = 0; i < 8; ++i)
@@ -962,14 +939,11 @@ TEST_F(SeatProtocolTest, SubsurfaceHitTestingTargetsTheChild)
         c.sync();
         check([&] { place(0, base::Point(100, 100)); });
 
-        // Over the parent only.
         check([&] { seat.onPointerMotion(at(1), base::PointF(110, 110)); });
         c.sync();
         EXPECT_EQ(parent, c.observed.enterSurface);
         EXPECT_EQ(wl_fixed_from_double(10), c.observed.enterX);
 
-        // Over the subsurface: leave the parent, enter the child, with the
-        // location relative to the child.
         check([&] { seat.onPointerMotion(at(2), base::PointF(125, 130)); });
         c.sync();
         EXPECT_EQ(child, c.observed.enterSurface);
@@ -1027,7 +1001,6 @@ TEST_F(SeatProtocolTest, ACursorSurfaceRefusedAfterLeaveStaysOffScreen)
         c.sync();
         const uint32_t serial = c.observed.enterSerial;
 
-        // A toolkit dragging a tab still names the serial of the enter it left.
         check([&] { seat.onPointerMotion(at(2), base::PointF(500, 500)); });
         c.sync();
         wl_pointer_set_cursor(c.pointer, serial, cursor, 6, 8);
@@ -1046,7 +1019,6 @@ TEST_F(SeatProtocolTest, KeyboardSendsKeymapRepeatInfoEnterKeysAndModifiers)
         c.getKeyboard();
         c.sync();
 
-        // Keymap and repeat_info arrive before anything else.
         ASSERT_GE(c.observed.keyboardEvents.size(), 2u);
         EXPECT_EQ("keymap", c.observed.keyboardEvents[0]);
         EXPECT_EQ("repeat_info", c.observed.keyboardEvents[1]);
@@ -1055,7 +1027,6 @@ TEST_F(SeatProtocolTest, KeyboardSendsKeymapRepeatInfoEnterKeysAndModifiers)
         EXPECT_EQ(25, c.observed.repeatRate);
         EXPECT_EQ(500, c.observed.repeatDelay);
 
-        // The keymap the client received must compile.
         xkb_context* context = xkb_context_new(XKB_CONTEXT_NO_FLAGS);
         xkb_keymap* keymap = xkb_keymap_new_from_string(context, c.observed.keymap.c_str(),
                                                         XKB_KEYMAP_FORMAT_TEXT_V1,
@@ -1068,7 +1039,6 @@ TEST_F(SeatProtocolTest, KeyboardSendsKeymapRepeatInfoEnterKeysAndModifiers)
         wl_surface* surface = c.makeSurface(base::Size(100, 100));
         c.sync();
 
-        // Two keys held before focus are reported by enter.
         check([&] {
             seat.onKey(at(1), KEY_A, true);
             seat.onKey(at(2), KEY_LEFTSHIFT, true);
@@ -1080,7 +1050,6 @@ TEST_F(SeatProtocolTest, KeyboardSendsKeymapRepeatInfoEnterKeysAndModifiers)
         ASSERT_EQ(2u, c.observed.enterKeys.size());
         EXPECT_EQ(uint32_t(KEY_A), c.observed.enterKeys[0]);
         EXPECT_EQ(uint32_t(KEY_LEFTSHIFT), c.observed.enterKeys[1]);
-        // Modifiers precede enter, and shift is already down.
         ASSERT_FALSE(c.observed.modifiers.empty());
         EXPECT_NE(0u, c.observed.modifiers.back()[0]);
 
@@ -1095,14 +1064,12 @@ TEST_F(SeatProtocolTest, KeyboardSendsKeymapRepeatInfoEnterKeysAndModifiers)
         EXPECT_EQ(uint32_t(WL_KEYBOARD_KEY_STATE_RELEASED), std::get<2>(c.observed.keys[1]));
         EXPECT_NE(std::get<0>(c.observed.keys[0]), std::get<0>(c.observed.keys[1]));
 
-        // Releasing shift clears the depressed mask.
         const size_t modifierCount = c.observed.modifiers.size();
         check([&] { seat.onKey(at(5), KEY_LEFTSHIFT, false); });
         c.sync();
         ASSERT_GT(c.observed.modifiers.size(), modifierCount);
         EXPECT_EQ(0u, c.observed.modifiers.back()[0]);
 
-        // Caps Lock arrives in the locked mask, not the latched one.
         check([&] {
             seat.onKey(at(6), KEY_CAPSLOCK, true);
             seat.onKey(at(7), KEY_CAPSLOCK, false);
@@ -1135,7 +1102,6 @@ TEST_F(SeatProtocolTest, ClickingASurfaceGivesItKeyboardFocus)
         EXPECT_EQ(surface, c.observed.keyboardEnterSurface);
         check([&] { EXPECT_EQ(compositor.surfaces()[0], seat.focusedSurface()); });
 
-        // The key now reaches the surface that was clicked.
         check([&] { seat.onKey(at(3), KEY_X, true); });
         c.sync();
         ASSERT_EQ(1u, c.observed.keys.size());
@@ -1163,8 +1129,6 @@ TEST_F(SeatProtocolTest, DestroyingASurfaceClearsPointerAndKeyboardFocus)
         c.destroySurface(surface);
         c.sync();
 
-        // A leave still reaches the client: the surface is destroyed while its
-        // resource is alive, which is what Exo does.
         ASSERT_GT(c.observed.pointerEvents.size(), pointerEvents);
         EXPECT_EQ("leave", c.observed.pointerEvents[pointerEvents]);
         EXPECT_EQ("leave", c.observed.keyboardEvents.back());
@@ -1174,7 +1138,6 @@ TEST_F(SeatProtocolTest, DestroyingASurfaceClearsPointerAndKeyboardFocus)
             EXPECT_TRUE(compositor.surfaces().empty());
         });
 
-        // Events after the surface is gone reach nobody and crash nothing.
         check([&] {
             seat.onPointerMotion(at(3), base::PointF(60, 60));
             seat.onKey(at(4), KEY_A, true);
@@ -1186,8 +1149,7 @@ TEST_F(SeatProtocolTest, DestroyingASurfaceClearsPointerAndKeyboardFocus)
 
 TEST_F(SeatProtocolTest, AVersionFourSeatGetsNoFrameAxisSourceOrDiscrete)
 {
-    // wl_pointer.frame, axis_source, axis_stop and axis_discrete are all
-    // version 5; a version 4 client must see none of them.
+    // wl_pointer.frame, axis_source, axis_stop and axis_discrete are version 5.
     run(
         [&](Client& c) {
             c.getPointer();
@@ -1213,8 +1175,6 @@ TEST_F(SeatProtocolTest, AVersionFourSeatGetsNoFrameAxisSourceOrDiscrete)
         4);
 }
 
-// Exo's SetCursorType / SetCursorAndSetCursorType behavior, driven through the
-// standard protocol with per-pointer enter-serial and resource lifetime checks.
 TEST_F(SeatProtocolTest, CursorShapeReplacesSurfaceAndHideAndRejectsOldSerial)
 {
     run([&](Client& c) {
@@ -1290,7 +1250,6 @@ TEST_F(SeatProtocolTest, CursorShapeReplacesSurfaceAndHideAndRejectsOldSerial)
         check([&] {
             EXPECT_EQ(seat.clientCursorShape(), input::CursorShape::Wait);
         });
-        // Destroying manager or shape-device must not reset the chosen cursor.
         wp_cursor_shape_manager_v1_destroy(manager);
         wp_cursor_shape_device_v1_destroy(device);
         c.sync();
@@ -1411,7 +1370,6 @@ TEST_F(SeatProtocolTest, ALockHoldsThePointerAndRelativeMotionGoesOn)
                   c.observed.pointerEvents);
         ASSERT_EQ(1u, c.observed.relativeMotions.size());
         const auto& relative = c.observed.relativeMotions[0];
-        // Microseconds, where Exo sends milliseconds.
         EXPECT_EQ(2000u, relative.usec);
         EXPECT_EQ(30, relative.dx);
         EXPECT_EQ(-20, relative.dy);
@@ -1441,7 +1399,6 @@ TEST_F(SeatProtocolTest, BreakingALockWarpsToItsHintAndOnlyAClickLocksAgain)
         c.sync();
         EXPECT_EQ(std::vector<std::string>({"locked", "unlocked"}), c.observed.constraintEvents);
 
-        // Not even the pointer re-entering the region takes it back.
         check([&] {
             manager.onPointerMotion(at(2), base::PointF(1, 1));
             EXPECT_EQ(nullptr, seat.pointerConstraints()->active());
@@ -1459,7 +1416,6 @@ TEST_F(SeatProtocolTest, BreakingALockWarpsToItsHintAndOnlyAClickLocksAgain)
         c.sync();
         EXPECT_TRUE(base::fuzzyCompare(base::PointF(content.topLeft() + base::Point(20, 30)), pointer()))
             << pointer();
-        // The client hears where the pointer went.
         ASSERT_EQ(motions + 1, c.observed.motions.size());
         EXPECT_EQ(wl_fixed_from_int(20), c.observed.motions.back().first);
         EXPECT_EQ(wl_fixed_from_int(30), c.observed.motions.back().second);
@@ -1517,7 +1473,6 @@ TEST_F(SeatProtocolTest, AConfinementKeepsThePointerInsideItsRegion)
             c.confine(surface, region, ZWP_POINTER_CONSTRAINTS_V1_LIFETIME_PERSISTENT);
         wl_region_destroy(region);
         c.sync();
-        // Outside the region it waits for the pointer to come in.
         EXPECT_TRUE(c.observed.constraintEvents.empty());
         check([&] { manager.onPointerMotion(at(2), base::PointF(15, 15)); });
         c.sync();
@@ -1530,7 +1485,6 @@ TEST_F(SeatProtocolTest, AConfinementKeepsThePointerInsideItsRegion)
         EXPECT_NEAR(50, local.y(), 0.01);
         EXPECT_LT(local.x(), 60);
         EXPECT_EQ(100, c.observed.relativeMotions.back().dx);
-        // It still hits the surface: the pointer never left it.
         EXPECT_EQ(std::vector<std::string>({"confined"}), c.observed.constraintEvents);
 
         check([&] { manager.onPointerMotion(at(4), base::PointF(-200, 0)); });
@@ -1583,9 +1537,6 @@ TEST_F(SeatProtocolTest, DestroyingTheSurfaceOrTheConstraintReleasesThePointer)
     });
 }
 
-// Exo's UAFViaDuplicatePreTargetHandlerOnSubsurfaces: persistent locks on
-// several subsurfaces of the active window, broken by the user, then the
-// wl_pointer released while they still exist, and input keeps flowing.
 TEST_F(SeatProtocolTest, LocksOnSeveralSubsurfacesSurviveBreakingAndPointerRelease)
 {
     run([&](Client& c) {
@@ -1630,8 +1581,6 @@ TEST_F(SeatProtocolTest, LocksOnSeveralSubsurfacesSurviveBreakingAndPointerRelea
     });
 }
 
-// Exo's ConstrainPointerWithUncommittedShellSurface: a lock on a surface with
-// no window yet stays inactive, and tearing it down is safe.
 TEST_F(SeatProtocolTest, ALockOnASurfaceWithoutAWindowStaysInactive)
 {
     run([&](Client& c) {
@@ -1691,7 +1640,6 @@ TEST_F(SeatProtocolTest, AShortcutsInhibitorIsActiveWithKeyboardFocus)
         EXPECT_EQ(std::vector<std::string>({"active", "inactive", "active"}),
                   c.observed.constraintEvents);
 
-        // Taken back by the user, it stays inactive until a click on the window.
         check([&] {
             EXPECT_TRUE(seat.breakInputCapture());
             EXPECT_FALSE(seat.shortcutsInhibition()->isActive());
@@ -1740,7 +1688,6 @@ TEST_F(SeatProtocolTest, SwipePinchAndHoldGesturesReachTheSurfaceUnderThePointer
             manager.onPointerGestureEnd(at(7), input::GestureType::Pinch, true);
             manager.onPointerGestureBegin(at(8), input::GestureType::Hold, 2);
             manager.onPointerGestureEnd(at(9), input::GestureType::Hold, false);
-            // The pointer does not move with a gesture.
             EXPECT_EQ(base::PointF(wm::centerPixel(content)), manager.pointerPosition());
         });
         c.sync();
@@ -1764,7 +1711,6 @@ TEST_F(SeatProtocolTest, AGestureEndsCancelledWhenItsSurfaceGoesAndStartsNowhere
         c.sync();
         const base::Rect content = activateWindow(0, base::Point(100, 100));
         check([&] {
-            // Nothing under the pointer: nothing begins, and nothing ends.
             manager.onPointerMotionAbsolute(at(1), base::PointF(700, 500));
             manager.onPointerGestureBegin(at(2), input::GestureType::Swipe, 3);
             manager.onPointerGestureUpdate(at(3), input::GestureType::Swipe, base::PointF(4, 0),
@@ -1784,12 +1730,10 @@ TEST_F(SeatProtocolTest, AGestureEndsCancelledWhenItsSurfaceGoesAndStartsNowhere
         c.sync();
         EXPECT_EQ(std::vector<std::string>({"pinch_begin 2", "pinch_end 1"}),
                   c.observed.gestureEvents);
-        // The cancellation has its own frame, before the leave.
         ASSERT_GT(c.observed.pointerEvents.size(), pointerEvents + 1);
         EXPECT_EQ("frame", c.observed.pointerEvents[pointerEvents]);
         EXPECT_EQ("leave", c.observed.pointerEvents[pointerEvents + 1]);
 
-        // The rest of the gesture goes nowhere.
         check([&] {
             manager.onPointerGestureUpdate(at(7), input::GestureType::Pinch, base::PointF(1, 1),
                                            base::PointF(1, 1), 2, 0);

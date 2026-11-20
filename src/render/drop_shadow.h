@@ -14,25 +14,22 @@
 
 namespace cutefish::render {
 
-// Renderer::renderShadow() the way Skia's GPU mask blur does it (GrBlurUtils:
-// GaussianBlur, then the outer style's difference with the source mask): every
-// lobe is a separable Gaussian of the caster's coverage, run on a copy halved
-// until its sigma fits the linear-tap kernel and stretched back over the image.
+// Each lobe is a separable Gaussian of the caster's coverage, on a copy halved
+// until its sigma fits the kernel.
 class DropShadow
 {
 public:
     bool initialize();
 
-    // With the renderer's raster scale at 1, so logical units are image pixels,
-    // and no rounded clip set.
+    // Needs a raster scale of 1, so logical units are image pixels, and no
+    // rounded clip set.
     std::unique_ptr<Texture> render(Renderer &renderer, const base::Size &size,
                                     const std::vector<ShadowLobe> &lobes,
                                     const std::function<void()> &paintCaster);
 
 private:
-    // Draws `texture` over `rect`, in pixels of a `viewport` sized pass with
-    // rows bottom-up, as every pass here stores them; `extent` is the texture
-    // coordinate the far corner samples.
+    // Rows bottom-up; `extent` is the texture coordinate the far corner
+    // samples.
     void draw(Texture *texture, const base::RectF &rect, const base::Size &viewport,
               const base::PointF &extent = {1, 1}) const;
 

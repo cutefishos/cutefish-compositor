@@ -44,10 +44,8 @@ namespace cutefish::shell {
 
 using Panel = MenuBarPanels::Panel;
 
-// Between the bar and a menu it opens, as the tray's.
 static constexpr double kMenuGap = 6;
 
-// The bar's row; a press between its items closes every popup.
 class MenuBarWindow::Root final : public ui::RowLayout
 {
 public:
@@ -66,8 +64,6 @@ protected:
     void layout() override
     {
         ui::RowLayout::layout();
-        // A theme change lays every window out again; the system's dark
-        // mode is the bar's fallback.
         if (ui::Theme::generation() != m_themeGeneration) {
             m_themeGeneration = ui::Theme::generation();
             core::mainLoop()->post([bar = m_bar, alive = std::weak_ptr<bool>(m_bar->m_alive)] {
@@ -77,8 +73,6 @@ protected:
         }
     }
 
-    // The plate moves with its item, wherever in the row it sits, and so do
-    // the applications' items.
     void childrenLaidOut() override
     {
         if (m_bar->m_statusItems)
@@ -91,7 +85,6 @@ private:
     uint64_t m_themeGeneration = 0;
 };
 
-// The app menus' slot: what it holds fills it.
 class MenuSlot final : public ui::View
 {
 protected:
@@ -116,7 +109,6 @@ MenuBarWindow::MenuBarWindow(Shell *shell, std::unique_ptr<MenuBar> menuBar)
     auto root = std::make_unique<Root>(this);
     m_root = root.get();
 
-    // Empty until the app menus' component plugs in.
     m_menuSlot = m_root->addChild<MenuSlot>();
     m_menuSlot->setName("app-menus");
     ui::LayoutHints fill;
@@ -194,7 +186,6 @@ MenuBarWindow::MenuBarWindow(Shell *shell, std::unique_ptr<MenuBar> menuBar)
 
     m_window->setContentView(std::move(root));
 
-    // The clock, in the primary language's words.
     m_clockFd = timerfd_create(CLOCK_REALTIME, TFD_CLOEXEC | TFD_NONBLOCK);
     if (m_clockFd >= 0) {
         m_clockWatch = core::mainLoop()->watch(m_clockFd, EPOLLIN, [this](uint32_t) {
@@ -219,7 +210,6 @@ MenuBarWindow::MenuBarWindow(Shell *shell, std::unique_ptr<MenuBar> menuBar)
     if (bus)
         setDeviceUsage(DeviceUsage::create(&m_shell->tasks()));
     m_subscriptions.push_back(m_shell->outputsChanged.connect([this] { updateGeometry(); }));
-    // The theme's dark mode stands in while nothing behind the bar was judged.
     m_subscriptions.push_back(m_window->mappedChanged.connect([this] { updateLook(); }));
 
     updateGeometry();
@@ -258,7 +248,6 @@ MenuBarWindow::~MenuBarWindow()
 
 void MenuBarWindow::updateGeometry()
 {
-    // Always the primary output, all its width.
     const Shell::Output *output = m_shell->output({});
     if (!output)
         return;
@@ -273,7 +262,6 @@ void MenuBarWindow::updateStatusItemLimits()
     wm::StatusItems *items = m_shell->windowManager() ? m_shell->windowManager()->statusItems() : nullptr;
     if (!items || !m_window)
         return;
-    // An item may take up to a third of the bar.
     const base::Rect geometry = m_window->geometry();
     items->setBarOrigin(geometry.topLeft());
     items->setLimits(kHeight, std::max(kHeight, geometry.width() / 3));
@@ -303,9 +291,6 @@ bool MenuBarWindow::panelOpen() const
 
 void MenuBarWindow::updateLook()
 {
-    // What is behind the bar decides; the system's dark mode while nothing
-    // has been judged. Under Reduce Transparency the bar has a fill of its
-    // own, by mode, and its contents follow the mode.
     const bool dark = ui::Theme::current().darkMode;
     const bool opaque = render::opaqueBackdrop().has_value();
     bool light = m_backdrop->isValid() ? m_backdrop->useLightForeground() : dark;
@@ -352,8 +337,7 @@ void MenuBarWindow::updatePlateBlur()
 {
     if (!m_window || !m_root)
         return;
-    // A surface has one blur, and one plate shows at a time: opening a panel
-    // or a menu closes the others.
+    // A surface has one blur, so one plate shows at a time.
     const BarItem *item = findPlate(m_root);
     ui::RectF plate = item ? item->plateRect() : ui::RectF();
     if (plate.width > 0 && plate.height > 0) {
@@ -369,8 +353,6 @@ void MenuBarWindow::updatePlateBlur()
         m_window->setBackgroundBlur(base::Rect(), 0);
         return;
     }
-    // The rectangle in whole logical pixels; the shape clips the blur to the
-    // plate as drawn, which sits on fractional ones at most scales.
     const double radius = ui::Theme::current().smallRadius;
     const int left = int(std::floor(plate.x));
     const int top = int(std::floor(plate.y));
@@ -426,7 +408,6 @@ void MenuBarWindow::setDeviceUsage(std::unique_ptr<DeviceUsage> usage)
     m_deviceUsageChanged.reset();
     m_deviceUsage = std::move(usage);
     const auto update = [this] {
-        // Camera before microphone before system audio.
         const DeviceUsage *usage = m_deviceUsage.get();
         m_control->setIndicatorColor(usage && usage->camera()            ? std::optional<ui::Color>(ui::accent::green)
                                      : usage && usage->microphone()    ? std::optional<ui::Color>(ui::accent::orange)
@@ -453,7 +434,6 @@ void MenuBarWindow::setAgentControl(bool active)
 
 void MenuBarWindow::layoutRow()
 {
-    // Not before every item exists.
     if (!m_clock)
         return;
     const auto preferred = [](ui::View *view, double width) {
@@ -655,7 +635,6 @@ void MenuBarWindow::setAppMenus(std::unique_ptr<MenuBarAppMenus> appMenus)
 
 ui::RectF MenuBarWindow::availableGeometry() const
 {
-    // The menus stay inside the work area the shell reserves.
     const Shell::Output *output = m_shell->output(m_window->outputName());
     if (!output)
         return {};

@@ -77,7 +77,6 @@ bool DrmCursor::setImage(const uint8_t* pixels, const base::Size& size, int stri
         return false;
 
     const size_t bytes = size_t(stride) * (size.height() - 1) + size_t(size.width()) * 4;
-    // Every pointer enter, leave and cursor request sets the image again.
     if (m_visible && size == m_imageSize && stride == m_imageStride && hotspot == m_hotspot
         && m_image.size() == bytes && std::memcmp(m_image.data(), pixels, bytes) == 0) {
         return true;
@@ -149,8 +148,6 @@ bool DrmCursor::upload()
 
     m_front = back;
     m_visible = true;
-    // A new image on an already-positioned cursor still has to be placed: the
-    // hotspot may have moved within the image.
     if (m_positioned) {
         m_moveDeferred = false;
         m_device->moveCursor(m_crtcId, m_position - m_hotspot);
@@ -186,7 +183,6 @@ void DrmCursor::setFlipPending(bool pending)
     m_flipPending = pending;
     if (pending)
         return;
-    // The upload places the cursor too.
     if (m_uploadDeferred) {
         upload();
         return;

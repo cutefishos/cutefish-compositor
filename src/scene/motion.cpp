@@ -27,7 +27,6 @@ double bezierSlope(double a, double b, double s)
     return 3 * a * (1 - s) * (1 - s) + 6 * (b - a) * (1 - s) * s + 3 * (1 - b) * s * s;
 }
 
-// The curve parameter where its x is `x`.
 double bezierParameter(double x1, double x2, double x)
 {
     x = std::clamp(x, 0.0, 1.0);
@@ -77,8 +76,6 @@ Tween::Tween(double time, double from, double target, double durationMs, double 
     const double distance = target - from;
     if (distance == 0 || m_duration <= 0 || velocity * distance <= 0)
         return;
-    // The curve leaves at y1 / x1 times its average speed; y1 above 1 would
-    // overshoot, so a faster start takes less time.
     const double maxSlope = 1 / m_x1;
     double slope = velocity * m_duration / 1000 / distance;
     if (slope > maxSlope) {

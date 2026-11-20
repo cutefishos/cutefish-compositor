@@ -24,24 +24,19 @@ scene::OverviewWindowFrame overviewWindowFrame(const Theme *theme)
     frame.shadow = [theme](render::Renderer &renderer, const scene::WindowAnimation &window,
                            const render::RoundedShape &body, double uniform, float opacity,
                            bool moving) {
-        // Inside the body's edges on whole logical pixels: a sliver of shadow
-        // under the window rather than a gap beside it.
         const int left = int(std::ceil(body.bounds.left()));
         const int top = int(std::ceil(body.bounds.top()));
         const base::Rect content(left, top, int(std::floor(body.bounds.right())) - left,
                                  int(std::floor(body.bounds.bottom())) - top);
         if (content.isEmpty())
             return;
-        // Each shadow keeps the corners of its window at full size, not the
-        // body's as it shrinks: a new radius is a new shadow texture every
-        // frame, and the few pixels more it curves lie under the body.
+        // Each shadow keeps its window's corner radius: a new radius would be a
+        // new texture every frame.
         const auto paint = [&](wm::ShadowElevation elevation, int radius, float alpha) {
             if (elevation == wm::ShadowElevation::None || alpha <= 0)
                 return;
             const ShadowStyle style = theme->metrics().shadowFor(elevation);
             const int rasterScale = int(std::ceil(renderer.rasterScale()));
-            // Below the nine-patch's least size every size is a texture of its
-            // own. In motion, a size a step of a shared ladder up stands in.
             base::Size size = content.size();
             if (moving) {
                 const base::Size least =
@@ -74,8 +69,6 @@ scene::OverviewWindowFrame overviewWindowFrame(const Theme *theme)
             }
         }
         const int radius = theme->visualStyle().radius;
-        // The active window's own shadow is the overview's: drawn once, not
-        // two of them blended over each other all the way.
         if (own == wm::ShadowElevation::Active && ownRadius == radius) {
             paint(own, ownRadius, opacity);
             return;

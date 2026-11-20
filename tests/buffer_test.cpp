@@ -4,9 +4,6 @@
 
 // Adapted from chromium/src/components/exo/buffer_unittest.cc
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// The release-timing cases are the valuable half; the gpu:: / viz:: resource
-// production Exo tests alongside them has no Cutefish counterpart.
 
 #include <gtest/gtest.h>
 #include <list>
@@ -25,8 +22,6 @@ using cutefish::testsupport::makePool;
 
 namespace {
 
-// Stands in for a future dmabuf buffer: the compositor samples the client's
-// storage directly and must keep it until the surface lets go.
 class RetainingBuffer : public Buffer
 {
 public:
@@ -107,14 +102,11 @@ TEST_F(BufferTest, ShmContentsAreReleasedOnceUploaded)
     surface->commit();
     ASSERT_EQ(0, releases);
 
-    // The pixels are copied into a compositor-owned texture, so the client gets
-    // its storage back even though the buffer is still on screen.
     EXPECT_TRUE(surface->updateTexture(m_renderer));
     EXPECT_EQ(1, releases);
     EXPECT_EQ(1u, buffer->attachCount());
     EXPECT_TRUE(buffer->isReleased());
 
-    // No second release for the same attachment.
     surface->updateTexture(m_renderer);
     EXPECT_EQ(1, releases);
 }
@@ -156,7 +148,6 @@ TEST_F(BufferTest, ReplacementDetachesTheOldBuffer)
 
     EXPECT_EQ(0u, first->attachCount());
     EXPECT_EQ(1u, second->attachCount());
-    // The first buffer was never uploaded, so it is released on detach.
     EXPECT_EQ(1, firstReleases);
     EXPECT_EQ(0, secondReleases);
 }
@@ -209,12 +200,9 @@ TEST_F(BufferTest, DestroyingTheBufferLeavesTheSurfaceUsable)
     surface->commit();
     ASSERT_TRUE(surface->updateTexture(m_renderer));
 
-    // The client destroys wl_buffer while the contents are still on screen.
     buffer.reset();
 
     EXPECT_EQ(nullptr, surface->buffer());
-    // The size of the committed content survives the buffer, as does the
-    // texture the compositor already owns.
     EXPECT_EQ(base::Size(32, 24), surface->bufferSize());
     EXPECT_EQ(base::Size(32, 24), surface->contentSize());
     ASSERT_NE(nullptr, surface->node());

@@ -13,13 +13,13 @@
 
 namespace cutefish::shell {
 
-// Asynchronous D-Bus calls of an object, kept until their replies land and
-// dropped with it, so no reply ever reaches an object that is gone.
+// Pending replies are dropped with the owner, so none reaches a destroyed
+// object.
 class PendingCalls
 {
 public:
-    // `start` sends the call with a reply handler that calls `finished` last.
-    // A call that cannot be sent answers inside start(); that works too.
+    // `start` must call `finished` last; a call that cannot be sent may answer
+    // inside start().
     using Start = std::function<base::dbus::PendingCall(std::function<void()> finished)>;
 
     void track(const Start &start)

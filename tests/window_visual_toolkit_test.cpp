@@ -162,7 +162,6 @@ void acceptClient(const std::string &program, std::vector<std::string> arguments
     ASSERT_TRUE(h.server.addSocket("window-visual-toolkit"));
     ASSERT_TRUE(h.server.start());
 
-    // Killed and waited for when it goes.
     base::Process client;
 
     std::vector<std::string_view> removed = {"DISPLAY", "LD_PRELOAD"};
@@ -179,9 +178,7 @@ void acceptClient(const std::string &program, std::vector<std::string> arguments
         chromium = chromium || arg.find("@PROFILE@") != std::string::npos;
         arg = base::strings::replaceAll(arg, "@PROFILE@", runtime.path() + "/profile");
     }
-    // Chromium and Electron start a11y, secret, portal and gvfs services on
-    // any session bus they reach, and those run with the bus's environment
-    // rather than this test's display.
+    // The browser starts a11y, secret, portal and gvfs services on any session bus it reaches, with the bus's environment.
     if (chromium)
         env["DBUS_SESSION_BUS_ADDRESS"] = "unix:path=" + runtime.path() + "/no-bus";
     client.setEnvironment(test::environmentWith(removed, env));
@@ -288,7 +285,6 @@ void acceptClient(const std::string &program, std::vector<std::string> arguments
     }
     if (exerciseResize) {
         static_cast<scene::WindowAnimation *>(window->node())->finish();
-        // Dragged edges stop at the work area: leave the growth room inside it.
         const base::Rect area = manager.workAreaFor(window);
         window->setBounds(base::Rect(area.topLeft(), window->bounds().size()));
         const base::Size baseSize = window->bounds().size();

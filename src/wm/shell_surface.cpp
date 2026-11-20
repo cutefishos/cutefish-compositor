@@ -5,9 +5,6 @@
 // Upstream: chromium/src/components/exo/shell_surface_base.cc
 //           chromium/src/components/exo/shell_surface.cc
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: integrates the upstream behavior with native
-// compositor types and ownership.
 
 #include "wm/shell_surface.h"
 
@@ -36,15 +33,9 @@ namespace cutefish::wm {
 
 namespace {
 
-// How long a cross-fade waits for a moved subsurface to draw for its new
-// place, or for a client left to pick its size to draw another one, so a
-// client that never does still lets it run.
 constexpr std::chrono::milliseconds kContentAwaitTimeout(100);
 
 } // namespace
-
-////////////////////////////////////////////////////////////////////////////////
-// ShellSurface, ScopedConfigure:
 
 ShellSurface::ScopedConfigure::ScopedConfigure(ShellSurface *shellSurface, bool forceConfigure)
     : m_shellSurface(shellSurface)
@@ -71,9 +62,6 @@ ShellSurface::ScopedConfigure::~ScopedConfigure()
     }
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// ShellSurface, public:
-
 ShellSurface::ShellSurface(WindowManager *manager, compositor::Surface *surface)
     : m_self(std::make_shared<ShellSurface *>(this))
     , m_manager(manager)
@@ -91,14 +79,12 @@ ShellSurface::ShellSurface(WindowManager *manager, compositor::Surface *surface)
 
 ShellSurface::~ShellSurface()
 {
-    // Anything still on the stack below a client callback learns from this that
-    // it must not touch this object again.
+    // Tells callers still on the stack below a client callback not to touch this object.
     *m_self = nullptr;
     stopAwaitingContent();
     unmapChildPopups();
 
-    // Out of every registry the rest of the compositor can reach before
-    // anything is told this object is going away.
+    // Out of every registry before anything is told this object is going away.
     if (m_parentShell)
         m_parentShell->removeChildShell(this);
     for (ShellSurface *child : std::vector<ShellSurface *>(m_childShells))
@@ -162,7 +148,6 @@ bool ShellSurface::setPopup(ShellSurface *parent, const base::Rect &bounds)
     if (m_role != Role::None || !m_surface || !parent || parent == this)
         return false;
 
-    // A popup may not be its own ancestor.
     for (ShellSurface *ancestor = parent; ancestor; ancestor = ancestor->m_parentShell) {
         if (ancestor == this)
             return false;
@@ -198,7 +183,6 @@ void ShellSurface::clearRole()
     m_role = Role::None;
     if (m_surface)
         m_surface->setHasRole(false);
-    // The role object took its decoration object with it, if it had one.
     m_hasDecorationObject = false;
     m_decorationRemovalPending = false;
     m_committed.reset();
@@ -221,8 +205,7 @@ Window *ShellSurface::ownerWindow() const
 
 void ShellSurface::setGeometry(const base::Rect &geometry)
 {
-    // Upstream refuses an empty geometry outright; an explicitly empty one is
-    // how a client goes back to using its own content bounds.
+    // An empty geometry goes back to the content bounds; upstream refuses it.
     m_pendingGeometry = geometry.isEmpty() ? base::Rect() : geometry;
 }
 
@@ -243,8 +226,7 @@ bool ShellSurface::acknowledgeConfigure(uint32_t serial)
     if (match == m_pendingConfigs.end())
         return false;
 
-    // Apply every config older than or equal to `serial`. The surface origin
-    // and the resize direction move at the next commit, not here.
+    // The surface origin and the resize direction move at the next commit, not here.
     while (!m_pendingConfigs.empty()) {
         const Config config = m_pendingConfigs.front();
         m_pendingConfigs.pop_front();
@@ -298,15 +280,12 @@ bool ShellSurface::isPositionManaged() const
 
 bool ShellSurface::setTransientParent(ShellSurface *parent)
 {
-    // A client that parents to itself or to one of its own ancestors would
-    // otherwise lock the transient chain into a cycle.
     for (ShellSurface *ancestor = parent; ancestor; ancestor = ancestor->m_transientParentShell) {
         if (ancestor == this)
             return false;
     }
 
-    // Upstream: exo ShellSurface::SetParent takes an unmapped parent's missing
-    // widget as no parent, and nothing restores it later.
+    // An unmapped parent counts as none, and nothing restores it later.
     if (parent && (parent->m_role != Role::Toplevel || !parent->m_window))
         parent = nullptr;
     linkTransientParent(parent);
@@ -351,9 +330,7 @@ void ShellSurface::setHasDecorationObject(bool has)
         applyDecorationMode();
         return;
     }
-    // xdg-decoration: the frame goes at the next commit, not now. Clients
-    // destroy the object right before the toplevel, and the close animation
-    // must still show the frame.
+    // Clients destroy this right before the toplevel: the frame goes at the next commit.
     m_requestedMode.reset();
 }
 
@@ -373,8 +350,6 @@ ShellSurface::DecorationMode ShellSurface::decorationMode() const
 ShellSurface::DecorationMode
 ShellSurface::decorationModeFor(std::optional<DecorationMode> requested) const
 {
-    // A client that never asked to negotiate decorates itself, whatever the
-    // compositor would prefer.
     if (!m_hasDecorationObject)
         return DecorationMode::ClientSide;
     return requested.value_or(kPreferredDecorationMode);
@@ -384,9 +359,7 @@ void ShellSurface::applyDecorationMode()
 {
     if (!m_window)
         return;
-    // The frame appearing or disappearing resizes the client area and changes
-    // the state the client is in; the protocol asks for a configure either way,
-    // and this keeps it to exactly one.
+    // The protocol asks for a configure either way; this keeps it to one.
     ScopedConfigure scoped(this, /*forceConfigure=*/true);
     m_window->setDecorated(decorationMode() == DecorationMode::ServerSide);
 }
@@ -482,9 +455,7 @@ void ShellSurface::close()
 {
     if (!m_closeCallback)
         return;
-    // The callback owns its captures, and running it can destroy this object -
-    // a client that tears its menu chain down when it is told the popup is
-    // gone. A local copy keeps the callable alive for the call.
+    // Running the callback can destroy this object; the local copy keeps the callable alive.
     const CloseCallback callback = m_closeCallback;
     callback();
 }
@@ -538,20 +509,15 @@ base::Point ShellSurface::absoluteOrigin() const
 {
     if (m_role == Role::Popup && m_parentShell)
         return m_parentShell->absoluteOrigin() + m_popupBounds.topLeft();
-    // A popup's coordinates are relative to its parent's window geometry, which
-    // starts inside the frame, not at the outer bounds.
+    // Relative to the parent's window geometry, which starts inside the frame.
     if (m_window)
         return m_window->contentBounds().topLeft();
     return base::Point();
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// compositor::SurfaceObserver overrides:
-
 void ShellSurface::onSurfaceDestroying(compositor::Surface *surface)
 {
     if (surface != m_surface) {
-        // The wait times out instead of finishing inside the teardown.
         std::erase(m_awaitedContent, surface);
         return;
     }
@@ -559,8 +525,7 @@ void ShellSurface::onSurfaceDestroying(compositor::Surface *surface)
     stopAwaitingContent();
     unmapChildPopups();
 
-    // Off every registry first; the teardown below re-enters the window manager
-    // and nothing must be able to find a half-destroyed surface through it.
+    // Off every registry first: the teardown below re-enters the window manager.
     m_surface->removeSurfaceObserver(this);
     if (m_manager) {
         m_manager->clearSurfaceOwner(m_surface);
@@ -577,8 +542,6 @@ void ShellSurface::onSurfaceDestroying(compositor::Surface *surface)
         m_manager->destroyWindow(window);
     }
 
-    // Popups outlive their parent's surface as protocol objects; they simply
-    // have nowhere left to be placed.
     for (ShellSurface *child : std::vector<ShellSurface *>(m_childShells))
         child->updatePopupPosition();
 }
@@ -600,7 +563,6 @@ void ShellSurface::onSurfaceCommit(compositor::Surface *surface)
         return;
     const CommittedState committed = *std::exchange(m_committed, std::nullopt);
 
-    // Send at most one configure for whatever this commit set in motion.
     ScopedConfigure scoped(this, false);
 
     applyCommittedState(committed);
@@ -626,8 +588,7 @@ void ShellSurface::onSurfaceCommit(compositor::Surface *surface)
 
     if (!m_window) {
         if (!hasContents) {
-            // xdg-shell: the first commit carries no buffer and asks for the
-            // initial configure. The client attaches only after it acks.
+            // xdg-shell: the first commit has no buffer and asks for the initial configure.
             if (!m_initialConfigureSent) {
                 m_initialConfigureSent = true;
                 m_initialOutput = isPositionManaged() ? m_manager->outputForNewWindow() : base::Rect();
@@ -644,7 +605,7 @@ void ShellSurface::onSurfaceCommit(compositor::Surface *surface)
         return;
     }
 
-    // Qt's render thread can attach an old-size frame after the configure ack.
+    // A client's render thread can attach an old-size frame after the configure ack.
     const bool resized = m_boundsTransitionOldContentSize.isEmpty()
             || surface->contentSize() != m_boundsTransitionOldContentSize;
     const auto &ack = committed.acknowledgedConfigure;
@@ -661,14 +622,11 @@ void ShellSurface::onSurfaceCommit(compositor::Surface *surface)
 void ShellSurface::markBoundsContentReady()
 {
     auto *animation = dynamic_cast<scene::WindowAnimation *>(m_window->node());
-    // A wait for subsurfaces keeps its deadline: the commits that follow must
-    // not push it back.
+    // A wait for subsurfaces keeps its deadline across the commits that follow.
     if (!animation || !animation->isWaitingForBoundsContent() || !m_awaitedContent.empty())
         return;
     stopAwaitingContent();
 
-    // A desynchronized subsurface the commit moved still shows what it drew
-    // for its old place, and draws for the new one only after it.
     std::vector<compositor::Surface *> pending {m_surface};
     while (!pending.empty()) {
         compositor::Surface *surface = pending.back();
@@ -677,7 +635,6 @@ void ShellSurface::markBoundsContentReady()
             if (child == surface)
                 continue;
             pending.push_back(child);
-            // One without a buffer shows nothing out of place.
             if (child->isMovedAheadOfContent() && child->hasContents()) {
                 child->addSurfaceObserver(this);
                 m_awaitedContent.push_back(child);
@@ -708,7 +665,6 @@ void ShellSurface::finishAwaitingContent()
         return;
     if (auto *animation = dynamic_cast<scene::WindowAnimation *>(m_window->node()))
         animation->setBoundsContentReady(true);
-    // A scope still open applies the bounds when it ends.
     if (m_scopedConfigure)
         return;
     updateWindowBoundsFromClient();
@@ -722,9 +678,6 @@ void ShellSurface::stopAwaitingContent()
     m_contentAwaitTimer.stop();
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// WindowObserver overrides:
-
 void ShellSurface::onWindowBoundsChanged(Window *window, const base::Rect &)
 {
     if (window != m_window)
@@ -736,18 +689,13 @@ void ShellSurface::onWindowBoundsChanged(Window *window, const base::Rect &)
         return;
     }
 
-    // In client-area terms: the outer bounds also move when a frame appears or
-    // disappears, and that is not a resize as far as the client is concerned.
+    // In client-area terms: a frame appearing or disappearing is not a resize to the client.
     const base::Rect newContent = window->contentBounds();
     const base::Rect oldContent = m_configuredContentBounds;
     m_configuredContentBounds = newContent;
 
-    // Without a configure callback (the compositor's own windows) nothing
-    // acknowledges a size, so there is no in-flight content to hold in place.
     if (newContent.size() != oldContent.size() && !m_applyingClientBounds && m_configureCallback) {
-        // The window manager has already moved and resized the window; hold the
-        // client's current contents where they are until it catches up. The
-        // offset is handed back at the commit that follows the acknowledgement.
+        // The offset is handed back at the commit that follows the acknowledgement.
         const base::Point delta = newContent.topLeft() - oldContent.topLeft();
         m_originOffset -= delta;
         m_pendingOriginOffsetAccumulator += delta;
@@ -786,13 +734,10 @@ void ShellSurface::onWindowStateTypeChanged(Window *window, WindowStateType oldT
         return;
     CF_DEBUG(cfCompositor) << "xdg toplevel state:" << m_applicationId << toString(oldType) << "->"
                          << toString(window->stateType()) << window->bounds();
-    // Dropped normal out of a drag, the window keeps the size it was dragged
-    // at; a drag reverted or dropped back into a tiled state leaves it none.
     if (window->isDragged() && window->state()->isNormal())
         m_clientChoosesNormalSize = false;
     const base::Size targetSize = window->contentBounds().size();
     const auto targetState = window->presentedStateType();
-    // Drag completion repeats the restored state without requiring another frame.
     const bool sameTarget = m_boundsTransitionTarget && m_boundsTransitionTarget->size == targetSize
             && m_boundsTransitionTarget->stateType == targetState;
     if (sameTarget) {
@@ -833,13 +778,9 @@ void ShellSurface::onWindowDestroying(Window *window)
     resetConfigureState();
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// ShellSurface, private:
-
 void ShellSurface::configure()
 {
-    // Defer while a commit is in progress, unless the surface is not mapped
-    // yet: the initial configure has to go out on its own.
+    // Deferred during a commit, unless unmapped: the initial configure goes out on its own.
     if (m_window && m_scopedConfigure) {
         m_scopedConfigure->setNeedsConfigure();
         return;
@@ -872,15 +813,11 @@ void ShellSurface::configure()
         state.stateType = m_initialStateType;
         state.size = initialSizeForState(state.stateType);
         state.maximizable = computeResizable();
-        // Never suspended before mapping: a suspended client may hold back the
-        // first buffer that maps it.
+        // Never suspended before mapping: a suspended client may hold back its first buffer.
     }
     state.bounds = configureBounds();
 
-    // The callback writes to the client and may flush, which can take the
-    // protocol object that owns this one with it. Both the liveness token and
-    // the copied callable are needed: the callable's captures live inside the
-    // std::function member that would be freed along with this object.
+    // The callback may destroy this object, and with it the callable's captures.
     const std::shared_ptr<ShellSurface *> self = m_self;
     const ConfigureCallback callback = m_configureCallback;
     const uint32_t serial = callback(state);
@@ -952,8 +889,6 @@ void ShellSurface::mapToplevel()
     m_window = m_manager->createWindow(m_surface, init);
     if (!m_fullscreenOutputName.empty())
         m_manager->setWindowOutput(m_window, m_fullscreenOutputName);
-    // A caption button's close asks the client to close itself, over the same
-    // path xdg_toplevel.close takes.
     const std::shared_ptr<ShellSurface *> self = m_self;
     m_window->setCloseCallback([self] {
         if (*self)
@@ -984,14 +919,9 @@ void ShellSurface::mapToplevel()
     case WindowStateType::Normal:
     case WindowStateType::PrimarySnapped:
     case WindowStateType::SecondarySnapped:
-        // A client cannot ask to be mapped snapped; only a drag or the shell
-        // puts a window there.
         break;
     }
 
-    // Mapped maximized or fullscreen, the window has no normal bounds to come
-    // back to; give it those it would have had mapping normal at its own size.
-    // Without a restore size, the client picks one when it is first normal.
     const base::Size restoreSize = m_surface->restoreSize();
     if (m_window->state()->isMaximized() || m_window->state()->isFullscreen()) {
         if (!restoreSize.isEmpty())
@@ -999,11 +929,8 @@ void ShellSurface::mapToplevel()
         else
             m_clientChoosesNormalSize = true;
     }
-    // A position asked for places only the next map.
     m_surface->setRequestedPosition(std::nullopt);
 
-    // The capture interface and pickers are never activated; mapping them
-    // takes the keyboard.
     if (m_window->role() == WindowRole::Capture || m_window->role() == WindowRole::Picker)
         m_manager->setKeyboardGrab(m_window);
     else if (!m_window->state()->isMinimized())
@@ -1076,9 +1003,6 @@ void ShellSurface::updatePopupPosition()
 {
     if (m_role != Role::Popup || !m_surface)
         return;
-    // The window geometry's origin is where the popup's logical top-left sits,
-    // so shift the buffer by it: a client whose buffer carries a shadow around
-    // the menu still lands in the right place.
     if (m_window) {
         m_window->setVisible(m_parentShell && m_parentShell->window()
                              && m_parentShell->window()->targetVisibility());
@@ -1118,11 +1042,7 @@ void ShellSurface::updateClientExteriorInsets()
 
 Insets ShellSurface::clientExteriorInsets() const
 {
-    // xdg_surface.set_window_geometry says which part of the surface is the
-    // window proper; whatever the buffer covers outside it is the client's own
-    // exterior - a CSD shadow, an invisible resize border, or both. A client
-    // that sets no geometry, or sets it to its whole surface, has none. This is
-    // protocol geometry only: no application id, toolkit or pixel is consulted.
+    // What the buffer covers outside the xdg_surface window geometry is the client's own exterior.
     if (m_geometry.isEmpty() || !m_surface)
         return Insets();
     const base::Size content = m_surface->contentSize();
@@ -1130,12 +1050,9 @@ Insets ShellSurface::clientExteriorInsets() const
         return Insets();
     if (m_window && m_window->isResizing()) {
         const auto exterior = m_window->clientExteriorInsets();
-        // Resize geometry can lead or lag the buffer; retain established CSD margins.
         if (!exterior.topLeft().isOrigin() && m_geometry.topLeft() == exterior.topLeft())
             return exterior;
     }
-    // A geometry reaching outside the surface is not exterior decoration, so
-    // negative slack is clamped away rather than reported as a client shadow.
     return Insets {std::max(0, m_geometry.left()), std::max(0, m_geometry.top()),
                    std::max(0, content.width() - (m_geometry.left() + m_geometry.width())),
                    std::max(0, content.height() - (m_geometry.top() + m_geometry.height()))};
@@ -1158,16 +1075,12 @@ Insets ShellSurface::clientInputInsets() const
 base::Point ShellSurface::surfaceOriginForWindow() const
 {
     base::Rect visible = visibleBounds();
-    // Anchor the committed body, including CSD margins, while geometry catches up.
     if (m_resizeEdge != ResizeEdge::None && m_surface && !m_surface->contentSize().isEmpty())
         visible.setSize(visible.topLeft().isOrigin()
                                 ? m_surface->contentSize()
                                 : clientExteriorInsets().inset(m_surface->contentSize()));
     const base::Size windowSize = m_window->contentBounds().size();
 
-    // While a resize anchored to a top or left edge is in flight the window has
-    // already grown, but the client's contents have not. Pin them to the corner
-    // the drag is not moving so the window does not appear to jump.
     base::Point anchor;
     switch (m_resizeEdge) {
     case ResizeEdge::None:
@@ -1197,8 +1110,7 @@ void ShellSurface::updateWindowBoundsFromClient()
 {
     if (!m_window)
         return;
-    // Defer while the client still owes an acknowledgement: its contents
-    // describe a size the compositor has already asked it to leave.
+    // Deferred while the client still owes an acknowledgement.
     if (!m_pendingConfigs.empty())
         return;
     // An ack followed by a state-only commit still describes the old buffer.
@@ -1206,8 +1118,6 @@ void ShellSurface::updateWindowBoundsFromClient()
         if (animation->isWaitingForBoundsContent())
             return;
     }
-    // Maximized, fullscreen and interactively resized bounds belong to the
-    // window manager.
     if (!m_window->state()->isNormal() || m_window->isResizing())
         return;
 
@@ -1226,8 +1136,7 @@ void ShellSurface::updateWindowBoundsFromClient()
         const base::Size oldSize = bounds.size();
         bounds.setSize(m_window->frameInsets().outset(size));
         if (m_surface->resizeAnchor() == compositor::ResizeAnchor::Center) {
-            // Halves of the difference rather than moveCenter(): an integer
-            // centre would drift a pixel on every odd-sized step.
+            // Halves of the difference: an integer centre would drift a pixel on every odd-sized step.
             bounds.translate((oldSize.width() - bounds.width()) / 2,
                              (oldSize.height() - bounds.height()) / 2);
             const base::Rect workArea = m_manager->workAreaFor(m_window);
@@ -1240,9 +1149,7 @@ void ShellSurface::updateWindowBoundsFromClient()
                                                  workArea.bottom() - bounds.height())));
             }
         }
-        // A client may not grow past the work area, as Ash's
-        // SetBoundsConstrained keeps a widget's bounds whatever its minimum
-        // size.
+        // A client may not grow past the work area, whatever its minimum size.
         const base::Rect workArea =
                 m_window->isPopup() ? base::Rect() : m_manager->workAreaFor(m_window, bounds);
         if (!workArea.isEmpty())
@@ -1253,8 +1160,6 @@ void ShellSurface::updateWindowBoundsFromClient()
             animation->setBoundsTarget(bounds);
     }
     if (m_window->frameInsets().inset(bounds.size()) != size) {
-        // The client is told the size it keeps instead; a new size configures
-        // it from onWindowBoundsChanged.
         const bool resized = bounds.size() != m_window->bounds().size();
         m_window->setBounds(bounds);
         if (!resized)
@@ -1291,9 +1196,7 @@ base::Rect ShellSurface::placeNormalWindow(const base::Size &size) const
 
 base::Size ShellSurface::configureBounds() const
 {
-    // Shell surfaces size themselves over the whole output. Qt clamps a
-    // client-chosen size to the bounds, which would lift the desktop off the
-    // dock's strip.
+    // A client clamping its size to the bounds would lift the desktop off the dock's strip.
     if (m_manager->shellMetadata(m_surface) || (m_window && m_window->isShellWindow()))
         return base::Size(0, 0);
     const Insets insets = normalFrameInsets();
@@ -1313,14 +1216,12 @@ Insets ShellSurface::normalFrameInsets() const
 
 bool ShellSurface::computeResizable() const
 {
-    // Upstream ShellSurface::GetCanResizeFromSizeConstraints: both defaults are
-    // empty, and a window with no constraints must stay resizable.
+    // Both defaults are empty, and a window with no constraints must stay resizable.
     return m_minimumSize.isEmpty() || m_minimumSize != m_maximumSize;
 }
 
 base::Size ShellSurface::initialSizeForState(WindowStateType stateType) const
 {
-    // No window yet, so no frame either: ask what one would cost.
     const Insets insets = normalFrameInsets();
 
     switch (stateType) {
@@ -1336,8 +1237,7 @@ base::Size ShellSurface::initialSizeForState(WindowStateType stateType) const
     case WindowStateType::Minimized:
     case WindowStateType::PrimarySnapped:
     case WindowStateType::SecondarySnapped:
-        // Zero lets the client pick its own size, which is what xdg-shell asks
-        // a compositor with no opinion to do.
+        // Zero lets the client pick, as xdg-shell asks of a compositor with no opinion.
         return base::Size(0, 0);
     }
     return base::Size(0, 0);
@@ -1345,7 +1245,6 @@ base::Size ShellSurface::initialSizeForState(WindowStateType stateType) const
 
 void ShellSurface::resetConfigureState()
 {
-    // A remap starts the configure sequence over from the beginning.
     m_pendingConfigs.clear();
     m_acknowledgedConfigure.reset();
     m_boundsTransitionTarget.reset();

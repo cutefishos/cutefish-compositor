@@ -21,13 +21,10 @@ inline constexpr int kBackdropBlurSupport = 90;
 inline constexpr int kGaussianMaxReach = 30;
 // Skia's kMaxLinearSigma, in texels of the glass capture.
 inline constexpr float kMaxGlassSigma = 4;
-// The plain blur runs at this share of logical resolution at any scale.
 inline constexpr float kPlainBlurQuality = 0.33f;
 
-// The share of device resolution a backdrop blur runs at. Glass samples the
-// backdrop per output pixel, so it wants device resolution until its sigma
-// passes Skia's kMaxLinearSigma, past which Skia halves the resolution too;
-// the plain blur is specified in logical pixels.
+// Glass samples per output pixel until its sigma passes Skia's kMaxLinearSigma;
+// the plain blur is in logical pixels.
 inline float backdropQuality(const GlassParams &glass, double scale)
 {
     if (!glass.enabled)
@@ -39,9 +36,7 @@ inline float backdropQuality(const GlassParams &glass, double scale)
     return quality;
 }
 
-// For a blur whose kept result is redone where its backdrop changed, how far
-// in logical pixels the change reaches into what the blur shows, and into
-// what the redo reads.
+// In logical pixels.
 struct BackdropReach {
     int shown = 0;
     int read = 0;
@@ -49,10 +44,6 @@ struct BackdropReach {
 
 inline BackdropReach backdropReach(const GlassParams &glass, double scale)
 {
-    // A redone texel takes in the kernel and the capture's linear sampling,
-    // and the redo rounds out to whole texels. What the blur shows samples
-    // the result linearly, glass at up to a texel off its ray, and the lens
-    // bends that ray by up to 1 / 0.45 of its displacement, more by the chroma.
     const double texel = 1 / (backdropQuality(glass, scale) * scale);
     const double bend = glass.enabled
             ? glass.displacement / 0.45 * (1 + std::clamp(glass.chroma, 0.0f, 1.0f))
@@ -96,8 +87,7 @@ inline base::Rect physicalDamage(const base::Region &damage, const OutputRenderC
     return result.boundingRect().intersected(target);
 }
 
-// The logical rectangle a physical repaint takes in, for culling: anything
-// physicalDamage() maps into `repaint` comes from inside it. None for flips.
+// None for flips.
 inline std::optional<base::Rect> logicalRepaint(const base::Rect &repaint,
                                            const OutputRenderContext &context,
                                            const base::Size &targetSize)
@@ -127,10 +117,8 @@ inline std::optional<base::Rect> logicalRepaint(const base::Rect &repaint,
             .translated(context.logicalViewport.topLeft());
 }
 
-// A backdrop blur reads everything in its `samples` region, and outside the
-// repaint the target holds a finished frame, not the backdrop. A repaint that
-// reaches such a region, if only through a bounding rectangle or the repair
-// of an older buffer, takes in all of it.
+// A blur reads all of `samples`, and outside the repaint the target holds a
+// finished frame, so a repaint reaching a region takes in all of it.
 inline base::Rect coverSamples(base::Rect repaint, const std::vector<base::Rect> &samples)
 {
     for (bool grown = true; grown && !repaint.isEmpty();) {
@@ -145,7 +133,6 @@ inline base::Rect coverSamples(base::Rect repaint, const std::vector<base::Rect>
     return repaint;
 }
 
-// The same for a physical repaint and logical sample regions.
 inline base::Rect coverSamples(const base::Rect &repaint, const std::vector<base::Rect> &samples,
                           const OutputRenderContext &context, const base::Size &targetSize)
 {

@@ -50,7 +50,6 @@ AmdgpuBoost::~AmdgpuBoost()
     }
     m_changed.notify_one();
     m_thread.join();
-    // Freeing the context gives back the level it held.
     contextOp(m_fd, AMDGPU_CTX_OP_FREE_CTX, m_context, 0);
 }
 
@@ -117,8 +116,8 @@ void AmdgpuBoost::run()
             return;
         applied = m_peak;
         lock.unlock();
-        // EBUSY while another context holds a pstate, EINVAL on a kernel
-        // without the operation: frames then go on at the clock they get.
+        // Fails with EBUSY while another context holds a pstate; frames then
+        // run at the clock they get.
         contextOp(m_fd, AMDGPU_CTX_OP_SET_STABLE_PSTATE, m_context,
                   applied ? AMDGPU_CTX_STABLE_PSTATE_PEAK : AMDGPU_CTX_STABLE_PSTATE_NONE);
         lock.lock();

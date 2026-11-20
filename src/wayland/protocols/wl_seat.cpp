@@ -4,9 +4,6 @@
 //
 // Upstream: chromium/src/components/exo/wayland/wl_seat.cc
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: integrates the upstream behavior with native
-// compositor types and ownership.
 
 #include "wayland/protocols/wl_seat.h"
 
@@ -29,9 +26,6 @@
 namespace cutefish::wayland {
 
 namespace {
-
-////////////////////////////////////////////////////////////////////////////////
-// wl_pointer_interface:
 
 void pointer_set_cursor(wl_client *client, wl_resource *resource, uint32_t serial,
                         wl_resource *surfaceResource, int32_t hotspotX, int32_t hotspotY)
@@ -56,9 +50,6 @@ void pointer_release(wl_client *, wl_resource *resource)
 
 const struct wl_pointer_interface pointer_implementation = {pointer_set_cursor, pointer_release};
 
-////////////////////////////////////////////////////////////////////////////////
-// wl_keyboard_interface:
-
 void keyboard_release(wl_client *, wl_resource *resource)
 {
     wl_resource_destroy(resource);
@@ -66,18 +57,12 @@ void keyboard_release(wl_client *, wl_resource *resource)
 
 const struct wl_keyboard_interface keyboard_implementation = {keyboard_release};
 
-////////////////////////////////////////////////////////////////////////////////
-// wl_touch_interface:
-
 void touch_release(wl_client *, wl_resource *resource)
 {
     wl_resource_destroy(resource);
 }
 
 const struct wl_touch_interface touch_implementation = {touch_release};
-
-////////////////////////////////////////////////////////////////////////////////
-// wl_seat_interface:
 
 void seat_get_pointer(wl_client *client, wl_resource *resource, uint32_t id)
 {
@@ -90,8 +75,7 @@ void seat_get_pointer(wl_client *client, wl_resource *resource, uint32_t id)
         return;
     }
 
-    // The delegate deletes itself from Pointer::onPointerDestroying, as it does
-    // upstream, so the Pointer owned by the resource is the only owner here.
+    // The delegate deletes itself from Pointer::onPointerDestroying, so the resource's Pointer is the only owner.
     setImplementation(pointerResource, &pointer_implementation,
                       std::make_unique<input::Pointer>(
                               new WaylandPointerDelegate(pointerResource, data->serialTracker,
@@ -158,8 +142,7 @@ void bind_seat(wl_client *client, void *data, uint32_t version, uint32_t id)
 
     if (wl_resource_get_version(resource) >= WL_SEAT_NAME_SINCE_VERSION)
         wl_seat_send_name(resource, "default");
-    // Touch is always offered, as upstream does: a client without a
-    // touchscreen simply never gets a touch event.
+    // Touch is always offered: a client without a touchscreen simply never gets a touch event.
     wl_seat_send_capabilities(resource, WL_SEAT_CAPABILITY_POINTER | WL_SEAT_CAPABILITY_KEYBOARD
                                                 | WL_SEAT_CAPABILITY_TOUCH);
 }

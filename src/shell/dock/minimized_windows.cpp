@@ -25,14 +25,11 @@ MinimizedWindows::MinimizedWindows(TaskWindows &windows, DockModel &dock, DockSe
     }));
     m_subscriptions.push_back(m_windows.minimizeLanded.connect([this](uint64_t id) { setLanded(id); }));
     m_subscriptions.push_back(m_settings.minimizedAreaChanged.connect([this] { onMinimizedAreaChanged(); }));
-    // The dock resolves icons from desktop entries, which can arrive after
-    // the window itself.
     m_subscriptions.push_back(m_dock.dataChanged.connect([this](int, int) {
         if (!m_entries.empty())
             dataChanged(0, count() - 1);
     }));
 
-    // Windows minimized before the dock started are already in place.
     for (uint64_t id : m_windows.windows()) {
         update(id);
         setLanded(id);
@@ -80,7 +77,6 @@ void MinimizedWindows::restore(uint64_t id)
 {
     if (hideLaunchpad)
         hideLaunchpad();
-    // Activating restores a minimized window first.
     m_windows.activate(id);
 }
 
@@ -146,7 +142,6 @@ void MinimizedWindows::onMinimizedAreaChanged()
         return;
     }
 
-    // Already minimized into their icons: revealed in the area, not flown in.
     for (uint64_t id : m_windows.windows()) {
         const TaskWindow *window = m_windows.window(id);
         if (window && window->isTaskListWindow() && window->minimized && !window->hidden && !contains(id))
@@ -164,8 +159,6 @@ void MinimizedWindows::remove(uint64_t id, bool closed)
     if (row < 0)
         return;
 
-    // A restored window flies out of the slot itself, so its thumbnail goes
-    // at once; a closed one fades while the slot closes.
     if (!closed && window && !window->minimized && m_entries[size_t(row)].landed) {
         m_entries[size_t(row)].landed = false;
         dataChanged(row, row);

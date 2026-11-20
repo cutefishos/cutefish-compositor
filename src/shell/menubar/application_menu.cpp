@@ -155,17 +155,14 @@ void ApplicationMenu::prefetch(uint64_t window)
 
 void ApplicationMenu::onImported(const std::string &key, int32_t id)
 {
-    // Submenus report too; only the root is the bar.
     const auto it = m_imports.find(key);
     if (it == m_imports.end() || id != 0)
         return;
     Import &import = it->second;
     import.ready = true;
 
-    // The first level of submenus is what the bar pops up: have the ones not
-    // fetched yet ready, without an "opened" that no "closed" would follow.
-    // One fetched before waits for its next show: its application may answer
-    // being asked by laying the bar out again.
+    // Prefetches the first level without an "opened" event, which no "closed"
+    // would follow.
     for (int32_t child : import.menu->root().children) {
         const compositor::MenuItem *item = import.menu->item(child);
         if (item && item->hasSubmenu && !item->childrenLoaded && item->children.empty())
@@ -198,8 +195,6 @@ void ApplicationMenu::dropService(const std::string &service)
         it = m_imports.erase(it);
     }
 
-    // The exporter went away with its application, whose windows are on
-    // their way out too; the next focus change picks the new bar.
     if (shownGone)
         switched();
     gone.clear();
@@ -214,9 +209,8 @@ void ApplicationMenu::scheduleUpdate()
         m_updateTimer.start(std::chrono::nanoseconds(0));
 }
 
-// An import whose windows are all gone is dropped: the service watch only
-// covers the whole exporting process leaving, and a long-lived application
-// exports one path per window it ever opened.
+// The service watch covers only the exporting process leaving, and an
+// application exports one path per window.
 void ApplicationMenu::pruneImports()
 {
     std::set<std::string> used;
@@ -235,13 +229,11 @@ void ApplicationMenu::pruneImports()
 
 void ApplicationMenu::update()
 {
-    // Whatever was waited for is superseded unless it is chosen again below.
     const std::string previousPending = std::exchange(m_pendingKey, std::string());
     m_pendingTimer.stop();
 
     const std::string title = applicationTitle();
 
-    // The desktop's menus are not behind D-Bus.
     if (m_desktop) {
         commit(title, nullptr);
         return;
@@ -267,8 +259,6 @@ void ApplicationMenu::update()
         return;
     }
 
-    // Keep the previous bar rather than show this name over its menus. A
-    // wait that already ran out shows the name alone until the menu lands.
     const std::string key = importKey(address);
     m_pendingKey = key;
     m_pendingTitle = title;
@@ -317,7 +307,6 @@ std::string ApplicationMenu::applicationTitle() const
         return {};
     if (const DesktopEntryPtr entry = m_tasks.entryForWindow(window))
         return entry->name;
-    // The application's own menu carries its name.
     if (client->mainMenu) {
         for (int32_t id : client->mainMenu->root().children) {
             const compositor::MenuItem *item = client->mainMenu->item(id);
@@ -348,7 +337,6 @@ void ApplicationMenu::hideOtherApplications()
 {
     const uint64_t window = m_windows.activeWindow();
     const TaskWindow *client = m_windows.window(window);
-    // On the desktop there is no active application: every window goes.
     const bool keepActive = !m_desktop && client && client->isTaskListWindow();
     m_windows.hideOtherApplications(keepActive ? window : 0);
 }

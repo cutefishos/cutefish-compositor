@@ -14,16 +14,12 @@ namespace cutefish::input {
 
 class DBusExport;
 
-// The touchpad half of Chromium's TouchpadSettingsEvdev, plus libinput's
-// disable-while-typing and disable-with-an-external-mouse modes. Exported as
-// org.cutefish.Touchpad1 for Settings.
+// Exported as org.cutefish.Touchpad1.
 class TouchpadSettings
 {
 public:
-    // libinput reports two-finger scrolling unaccelerated at about 10.5 units
-    // per millimetre of finger travel, and clients move content one logical
-    // pixel per unit. The factor scales that; the default half puts content
-    // under the fingers on a 150% laptop panel.
+    // libinput scrolls about 10.5 units per millimetre; the default half puts content under the
+    // fingers on a 150% panel.
     static constexpr double kDefaultScrollSpeed = 0.5;
     static constexpr double kMinimumScrollSpeed = 0.1;
     static constexpr double kMaximumScrollSpeed = 2.0;

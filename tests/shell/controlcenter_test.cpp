@@ -2,10 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// The control centre, the status panels and the power dialog as the
-// compositor draws them: their popups, places, glass, input and behaviour,
-// headless on a fake renderer with fake services.
-
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -203,7 +199,6 @@ protected:
         shell->setApplications(std::make_unique<test::FakeApplications>());
         shell->setTaskWindows(std::make_unique<test::FakeTaskWindows>());
 
-        // The menu bar's window, which the panels hang from.
         bar = std::make_unique<shell::ShellWindow>(shell.get(), wm::WindowRole::Panel);
         bar->setContentView(std::make_unique<ui::View>());
         bar->setFocusPolicy(wm::FocusPolicy::NoFocus);
@@ -230,7 +225,7 @@ protected:
 
     void frame() { compositor.updateTextures(renderer); }
 
-    // Animations advance on frames: one every 16 ms for `duration`.
+    // One frame every 16 ms for `duration`.
     void frames(std::chrono::milliseconds duration)
     {
         for (std::chrono::milliseconds run {0}; run < duration; run += std::chrono::milliseconds(16)) {
@@ -262,13 +257,12 @@ protected:
         input.onKey(at(time += 5), code, false);
     }
 
-    // The bar items the reference captures used: x from the right edge.
+    // x from the right edge.
     base::Rect item(int fromRight, int width = 40) const
     {
         return base::Rect(kOutput.width() - fromRight, 0, width, kMenuBar);
     }
 
-    // The centre of a view in global logical coordinates.
     base::PointF centre(Panel panel, const ui::View *view) const
     {
         const ui::PointF origin = view->mapToWindow({0, 0});
@@ -290,9 +284,7 @@ protected:
         click(popup.x() + origin.x, popup.y() + origin.y);
     }
 
-    // The footer's gaps, in the panel's coordinates: the last row's badge to
-    // the line, the line to the link's capitals, the link's baseline to the
-    // panel's bottom edge.
+    // In the panel's coordinates.
     void expectFooterGaps(Panel panel, const shell::PanelRow *lastRow)
     {
         expectFooterGaps(center->statusPanel(panel), lastRow);
@@ -327,7 +319,7 @@ TEST_F(ControlCenterTest, TheControlCentreHangsBelowTheBarWithThePanelGlass)
     ASSERT_NE(nullptr, window);
     ASSERT_NE(nullptr, window->wmWindow());
     EXPECT_TRUE(window->wmWindow()->isPopup());
-    // Right of the screen it does not fit: 6 from the edge, 6 below the bar.
+    // 6 from the edge, 6 below the bar.
     const base::Rect bounds = window->drawnBounds();
     EXPECT_EQ(base::Rect(1440 - 360 - 6, 38, 360, bounds.height()), bounds);
     EXPECT_GT(bounds.height(), 400);
@@ -335,17 +327,14 @@ TEST_F(ControlCenterTest, TheControlCentreHangsBelowTheBarWithThePanelGlass)
     EXPECT_EQ(base::Rect(0, 0, 360, bounds.height()), window->surface()->backgroundBlurRect());
     EXPECT_EQ(16, window->surface()->backgroundBlurRadius());
 
-    // Escape closes it; the bar lends it the keyboard.
     key(KEY_ESC);
     test::runFor(std::chrono::milliseconds(20));
     EXPECT_FALSE(center->isOpen(Panel::ControlCenter));
     EXPECT_EQ(2, changes);
 
-    // Left of the screen it starts at the item's plate.
     center->openPanel(Panel::ControlCenter, bar.get(), base::Rect(100, 0, 40, kMenuBar));
     frame();
     EXPECT_EQ(103, center->popupWindow(Panel::ControlCenter)->drawnBounds().x());
-    // A press outside closes it and goes nowhere.
     click(700, 600);
     test::runFor(std::chrono::milliseconds(20));
     EXPECT_FALSE(center->isOpen(Panel::ControlCenter));
@@ -361,7 +350,6 @@ TEST_F(ControlCenterTest, CardsToggleTheirServices)
     EXPECT_TRUE(view->bluetoothCard()->isChecked());
     EXPECT_FALSE(view->doNotDisturbCard()->isChecked());
 
-    // A card with a detail page toggles from its plate only.
     clickPlate(view->bluetoothCard());
     test::runFor(std::chrono::milliseconds(5));
     EXPECT_FALSE(services->bluetooth);
@@ -376,7 +364,6 @@ TEST_F(ControlCenterTest, CardsToggleTheirServices)
     EXPECT_EQ(1, services->darkRequested);
     EXPECT_TRUE(view->doNotDisturbCard()->isChecked());
 
-    // Wi-Fi hardware off hides its card and the grid closes up.
     const int before = center->popupWindow(Panel::ControlCenter)->drawnBounds().height();
     services->hardware = false;
     services->bluetooth = false;
@@ -405,19 +392,15 @@ TEST_F(ControlCenterTest, TheWifiBluetoothAndSoundTilesOpenTheirPanelsAsDetailPa
     shell::ShellWindow *window = center->popupWindow(Panel::ControlCenter);
     const int mainHeight = window->drawnBounds().height();
 
-    // The chevron fades in while the card is hovered.
     EXPECT_EQ(0, wireless->chevron()->opacity());
     const base::PointF card = centre(Panel::ControlCenter, wireless);
     move(card.x(), card.y());
     frames(std::chrono::milliseconds(200));
     EXPECT_EQ(1, wireless->chevron()->opacity());
-    // Centred on the card's height, as far from its end as the plate is from its start.
     const ui::RectF chevron = wireless->chevron()->geometry();
     EXPECT_DOUBLE_EQ(wireless->geometry().height / 2, chevron.y + chevron.height / 2);
     EXPECT_DOUBLE_EQ(12, wireless->geometry().width - chevron.x - chevron.width);
 
-    // A click off the plate pushes the Wi-Fi panel: the pages slide and the
-    // window's height glides to the panel's.
     const base::Rect popup = window->drawnBounds();
     click(card.x(), card.y());
     test::runFor(std::chrono::milliseconds(5));
@@ -431,8 +414,6 @@ TEST_F(ControlCenterTest, TheWifiBluetoothAndSoundTilesOpenTheirPanelsAsDetailPa
     EXPECT_LT(pager->progress(), 1);
     EXPECT_GT(panel->opacity(), 0);
     EXPECT_LT(view->opacity(), 1);
-    // The window follows the pages frame by frame, narrowing to a status
-    // panel's width with its right edge kept.
     EXPECT_LT(window->drawnBounds().width(), 360);
     EXPECT_GT(window->drawnBounds().width(), 320);
     EXPECT_EQ(1440 - 6, window->drawnBounds().right());
@@ -446,12 +427,10 @@ TEST_F(ControlCenterTest, TheWifiBluetoothAndSoundTilesOpenTheirPanelsAsDetailPa
     EXPECT_NE(mainHeight, detailHeight);
     EXPECT_EQ(base::Rect(1440 - 320 - 6, 38, 320, detailHeight), window->drawnBounds());
     EXPECT_EQ(base::Rect(0, 0, 320, detailHeight), window->surface()->backgroundBlurRect());
-    // The panel is as wide as it is from the menu bar.
     ASSERT_EQ(2u, panel->rows().size());
     EXPECT_EQ(320 - 2 * 6, panel->rows()[0]->geometry().width);
     expectFooterGaps(panel, panel->rows().back());
 
-    // Escape goes back to the tiles, and again closes the control centre.
     key(KEY_ESC);
     test::runFor(std::chrono::milliseconds(20));
     EXPECT_TRUE(center->isOpen(Panel::ControlCenter));
@@ -462,8 +441,6 @@ TEST_F(ControlCenterTest, TheWifiBluetoothAndSoundTilesOpenTheirPanelsAsDetailPa
     EXPECT_EQ(1, view->opacity());
     EXPECT_EQ(base::Rect(1440 - 360 - 6, 38, 360, mainHeight), window->drawnBounds());
 
-    // The Sound slider's chevron sits at its title row's end, centred on the
-    // title's capitals; a click anywhere off the slider opens the sound panel.
     shell::TileSlider *sound = view->soundSlider();
     EXPECT_TRUE(sound->hasDetail());
     EXPECT_FALSE(view->brightnessSlider()->hasDetail());
@@ -490,7 +467,6 @@ TEST_F(ControlCenterTest, TheWifiBluetoothAndSoundTilesOpenTheirPanelsAsDetailPa
     EXPECT_EQ(nullptr, pager->detailPage());
     EXPECT_TRUE(center->isOpen(Panel::ControlCenter));
 
-    // The Bluetooth chevron; the panel's settings link closes the control centre.
     services->devices = {{"/dev/a", "AirPods", "audio-headphones", true, false, 72}};
     shell::CardItem *bluetooth = view->bluetoothCard();
     clickView(Panel::ControlCenter, bluetooth);
@@ -513,7 +489,6 @@ TEST_F(ControlCenterTest, SlidersMoveTheLevelsAndTheMediaCardControlsThePlayer)
     shell::LevelSlider *sound = view->soundSlider()->slider();
     EXPECT_NEAR(0.36, sound->position(), 1e-9);
 
-    // A press puts the knob's centre under the pointer.
     const ui::PointF origin = sound->mapToWindow({0, 0});
     const base::Rect popup = center->popupWindow(Panel::ControlCenter)->drawnBounds();
     const double travel = sound->geometry().width - sound->geometry().height;
@@ -521,19 +496,16 @@ TEST_F(ControlCenterTest, SlidersMoveTheLevelsAndTheMediaCardControlsThePlayer)
     EXPECT_NEAR(0.5, services->volumeValue, 0.011);
     EXPECT_FALSE(services->mutedValue);
 
-    // A wheel notch moves five steps.
     input.onPointerAxis(at(time += 5), base::PointF(0, -10), true);
     frame();
     EXPECT_NEAR(0.55, services->volumeValue, 0.011);
 
-    // The brightness slider writes as the knob moves.
     shell::LevelSlider *display = view->brightnessSlider()->slider();
     const ui::PointF displayOrigin = display->mapToWindow({0, 0});
     click(popup.x() + displayOrigin.x + display->geometry().height / 2, popup.y() + displayOrigin.y + 11);
     EXPECT_EQ(1, services->brightnessWrites);
     EXPECT_EQ(1, services->brightnessValue);
 
-    // No player: "Not Playing", three dimmed, disabled buttons.
     shell::MediaTile *media = view->media();
     EXPECT_FALSE(media->playButton()->isEnabled());
     EXPECT_DOUBLE_EQ(0.35, media->playButton()->opacity());
@@ -566,13 +538,10 @@ TEST_F(ControlCenterTest, TheWifiPanelListsNetworksAndJoinsThem)
     frame();
     shell::ShellWindow *window = center->popupWindow(Panel::Network);
     ASSERT_NE(nullptr, window);
-    // As tall as its content, glass and input over all of it, and allowed
-    // to grow to the work area's height.
     const base::Rect bounds = window->drawnBounds();
     auto *panel = static_cast<shell::NetworkPanel *>(center->statusPanel(Panel::Network));
     const int shown = int(std::lround(panel->shownBottom()));
     EXPECT_EQ(int(panel->contentHeight()), shown);
-    // Kept 6 inside the work area's right edge.
     EXPECT_EQ(base::Rect(1440 - 320 - 6, 38, 320, shown), bounds);
     EXPECT_EQ(base::Rect(1440 - 320 - 6, 38, 320, 960 - kMenuBar - kDock - 12),
               center->panelGeometry(Panel::Network, bar.get(), item(293)));
@@ -585,16 +554,13 @@ TEST_F(ControlCenterTest, TheWifiPanelListsNetworksAndJoinsThem)
     expectFooterGaps(Panel::Network, panel->rows().back());
     EXPECT_FALSE(panel->rows()[1]->isActive());
     clickView(Panel::Network, panel->rows()[1]);
-    // A connecting network takes no clicks.
     clickView(Panel::Network, panel->rows()[3]);
     EXPECT_EQ((std::vector<std::string> {"Cafe"}), services->activated);
     EXPECT_TRUE(center->isOpen(Panel::Network));
-    // A new password network closes the panel for the agent's prompt.
     clickView(Panel::Network, panel->rows()[2]);
     test::runFor(std::chrono::milliseconds(20));
     EXPECT_FALSE(center->isOpen(Panel::Network));
 
-    // The switch turns Wi-Fi off; the body goes, the panel shrinks over 380 ms.
     center->openPanel(Panel::Network, bar.get(), item(293));
     frame();
     panel = static_cast<shell::NetworkPanel *>(center->statusPanel(Panel::Network));
@@ -606,7 +572,6 @@ TEST_F(ControlCenterTest, TheWifiPanelListsNetworksAndJoinsThem)
     frame();
     EXPECT_LT(panel->shownBottom(), open);
     EXPECT_GT(panel->shownBottom(), panel->contentHeight());
-    // The window and its glass shrink with it, frame by frame.
     window = center->popupWindow(Panel::Network);
     const int shrinking = int(std::lround(panel->shownBottom()));
     EXPECT_EQ(shrinking, window->geometry().height());
@@ -616,7 +581,6 @@ TEST_F(ControlCenterTest, TheWifiPanelListsNetworksAndJoinsThem)
     EXPECT_DOUBLE_EQ(panel->contentHeight(), panel->shownBottom());
     EXPECT_EQ(int(panel->contentHeight()), window->geometry().height());
 
-    // The settings link closes the panel and opens Settings.
     clickView(Panel::Network, panel->settingsLink());
     test::runFor(std::chrono::milliseconds(20));
     EXPECT_FALSE(center->isOpen(Panel::Network));
@@ -638,16 +602,12 @@ TEST_F(ControlCenterTest, TheBluetoothPanelListsPairedDevicesAndConnectsThem)
     EXPECT_FALSE(panel->rows()[1]->isActive());
     expectFooterGaps(Panel::Bluetooth, panel->rows().back());
 
-    // A click disconnects a connected device and connects another; a busy
-    // one takes no clicks.
     clickView(Panel::Bluetooth, panel->rows()[0]);
     clickView(Panel::Bluetooth, panel->rows()[1]);
     clickView(Panel::Bluetooth, panel->rows()[2]);
     EXPECT_EQ((std::vector<std::pair<std::string, bool>> {{"/dev/a", false}, {"/dev/b", true}}),
               services->connections);
 
-    // Off, the list goes and the switch alone is left at once, while the
-    // adapter is still powering off.
     services->slowBluetooth = true;
     const double open = panel->contentHeight();
     clickView(Panel::Bluetooth, panel->bluetoothSwitch());
@@ -682,7 +642,6 @@ TEST_F(ControlCenterTest, TheSoundAndBatteryPanelsPickOutputsAndModes)
     clickView(Panel::Volume, volume->rows()[1]);
     EXPECT_EQ(2, services->defaultRequested);
 
-    // Opening another panel is the bar's: it closes this one first.
     center->closePanels();
     test::runFor(std::chrono::milliseconds(5));
     center->openPanel(Panel::Battery, bar.get(), item(247));
@@ -763,7 +722,6 @@ TEST_F(ControlCenterTest, ThePowerDialogConfirmsWithReturnAndCancelsWithEscape)
     EXPECT_EQ(wm::WindowRole::Normal, window->role());
     EXPECT_TRUE(window->isAlwaysOnTop());
     EXPECT_EQ(336, window->bounds().width());
-    // Asking again changes what it asks.
     dialog.open(shell::PowerDialog::Action::Reboot);
     EXPECT_EQ(shell::PowerDialog::Action::Reboot, dialog.action());
     key(KEY_ENTER);
@@ -797,10 +755,8 @@ TEST_F(ControlCenterTest, TheDeviceUsersTileShowsWhoUsesTheCamera)
     EXPECT_EQ("Camera is using the camera and microphone", shell::deviceUsageText(services->users.front()));
 }
 
-// The real bar opening the panels with clicks on its items, as live.
 TEST_F(ControlCenterTest, TheBarsItemsOpenEveryPanel)
 {
-    // The fixture's stand-in bar gives way to the real one.
     bar->hide();
     directory.write("shell.conf", "");
     auto backend = std::make_unique<shell::MenuBar>(base::dbus::Connection::session(core::mainLoop()),

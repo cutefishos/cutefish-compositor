@@ -58,7 +58,6 @@ input::Timestamp at(int ms)
 const base::Rect kOutput(0, 0, 1000, 800);
 const base::Rect kSecondary(1000, 0, 800, 600);
 
-// A coloured view that records what reaches it.
 class ProbeView : public ui::View
 {
 public:
@@ -117,7 +116,6 @@ private:
     ui::Color m_color;
 };
 
-// What the controller refused an agent.
 class RejectionRecorder : public computer_control::ControlClient
 {
 public:
@@ -133,12 +131,9 @@ public:
 
     int granteds = 0;
     std::vector<computer_control::Rejection> rejections;
-    // Handles by window id.
     std::map<uint64_t, uint32_t> windows;
 };
 
-// The test component: a coloured panel along the top edge, reserving its
-// height, with a text field on its right half and a menu on a right press.
 class TestPanel : public shell::Component
 {
 public:
@@ -178,7 +173,7 @@ public:
         menu->show();
     }
 
-    // The shell window hosting the menu; null once the toolkit hid it.
+    // Null once the toolkit hid it.
     shell::ShellWindow *menuWindow(shell::Shell *shell) const
     {
         return menu ? shell->host()->windowFor(static_cast<ui::EmbeddedWindow *>(menu.get()))
@@ -259,14 +254,11 @@ protected:
         seat.shutdown();
     }
 
-    // What an output frame does before it composes: the shell's pass, then
-    // the surfaces' textures.
     void frame()
     {
         compositor.updateTextures(renderer);
     }
 
-    // An application window, mapped and active.
     wm::Window *openApplication(const base::Rect &bounds)
     {
         surfaces.push_back(compositor.createSurface());
@@ -333,20 +325,17 @@ TEST_F(ShellTest, APanelIsAShellRoleWindowThatReservesItsEdge)
     EXPECT_TRUE(window->skipTaskbar());
     EXPECT_EQ(window, manager.windowForSurface(panel->window->surface()));
 
-    // The work area loses the panel's height, and the shell's outputs say so.
     EXPECT_EQ(base::Rect(0, TestPanel::kHeight, 1000, 800 - TestPanel::kHeight),
               manager.workAreaFor(nullptr));
     ASSERT_EQ(1u, shell->outputs().size());
     EXPECT_EQ(manager.workAreaFor(nullptr), shell->workArea(shell->outputs().front()));
 
-    // A maximized application fills the rest, and stays under the panel.
     wm::Window *application = openApplication(base::Rect(100, 100, 400, 300));
     application->maximize();
     EXPECT_EQ(manager.workAreaFor(nullptr), application->bounds());
     manager.raise(application);
     EXPECT_GT(stackIndex(window), stackIndex(application));
 
-    // The dock's layer is above the panel's, whatever order they came in.
     shell::ShellWindow dock(shell.get(), wm::WindowRole::Dock);
     dock.setGeometry(base::Rect(300, 740, 400, 56));
     dock.show();
@@ -354,14 +343,12 @@ TEST_F(ShellTest, APanelIsAShellRoleWindowThatReservesItsEdge)
     manager.raise(window);
     EXPECT_GT(stackIndex(dock.wmWindow()), stackIndex(window));
 
-    // A panel windows may cover drops into the applications' layer.
     panel->window->setPanelBehavior(wm::PanelBehavior::WindowsCanCover);
     manager.raise(application);
     EXPECT_GT(stackIndex(application), stackIndex(window));
     panel->window->setPanelBehavior(wm::PanelBehavior::StayAbove);
     EXPECT_GT(stackIndex(window), stackIndex(application));
 
-    // Hiding unmaps the window and gives its edge back only when asked.
     panel->window->hide();
     EXPECT_EQ(nullptr, panel->window->wmWindow());
     EXPECT_FALSE(manager.hasWindow(window));
@@ -375,7 +362,6 @@ TEST_F(ShellTest, TheFirstFrameIsRenderedBeforeTheWindowIsComposed)
 {
     auto *panel = shell->addComponent(std::make_unique<TestPanel>(shell.get()));
     shell::WindowRenderer *windows = shell->renderer();
-    // Mapped at once, drawn at the next frame, which showing asked for.
     EXPECT_GT(repaints, 0);
     EXPECT_TRUE(windows->isScheduled(panel->window.get()));
     EXPECT_TRUE(compositor.awaitsFrame(kOutput));
@@ -412,11 +398,9 @@ TEST_F(ShellTest, DirtyWindowsRenderTogetherInOnePassPerFrame)
     ASSERT_NE(nullptr, textureOf(osd));
     EXPECT_EQ(0xff0000ffu, pixelAt(*textureOf(osd), 100, 50));
 
-    // Nothing changed: the next frame renders nothing.
     frame();
     EXPECT_EQ(passes + 1, windows->passCount());
 
-    // One window changed: it alone is rendered, and only its damage uploaded.
     osdProbe->setColor(ui::Color::rgb(0x00ffff));
     EXPECT_TRUE(compositor.awaitsFrame(osd.drawnBounds()));
     EXPECT_FALSE(compositor.awaitsFrame(base::Rect(0, 0, 100, 100)));
@@ -430,7 +414,6 @@ TEST_F(ShellTest, DirtyWindowsRenderTogetherInOnePassPerFrame)
     EXPECT_EQ(panelUploads, panelTexture->uploadCount);
     EXPECT_EQ(osd.surface()->node(), osd.wmWindow()->surfaceNode());
 
-    // A hidden window is not rendered, and is again once shown.
     osd.hide();
     osdProbe->setColor(ui::Color::rgb(0xffffff));
     EXPECT_FALSE(windows->isScheduled(&osd));
@@ -441,7 +424,6 @@ TEST_F(ShellTest, DirtyWindowsRenderTogetherInOnePassPerFrame)
 
 TEST_F(ShellTest, AWindowChangedByAnotherWindowsFrameIsDrawnInTheSameFrame)
 {
-    // Runs once on the next frame of its window.
     class Step : public ui::FrameClient
     {
     public:
@@ -468,8 +450,6 @@ TEST_F(ShellTest, AWindowChangedByAnotherWindowsFrameIsDrawnInTheSameFrame)
     osd.show();
     frame();
 
-    // The panel's animation recolours the window and moves its glass, as the
-    // dock does its tooltip: both reach the frame together.
     Step step(panel->window->window());
     step.onTick = [&] {
         osdProbe->setColor(ui::Color::rgb(0x00ffff));
@@ -496,12 +476,9 @@ TEST_F(ShellTest, PointerInputReachesTheWindowThroughTheSeat)
     EXPECT_EQ(ui::PointF(50, 10), probe->hoverPosition);
     EXPECT_EQ(panel->window.get(), shell->input()->pointerWindow());
     EXPECT_EQ(panel->window->surface(), seat.pointerFocus());
-    // The view's cursor, as a client's set_cursor would give it.
     move(2, 60, 12);
     EXPECT_EQ(input::CursorShape::Pointer, seat.clientCursorShape());
 
-    // An implicit grab: the press keeps the view until the release, wherever
-    // the pointer goes.
     input.onPointerButton(at(3), BTN_LEFT, true);
     EXPECT_TRUE(probe->saw("press"));
     move(4, 60, 300);
@@ -510,7 +487,6 @@ TEST_F(ShellTest, PointerInputReachesTheWindowThroughTheSeat)
     EXPECT_EQ(panel->window->surface(), seat.pointerFocus());
     input.onPointerButton(at(5), BTN_LEFT, false);
     EXPECT_TRUE(probe->saw("release"));
-    // The next motion finds what is under the pointer, as for a client.
     move(5, 60, 301);
     EXPECT_EQ(nullptr, shell->input()->pointerWindow());
     EXPECT_TRUE(probe->saw("leave"));
@@ -523,7 +499,6 @@ TEST_F(ShellTest, PointerInputReachesTheWindowThroughTheSeat)
     EXPECT_EQ(120, probe->scrolls.front().value120Y);
     EXPECT_FALSE(probe->scrolls.front().precise);
 
-    // The panel never takes the keyboard from the application.
     wm::Window *application = openApplication(base::Rect(100, 100, 400, 300));
     click(8, 50, 10);
     EXPECT_TRUE(application->isActive());
@@ -541,7 +516,6 @@ TEST_F(ShellTest, AnActivatedWindowTakesTheKeyboardAndGivesItBack)
     launchpad.show();
     frame();
     text->setFocus();
-    // Mapped, the launchpad is activated.
     EXPECT_TRUE(launchpad.wmWindow()->isActive());
     EXPECT_FALSE(application->isActive());
 
@@ -557,7 +531,6 @@ TEST_F(ShellTest, AnActivatedWindowTakesTheKeyboardAndGivesItBack)
     key(12, KEY_F);
     EXPECT_EQ("cf", text->text());
 
-    // Unmapped, the keyboard returns to the application.
     launchpad.hide();
     EXPECT_TRUE(application->isActive());
     EXPECT_EQ(application->rootSurface(), seat.focusedSurface());
@@ -570,7 +543,6 @@ TEST_F(ShellTest, APopupIsPlacedByThePositionerAndDismissedByAPressOutside)
 {
     auto *panel = shell->addComponent(std::make_unique<TestPanel>(shell.get()));
     frame();
-    // A right press on the panel opens its menu under the pointer.
     click(1, 40, 20, BTN_RIGHT);
     shell::ShellWindow *menu = panel->menuWindow(shell.get());
     ASSERT_NE(nullptr, menu);
@@ -588,7 +560,6 @@ TEST_F(ShellTest, APopupIsPlacedByThePositionerAndDismissedByAPressOutside)
     frame();
     EXPECT_EQ(0xff00ff00u, pixelAt(*textureOf(*menu), 5, 5));
 
-    // Near the right edge it flips to the left of its anchor.
     panel->openMenu({990, 20});
     menu = panel->menuWindow(shell.get());
     ASSERT_NE(nullptr, menu);
@@ -597,13 +568,10 @@ TEST_F(ShellTest, APopupIsPlacedByThePositionerAndDismissedByAPressOutside)
     EXPECT_EQ(1u, manager.popupGrabs().size());
     frame();
 
-    // A press inside goes to the menu.
     click(3, 900, 50);
     EXPECT_TRUE(panel->menuProbe->saw("press"));
     EXPECT_EQ(0, panel->menuDismissals);
 
-    // A press outside the chain ends the grab, reaches nothing else, and the
-    // toolkit is told: its popup closes and the shell lets go of it.
     wm::Window *application = openApplication(base::Rect(100, 300, 400, 300));
     const size_t probeEvents = panel->probe->events.size();
     wm::Window *menuWindow = menu->wmWindow();
@@ -626,19 +594,16 @@ TEST_F(ShellTest, APopupFollowsItsSizeAndGoesWithItsParent)
     ASSERT_NE(nullptr, menu);
     ASSERT_NE(nullptr, menu->wmWindow());
 
-    // Bigger: placed again, kept under its anchor.
     panel->menu->resize({200, 120});
     EXPECT_EQ(base::Rect(100, TestPanel::kHeight, 200, 120), menu->wmWindow()->bounds());
     frame();
     EXPECT_EQ(base::Size(200, 120), textureOf(*menu)->size());
 
-    // Destroyed by the toolkit: the shell lets go of it at once.
     wm::Window *menuWindow = menu->wmWindow();
     panel->menu.reset();
     EXPECT_FALSE(manager.hasWindow(menuWindow));
     test::processPendingEvents();
 
-    // The parent hidden, its popups close.
     panel->openMenu({100, 10});
     ASSERT_NE(nullptr, panel->menuWindow(shell.get()));
     panel->window->hide();
@@ -651,8 +616,6 @@ TEST_F(ShellTest, TouchDrivesTheWindowItLandsOn)
 {
     auto *panel = shell->addComponent(std::make_unique<TestPanel>(shell.get()));
     frame();
-    // Touch goes through the seat's touch targeting to the toolkit, which
-    // turns its first point into a pointer.
     input.onTouchDown(at(1), 0, {50.0 / 1000, 10.0 / 800});
     input.onTouchFrame(at(1));
     EXPECT_TRUE(panel->probe->saw("press"));
@@ -718,12 +681,9 @@ TEST_F(MultiOutputShellTest, AWindowTakesItsOutputsScaleAndOutlivesTheOutput)
     frame();
     EXPECT_EQ(1.0, panel.scale());
     EXPECT_EQ(base::Size(800, 30), textureOf(panel)->size());
-    // The reservation is on its own output only.
     EXPECT_EQ(kOutput, manager.workAreaForOutput(kOutput));
     EXPECT_EQ(base::Rect(1000, 30, 800, 570), manager.workAreaForOutput(kSecondary));
 
-    // Its output's scale changes: the window renders at the new one, at the
-    // same logical size.
     apply(true, 2);
     EXPECT_GT(outputChanges, 0);
     EXPECT_EQ(2.0, panel.scale());
@@ -733,8 +693,6 @@ TEST_F(MultiOutputShellTest, AWindowTakesItsOutputsScaleAndOutlivesTheOutput)
     EXPECT_EQ(base::Rect(1000, 0, 800, 30), panel.wmWindow()->bounds());
     EXPECT_EQ(base::Rect(1000, 0, 800, 30), panel.surface()->node()->absoluteGeometry());
 
-    // The output goes: the shell's list follows, and the window takes the
-    // primary output's scale until its component moves or hides it.
     outputChanges = 0;
     apply(false, 1);
     EXPECT_GT(outputChanges, 0);
@@ -743,7 +701,6 @@ TEST_F(MultiOutputShellTest, AWindowTakesItsOutputsScaleAndOutlivesTheOutput)
     frame();
     EXPECT_EQ(base::Size(800, 30), textureOf(panel)->size());
 
-    // It comes back.
     apply(true, 2);
     EXPECT_EQ(2u, shell->outputs().size());
     EXPECT_EQ(2.0, panel.scale());
@@ -751,7 +708,6 @@ TEST_F(MultiOutputShellTest, AWindowTakesItsOutputsScaleAndOutlivesTheOutput)
 
 namespace {
 
-// The input method's side, recording what the shell's text input asks.
 class FakeInputMethod final : public wayland::InputMethodRelay
 {
 public:
@@ -820,7 +776,6 @@ protected:
     }
 };
 
-// Starts a drag of `text` when pressed.
 class DragView : public ProbeView
 {
 public:
@@ -843,7 +798,6 @@ public:
     std::vector<ui::DropAction> finished;
 };
 
-// Takes plain text.
 class DropView : public ProbeView
 {
 public:
@@ -874,7 +828,6 @@ public:
     std::optional<std::string> received;
 };
 
-// Takes a copy or a move of plain text, a copy when no key picks.
 class ChoosingDropView : public DropView
 {
 public:
@@ -915,14 +868,12 @@ TEST_F(TextInputShellTest, AFocusedTextFieldIsOnTheInputMethodRelay)
     EXPECT_EQ(std::string(), textInput->state().surrounding);
     ASSERT_TRUE(textInput->state().rectangle);
 
-    // Typing changes the surrounding text the input method sees.
     key(1, KEY_A);
     frame();
     EXPECT_EQ(std::string("a"), textInput->state().surrounding);
     EXPECT_EQ(1, textInput->state().cursor);
     EXPECT_GT(inputMethod->stateChanges, 0);
 
-    // What the input method commits goes into the field.
     wayland::TextInputEdit edit;
     edit.commit = "\xe4\xbd\xa0\xe5\xa5\xbd";
     textInput->sendEdit(edit);
@@ -932,7 +883,6 @@ TEST_F(TextInputShellTest, AFocusedTextFieldIsOnTheInputMethodRelay)
     textInput->sendEdit(edit);
     EXPECT_EQ("a\xe4\xbd\xa0", text->text());
 
-    // The keyboard gone, so is the text input.
     application->activate();
     frame();
     EXPECT_EQ(nullptr, inputMethod->activeInput);
@@ -979,7 +929,6 @@ TEST_F(ShellTest, ADragFromOneShellWindowDropsOnAnother)
     EXPECT_EQ(ui::CopyAction, dragger->finished.front());
     EXPECT_FALSE(drag->busy());
 
-    // Cancelled with Escape: nothing taken.
     move(6, 50, 20);
     dragger->started = false;
     input.onPointerButton(at(7), BTN_LEFT, true);
@@ -1025,7 +974,6 @@ TEST_F(ShellTest, AShellWindowTakingSeveralActionsGetsTheOneTheKeysPick)
     ASSERT_TRUE(test::runUntil([&] { return !dragger->finished.empty(); }));
     EXPECT_EQ(ui::MoveAction, dragger->finished.front());
 
-    // No key: the view's own preference.
     move(8, 50, 20);
     dragger->started = false;
     input.onPointerButton(at(9), BTN_LEFT, true);
@@ -1075,7 +1023,6 @@ TEST_F(ShellTest, AGestureGoesToTheWindowUnderThePointer)
 
 TEST_F(ShellTest, AMovedAndResizedWindowDrawsWhereItIs)
 {
-    // As the dock does when its output's scale changes: a new place and size.
     shell::ShellWindow dock(shell.get(), wm::WindowRole::Dock);
     dock.setContentView(std::make_unique<ProbeView>(ui::Color::rgb(0x00ff00)));
     dock.setGeometry(base::Rect(5, 706, 990, 89));
@@ -1092,8 +1039,6 @@ TEST_F(ShellTest, AMovedAndResizedWindowDrawsWhereItIs)
 
 TEST_F(ShellTest, AWindowDrawsWhereItIsAfterItsOutputShrinks)
 {
-    // A scale change shrinks the output under the dock before the dock
-    // moves; the window manager fits it in first.
     manager.setOutputBounds(base::Rect(0, 0, 2160, 1440));
     shell::ShellWindow dock(shell.get(), wm::WindowRole::Dock);
     dock.setContentView(std::make_unique<ProbeView>(ui::Color::rgb(0x00ff00)));
@@ -1113,7 +1058,6 @@ TEST_F(ShellTest, ComputerControlLeavesTheShellsSecretPromptsAlone)
     using computer_control::Rejection;
 
     auto *panel = shell->addComponent(std::make_unique<TestPanel>(shell.get()));
-    // A prompt as the secret dialogs make it, with a popup of its own.
     shell::ShellWindow prompt(shell.get(), wm::WindowRole::Normal);
     auto content = std::make_unique<ProbeView>(ui::Color::rgb(0x0000ff));
     ProbeView *probe = content.get();
@@ -1170,7 +1114,6 @@ TEST_F(ShellTest, ComputerControlLeavesTheShellsSecretPromptsAlone)
     answer(computer_control::ConsentResult::Allowed);
     ASSERT_EQ(1, agent.granteds);
 
-    // No press on the prompt or its popup, no key or text into its field.
     control->motion(base::PointF(400, 320));
     control->button(BTN_LEFT, true);
     control->motion(base::PointF(330, 520));
@@ -1181,7 +1124,6 @@ TEST_F(ShellTest, ComputerControlLeavesTheShellsSecretPromptsAlone)
     ASSERT_EQ(prompt.surface(), seat.focusedSurface());
     control->key(KEY_A, true);
     control->typeText("hunter2");
-    // Nor is it closed or moved.
     control->listWindows();
     ASSERT_TRUE(agent.windows.contains(prompt.wmWindow()->id()));
     const uint32_t handle = agent.windows[prompt.wmWindow()->id()];
@@ -1194,7 +1136,6 @@ TEST_F(ShellTest, ComputerControlLeavesTheShellsSecretPromptsAlone)
     EXPECT_EQ("", secret->text());
     agent.rejections.clear();
 
-    // Other shell windows take the agent's input as the user's.
     shell::ShellWindow launchpad(shell.get(), wm::WindowRole::Launchpad);
     auto field = std::make_unique<ui::TextField>();
     ui::TextField *text = field.get();

@@ -22,7 +22,6 @@
 namespace cutefish::shell {
 
 static constexpr char kMagic[4] = {'C', 'F', 'W', 'P'};
-// Wallpapers larger than this are not decoded.
 static constexpr int kMaxDecodeSide = 16384;
 
 // A cache file: the magic, the key's length and the key, width, height and
@@ -126,7 +125,6 @@ static bool makeDirectories(const std::string &path)
     }
 }
 
-// Keeps the most recently used files.
 static void trimDirectory(const std::string &directory)
 {
     DIR *dir = ::opendir(directory.c_str());

@@ -23,8 +23,6 @@ class Label;
 
 namespace cutefish::shell {
 
-// An SVG file drawn at its rect's device size on whole device pixels, as
-// FishUI's IconItem draws a file; tinted when given a colour.
 class SvgIcon : public ui::View
 {
 public:
@@ -39,8 +37,6 @@ private:
     std::optional<ui::Color> m_tint;
 };
 
-// The chevron of a tile with a detail page, in the secondary text colour:
-// shown while the tile is hovered, fading in and out over 150 ms.
 class DetailChevron : public ui::Icon
 {
 public:
@@ -57,10 +53,6 @@ private:
     double m_to = 0;
 };
 
-// A toggle tile: a round plate with the glyph, a
-// title and a status line. The whole card clicks. A card with a detail page
-// shows a chevron at its end while hovered; there only the plate toggles, and
-// a click anywhere else on the card opens the page.
 class CardItem : public ui::View
 {
 public:
@@ -71,9 +63,7 @@ public:
     CardItem();
     ~CardItem() override;
 
-    // `name`'s light/ artwork, dark/ when dark or checked.
     void setArtwork(std::string name);
-    // A FishUI.Icon glyph in place of artwork.
     void setGlyph(std::string name);
     void setChecked(bool checked);
     bool isChecked() const { return m_checked; }
@@ -81,7 +71,7 @@ public:
     void setStatus(std::string status);
     void setHasDetail(bool detail);
     bool hasDetail() const { return m_hasDetail; }
-    // The round plate's square, in the card's coordinates.
+    // In the card's coordinates.
     ui::RectF plateRect() const;
     DetailChevron *chevron() const { return m_chevron; }
 
@@ -114,15 +104,12 @@ private:
     ui::Label *m_status;
 };
 
-// An icon at three quarters of the button, a
-// round ink plate under it while hovered and enabled.
 class IconButton : public ui::View
 {
 public:
     IconButton();
 
     void setFile(std::string file);
-    // What the button sits on, for the ink of its plate.
     void setSurfaceColor(ui::Color color);
 
     std::function<void()> onClicked;
@@ -145,9 +132,6 @@ private:
     bool m_inside = false;
 };
 
-// The media card, 60 tall. Always shown; without a
-// playing player it reads "Not Playing" with the default cover and three
-// dimmed, disabled buttons.
 class MediaTile : public ui::View
 {
 public:
@@ -185,8 +169,6 @@ private:
     bool m_artReady = false;
 };
 
-// The applications behind the bar's privacy dot, one sentence each, in a
-// tile above the cards.
 class DeviceUsersTile : public ui::View
 {
 public:
@@ -196,7 +178,6 @@ public:
 
     void setUsers(const std::vector<DeviceUser> &users);
     const std::vector<DeviceUser> &users() const { return m_users; }
-    // Takes the sentences again after the session language changed.
     void retranslate();
 
     double heightForWidth(double width) const override;
@@ -221,7 +202,6 @@ private:
     std::vector<Row> m_rows;
 };
 
-// DeviceUsers' sentence naming an application and what it uses.
 std::string deviceUsageText(const DeviceUser &user);
 
 } // namespace cutefish::shell

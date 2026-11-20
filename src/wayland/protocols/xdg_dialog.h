@@ -13,8 +13,7 @@ namespace cutefish::wayland {
 
 constexpr uint32_t kXdgWmDialogVersion = 1;
 
-// xdg_wm_dialog_v1. A modal xdg_dialog_v1 makes its toplevel window-modal on
-// the toplevel's xdg_toplevel.set_parent.
+// A modal xdg_dialog_v1 makes its toplevel window-modal on its parent.
 wl_global *createXdgDialogGlobal(wl_display *display);
 
 } // namespace cutefish::wayland

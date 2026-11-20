@@ -36,15 +36,12 @@ namespace nm = networkmanager;
 
 static const base::LogCategory cfControlCenter("cutefish.shell.controlcenter");
 
-// org.cutefish.Privacy: the camera and microphone switches.
 static const char kPrivacyService[] = "org.cutefish.Privacy";
 static const char kPrivacyPath[] = "/org/cutefish/Privacy";
 static const char kPrivacyInterface[] = "org.cutefish.Privacy";
-// The service's state: read here so that showing the switches starts no root process.
+// Read directly so that showing the switches starts no root process.
 static const char kPrivacyState[] = "/var/lib/cutefish-privacy/";
 
-// Settings' join window finds only access points NetworkManager lists; a
-// remembered one waits for the next scan to list its network again.
 struct PendingJoin {
     std::string accessPoint;
     std::string device;
@@ -143,8 +140,6 @@ public:
         m_matches.clear();
     }
 
-    // --- Network ---
-
     bool wirelessHardwareEnabled() const override { return m_wireless->network().wirelessHwEnabled; }
 
     bool wirelessEnabled() const override
@@ -217,8 +212,7 @@ public:
         return networks;
     }
 
-    // The switches show the requested state until NetworkManager reports it,
-    // so that an unrelated refresh in between does not flip them back.
+    // The switches show the requested state until NetworkManager reports it.
     void enableWireless(bool enable) override
     {
         m_requestedWireless = enable;
@@ -250,12 +244,9 @@ public:
             whenScanned(network.specificPath);
             return true;
         }
-        // The session's secret agent asks for the password first.
         m_handler->addAndActivateConnection(network.devicePath, network.specificPath);
         return network.security == WirelessNetwork::Security::Password;
     }
-
-    // --- Bluetooth ---
 
     bool bluetoothAvailable() const override { return m_bluetooth && !m_bluetooth->adapters().empty(); }
     bool bluetoothEnabled() const override { return m_bluetooth && m_bluetooth->enabled(); }
@@ -293,8 +284,6 @@ public:
             device->disconnectFromDevice();
     }
 
-    // --- Switches ---
-
     void setDarkMode(bool dark) override { m_appearance.send("setDarkMode", dark); }
 
     bool doNotDisturb() const override { return m_notifications && m_notifications->doNotDisturb(); }
@@ -314,8 +303,6 @@ public:
     {
         return deviceUsersSource ? deviceUsersSource() : std::vector<DeviceUser>();
     }
-
-    // --- Media ---
 
     MediaState media() const override
     {
@@ -361,13 +348,9 @@ public:
             player->next();
     }
 
-    // --- Display ---
-
     bool brightnessEnabled() const override { return m_menuBar.brightness().isEnabled(); }
     int brightness() const override { return m_menuBar.brightness().value(); }
     void setBrightness(int value) override { m_menuBar.brightness().setValue(value); }
-
-    // --- Sound ---
 
     std::shared_ptr<audio::AudioObject> sink() const { return m_audio->defaultNode(); }
     bool hasSink() const override { return sink() != nullptr; }
@@ -412,8 +395,6 @@ public:
         }
     }
 
-    // --- Battery ---
-
     int chargePercent() const override { return m_menuBar.battery().chargePercent(); }
     bool onBattery() const override { return m_menuBar.battery().onBattery(); }
     std::string batteryStatus() const override { return m_menuBar.battery().statusString(); }
@@ -453,8 +434,6 @@ private:
         });
     }
 
-    // Handler.whenScanned: Settings' join window, once NetworkManager lists
-    // the access point again.
     void whenScanned(const std::string &accessPoint)
     {
         if (!m_client)

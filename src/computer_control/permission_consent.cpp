@@ -23,15 +23,12 @@ const std::string permissionsInterface = "org.cutefish.Services.Permissions";
 struct PermissionConsent::Request {
     std::string agentName;
     std::string appId;
-    // What the user may allow from now on, when it can be told apart.
     std::optional<AgentApplication> application;
     // Prompt tokens are shared by every caller of the service; a guessable
     // one could be taken first.
     std::string token = base::Uuid::generate().toString();
-    // Where the prompt went, for the dismissal.
     std::string owner;
     std::function<void(ConsentResult)> answer;
-    // The calls in flight, dropped with the request.
     base::dbus::PendingCall ownerCall;
     base::dbus::PendingCall pidCall;
     base::dbus::PendingCall promptCall;
@@ -122,7 +119,6 @@ void PermissionConsent::prompt(const std::shared_ptr<Request> &request, const st
                 // the one that answers.
                 request->owner = owner;
                 base::dbus::Proxy permissions(m_bus, owner, permissionsPath, permissionsInterface);
-                // The user answers in their own time.
                 permissions.setTimeout(std::chrono::milliseconds(INT_MAX));
                 request->promptCall = permissions.callAsync(
                         "Prompt",

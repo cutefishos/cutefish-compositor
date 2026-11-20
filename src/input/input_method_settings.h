@@ -16,8 +16,7 @@ namespace cutefish::input {
 
 class DBusExport;
 
-// An input method a desktop file offers, as KDE marks them with
-// X-KDE-Wayland-VirtualKeyboard=true.
+// Marked with X-KDE-Wayland-VirtualKeyboard=true in its desktop file.
 struct InputMethodProvider {
     std::string id;
     std::string path;

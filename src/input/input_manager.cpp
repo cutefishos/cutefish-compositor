@@ -4,9 +4,6 @@
 //
 // Upstream: chromium/src/ash/display/extended_mouse_warp_controller.cc
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: project relative pointer motion onto active logical
-// rectangles without introducing Ash root windows.
 
 #include "input/input_manager.h"
 #include "display/display_manager.h"
@@ -73,8 +70,7 @@ void InputManager::setTopology(const std::vector<base::Rect> &displays, const ba
         warpPointer(base::RectF(start).center());
         return;
     }
-    // A display that changes scale or mode keeps the pointer at the same spot, as
-    // DRM's cursor keeps its native position (ash UpdateMouseLocationAfterDisplayChange).
+    // A display that changes scale or mode keeps the pointer at the same spot.
     if (previous.size() == m_topology.size()) {
         for (size_t index = 0; index < previous.size(); ++index) {
             const base::RectF from = previous[index];
@@ -232,8 +228,7 @@ void InputManager::onPointerMotion(Timestamp timestamp, const base::PointF &delt
 
 void InputManager::moveAbsolute(Timestamp timestamp, const base::PointF &target)
 {
-    // Exo derives relative motion from the location, which is all an absolute
-    // device has.
+    // An absolute device has no relative motion of its own, so it is derived from the location.
     const base::PointF delta = m_absolutePosition ? target - *m_absolutePosition : base::PointF();
     m_absolutePosition = target;
     movePointer(timestamp, target, {delta, delta});
@@ -297,8 +292,6 @@ void InputManager::onPointerButton(Timestamp timestamp, uint32_t evdevButton, bo
     if (pressed && m_displayManager && m_displayManager->desktopBounds().isEmpty())
         return;
     evdevButton = m_seat->keyTranslator()->translateButton(evdevButton, pressed);
-    // A click or a wheel brings the cursor back as a move does; the event
-    // itself enters the surface under it again.
     if (pressed) {
         m_seat->setCursorHiddenByTouch(false);
         updateFallbackCursor();
@@ -321,7 +314,6 @@ void InputManager::onPointerButton(Timestamp timestamp, uint32_t evdevButton, bo
                                 << "seat-after" << m_seat->pressedButtons() << "consumer"
                                 << (consumed ? "event-sink" : "seat/client");
     m_seat->traceCursors(pressed ? "button-press" : "button-release");
-    // A click is where a client usually claims the pointer image.
     updateFallbackCursor();
 }
 
@@ -332,7 +324,6 @@ std::optional<base::PointF> InputManager::touchLocation(const base::PointF &norm
             return std::nullopt;
         return m_displayManager->touchscreenToGlobal(normalized);
     }
-    // Without display configuration the panel spans the desktop.
     base::Rect desktop(base::Point(), m_bounds);
     for (const base::Rect &display : m_topology)
         desktop = desktop.isEmpty() ? display : desktop.united(display);
@@ -349,12 +340,10 @@ void InputManager::onTouchDown(Timestamp timestamp, int32_t id, const base::Poin
     if (!location)
         return;
     m_touchLocations[id] = *location;
-    // Not while the mouse holds a button, as aura's CompoundEventFilter: the
-    // surface it pressed on keeps the pointer.
+    // Not while the mouse holds a button: the surface it pressed on keeps the pointer.
     if (m_seat->pressedButtons() == NoButton && !m_seat->drag()->grabsInput())
         m_seat->setCursorHiddenByTouch(true);
     if (auto *gate = m_seat->sessionGate(); gate && gate->restrictsInput()) {
-        // Whatever a client had of the session's touches ends with it.
         m_seat->onTouchCancel();
         auto *sink = gate->secureInput();
         if (!sink || m_secureTouch)
@@ -512,7 +501,6 @@ void InputManager::onPointerGestureEnd(Timestamp timestamp, GestureType type, bo
 
 uint32_t InputManager::positionalKey(uint32_t evdevCode, KeyboardModifierLayout layout) const
 {
-    // The PC convention is plain Linux: every keyboard as it reports itself.
     if (m_seat->shortcutConvention() != ShortcutConvention::Command
         || layout == KeyboardModifierLayout::Apple)
         return evdevCode;
@@ -558,10 +546,7 @@ void InputManager::onKey(Timestamp timestamp, uint32_t physicalCode, bool presse
             m_seat->suppressKey(evdevCode);
         } else {
             m_secureKeys.erase(evdevCode);
-            // A key held across the lock still ends in the translator, or it
-            // stays held there: a Meta held for the lock shortcut would reach
-            // every client with the next key. Keys pressed while locked are
-            // suppressed and never reached it.
+            // A key held across the lock still ends in the translator, or it stays held there for every client.
             if (!suppressed)
                 m_seat->dispatchKey(timestamp, evdevCode, false);
         }
@@ -580,8 +565,7 @@ void InputManager::onKey(Timestamp timestamp, uint32_t physicalCode, bool presse
     if (m_eventSink && m_eventSink->onKey(timestamp, evdevCode, pressed)) {
         if (pressed)
             m_seat->suppressKey(evdevCode);
-        // Exo releases every key the client saw pressed, whatever handled the
-        // release: a press without its release would leave the key stuck.
+        // Every key the client saw pressed gets its release, whatever handled it, or it stays stuck.
         else if (!suppressed)
             m_seat->dispatchKey(timestamp, evdevCode, false);
         m_seat->syncKeyboardLocks();

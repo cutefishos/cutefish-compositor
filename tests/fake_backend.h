@@ -9,8 +9,6 @@
 
 #include <string>
 
-// A backend that answers whatever the test tells it to, and counts the things
-// that must happen exactly once.
 class FakeBackend : public cutefish::auth::AuthBackend
 {
 
@@ -22,8 +20,6 @@ public:
     void authenticate(const std::string &userName, cutefish::auth::Secret secret) override
     {
         lastUser = userName;
-        // Recorded so a test can prove the credential arrived; a real backend
-        // would never copy it anywhere that outlives the attempt.
         lastSecret = std::string(secret.constData(), secret.size());
         ++authenticateCount;
     }
@@ -34,7 +30,6 @@ public:
 
     void setSession(const cutefish::auth::LoginSession &session) override { lastSession = session.id; }
 
-    // Drive the controller the way a real service would.
     void succeed() { succeeded(); }
 
     void reject(const std::string &message = "Incorrect password") { failed(message); }

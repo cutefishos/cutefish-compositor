@@ -2,10 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// The menu bar as the compositor draws it: its window, the layout of its
-// items, panels, the tray, the clock and the colours it takes from what is
-// behind it, headless on a fake renderer and a private bus.
-
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -185,7 +181,6 @@ protected:
         frame();
     }
 
-    // An item's rect on the screen.
     static ui::RectF onScreen(const ui::View *view)
     {
         const ui::PointF origin = view->mapToWindow({0, 0});
@@ -204,7 +199,6 @@ TEST_F(MenuBarViewTest, TheBarIsAPanelAlongThePrimaryOutputsTop)
     EXPECT_EQ(base::Rect(0, 0, 1440, 32), window->bounds());
     EXPECT_EQ(base::Rect(0, 32, 1440, 928), shell->workArea(*shell->output({})));
 
-    // The output's bounds change: the bar follows.
     manager.setOutputBounds({0, 0, 1280, 800});
     test::runFor(std::chrono::milliseconds(20));
     frame();
@@ -213,8 +207,6 @@ TEST_F(MenuBarViewTest, TheBarIsAPanelAlongThePrimaryOutputsTop)
 
 TEST_F(MenuBarViewTest, ItemsAbutTheEdgeAndEachOther)
 {
-    // The clock's slot reaches the screen's right edge; its plate stops 9
-    // short of it.
     const ui::RectF clock = onScreen(bar->clock());
     EXPECT_NEAR(1440, clock.x + clock.width, 1);
     EXPECT_DOUBLE_EQ(32, clock.height);
@@ -227,8 +219,6 @@ TEST_F(MenuBarViewTest, ItemsAbutTheEdgeAndEachOther)
     EXPECT_DOUBLE_EQ(clock.x, control.x + control.width);
     EXPECT_EQ(shell::shellDataFile("menubar/light/control.svg").empty(), false);
 
-    // Hovering lights nothing; checked, the plate shows inset 3 each side,
-    // 4 from the top, 24 tall.
     move(control.x + 20, 16);
     EXPECT_FALSE(bar->controlIcon()->isPlateShown());
     bar->controlIcon()->setChecked(true);
@@ -238,16 +228,13 @@ TEST_F(MenuBarViewTest, ItemsAbutTheEdgeAndEachOther)
     EXPECT_DOUBLE_EQ(34, plate.width);
     EXPECT_DOUBLE_EQ(4, plate.y);
     EXPECT_DOUBLE_EQ(24, plate.height);
-    // Dark contents over a light theme: black at 0.1.
     EXPECT_FALSE(bar->lightContents());
     EXPECT_EQ(26, bar->controlIcon()->plateColor().a);
     EXPECT_EQ(0, bar->controlIcon()->plateColor().r);
     bar->controlIcon()->setChecked(false);
 
-    // Without indicators there is no volume or Wi-Fi icon.
     EXPECT_FALSE(bar->volumeIcon()->isVisible());
     EXPECT_FALSE(bar->networkIcon()->isVisible());
-    // The battery shows when the system has one.
     EXPECT_EQ(bar->menuBar().battery().isAvailable(), bar->batteryIcon()->isVisible());
 }
 
@@ -264,7 +251,6 @@ TEST_F(MenuBarViewTest, AnUnchangedClockDrawsNoFrame)
     bar->updateClock();
     frame();
     EXPECT_EQ(rendered, statistics.rendered);
-    // Hovering changes nothing either.
     move(onScreen(bar->clock()).x + 20, 16);
     EXPECT_EQ(rendered, statistics.rendered);
 
@@ -302,7 +288,6 @@ TEST_F(MenuBarViewTest, IndicatorsPickTheIcons)
     EXPECT_EQ("audio-volume-high-symbolic", bar->volumeIcon()->iconName());
     EXPECT_EQ("network-wireless-hotspot", bar->networkIcon()->glyph());
 
-    // The privacy dot widens the control icon by the gap and the dot.
     bar->setDeviceUsage(std::make_unique<shell::DeviceUsage>(nullptr, nullptr, nullptr));
     bar->deviceUsage()->setUsesForTesting({{shell::DeviceUse::Microphone, 42, {}, "recorder"}});
     frame();
@@ -311,7 +296,6 @@ TEST_F(MenuBarViewTest, IndicatorsPickTheIcons)
     EXPECT_EQ("recorder", bar->deviceUsage()->applications().front().name);
     EXPECT_TRUE(bar->deviceUsage()->applications().front().microphone);
 
-    // The user's choices take the icons off the bar.
     bar->menuBar().setControlShown(shell::MenuBar::Control::WiFi, false);
     bar->menuBar().setControlShown(shell::MenuBar::Control::Sound, false);
     bar->menuBar().setControlShown(shell::MenuBar::Control::Battery, false);
@@ -323,7 +307,6 @@ TEST_F(MenuBarViewTest, IndicatorsPickTheIcons)
     EXPECT_TRUE(bar->volumeIcon()->isVisible());
     EXPECT_TRUE(bar->networkIcon()->isVisible());
 
-    // Bluetooth is off the bar until the user puts it there, and needs an adapter.
     indicators.m_bluetooth = {true, false};
     indicators.changed();
     EXPECT_FALSE(bar->bluetoothIcon()->isVisible());
@@ -356,7 +339,6 @@ TEST_F(MenuBarViewTest, ARightClickOnAControlOffersToRemoveIt)
     frame();
     ASSERT_TRUE(bar->networkIcon()->isVisible());
 
-    // The menu opens under the plate, and no panel does.
     const ui::RectF network = onScreen(bar->networkIcon());
     click(network.x + network.width / 2, 16, BTN_RIGHT);
     ASSERT_NE(nullptr, bar->controlMenu());
@@ -365,12 +347,10 @@ TEST_F(MenuBarViewTest, ARightClickOnAControlOffersToRemoveIt)
     EXPECT_FALSE(bar->panelOpen());
     EXPECT_TRUE(panels.opened.empty());
 
-    // A right click again closes it.
     click(network.x + network.width / 2, 16, BTN_RIGHT);
     EXPECT_FALSE(bar->controlMenu()->isOpen());
     EXPECT_FALSE(bar->networkIcon()->isPlateShown());
 
-    // Its one row takes the control off the bar.
     click(network.x + network.width / 2, 16, BTN_RIGHT);
     ASSERT_TRUE(bar->controlMenu()->isOpen());
     key(KEY_DOWN);
@@ -379,7 +359,6 @@ TEST_F(MenuBarViewTest, ARightClickOnAControlOffersToRemoveIt)
     EXPECT_FALSE(bar->menuBar().isControlShown(shell::MenuBar::Control::WiFi));
     EXPECT_FALSE(bar->networkIcon()->isVisible());
 
-    // The battery's first row turns its percentage on and off.
     ASSERT_FALSE(bar->menuBar().battery().showPercentage());
     bar->batteryIcon()->setVisible(true);
     frame();
@@ -391,7 +370,6 @@ TEST_F(MenuBarViewTest, ARightClickOnAControlOffersToRemoveIt)
     EXPECT_TRUE(bar->menuBar().battery().showPercentage());
     EXPECT_TRUE(bar->menuBar().isControlShown(shell::MenuBar::Control::Battery));
 
-    // The control centre's icon has no such menu.
     const ui::RectF control = onScreen(bar->controlIcon());
     click(control.x + 20, 16, BTN_RIGHT);
     EXPECT_FALSE(bar->controlMenu()->isOpen());
@@ -415,7 +393,6 @@ TEST_F(MenuBarViewTest, AnIconTogglesItsPanelUnderItsPlate)
     EXPECT_TRUE(bar->controlIcon()->isChecked());
     EXPECT_TRUE(bar->panelOpen());
 
-    // The plate shown is blurred behind, with no outline; it keeps its own colour.
     const compositor::Surface *surface = bar->window()->surface();
     const auto blurBehind = [&](const shell::BarItem *item) {
         const ui::RectF plate = item->plateRect();
@@ -431,20 +408,17 @@ TEST_F(MenuBarViewTest, AnIconTogglesItsPanelUnderItsPlate)
 
     const ui::RectF clock = onScreen(bar->clock());
 
-    // Its icon again closes it, and opens nothing.
     click(control.x + 20, 16);
     EXPECT_EQ(1u, panels.opened.size());
     EXPECT_FALSE(bar->controlIcon()->isChecked());
     EXPECT_FALSE(bar->panelOpen());
 
-    // The plate and its blur go with the panel; hovering brings neither back.
     EXPECT_FALSE(bar->controlIcon()->isPlateShown());
     EXPECT_TRUE(surface->backgroundBlurRect().isEmpty());
     move(clock.x + 20, 16);
     EXPECT_FALSE(bar->clock()->isPlateShown());
     EXPECT_TRUE(surface->backgroundBlurRect().isEmpty());
 
-    // The clock's panel is nobody's here.
     click(clock.x + 20, 16);
     EXPECT_EQ(1u, panels.opened.size());
     bar->removePanels(&panels);
@@ -455,18 +429,15 @@ TEST_F(MenuBarViewTest, ThePictureBehindTheBarPicksItsColours)
     using Backdrop = shell::MenuBarBackdrop;
     Backdrop::Sample sample;
     sample.valid = true;
-    // A smooth dark strip: light contents, no gradient.
     sample.red = sample.green = sample.blue = 20;
     Backdrop::Style style = Backdrop::styleForSample(sample);
     EXPECT_TRUE(style.useLightForeground);
     EXPECT_FALSE(style.gradientVisible);
-    // A smooth mid tone: dark contents on a light gradient.
     sample.red = sample.green = sample.blue = 170;
     style = Backdrop::styleForSample(sample);
     EXPECT_FALSE(style.useLightForeground);
     EXPECT_TRUE(style.gradientVisible);
     EXPECT_EQ(115, style.gradientColor.a);
-    // Busy: light contents up to a lighter average, and a dark gradient.
     sample.detail = 9;
     sample.red = sample.green = sample.blue = 150;
     style = Backdrop::styleForSample(sample);
@@ -474,7 +445,6 @@ TEST_F(MenuBarViewTest, ThePictureBehindTheBarPicksItsColours)
     EXPECT_TRUE(style.gradientVisible);
     EXPECT_EQ(77, style.gradientColor.a);
 
-    // The strip's mean colour and its texture.
     ui::Bitmap stripes(512, 64, ui::Bitmap::Format::Argb32Premultiplied);
     for (int y = 0; y < 64; ++y) {
         for (int x = 0; x < 512; ++x)
@@ -486,11 +456,9 @@ TEST_F(MenuBarViewTest, ThePictureBehindTheBarPicksItsColours)
     EXPECT_NEAR(0x30, flat.blue, 0.5);
     EXPECT_NEAR(0, flat.detail, 1e-9);
 
-    // A dark colour behind the bar: white contents, with the shadow edge.
     bar->backdrop().setColor(ui::Color::rgb(0x101820));
     EXPECT_TRUE(bar->lightContents());
     EXPECT_EQ(ui::Color::rgb(0xFFFFFF), bar->textColor());
-    // The desktop's picture, judged once decoded on a worker.
     ui::Bitmap light(64, 64, ui::Bitmap::Format::Argb32Premultiplied);
     light.fill(0xfff0f0f0u);
     ASSERT_TRUE(light.savePng(directory.filePath("light.png")));
@@ -503,12 +471,9 @@ TEST_F(MenuBarViewTest, ThePictureBehindTheBarPicksItsColours)
     EXPECT_EQ((ui::Color {0, 0, 0, 217}), bar->textColor());
     EXPECT_EQ(ui::Color::rgb(0x000000), bar->menuTextColor());
     bar->setWallpaper(nullptr);
-    // Nothing shown: the theme decides again.
     bar->backdrop().setUnavailable();
     EXPECT_FALSE(bar->backdrop().isValid());
 
-    // Under Reduce Transparency the bar has its own fill, and its contents
-    // follow the mode, whatever is behind it.
     render::setOpaqueBackdrop(render::Color {0.9f, 0.9f, 0.9f, 1});
     bar->backdrop().setColor(ui::Color::rgb(0x203040));
     EXPECT_EQ(ui::Color::rgb(0xDADADA), bar->fill());
@@ -536,26 +501,22 @@ TEST_F(MenuBarViewTest, TrayItemsSitRightToLeftAndTakeClicks)
     ASSERT_TRUE(test::runUntil([&] { return bar->tray()->count() == 1; }));
     frame();
 
-    // 40 wide, right before the volume, Wi-Fi, battery and control icons.
     shell::TrayItemView *view = bar->tray()->item(0);
     const ui::RectF slot = onScreen(view);
     EXPECT_DOUBLE_EQ(40, slot.width);
     const ui::RectF tray = onScreen(bar->tray());
     EXPECT_DOUBLE_EQ(tray.x + tray.width, slot.x + slot.width);
 
-    // Left: activated at the click.
     click(slot.x + 20, 16);
     ASSERT_TRUE(test::runUntil([&] { return !item.calls.empty(); }));
     EXPECT_EQ("Activate " + std::to_string(int(slot.x + 20)) + ",16", item.calls.front());
 
-    // Right: its menu under the plate, the plate lit while it is up.
     ASSERT_TRUE(test::runUntil([&] { return bar->menuBar().systemTray().at(0)->menu(); }));
     click(slot.x + 20, 16, BTN_RIGHT);
     EXPECT_TRUE(view->isPlateShown());
     ASSERT_TRUE(test::runUntil([&] { return bar->tray()->openMenu() != nullptr; })) << item.calls.size();
     EXPECT_TRUE(view->isPlateShown());
     EXPECT_TRUE(test::runUntil([&] { return exporter.called("AboutToShow 0"); }));
-    // A right click on it again closes it.
     click(slot.x + 20, 16, BTN_RIGHT);
     EXPECT_EQ(nullptr, bar->tray()->openMenu());
     move(700, 500);
@@ -584,7 +545,6 @@ TEST_F(MenuBarViewTest, ARightClickOpensTheTrayMenuOnce)
     ASSERT_TRUE(test::runUntil([&] { return exporter.called("Event 0 opened"); }));
     test::runFor(std::chrono::milliseconds(100));
 
-    // AboutToShow, then "opened" once the menu is up, and "closed" as it goes.
     std::vector<std::string> events;
     for (const std::string &call : exporter.calls) {
         if (!call.starts_with("GetLayout"))
@@ -619,13 +579,11 @@ TEST_F(MenuBarViewTest, ALeftClickOpensTheMenuOfAnItemThatIsOnlyAMenu)
     click(slot.x + 20, 16);
     ASSERT_TRUE(test::runUntil([&] { return bar->tray()->openMenu() != nullptr; }));
     EXPECT_TRUE(exporter.called("AboutToShow 0"));
-    // Again, it closes.
     click(slot.x + 20, 16);
     EXPECT_EQ(nullptr, bar->tray()->openMenu());
     test::runFor(std::chrono::milliseconds(50));
     EXPECT_TRUE(item.calls.empty());
 
-    // No longer only a menu: a left click activates it again.
     item.itemIsMenu = false;
     item.object.emitSignal("NewTitle");
     test::runFor(std::chrono::milliseconds(100));
@@ -656,8 +614,6 @@ TEST_F(MenuBarViewTest, AnItemThatLeavesTakesItsOpenMenu)
     click(slot.x + 20, 16, BTN_RIGHT);
     ASSERT_TRUE(test::runUntil([&] { return bar->tray()->openMenu() != nullptr; }));
 
-    // The application quits with its menu up: the menu closes without
-    // reaching the item's menu client, which went first.
     exporter.reset();
     item.reset();
     application.reset();
@@ -705,7 +661,6 @@ TEST_F(MenuBarViewTest, ApplicationItemsSitBeforeTheTrayOnWholePixels)
     auto first = std::make_unique<wm::StatusItem>(manager.statusItems(), firstSurface.get(), "app", client(&firstHeard));
     auto second = std::make_unique<wm::StatusItem>(manager.statusItems(), secondSurface.get(), "app",
                                                    client(&secondHeard));
-    // The bar's height, and a third of its width at most; its look.
     EXPECT_EQ(32, firstHeard.height);
     EXPECT_EQ(480, firstHeard.maxWidth);
     EXPECT_EQ(bar->lightContents(), firstHeard.dark);
@@ -720,8 +675,6 @@ TEST_F(MenuBarViewTest, ApplicationItemsSitBeforeTheTrayOnWholePixels)
     frame();
     ASSERT_EQ(2, bar->statusItems()->count());
 
-    // The newest leftmost, each slot 6 wider than its item, the last one right
-    // before the tray's place; every item on whole logical pixels.
     shell::StatusItemSlot *left = bar->statusItems()->slot(0);
     shell::StatusItemSlot *right = bar->statusItems()->slot(1);
     EXPECT_EQ(second.get(), left->item());
@@ -740,8 +693,6 @@ TEST_F(MenuBarViewTest, ApplicationItemsSitBeforeTheTrayOnWholePixels)
     EXPECT_EQ(first->screenRect(), firstHeard.place);
     EXPECT_EQ(bar->window()->surface(), firstSurface->parentSurface());
 
-    // A new width shows with the bar's next frame, which moves the items
-    // beside it in the same commit: no frame shows the item at its old place.
     const int rightEdge = first->screenRect().right();
     draw(firstSurface.get(), 60);
     EXPECT_EQ(60, first->width());
@@ -755,7 +706,6 @@ TEST_F(MenuBarViewTest, ApplicationItemsSitBeforeTheTrayOnWholePixels)
     frame();
     EXPECT_EQ(rightEdge, first->screenRect().right());
 
-    // Asked for, the bar's plate lies exactly under the item.
     first->setHighlightRequested(true);
     frame();
     EXPECT_TRUE(firstHeard.highlighted);
@@ -764,7 +714,6 @@ TEST_F(MenuBarViewTest, ApplicationItemsSitBeforeTheTrayOnWholePixels)
     EXPECT_DOUBLE_EQ(3, plate.x);
     EXPECT_DOUBLE_EQ(37, plate.width);
 
-    // An item that goes leaves its slot to the others.
     second.reset();
     frame();
     ASSERT_EQ(1, bar->statusItems()->count());

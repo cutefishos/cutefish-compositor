@@ -144,7 +144,6 @@ TEST(WindowAnimation, DockTransitionsSettleSmoothly)
     EXPECT_GT(halfway.bounds.x(), 350);
     EXPECT_LT(halfway.bounds.x(), to.x());
     EXPECT_EQ(halfway.opacity, 1);
-    // Opaque all the way into the dock thumbnail.
     EXPECT_EQ(Animation::sample(Type::Minimize, from, to, .99).opacity, 1);
     EXPECT_EQ(Animation::sample(Type::Restore, to, from, .3).opacity, 1);
     EXPECT_LT(Animation::sample(Type::Restore, to, from, .5).bounds.x(), 250);
@@ -217,8 +216,6 @@ TEST(WindowAnimation, APresentationScaleShrinksAboutItsAnchorAndGrowsBack)
     })));
     node->setStyle(Animation::Style::None);
     node->setGeometry({100, 100, 400, 300});
-    // Half size about (100, 50) in the window: the texture, which covers 64px
-    // around it, shrinks towards (200, 150).
     node->setPresentationScale(0.5, {100, 50}, false);
     scene.render(renderer);
     EXPECT_EQ(base::RectF(118, 93, 264, 214), renderer.lastTarget);
@@ -255,7 +252,6 @@ TEST(WindowAnimation, StepsOnTheRendererFrameTimeInsteadOfTheClock)
     renderer.frameTime = 5000;
     scene.render(renderer);
     EXPECT_FLOAT_EQ(renderer.calls.back().alpha, 0);
-    // The wall clock has raced ahead, but the display has only shown 90 ms.
     now = 1000;
     renderer.frameTime = 5090;
     scene.render(renderer);
@@ -279,7 +275,6 @@ TEST(WindowAnimation, AnOpeningWindowAlreadyMovesInItsFirstFrame)
     EXPECT_FLOAT_EQ(renderer.calls.back().alpha, first);
     EXPECT_GT(first, .1);
 
-    // A slow first frame still costs only one step, not the slots it missed.
     renderer.frameTime = 5080;
     scene.render(renderer);
     EXPECT_FLOAT_EQ(renderer.calls.back().alpha,
@@ -303,14 +298,12 @@ TEST(WindowAnimation, ASlowFirstFrameDelaysTheAnimationInsteadOfSkippingAhead)
     scene.render(renderer);
     EXPECT_EQ(renderer.lastTarget.x(), bounds.x() - 64);
 
-    // The first frame missed four slots; the next one still shows one step.
     renderer.frameTime = 5065;
     scene.render(renderer);
     const auto step = Animation::sample(Type::Minimize, bounds, slot, 13.0 / duration);
     const double scale = step.bounds.width() / bounds.width();
     EXPECT_NEAR(renderer.lastTarget.x(), step.bounds.x() - 64 * scale, 1e-6);
 
-    // Later frames step on the display's timeline again, from the new start.
     renderer.frameTime = 5078;
     scene.render(renderer);
     const auto next = Animation::sample(Type::Minimize, bounds, slot, 26.0 / duration);
@@ -318,8 +311,6 @@ TEST(WindowAnimation, ASlowFirstFrameDelaysTheAnimationInsteadOfSkippingAhead)
                 1e-6);
 }
 
-// A 75 Hz slot is 13.33 ms; stepping on whole milliseconds would advance the
-// flight by 13 or 14 ms a frame at random, and it would visibly judder.
 TEST(WindowAnimation, StepsOnFractionalFrameTimes)
 {
     scene::Scene scene;
@@ -345,7 +336,6 @@ TEST(WindowAnimation, StepsOnFractionalFrameTimes)
 
 TEST(WindowAnimation, LiveContentInTheSnapshotPassIsPresented)
 {
-    // Like the EGL pass, the snapshot suspends presentation recording.
     class SuspendingRenderer : public SnapshotRenderer
     {
     public:
@@ -386,8 +376,6 @@ TEST(WindowAnimation, LiveContentInTheSnapshotPassIsPresented)
     renderer.presentationSubmission = nullptr;
 }
 
-// An idle window whose subtree has not changed is drawn from the snapshot it
-// left last frame, as viz skips such a render pass (CanSkipRenderPass).
 class SnapshotReuse : public testing::Test
 {
 protected:
@@ -429,13 +417,10 @@ TEST_F(SnapshotReuse, UnchangedContentIsDrawnFromTheLastSnapshotAndStillPresente
 
 TEST_F(SnapshotReuse, DamageRedrawsItsPartAndAWholePixelMoveKeepsTheSnapshot)
 {
-    // One more pixel on each side for linear filtering.
     surface->notifyDamage(base::Rect(0, 0, 10, 10));
     scene.render(renderer);
     EXPECT_EQ(renderer.captures, 2);
     EXPECT_EQ(renderer.lastRepaint, base::Rect(100, 100, 11, 11));
-    // Moved by whole device pixels, the subtree is unchanged in its own space
-    // and the snapshot is drawn where the window now is.
     window->setPosition({120, 100});
     renderer.calls.clear();
     scene.render(renderer);
@@ -459,15 +444,10 @@ TEST_F(SnapshotReuse, ContentChangingEveryFrameSkipsTheSnapshotAllButEveryEighth
         return snapshots;
     };
     drawFrames(1, false);
-    // A change on its own still goes through the snapshot; from the second
-    // frame in a row the window is drawn straight to the output.
     EXPECT_EQ(drawFrames(10, true),
               std::vector<bool>({true, false, false, false, false, false, false, false, true, false}));
-    // The next frame drawn without a change draws the snapshot again, and then
-    // it is kept.
     EXPECT_EQ(drawFrames(2, false), std::vector<bool>({true, false}));
 
-    // Blended by the client's opacity, it always goes through the snapshot.
     window->setOpacity(0.5f);
     drawFrames(1, false);
     EXPECT_EQ(drawFrames(3, true), std::vector<bool>({true, true, true}));
@@ -503,20 +483,13 @@ TEST(WindowAnimation, ChangesFarApartGoThroughTheSnapshot)
     now = renderer.frameTime = 1016;
     scene.render(renderer);
 
-    // Every change is the next frame drawn, as with a blinking caret, but each
-    // comes half a second after the last: a close, a minimize or a cross-fade
-    // must not start from a snapshot several blinks old.
     EXPECT_TRUE(drawChangeAt(1500));
     EXPECT_TRUE(drawChangeAt(2000));
     EXPECT_TRUE(drawChangeAt(2500));
-    // Frame after frame, the run still skips the snapshot until it is eight
-    // frames old.
     EXPECT_FALSE(drawChangeAt(2516));
     EXPECT_FALSE(drawChangeAt(2532));
     EXPECT_FALSE(drawChangeAt(2548));
     EXPECT_FALSE(drawChangeAt(2564));
-    // A pause shorter than the run's end still ends it once the snapshot is
-    // that old.
     EXPECT_TRUE(drawChangeAt(2640));
     EXPECT_FALSE(drawChangeAt(2656));
 }
@@ -526,12 +499,10 @@ TEST_F(SnapshotReuse, AFractionalPixelMoveRedrawsAll)
     renderer.setRasterScale(1.5);
     scene.render(renderer);
     EXPECT_EQ(renderer.captures, 2);
-    // One logical pixel is a pixel and a half: the content's subpixel phase changes.
     window->setPosition({101, 100});
     scene.render(renderer);
     EXPECT_EQ(renderer.captures, 3);
     EXPECT_TRUE(renderer.lastRepaint.isEmpty());
-    // Two more are three device pixels.
     window->setPosition({103, 100});
     scene.render(renderer);
     EXPECT_EQ(renderer.captures, 3);
@@ -541,8 +512,6 @@ TEST_F(SnapshotReuse, AWindowMovedWhileDrawnDirectlyClosesWhereItWasDrawn)
 {
     scene.render(renderer);
     const base::RectF captured = renderer.lastTarget;
-    // Content changing every frame is drawn directly from the second frame on,
-    // and the snapshot stays where it was captured.
     for (int x = 101; x <= 104; ++x) {
         window->setPosition({x, 100});
         surface->notifyDamage(base::Rect(0, 0, 400, 300));
@@ -551,7 +520,6 @@ TEST_F(SnapshotReuse, AWindowMovedWhileDrawnDirectlyClosesWhereItWasDrawn)
     ASSERT_EQ(renderer.captures, 2);
     window->close();
     scene.render(renderer);
-    // The close has run for the microseconds the real clock moved on.
     const base::RectF expected = captured.translated(4, 0);
     EXPECT_NEAR(renderer.lastTarget.x(), expected.x(), 0.01);
     EXPECT_NEAR(renderer.lastTarget.y(), expected.y(), 0.01);
@@ -560,8 +528,6 @@ TEST_F(SnapshotReuse, AWindowMovedWhileDrawnDirectlyClosesWhereItWasDrawn)
 
 TEST_F(SnapshotReuse, APopupChangingEveryFrameIsDrawnThroughItsSnapshot)
 {
-    // A menu lights another row on every pointer motion and closes on the
-    // click: drawn directly, its close would fade out a snapshot frames old.
     window->setStyle(Animation::Style::Popup);
     for (int frame = 0; frame < 4; ++frame) {
         surface->notifyDamage(base::Rect(0, 0, 400, 300));
@@ -576,8 +542,6 @@ TEST_F(SnapshotReuse, APopupChangingEveryFrameIsDrawnThroughItsSnapshot)
 
 TEST_F(SnapshotReuse, AWindowWithNoOpaqueSurfaceIsDrawnThroughItsSnapshot)
 {
-    // It can fade itself away frame by frame and then close: drawn directly,
-    // its close would fade an earlier, more visible frame back in.
     surface->setOpaque(false);
     scene.render(renderer);
     const int before = renderer.captures;
@@ -590,8 +554,6 @@ TEST_F(SnapshotReuse, AWindowWithNoOpaqueSurfaceIsDrawnThroughItsSnapshot)
 
 TEST_F(SnapshotReuse, APlanePromotionIsNeverKeptForALaterFrame)
 {
-    // The promoted surface is left out of the snapshot drawn while it is on a
-    // plane, so that snapshot cannot serve the frame after the promotion.
     surface->setPromotedToOverlay(true);
     scene.render(renderer);
     EXPECT_EQ(renderer.captures, 2);
@@ -642,16 +604,13 @@ TEST_F(SnapshotReuse, CapturesShareTheSnapshotButScalesAndAppearanceChangesDrawA
         scene.render(renderer);
         renderer.capturing = false;
     };
-    // A capture of what the screen shows draws the same snapshot.
     capture();
     EXPECT_EQ(renderer.captures, 1);
-    // Changed content is drawn once, by whichever comes first.
     surface->notifyDamage(base::Rect(0, 0, 10, 10));
     capture();
     EXPECT_EQ(renderer.captures, 2);
     scene.render(renderer);
     EXPECT_EQ(renderer.captures, 2);
-    // A capture draws promoted surfaces too, so the screen does not reuse it.
     surface->setPromotedToOverlay(true);
     capture();
     surface->setPromotedToOverlay(false);
@@ -663,7 +622,6 @@ TEST_F(SnapshotReuse, CapturesShareTheSnapshotButScalesAndAppearanceChangesDrawA
     renderer.setRasterScale(2);
     scene.render(renderer);
     EXPECT_EQ(renderer.captures, 5);
-    // Session-wide appearance, such as the corner style, notifies the root.
     scene.root()->notifyChanged();
     scene.render(renderer);
     EXPECT_EQ(renderer.captures, 6);
@@ -671,8 +629,6 @@ TEST_F(SnapshotReuse, CapturesShareTheSnapshotButScalesAndAppearanceChangesDrawA
     EXPECT_EQ(renderer.captures, 6);
 }
 
-// A blur in the snapshot reads the output behind the window, which the
-// window's own damage never shows changing.
 class BlurredSnapshot : public SnapshotReuse
 {
 protected:
@@ -691,7 +647,6 @@ protected:
         const int halo = render::kBackdropBlurSupport + 2;
         sampled = base::Rect(250, 200, 100, 100).adjusted(-halo, -halo, halo, halo);
         scene.render(renderer);
-        // Idle once, so a change is not the second in a row, drawn directly.
         scene.render(renderer);
         captures = renderer.captures;
     }
@@ -707,7 +662,6 @@ TEST_F(BlurredSnapshot, IsKeptWhileNothingItsBlurReadsIsDrawnAgain)
     renderer.repainted = base::Rect(900, 700, 10, 10);
     scene.render(renderer);
     EXPECT_EQ(renderer.captures, captures);
-    // What the scene draws again there may have changed.
     renderer.repainted = base::Rect(160, 110, 10, 10);
     scene.render(renderer);
     EXPECT_EQ(renderer.captures, captures + 1);
@@ -725,7 +679,6 @@ TEST_F(BlurredSnapshot, DrawnWholeItHasTheSceneRepaintWhatItsBlursRead)
     EXPECT_FALSE(redrawn());
     EXPECT_TRUE(tracker.update(*scene.root(), viewport).isEmpty());
     EXPECT_TRUE(tracker.samples(kept).empty());
-    // A frame with a promoted surface is not kept, so the next one draws whole.
     surface->setPromotedToOverlay(true);
     scene.render(renderer);
     surface->setPromotedToOverlay(false);
@@ -738,8 +691,6 @@ TEST_F(BlurredSnapshot, DrawnWholeItHasTheSceneRepaintWhatItsBlursRead)
 
 TEST_F(BlurredSnapshot, ABlurDrawnFromWhatTheOutputLeftIsNotKept)
 {
-    // Changes on either side of the blur, whose one repaint rectangle crosses
-    // it, while the output draws none of what the blur reads again.
     renderer.repainted = base::Rect(100, 100, 11, 11);
     surface->notifyDamage(base::Rect(0, 0, 10, 10));
     surface->notifyDamage(base::Rect(390, 290, 10, 10));
@@ -754,7 +705,6 @@ TEST_F(BlurredSnapshot, ABlurDrawnFromWhatTheOutputLeftIsNotKept)
 
 TEST_F(SnapshotReuse, AScaledPresentationDrawsNoBlurs)
 {
-    // Scaled, the window is not where its blurs would read the screen.
     surface->setBackgroundBlur({0, 0, 400, 300}, 12);
     scene.render(renderer);
     EXPECT_EQ(renderer.blurs, 1);
@@ -805,7 +755,6 @@ TEST(WindowAnimation, CloseStartsFromTheSnapshotBoundsNotTheLiveGeometry)
     node->finish();
     scene.render(renderer);
     const base::Rect captured = renderer.calls.back().rect;
-    // The frame was dropped, but nothing repainted before the surface went.
     node->setGeometry({100, 130, 400, 270});
     node->close();
     renderer.calls.clear();
@@ -897,22 +846,17 @@ TEST(WindowAnimation, MinimizeExportsPreviewThenTheExactLandingImage)
     ASSERT_EQ(snapshots.size(), 1u);
     EXPECT_EQ(snapshots.front().size(), base::Size(200, 100));
     EXPECT_EQ(renderer.captures, 1);
-    // The shrinking snapshot and both images read from it are mipmapped.
     ASSERT_FALSE(renderer.trilinear.empty());
     EXPECT_NE(renderer.trilinear.front(), nullptr);
     EXPECT_EQ(std::ranges::count(renderer.trilinear, renderer.trilinear.front()),
               std::ssize(renderer.trilinear));
-    // Cropped to the window: the shadow margins land outside the image.
     EXPECT_EQ(renderer.imageDraws.back(), base::Rect(-16, -16, 232, 132));
-    // Read from the level a quarter of the snapshot's size, 232 pixels across
-    // like the image, and never from a smaller one.
     EXPECT_EQ(renderer.mipmapLevels, std::vector<int>({2, -1}));
 
     now = Animation::duration(Type::Minimize, bounds, slot);
     scene.render(renderer);
     ASSERT_EQ(snapshots.size(), 2u);
     EXPECT_EQ(snapshots.back().size(), slot.size());
-    // 928 snapshot pixels onto 56: level 4 is 58 across.
     EXPECT_EQ(renderer.mipmapLevels, std::vector<int>({2, -1, 4, -1}));
     EXPECT_EQ(renderer.lastTarget, base::RectF(slot));
     EXPECT_EQ(landed, 1);
@@ -1034,7 +978,6 @@ TEST(WindowAnimation, DockTransitionsStayOpaqueAndPassOverThePanels)
     EXPECT_TRUE(node->drawsAbovePanels());
     scene.render(renderer);
     now = 100;
-    // The dock opened the slot somewhere else.
     node->setMinimizeTarget(slot);
     scene.render(renderer);
     EXPECT_FLOAT_EQ(renderer.calls.back().alpha, 1);
@@ -1050,7 +993,6 @@ TEST(WindowAnimation, DockTransitionsStayOpaqueAndPassOverThePanels)
     node->start(Type::Restore, slot, bounds);
     renderer.calls.clear();
     scene.render(renderer);
-    // Out of the thumbnail at full opacity.
     EXPECT_FLOAT_EQ(renderer.calls.back().alpha, 1);
     const double scale = slot.width() / double(bounds.width());
     EXPECT_EQ(renderer.calls.back().rect,
@@ -1079,8 +1021,6 @@ TEST(WindowAnimation, MinimizeHoldsOnTheSlotUntilTheDockTakesOver)
     node->start(Type::Minimize, bounds, slot);
     scene.render(renderer);
 
-    // Halfway the shadow is on its way out: a translucent exterior pass under
-    // the body drawn inside its shape.
     now = Animation::duration(Type::Minimize, bounds, slot) / 2;
     renderer.calls.clear();
     scene.render(renderer);
@@ -1095,7 +1035,6 @@ TEST(WindowAnimation, MinimizeHoldsOnTheSlotUntilTheDockTakesOver)
     EXPECT_TRUE(node->isHolding());
     EXPECT_TRUE(node->drawsAbovePanels());
 
-    // Still there, and only the body, as long as the dock has not taken over.
     const double scale = slot.width() / double(bounds.width());
     const base::Rect landedRect =
             base::RectF(slot).adjusted(-64 * scale, -64 * scale, 64 * scale, 64 * scale).toEnclosingRect();
@@ -1116,13 +1055,11 @@ TEST(WindowAnimation, MinimizeHoldsOnTheSlotUntilTheDockTakesOver)
     node->releaseHold();
     EXPECT_GT(requests, 0);
     EXPECT_FALSE(node->drawsAbovePanels());
-    // Minimized, the window keeps no snapshot on the GPU.
     EXPECT_EQ(SnapshotTexture::live, 0);
     renderer.calls.clear();
     scene.render(renderer);
-    EXPECT_EQ(renderer.calls.size(), 1); // Scene clear only.
+    EXPECT_EQ(renderer.calls.size(), 1);
 
-    // A restore draws the live window again.
     const int captures = renderer.captures;
     node->setVisible(true);
     node->start(Type::Restore, slot, bounds);
@@ -1186,7 +1123,6 @@ TEST(WindowAnimation, MovingDockTargetsPreservePositionAndVelocity)
     EXPECT_TRUE(base::fuzzyCompare(landedAt, expected)) << landedAt << " " << expected;
     EXPECT_TRUE(node->isHolding());
     EXPECT_EQ(landed, 1);
-    // Once handed over, the held image follows the dock's actual displayed slot.
     slot.translate(20, 0);
     node->setMinimizeTarget(slot);
     const base::RectF followed = renderAt(now + 16);
@@ -1211,14 +1147,12 @@ TEST(WindowAnimation, CrossFadeKeepsHigherResolutionSnapshotOnTop)
     node->start(Type::Bounds, oldBounds, newBounds);
     scene.render(renderer);
     EXPECT_EQ(renderer.calls.back().texture, oldTexture);
-    // A tenth of the way through, the old content is three tenths dissolved.
     now = 35;
     scene.render(renderer);
     EXPECT_EQ(renderer.calls.back().texture, oldTexture);
     EXPECT_FLOAT_EQ(renderer.calls.back().alpha, .49);
     EXPECT_FLOAT_EQ(renderer.calls[renderer.calls.size() - 2].alpha, 1);
 
-    // A third of the way through, only the new content is drawn.
     now = 117;
     scene.render(renderer);
     EXPECT_NE(renderer.calls.back().texture, oldTexture);
@@ -1248,8 +1182,6 @@ struct ExteriorMorph {
     double progress = 0;
     base::RectF bounds;
 
-    // Renders the cross-fade from `from` to `to`, halfway through unless told
-    // otherwise.
     ExteriorMorph(const base::Rect &from, const base::Rect &to, double at = .5)
     {
         node = static_cast<Animation *>(scene.root()->addChild(std::make_unique<Animation>([this] {
@@ -1289,8 +1221,6 @@ TEST(WindowAnimation, MaximizeCarriesTheCornersShadowAndOutlineAcross)
     ASSERT_GT(morph.progress, .2);
     ASSERT_LT(morph.progress, .9);
 
-    // The live content is clipped in the snapshot to corners that come out at
-    // the morphed radius once the snapshot is scaled down to the sample.
     ASSERT_EQ(morph.renderer.clips.size(), 2);
     const auto snapshotClip = morph.renderer.clips[0];
     EXPECT_NEAR(snapshotClip.radius * snapshotClip.radiusScale.width() * morph.bounds.width()
@@ -1301,8 +1231,6 @@ TEST(WindowAnimation, MaximizeCarriesTheCornersShadowAndOutlineAcross)
     EXPECT_EQ(bodyClip.radiusScale, base::SizeF(1, 1));
     EXPECT_EQ(bodyClip.bounds, morph.bounds);
 
-    // The old shadow fades out underneath, then the body is drawn inside the
-    // morphed corners; the old content has dissolved by now.
     const auto &calls = morph.renderer.calls;
     ASSERT_EQ(calls.size(), 3);
     EXPECT_EQ(calls[1].texture, morph.oldTexture);
@@ -1340,7 +1268,6 @@ TEST(WindowAnimation, RestoreFromMaximizedGrowsTheExteriorBack)
                 radius, 1e-6);
     EXPECT_NEAR(morph.renderer.clips[1].radius, radius, 1e-6);
 
-    // The new shadow fades in around a body drawn once at full opacity.
     const auto &calls = morph.renderer.calls;
     ASSERT_EQ(calls.size(), 3);
     EXPECT_NE(calls[1].texture, morph.oldTexture);
@@ -1366,16 +1293,12 @@ TEST(WindowAnimation, ADragCrossFadeChasesTheWindowItDissolvesInto)
     scene.render(renderer);
     ASSERT_NE(nullptr, renderer.calls.back().texture);
 
-    // The drag pulls the window out of the maximized state. The last draw of a
-    // cross-fade is the outgoing snapshot, laid over the window's own content.
     node->setGeometry(restored);
     node->start(Type::DragBounds, maximized, restored);
     scene.render(renderer);
     EXPECT_NEAR(400, renderer.calls.back().rect.centerF().x(), 1);
     EXPECT_NEAR(300, renderer.calls.back().rect.centerF().y(), 1);
 
-    // The drag keeps going while the cross-fade runs: the window moves 300px
-    // right and 200px down, and the dissolve has to come with it.
     const base::Rect moved(500, 300, 400, 300);
     node->setGeometry(moved);
     node->setDragTarget(moved);
@@ -1383,20 +1306,14 @@ TEST(WindowAnimation, ADragCrossFadeChasesTheWindowItDissolvesInto)
     scene.render(renderer);
     const base::RectF halfway = renderer.calls.back().rect;
     EXPECT_NEAR(700, halfway.center().x(), 1);
-    // Half way the window is still 600x450 on its way down from 800x600, and
-    // it is the top left that stays anchored - as it does upstream, where the
-    // scale is applied about the layer origin - so the centre sits low.
     EXPECT_NEAR(475, halfway.center().y(), 1);
     EXPECT_GT(halfway.width(), moved.width());
     EXPECT_LT(halfway.width(), maximized.width());
 
     now = 120;
     scene.render(renderer);
-    // And it lands exactly on the window.
     EXPECT_NEAR(700, renderer.calls.back().rect.centerF().x(), 1);
     EXPECT_NEAR(450, renderer.calls.back().rect.centerF().y(), 1);
-    // The content, alone by now, is drawn at its natural size, plus the 64px
-    // halo the snapshot coverage carries on each side.
     const base::RectF content = renderer.calls.back().rect;
     EXPECT_NEAR(double(moved.width()), content.width() - 128, 1);
     EXPECT_NEAR(double(moved.height()), content.height() - 128, 1);
@@ -1405,7 +1322,6 @@ TEST(WindowAnimation, ADragCrossFadeChasesTheWindowItDissolvesInto)
 TEST(WindowAnimation, ADragCrossFadeIsShorterThanAStateChange)
 {
     EXPECT_EQ(120, Animation::duration(Type::DragBounds, {0, 0, 800, 600}, {0, 0, 400, 300}));
-    // Linear, so half the time is half the way.
     const auto value = Animation::sample(Type::DragBounds, {0, 0, 800, 600}, {0, 0, 400, 300}, .5);
     EXPECT_DOUBLE_EQ(600, value.bounds.width());
 }
@@ -1464,8 +1380,6 @@ TEST(WindowAnimation, FramesDamageOnlyTheAnimatedWindow)
     do {
         scene.render(renderer);
         now += 16;
-        // Neither the window layer nor the whole output: the open grows from
-        // the window's centre, inside its shadow margin.
         const base::Region damage = tracker.update(*scene.root(), viewport);
         EXPECT_FALSE(damage.isEmpty()) << now;
         EXPECT_TRUE(damage.subtracted(base::Rect(0, 0, 500, 400)).isEmpty()) << now;
@@ -1534,7 +1448,7 @@ TEST(WindowAnimation, FinishedMinimizeStopsRequestingFramesAndShutdownReleasesSn
     renderer.calls.clear();
     scene.render(renderer);
     EXPECT_EQ(requests, 0);
-    EXPECT_EQ(renderer.calls.size(), 1); // Scene clear only.
+    EXPECT_EQ(renderer.calls.size(), 1);
     node->releaseRenderResources();
     node->close();
     scene.render(renderer);
@@ -1680,7 +1594,6 @@ TEST(WindowAnimation, LaunchpadFadesThroughASlightZoomAndLandsSoftly)
             lastWidth = value.bounds.width();
             lastOpacity = value.opacity;
         }
-        // Responds on the first frame at 60Hz instead of easing in.
         const double firstFrame = (1000 / 60.0) / Animation::duration(type, from, to, style);
         EXPECT_GT(std::abs(Animation::sample(type, from, to, firstFrame, style).opacity
                            - (type == Type::Open ? 0 : 1)),
@@ -1688,8 +1601,6 @@ TEST(WindowAnimation, LaunchpadFadesThroughASlightZoomAndLandsSoftly)
     }
 }
 
-// A hide is drawn as it arrives, between refreshes; each refresh after it must
-// still take the same share of the fade, down to the last one.
 TEST(WindowAnimation, LaunchpadCloseFadesInEvenRefreshSteps)
 {
     const base::Rect screen(0, 0, 1000, 800);
@@ -1749,7 +1660,6 @@ TEST(WindowAnimation, FadeOnlyChangesOpacity)
     now = 100;
     scene.render(renderer);
     EXPECT_TRUE(node->isRunning());
-    // Drawn unscaled mid-fade: the 64 px overflow margin stays 64 px.
     EXPECT_EQ(renderer.calls.back().rect, desktop.toNearestRect().adjusted(-64, -64, 64, 64));
     EXPECT_GT(renderer.calls.back().alpha, 0);
     EXPECT_LT(renderer.calls.back().alpha, 1);
@@ -1773,7 +1683,6 @@ TEST(WindowAnimation, PopupFadesInPlaceAndFollowsItsLiveGeometry)
             lastOpacity = value.opacity;
         }
         EXPECT_FLOAT_EQ(lastOpacity, type == Type::Open ? 1 : 0);
-        // Most of the change lands within the first 60Hz frame.
         const double firstFrame = (1000 / 60.0) / Animation::duration(type, menu, menu, style);
         EXPECT_GT(std::abs(Animation::sample(type, menu, menu, firstFrame, style).opacity
                            - (type == Type::Open ? 0 : 1)),
@@ -1791,14 +1700,12 @@ TEST(WindowAnimation, PopupFadesInPlaceAndFollowsItsLiveGeometry)
     scene.render(renderer);
     now = 50;
     scene.render(renderer);
-    // The snapshot is drawn unscaled: its 64 px overflow margin stays 64 px.
     const auto drawn = [&](const base::Rect &geometry) {
         return geometry.adjusted(-64, -64, 64, 64);
     };
     EXPECT_EQ(renderer.calls.back().rect, drawn(menu.toNearestRect()));
     ASSERT_GT(renderer.calls.back().alpha, 0);
     ASSERT_LT(renderer.calls.back().alpha, 1);
-    // The client moved the menu: the fade continues at the new place.
     const base::Rect moved(150, 120, 200, 300);
     popup->setGeometry(moved);
     now = 60;
@@ -1809,7 +1716,6 @@ TEST(WindowAnimation, PopupFadesInPlaceAndFollowsItsLiveGeometry)
     EXPECT_FLOAT_EQ(renderer.calls.back().alpha, 1);
     EXPECT_FALSE(popup->isRunning());
 
-    // Closing fades out where the last frame was drawn and then retires.
     popup->close();
     scene.render(renderer);
     now = 140;
@@ -1877,7 +1783,6 @@ TEST(WindowAnimation, ReopeningALaunchpadReversesItsCloseWithoutStackingFades)
     scene.render(renderer);
     ASSERT_EQ(scene.root()->children().size(), 1u);
     EXPECT_EQ(scene.root()->children().front(), opening);
-    // Only the new launchpad draws: the one it took over never overlaps it.
     EXPECT_EQ(std::count_if(renderer.calls.begin(), renderer.calls.end(),
                             [](const auto &call) {
                                 return call.texture;
@@ -1912,14 +1817,12 @@ TEST(WindowAnimation, ALaunchpadKeepsWhatLiesUnderItWhileItAnimates)
 
     scene.render(renderer);
     EXPECT_EQ(fills(), 1);
-    // Drawn from the texture while nothing under the launchpad changes.
     for (now = 40; now < 200; now += 40) {
         renderer.calls.clear();
         scene.render(renderer);
         EXPECT_EQ(fills(), 0);
         EXPECT_GE(countKind(renderer, "texture"), 1);
     }
-    // Opening, what changes under it waits: the launchpad covers it by its end.
     auto *window = static_cast<scene::ColorNode *>(surfaces->addChild(
             std::make_unique<scene::ColorNode>(render::Color {1, 1, 1, 1})));
     window->setGeometry({100, 100, 200, 100});
@@ -1928,7 +1831,6 @@ TEST(WindowAnimation, ALaunchpadKeepsWhatLiesUnderItWhileItAnimates)
     scene.render(renderer);
     EXPECT_EQ(fills(), 0);
 
-    // Closing, it catches up, drawing only the part that changed.
     launchpad->close();
     renderer.calls.clear();
     renderer.repaintRects.clear();
@@ -1941,7 +1843,6 @@ TEST(WindowAnimation, ALaunchpadKeepsWhatLiesUnderItWhileItAnimates)
     scene.render(renderer);
     EXPECT_EQ(fills(), 0);
 
-    // Once it is gone, the scene draws them again.
     now = 1000;
     scene.render(renderer);
     renderer.calls.clear();

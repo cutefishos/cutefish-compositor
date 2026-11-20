@@ -32,9 +32,6 @@
 
 namespace cutefish::shell {
 
-// FishUI's Theme: dark mode and accent from the
-// Appearance service, as the compositor's own theme follows them, and the
-// icon theme and the font from services.conf.
 class Shell::ThemeFollower : public decoration::ThemeObserver
 {
 public:
@@ -111,11 +108,8 @@ Shell::Shell(const ShellEnvironment &environment)
 {
     // Before any window: it sets the toolkit up on the main loop.
     ui::Application &application = toolkit::application();
-    // The compositor's toolkit has no session bus of its own: the shell's
-    // follows cutefish-services for it.
     if (bus())
         application.followSessionLanguage(bus());
-    // The overview belongs to the window manager, which has no toolkit.
     m_languageChanged = application.languageChanged.connect([this] {
         if (wm::OverviewController *overview = windowManager()->overview())
             overview->retranslate();
@@ -129,10 +123,8 @@ Shell::Shell(const ShellEnvironment &environment)
     updateOutputs();
     m_trimTimer.setSingleShot(true);
     m_trimTimer.onTimeout = [] {
-        // Trimming walks every arena; the main thread waits only for its own.
         fileThread().post([] { malloc_trim(0); });
     };
-    // Startup decodes icons, parses SVGs and compiles shaders.
     releaseFreedMemorySoon();
 }
 
@@ -221,8 +213,6 @@ ApplicationBadges &Shell::badges()
 
 void Shell::openSettings(const std::vector<std::string> &arguments)
 {
-    // A running Settings takes the request from the new process, and comes
-    // forward with its token.
     const std::string token = m_environment.createActivationToken ? m_environment.createActivationToken()
                                                                   : std::string();
     ApplicationLauncher::startDetached("cutefish-settings", arguments,

@@ -4,10 +4,6 @@
 
 // Derived from chromium/src/components/exo/wayland/serial_tracker_unittest.cc
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// The upstream test drives the tracker through a full Exo server and an event
-// generator. This one exercises the same semantics directly against a bare
-// wl_display.
 
 #include "wayland/serial_tracker.h"
 
@@ -63,7 +59,6 @@ TEST_F(SerialTrackerTest, ButtonsAreTrackedSeparately)
     EXPECT_EQ(SerialTracker::POINTER_MIDDLE_BUTTON_DOWN, m_tracker->eventType(middle));
     EXPECT_EQ(SerialTracker::POINTER_RIGHT_BUTTON_DOWN, m_tracker->eventType(right));
 
-    // Releasing one button leaves the others' serials untouched.
     const uint32_t leftUp = m_tracker->nextSerial(SerialTracker::POINTER_LEFT_BUTTON_UP);
     EXPECT_EQ(SerialTracker::POINTER_LEFT_BUTTON_UP, m_tracker->eventType(leftUp));
     EXPECT_EQ(SerialTracker::POINTER_MIDDLE_BUTTON_DOWN, m_tracker->eventType(middle));
@@ -72,15 +67,12 @@ TEST_F(SerialTrackerTest, ButtonsAreTrackedSeparately)
 
 TEST_F(SerialTrackerTest, UnissuedSerialsAreRejected)
 {
-    // Nothing has been issued yet, so the valid range is empty.
     EXPECT_EQ(std::nullopt, m_tracker->eventType(0));
     EXPECT_EQ(std::nullopt, m_tracker->eventType(1));
 
     const uint32_t serial = m_tracker->nextSerial(SerialTracker::OTHER_EVENT);
     EXPECT_NE(std::nullopt, m_tracker->eventType(serial));
-    // Not issued yet.
     EXPECT_EQ(std::nullopt, m_tracker->eventType(serial + 1));
-    // Predates the first serial.
     EXPECT_EQ(std::nullopt, m_tracker->eventType(serial - 1));
 }
 
@@ -90,7 +82,6 @@ TEST_F(SerialTrackerTest, OldSerialsFallOutOfTheTrackedWindow)
     for (uint32_t i = 0; i < kMaxEventsTracked; ++i)
         m_tracker->nextSerial(SerialTracker::OTHER_EVENT);
 
-    // The circular buffer has wrapped past `first`.
     EXPECT_EQ(std::nullopt, m_tracker->eventType(first));
 
     const uint32_t last = m_tracker->nextSerial(SerialTracker::TOUCH_UP);

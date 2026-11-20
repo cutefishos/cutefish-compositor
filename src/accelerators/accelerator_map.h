@@ -4,9 +4,6 @@
 //
 // Upstream: chromium/src/ui/base/accelerators/accelerator_map.h
 // Revision: 8abbac30b9cf2fe976422c58c000c94685648b65
-//
-// Adapted for Cutefish: the positional remap goes through the evdev code and
-// positionalUsKeysym() instead of DomCode and KeycodeConverter.
 
 #ifndef CUTEFISH_ACCELERATORS_ACCELERATOR_MAP_H_
 #define CUTEFISH_ACCELERATORS_ACCELERATOR_MAP_H_
@@ -18,10 +15,8 @@
 
 namespace cutefish::accelerators {
 
-// A map keyed by Accelerator with ChromeOS's positional lookup: punctuation
-// shortcuts are defined against the US layout, and on other layouts the key at
-// the same physical position triggers them. Letters, digits, function keys and
-// the rest always follow the current layout.
+// Punctuation shortcuts are defined against the US layout; on other layouts the key
+// at the same physical position triggers them.
 template<typename V>
 class AcceleratorMap
 {
@@ -41,10 +36,9 @@ public:
         return const_cast<V *>(static_cast<const AcceleratorMap *>(this)->find(accelerator));
     }
 
-    // The DomCode never goes into the map; only the lookup consults it.
+    // The evdev code never goes into the map; only the lookup consults it.
     V &getOrInsertDefault(const Accelerator &accelerator) { return m_map[stripped(accelerator)]; }
 
-    // Erases the entry find() returns.
     bool erase(const Accelerator &accelerator)
     {
         return m_map.erase(remapForLookup(accelerator)) > 0;
@@ -52,7 +46,6 @@ public:
 
     void clear() { m_map.clear(); }
 
-    // Returns false when the accelerator was already present.
     bool insertNew(const Accelerator &accelerator, const V &value)
     {
         return m_map.emplace(stripped(accelerator), value).second;
@@ -69,7 +62,6 @@ public:
 
     bool usePositionalLookup() const { return m_usePositionalLookup; }
 
-    // The key find() looks up for the accelerator.
     Accelerator remapForLookup(const Accelerator &accelerator) const
     {
         uint32_t keysym = accelerator.keysym();

@@ -84,7 +84,6 @@ TEST(KeyboardSettings, LayoutIsSavedOnlyWhenItApplies)
         const std::string fallback = settings.layout();
         EXPECT_FALSE(settings.setLayout("de"));
         settings.setLayoutApplier(applier);
-        // Nothing saved, so nothing is installed up front.
         EXPECT_TRUE(applied.empty());
 
         int changes = 0;
@@ -184,8 +183,7 @@ TEST(KeyboardSettings, DBusPropertiesAndMethods)
     EXPECT_EQ(proxy.property<std::string>("shortcutConvention"), "pc");
 }
 
-// The argument names are the methods' parameter names, kept for existing
-// callers. sd-bus names all arguments or none, so return values are "result".
+// sd-bus names all arguments or none, so return values are "result".
 TEST(KeyboardSettings, IntrospectionNamesTheArguments)
 {
     EventLoop loop;

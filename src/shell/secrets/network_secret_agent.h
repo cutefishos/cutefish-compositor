@@ -28,13 +28,8 @@ namespace cutefish::shell {
 
 class SecretStore;
 
-// The session's NetworkManager secret agent (cutefish-framework's
-// NetworkSecretAgent): registered as org.cutefish.network with every
-// NetworkManager that starts, it answers from the keyring and asks the user
-// through the prompt bound to it when NetworkManager allows interaction.
-// Typed agent-owned secrets go to the keyring, as SaveSecrets would not bring
-// them back. It also serves org.cutefish.SecretAgent's ConnectWireless, which
-// asks for a new network's password before anything is added.
+// Typed agent-owned secrets go to the keyring, as SaveSecrets would not bring them
+// back.
 class NetworkSecretAgent
 {
 public:
@@ -47,7 +42,6 @@ public:
         VpnSecrets,
     };
 
-    // A VPN secret to ask for, with what NetworkManager or the keyring has.
     struct Field {
         std::string key;
         std::string label;
@@ -55,42 +49,32 @@ public:
         std::string value;
     };
 
-    // `client` is NetworkManager's on the system bus, where the agent object
-    // is exported; `session` serves org.cutefish.SecretAgent (after
-    // registerService()) and reaches the keyring. Either may be null.
+    // `client` is on the system bus, where the agent object is exported; either may be
+    // null.
     NetworkSecretAgent(networkmanager::Client *client, base::dbus::Connection *session);
     ~NetworkSecretAgent();
 
     NetworkSecretAgent(const NetworkSecretAgent &) = delete;
     NetworkSecretAgent &operator=(const NetworkSecretAgent &) = delete;
 
-    // Exports /SecretAgent on the session bus and owns org.cutefish.SecretAgent.
     bool registerService();
 
-    // The request at the head of the queue, which the prompt shows.
     bool pending() const { return !m_requests.empty(); }
     std::string connectionName() const;
     Kind kind() const;
     std::string identity() const;
     bool retry() const;
     std::vector<Field> fields() const;
-    // What a VPN's server said, if anything.
     std::string message() const;
 
     void respond(const std::string &secret);
-    // A VPN's secrets by key.
     void respondFields(const std::map<std::string, std::string> &values);
     void cancel();
-    // Names the VPN secrets of the requests again after the session language
-    // changed.
     void retranslate();
 
-    // org.cutefish.SecretAgent.ConnectWireless: asks for the password of the
-    // access point, and joins it with a new profile once given.
     void connectWireless(const std::string &devicePath, const std::string &accessPointPath,
                          const std::string &name, bool wep);
 
-    // The head of the queue changed: a prompt to show, change or close.
     base::Signal<> requestChanged;
 
 private:
@@ -108,14 +92,12 @@ private:
         bool interactive = false;
         bool retry = false;
         bool noErrors = false;
-        // A VPN asks for several secrets, which its data says how to keep.
         std::vector<VpnSecretField> fields;
         std::string vpnServiceType;
         std::vector<std::string> hints;
         std::map<std::string, std::string> vpnData;
         std::map<std::string, std::string> values;
         std::string serverMessage;
-        // A network asked about before anything is added, see connectWireless().
         std::string devicePath;
         std::string accessPointPath;
         std::string deviceActive;

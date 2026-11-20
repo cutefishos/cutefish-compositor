@@ -5,9 +5,6 @@
 // Upstream: chromium/src/ash/webui/shortcut_customization_ui/backend/
 //           accelerator_configuration_provider.cc
 // Revision: 8abbac30b9cf2fe976422c58c000c94685648b65
-//
-// Adapted for Cutefish: integrates the upstream behavior with native
-// compositor types and ownership.
 
 #include "accelerators/accelerator_service.h"
 
@@ -29,7 +26,6 @@ constexpr auto kPath = "/org/cutefish/Shortcuts1";
 
 constexpr size_t kMaxAcceleratorsAllowed = 5;
 
-// Only these modifiers take part in a customized accelerator.
 constexpr uint32_t kCustomizationModifierMask = ShiftDown | ControlDown | AltDown | MetaDown;
 
 // Keys that may not be the activation key of a custom accelerator: power
@@ -180,9 +176,7 @@ Accelerator AcceleratorService::resolve(uint32_t keycode, uint32_t keysym, uint3
         if (const uint32_t positional = positionalUsKeysym(keycode, resolved))
             resolved = positional;
     }
-    // A lone Meta is Ash's launcher key: it triggers on release, so that
-    // Meta+<key> can still be typed with Meta held, and the launchpad state
-    // machine decides whether the tap was really alone.
+    // A lone Meta triggers on release, so Meta+<key> can still be typed with Meta held.
     const uint32_t customizationModifiers = modifiers & kCustomizationModifierMask;
     const bool metaTap = isMetaKeysym(resolved) && customizationModifiers == NoModifier;
     return Accelerator(resolved, keycode, customizationModifiers,
@@ -207,7 +201,6 @@ AcceleratorService::validateAccelerator(const Accelerator &accelerator) const
     if (accelerator.keyState() == Accelerator::KeyState::Released)
         return std::nullopt;
 
-    // Modifier + key, unless the key is a function key.
     if (modifiers == NoModifier && !isFunctionKeysym(accelerator.keysym()))
         return AcceleratorConfigResult::MissingModifier;
 
@@ -216,7 +209,6 @@ AcceleratorService::validateAccelerator(const Accelerator &accelerator) const
         return AcceleratorConfigResult::ReservedKeyNotAllowed;
     }
 
-    // A modifier cannot be the activation key of a custom accelerator.
     if (isModifierKeysym(accelerator.keysym()) || accelerator.keysym() == 0)
         return AcceleratorConfigResult::KeyNotAllowed;
 
@@ -235,7 +227,6 @@ AcceleratorService::preprocessAddAccelerator(AcceleratorActionId id, const Accel
 
     const std::string conflictName = acceleratorActionName(*found);
 
-    // Already one of this action's own accelerators.
     if (toActionId(*found) == id) {
         m_pending.reset();
         base::json::Value object = base::json::Value::object();
@@ -263,7 +254,6 @@ AcceleratorService::ConflictErrorState
 AcceleratorService::maybeHandleNonMetaAccelerator(const Accelerator &accelerator,
                                                   AcceleratorActionId id)
 {
-    // Re-adding a default is never warned about.
     const std::vector<Accelerator> defaults = m_configuration->defaultAcceleratorsForId(id);
     if (std::find(defaults.begin(), defaults.end(), accelerator) != defaults.end())
         return ConflictErrorState::Standby;
@@ -276,8 +266,6 @@ AcceleratorService::maybeHandleNonMetaAccelerator(const Accelerator &accelerator
     const bool clear = m_configuration->convention() == input::ShortcutConvention::Command
             ? accelerator.isMetaDown() && accelerator.isControlDown()
             : accelerator.isMetaDown();
-    // Function keys cannot be used with Meta, so they are not warned about;
-    // neither is the Meta tap itself.
     if (!clear && !isFunctionKeysym(accelerator.keysym())
         && accelerator.keyState() == Accelerator::KeyState::Pressed) {
         if (!m_pending || m_pending->action != id || m_pending->accelerator != accelerator) {
@@ -414,7 +402,7 @@ void AcceleratorService::preventProcessingAccelerators(bool prevent)
 
 void AcceleratorService::preventProcessingAccelerators(bool prevent, const std::string &owner)
 {
-    // Ash resets the pending state whenever the recorder starts or stops.
+    // The pending state resets whenever the recorder starts or stops.
     m_pending.reset();
     m_conflictState = ConflictErrorState::Standby;
     m_controller->setPreventProcessingAccelerators(prevent);

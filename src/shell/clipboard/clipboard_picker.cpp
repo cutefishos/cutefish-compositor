@@ -85,7 +85,6 @@ void ClipboardPicker::applyGlass()
     if (int(dark) == m_glassDark)
         return;
     m_glassDark = dark;
-    // FishUI.PopupGlass with PanelStyle.glassTint, the OSD's.
     const render::GlassParams glass = dark ? popupGlass(0.10, 0.10, 0.11, 0.75)
                                            : popupGlass(0.90, 0.90, 0.92, 0.72);
     m_window->setBackgroundBlur(base::Rect(0, 0, ClipboardPickerView::kWidth, ClipboardPickerView::kHeight),

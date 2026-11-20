@@ -17,12 +17,8 @@
 
 namespace cutefish::shell {
 
-// com.canonical.AppMenu.Registrar at /com/canonical/AppMenu/Registrar.
-// Wayland has no window id a client and the
-// compositor agree on, and Qt hands out a per-process window counter, so a
-// registration is the window id together with the exporter's unique bus
-// name, and the menu a window owns is found through the registering
-// process's id.
+// A registration is the window id with the exporter's unique bus name: Wayland
+// has no shared window id, and toolkits hand out a per-process counter.
 class AppMenuRegistrar
 {
 public:

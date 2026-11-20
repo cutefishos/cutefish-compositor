@@ -6,8 +6,7 @@
 #include <cstring>
 #include <xcb/xcb.h>
 
-// Maps one X11 window and keeps it until killed. The first argument, when
-// given, is written to WM_CLIENT_MACHINE.
+// Maps one X11 window until killed; the first argument, if given, goes to WM_CLIENT_MACHINE.
 int main(int argc, char **argv)
 {
     xcb_connection_t *c = xcb_connect(nullptr, nullptr);

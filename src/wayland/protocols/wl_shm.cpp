@@ -4,9 +4,6 @@
 //
 // Upstream: chromium/src/components/exo/wayland/wl_shm.cc
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: base::UnsafeSharedMemoryRegion and viz formats give way
-// to an mmapped fd and render::PixelFormat.
 
 #include "wayland/protocols/wl_shm.h"
 
@@ -28,9 +25,6 @@ namespace {
 
 using PoolRef = std::shared_ptr<compositor::ShmPool>;
 
-////////////////////////////////////////////////////////////////////////////////
-// wl_buffer_interface:
-
 void buffer_destroy(wl_client*, wl_resource* resource)
 {
     wl_resource_destroy(resource);
@@ -45,9 +39,6 @@ void handleBufferReleaseCallback(wl_resource* resource)
     if (!isClientDestroyed(client))
         wl_client_flush(client);
 }
-
-////////////////////////////////////////////////////////////////////////////////
-// wl_shm_pool_interface:
 
 // wl_shm names formats by their little-endian word layout; render::PixelFormat
 // names them by byte order in memory.
@@ -132,9 +123,6 @@ void shm_pool_resize(wl_client*, wl_resource* resource, int32_t size)
 const struct wl_shm_pool_interface shm_pool_implementation = { shm_pool_create_buffer,
                                                                shm_pool_destroy,
                                                                shm_pool_resize };
-
-////////////////////////////////////////////////////////////////////////////////
-// wl_shm_interface:
 
 void shm_create_pool(wl_client* client, wl_resource* resource, uint32_t id, int fd,
                      int32_t size)

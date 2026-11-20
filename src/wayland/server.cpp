@@ -5,9 +5,6 @@
 // Upstream: chromium/src/components/exo/wayland/server.cc
 //           chromium/src/components/exo/wayland/wayland_watcher.cc
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: integrates the upstream behavior with native
-// compositor types and ownership.
 
 #include "server.h"
 
@@ -40,7 +37,6 @@ void waylandLog(const char* fmt, va_list argp)
 
 } // namespace
 
-// The display's descriptor and the flush on the thread's loop.
 struct Server::LoopHook {
     ~LoopHook()
     {
@@ -173,8 +169,7 @@ void Server::flush()
     if (!m_display)
         return;
 
-    // wl_display_flush_clients() is avoided for the same reason as upstream
-    // Exo: it can crash while a client is disconnecting.
+    // wl_display_flush_clients() can crash while a client is disconnecting.
     wl_client* client = nullptr;
     wl_list* allClients = wl_display_get_client_list(m_display.get());
     wl_client_for_each(client, allClients)

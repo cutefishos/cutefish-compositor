@@ -12,26 +12,20 @@
 namespace cutefish::session {
 class SessionController;
 
-// A tap on the power button locks the session; the lock screen then goes dark on
-// its own idle timeout. Holding it is left to the firmware's forced power-off.
 // logind is asked to leave the key alone, or it would power the machine off.
-// Upstream: ash/system/power/power_button_controller.cc, the tablet-mode tap.
 class PowerButton : public input::EventSink
 {
 public:
-    // `next` receives every other event. The system bus when no connection
-    // is given.
+    // The system bus when no connection is given.
     PowerButton(SessionController *session, input::EventSink *next,
                 base::dbus::Connection *bus = nullptr);
     ~PowerButton() override;
 
-    // Takes the key over from logind and follows its PrepareForSleep. Until the
-    // inhibitor is held the key passes on untouched.
+    // Until the logind inhibitor is held the key passes on untouched.
     bool start();
 
     bool holdsInhibitor() const { return m_inhibitor.isValid(); }
 
-    // input::EventSink:
     bool onPointerMotion(input::Timestamp timestamp, const base::PointF &location) override;
     bool onPointerButton(input::Timestamp timestamp, const base::PointF &location,
                          uint32_t evdevButton, bool pressed) override;

@@ -11,20 +11,17 @@ namespace cutefish::input {
 
 namespace {
 
-// libgestures' "Two Finger Horizontal/Vertical Close Distance Thresh", cut from
-// 50 x 45 mm; the recorded diagonal presses need about 45 mm on both axes.
+// Cut from 50 x 45 mm; diagonal presses need about 45 mm on both axes.
 constexpr double kCloseHorizontal = 45.0;
 constexpr double kCloseVertical = 45.0;
-// "Right Click Start Time Diff Thresh": fingers this close in time are one hand.
+// Fingers this close in time are one hand.
 constexpr auto kTogether = std::chrono::milliseconds(100);
-// "Right Click Second Finger Age Thresh" and "Button Move Distance": a finger
-// older than this that has not moved this far is resting.
+// A finger older than this that has not moved this far is resting.
 constexpr auto kRestingAge = std::chrono::milliseconds(500);
 constexpr double kRestingTravel = 10.0;
-// "Bottom Zone Size", where a resting finger is a thumb.
+// Where a resting finger is a thumb.
 constexpr double kThumbZone = 10.0;
-// libinput's side palm edges: 8% of the width, at most 8 mm, on pads at least
-// 70 mm wide. It ignores a finger that came down there, and so does this.
+// libinput's side palm edges: 8% of the width, at most 8 mm, on pads at least 70 mm wide.
 constexpr double kPalmEdgeMinWidth = 70.0;
 constexpr double kPalmEdge = 8.0;
 

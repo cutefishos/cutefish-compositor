@@ -20,7 +20,7 @@
 
 namespace cutefish::decoration {
 
-// Single-line system-font layout; owned by the decoration theme on the compositor thread.
+// Owned by the decoration theme on the compositor thread.
 class TextRenderer
 {
 public:

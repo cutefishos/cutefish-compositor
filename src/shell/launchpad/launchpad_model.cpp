@@ -38,7 +38,6 @@ static std::string absolutePath(const std::string &path)
     return std::filesystem::absolute(path, error).lexically_normal().string();
 }
 
-// A folder's number, as its group in shell.conf is named.
 static std::string folderNumber(const std::string &id)
 {
     return id.substr(std::strlen(LaunchpadItem::kFolderPrefix));
@@ -97,8 +96,6 @@ LaunchpadModel::Stored LaunchpadModel::load(const std::string &path)
     if (!settings.contains("Launchpad/order"))
         return stored;
 
-    // Names and icons come from the entries; only the ids are kept, and a
-    // folder's name.
     for (const std::string &id : settings.stringListValue("Launchpad/order")) {
         LaunchpadItem item;
         item.id = id;
@@ -127,7 +124,6 @@ void LaunchpadModel::save()
 
     std::vector<std::string> order;
     std::vector<std::string> newAppIds;
-    // Each folder's number, name and applications.
     std::vector<std::tuple<std::string, std::string, std::vector<std::string>>> folders;
     for (const LaunchpadItem &item : itemsWithAbsent()) {
         order.push_back(item.id);
@@ -170,7 +166,6 @@ void LaunchpadModel::delaySave()
 void LaunchpadModel::beginReorder()
 {
     m_reorderBase = m_items;
-    // A save already due would write the drag's moves.
     m_saveDueBeforeReorder = m_saveTimer.isActive();
     m_saveTimer.stop();
     m_savePending = false;
@@ -185,13 +180,8 @@ void LaunchpadModel::endReorder(bool keep)
     if (keep) {
         save = std::exchange(m_savePending, false) || save;
     } else {
-        // What was saved, or due to be; the drag's own changes, which ask
-        // for a save as they happen, are dropped with it.
         const std::vector<LaunchpadItem> before = base;
         m_savePending = false;
-        // The order and folders as they were, with what the applications
-        // became during the drag: those that arrived stay after the others,
-        // and those opened are no longer new.
         std::map<std::string, bool> newInstalled;
         for (const LaunchpadItem &item : m_items) {
             newInstalled[item.id] = item.newInstalled;
@@ -331,8 +321,6 @@ std::string LaunchpadModel::folderOf(const std::string &id) const
 
 std::string LaunchpadModel::newFolderId() const
 {
-    // One past the highest number in use, also by the order a drag may
-    // put back and by a hidden folder.
     int highest = 0;
     const auto note = [&highest](const std::vector<LaunchpadItem> &items) {
         for (const LaunchpadItem &item : items) {
@@ -365,7 +353,6 @@ std::optional<LaunchpadItem> LaunchpadModel::takeApplication(const std::string &
             continue;
         LaunchpadItem item = std::move(*child);
         children.erase(child);
-        // A folder left with one application gives way to it.
         if (children.empty())
             m_items.erase(it);
         else if (children.size() == 1)
@@ -430,7 +417,6 @@ std::vector<LaunchpadItem> LaunchpadModel::itemsWithAbsent() const
 
 void LaunchpadModel::changed()
 {
-    // A folder is new while one of its applications is.
     for (LaunchpadItem &item : m_items) {
         if (item.isFolder())
             item.newInstalled = std::any_of(item.children.begin(), item.children.end(),
@@ -462,8 +448,6 @@ std::string LaunchpadModel::merge(const std::string &id, const std::string &targ
     std::optional<LaunchpadItem> app = takeApplication(id);
     if (!app)
         return {};
-    // The folder the application left, if any, is not the target: the
-    // target stays, though its index may change.
     const int index = findById(target);
     LaunchpadItem &item = m_items[size_t(index)];
     if (!item.isFolder()) {
@@ -487,8 +471,6 @@ void LaunchpadModel::removeFromFolder(const std::string &id)
     const int index = findById(folder);
     const size_t count = m_items.size();
     std::optional<LaunchpadItem> app = takeApplication(id);
-    // Just after the folder, or after the application that took its place;
-    // in its place when nothing did.
     const bool slotStays = m_items.size() == count;
     m_items.insert(m_items.begin() + index + (slotStays ? 1 : 0), std::move(*app));
     changed();
@@ -582,8 +564,6 @@ bool LaunchpadModel::reconcile()
     if (!m_loaded || m_applications.isLoading())
         return false;
 
-    // Only entries that pass the display rules: a saved list must not bring
-    // back an application that is now hidden or not for this desktop.
     const std::vector<DesktopEntryPtr> &available = m_applications.applications();
     std::map<std::string, DesktopEntryPtr> byId;
     std::map<std::string, DesktopEntryPtr> byPath;
@@ -601,7 +581,6 @@ bool LaunchpadModel::reconcile()
             return path->second;
         return nullptr;
     };
-    // The application still there, brought up to date; false when it went.
     const auto refresh = [&find, &seen](LaunchpadItem *item) {
         const DesktopEntryPtr entry = find(item->id);
         if (!entry || entry->terminal || seen.count(entry->id))
@@ -610,10 +589,7 @@ bool LaunchpadModel::reconcile()
         seen.insert(entry->id);
         return true;
     };
-    // Gone, but shown this session: an id read at login has no name yet,
-    // and one not found then goes for good.
     const auto goneForNow = [&find](const LaunchpadItem &item) { return !item.name.empty() && !find(item.id); };
-    // Through the absent ones too, so each records the item it followed.
     std::set<std::string> absentIds;
     for (const Absent &record : m_absent)
         absentIds.insert(record.item.id);
@@ -640,9 +616,6 @@ bool LaunchpadModel::reconcile()
             else if (goneForNow(child))
                 m_absent.push_back({child, item.id, childAfter});
         }
-        // A folder keeps its applications still there, and goes with the
-        // last; one that loses all but one gives way to it. While one of
-        // its applications may come back, it stays, hidden when empty.
         const bool waiting = std::any_of(m_absent.begin(), m_absent.end(),
                                          [&item](const Absent &record) { return record.folder == item.id; });
         if (children.empty()) {
@@ -660,7 +633,6 @@ bool LaunchpadModel::reconcile()
         updated.push_back(std::move(item));
     }
 
-    // Applications back in their places, a hidden folder with its first.
     std::vector<Absent> returning;
     std::vector<Absent> remaining;
     for (const Absent &record : m_absent) {
@@ -691,7 +663,6 @@ bool LaunchpadModel::reconcile()
         if (!placeAbsent(&updated, m_absent, record))
             updated.push_back(record.item);
     }
-    // A hidden folder waits only for its applications.
     std::set<std::string> awaited;
     for (const Absent &record : remaining)
         awaited.insert(record.folder);

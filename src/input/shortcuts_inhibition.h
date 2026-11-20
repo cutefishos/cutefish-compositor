@@ -16,7 +16,7 @@ class Seat;
 class ShortcutsInhibitorDelegate
 {
 public:
-    // The surface to inhibit shortcuts for; null once it is destroyed.
+    // Null once the surface is destroyed.
     virtual compositor::Surface* inhibitedSurface() const = 0;
 
     virtual void onInhibitorActivated() = 0;
@@ -26,13 +26,6 @@ protected:
     virtual ~ShortcutsInhibitorDelegate() = default;
 };
 
-// Surfaces that asked for the compositor's keyboard shortcuts - a remote
-// desktop, a virtual machine, an X11 client grabbing the keyboard. While one
-// has keyboard focus, the accelerators it may take go to it instead.
-//
-// Exo only marks the surface, and Ash then lets its window consume system keys.
-// Here the inhibition is also active or inactive with keyboard focus, and the
-// user can take it back until the next click on the window.
 class ShortcutsInhibition : public compositor::SurfaceObserver
 {
 public:
@@ -44,12 +37,10 @@ public:
     // False when the surface already has an inhibitor.
     bool add(ShortcutsInhibitorDelegate* delegate);
 
-    // The delegate is being destroyed.
     void remove(ShortcutsInhibitorDelegate* delegate);
 
     bool isActive() const { return m_active; }
 
-    // Keyboard focus changed.
     void update();
 
     // Deactivates the inhibitor until a click on its window permits it again.
@@ -58,7 +49,6 @@ public:
 
     void onPointerPressed(compositor::Surface* surface);
 
-    // compositor::SurfaceObserver:
     void onSurfaceDestroying(compositor::Surface* surface) override;
 
 private:

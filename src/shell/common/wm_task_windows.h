@@ -19,8 +19,7 @@ class WindowManager;
 
 namespace cutefish::shell {
 
-// The window manager's application windows, read directly. Shell windows and
-// popups are left out.
+// Shell windows and popups are left out.
 class WmTaskWindows : public TaskWindows, private wm::WindowObserver, private compositor::SurfaceObserver
 {
 public:
@@ -46,13 +45,11 @@ public:
 private:
     void observe(wm::Window *window);
     void forget(wm::Window *window);
-    // Announces, updates or withdraws the window as the rules say now.
     void refresh(wm::Window *window);
     void updateActiveWindow();
     wm::Window *resolve(uint64_t id) const;
     TaskWindow describe(wm::Window *window) const;
 
-    // wm::WindowObserver
     void onWindowBoundsChanged(wm::Window *window, const base::Rect &oldBounds) override;
     void onWindowStateTypeChanged(wm::Window *window, wm::WindowStateType oldType) override;
     void onWindowActivationChanged(wm::Window *window, bool active) override;
@@ -65,14 +62,13 @@ private:
     void onWindowMinimizeLanded(wm::Window *window) override;
     void onWindowDestroying(wm::Window *window) override;
 
-    // compositor::SurfaceObserver
     void onSurfaceDestroying(compositor::Surface *surface) override;
     void onSurfaceMenuChanged(compositor::Surface *surface) override;
     void onSurfaceWindowHintsChanged(compositor::Surface *surface) override;
 
     wm::WindowManager &m_manager;
-    // Every application window, announced or not: a change of app id can
-    // announce one that was the shell's own.
+    // Includes unannounced windows: a change of app id can announce a shell
+    // window.
     std::vector<wm::Window *> m_observed;
     std::unordered_map<wm::Window *, compositor::Surface *> m_surfaces;
     std::vector<uint64_t> m_order;

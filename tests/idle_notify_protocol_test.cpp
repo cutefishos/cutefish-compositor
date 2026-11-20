@@ -271,7 +271,6 @@ TEST_F(IdleNotifyProtocolTest, IgnoredInhibitionLetsTimeoutsRunUntilItCountsAgai
     advance(55);
     EXPECT_EQ(events.idled, 1);
 
-    // Held all along, so it counts again as soon as it is no longer ignored.
     inhibition.setIgnored(false);
     EXPECT_TRUE(inhibition.inhibited());
     ASSERT_GE(roundtrip(), 0);

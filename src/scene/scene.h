@@ -13,7 +13,6 @@
 
 namespace cutefish::scene {
 
-// Everything the compositor draws, rooted at a single node covering the output.
 class Scene
 {
 public:
@@ -26,25 +25,16 @@ public:
 
     const Node *root() const { return m_root.get(); }
 
-    // Sets the root geometry; nodes are positioned relative to it.
     void setSize(const base::Size &size);
 
     base::Size size() const { return m_root->geometry().size(); }
 
-    // Clears to `background` and paints the tree back to front.
     void render(render::Renderer &renderer) const;
 
-    // Whether the output `context` describes has anything to repaint since
-    // its last frame.
     bool hasDamage(const render::OutputRenderContext &context) const;
 
-    // Whether a visible node that repaints the whole of `viewport` whenever it
-    // draws (an animation covering the output) lies on it.
     bool requiresFullRepaint(const base::Rect &viewport) const;
 
-    // Ends and collects closing windows while no output composites: their
-    // snapshots would otherwise pile up until the next frame, as retirement
-    // normally happens after painting.
     void retireClosing();
 
     render::Color background() const { return m_background; }

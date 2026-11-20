@@ -4,9 +4,6 @@
 //
 // Upstream: chromium/src/ui/ozone/platform/drm/gpu/drm_gpu_display_manager.cc
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: cross-device commits, framebuffer transfer fallback,
-// tiled monitor grouping, and clone eligibility are explicit testable plans.
 
 #pragma once
 
@@ -43,8 +40,6 @@ public:
                                     std::function<uint64_t()> currentGeneration);
 };
 
-// The largest frame copied through the CPU when the scanout device cannot
-// import it: a 4K screen still gets a picture, at the cost of a copy a frame.
 inline constexpr int64_t kMaximumCpuCopyPixels = 3840 * 2160;
 
 enum class CrossGpuTransfer {

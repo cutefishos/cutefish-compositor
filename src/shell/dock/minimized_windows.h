@@ -27,23 +27,15 @@ class DockModel;
 class DockSettings;
 class TaskWindows;
 
-// The minimized windows the dock keeps beside the trash, in the order they
-// were minimized, each shown by the image the window manager took of it as
-// it went. Empty while the minimized area is off.
+// Empty while the minimized area is off.
 class MinimizedWindows : public ListModelSignals
 {
 public:
-    // A minimize never reported landed, for example into a hidden dock,
-    // still shows its thumbnail after this.
     static constexpr std::chrono::milliseconds kLandingFallback{600};
 
     struct Entry {
         uint64_t id = 0;
-        // The window arrived in its slot; the thumbnail stays hidden while
-        // the window manager still draws the window flying in.
         bool landed = false;
-        // It flew into its slot with a minimize animation; one that did not,
-        // such as a hidden window shown again, is revealed there.
         bool flownIn = false;
     };
 
@@ -57,12 +49,10 @@ public:
     int count() const { return int(m_entries.size()); }
     bool contains(uint64_t id) const { return indexOf(id) >= 0; }
 
-    // The window's title, else its app id.
     std::string title(int row) const;
     std::string iconName(int row) const;
-    // Null until the window manager's image arrives; the icon stands in.
+    // Null until the window manager's image arrives.
     const ui::Bitmap *thumbnail(int row) const;
-    // Width over height of the window, which the thumbnail is fitted by.
     double aspect(int row) const;
 
     void restore(uint64_t id);
@@ -83,8 +73,6 @@ private:
     DockModel &m_dock;
     DockSettings &m_settings;
     std::vector<Entry> m_entries;
-    // Minimized windows the user has hidden. They come back to the dock
-    // without a minimize animation, so nothing lands on them.
     std::set<uint64_t> m_hiddenMinimized;
     std::map<uint64_t, std::unique_ptr<base::Timer>> m_landingTimers;
     std::vector<base::Subscription> m_subscriptions;

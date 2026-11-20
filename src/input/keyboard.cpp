@@ -4,9 +4,6 @@
 //
 // Upstream: chromium/src/components/exo/keyboard.cc
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: integrates the upstream behavior with native
-// compositor types and ownership.
 
 #include "input/keyboard.h"
 
@@ -89,8 +86,7 @@ void Keyboard::onKeyboardModifierUpdated()
 
 void Keyboard::onKeyboardLayoutUpdated()
 {
-    // The seat has already updated the XkbTracker. A new keymap resets the
-    // client's xkb state, so the modifiers follow it.
+    // A new keymap resets the client's xkb state, so the modifiers follow it.
     m_delegate->onKeyboardLayoutUpdated(m_seat->clientXkbTracker()->keymap());
     if (m_focus)
         m_delegate->onKeyboardModifiers(m_seat->clientXkbTracker()->modifiers());
@@ -135,13 +131,10 @@ void Keyboard::onKey(Timestamp timestamp, uint32_t evdevCode, bool pressed)
         if (m_borrowedKeys.erase(evdevCode))
             return;
         auto it = m_pressedKeys.find(evdevCode);
-        // Only release what this surface was told about. A key pressed before
-        // it had focus is in the set because enter carried it; a key it never
-        // saw is dropped.
+        // Only release what this surface was told about.
         if (it == m_pressedKeys.end())
             return;
-        // Exo reports the code that was delivered on press, not the code of the
-        // current event, so a client tracking physical state stays consistent.
+        // The code delivered on press, so a client tracking physical state stays consistent.
         m_delegate->onKeyboardKey(timestamp, it->second.code, false);
         m_pressedKeys.erase(it);
     }

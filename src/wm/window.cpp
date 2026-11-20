@@ -67,8 +67,7 @@ void forEachObserver(Window *window, const std::vector<WindowObserver *> &observ
 
 namespace {
 
-// The scene node new windows are grouped under. Null in tests that only
-// exercise protocol behavior.
+// Null without a scene.
 scene::Node *surfaceContainer(WindowManager *manager)
 {
     compositor::Compositor *compositor = manager ? manager->compositor() : nullptr;
@@ -117,12 +116,9 @@ Window::Window(WindowManager *manager, compositor::Surface *rootSurface, const s
             m_rootSurface->setHidden(false);
     }
 
-    // One node per window, holding the frame and the client's surface tree, so
-    // that stacking, hiding and moving a window is one operation on one node.
     if (scene::Node *container = surfaceContainer(m_manager)) {
         if (m_rootSurface && m_rootSurface->node()) {
             auto animation = std::make_unique<scene::WindowAnimation>();
-            // A window placed against an anchor opens in place, like a popup.
             if (isPopup() || m_rootSurface->placementAnchor())
                 animation->setStyle(scene::WindowAnimation::Style::Popup);
             animation->setOpacity(m_rootSurface->opacity());
@@ -170,10 +166,7 @@ void Window::onSurfaceDestroying(compositor::Surface *surface)
 {
     if (surface != m_rootSurface)
         return;
-    // The observer list is being walked by the surface; drop out of it before
-    // this object goes away. The surface's node has to leave this window's node
-    // first: the surface still refers to it, and destroying the window would
-    // otherwise take it down with it.
+    // The surface's node must leave this window's node before this object goes.
     m_rootSurface->removeSurfaceObserver(this);
     detachSurfaceNode();
     m_rootSurface = nullptr;
@@ -184,8 +177,7 @@ void Window::onSurfaceCommit(compositor::Surface *surface)
 {
     if (surface != m_rootSurface)
         return;
-    // The surface applied its node geometry before notifying, so this is the
-    // commit that made the new content current.
+    // The surface applied its node geometry before notifying.
     forEachObserver(this, m_observers, [this](WindowObserver *observer) {
         observer->onWindowContentChanged(this);
     });
@@ -211,8 +203,7 @@ void Window::onSurfaceWindowHintsChanged(compositor::Surface *surface)
         if (auto *animation = dynamic_cast<scene::WindowAnimation *>(m_node))
             animation->setOpacity(m_opacity * m_surfaceOpacity);
     }
-    // Every hint lands here; restacking for the others would raise the window
-    // within its layer.
+    // Restacking for the other hints would raise the window within its layer.
     const bool aboveDock = surface->level() == compositor::WindowLevel::AboveDock;
     if (surface->alwaysOnTop() == m_surfaceAlwaysOnTop && aboveDock == m_surfaceAboveDock)
         return;
@@ -251,8 +242,6 @@ void Window::detachSurfaceNode()
 
 Insets Window::frameInsets() const
 {
-    // Fullscreen means the client owns the whole output; nothing is left for a
-    // frame to occupy.
     if (!m_frame || m_state->isFullscreen())
         return Insets();
     return m_frame->extents();
@@ -294,9 +283,6 @@ void Window::updateFrame()
         return;
 
     if (!m_bounds.isEmpty()) {
-        // The client keeps the area it already has; the outer bounds grow or
-        // shrink around it. A window whose bounds the state machine owns is
-        // recomputed from the state instead.
         if (m_state->isNormal()) {
             setBounds(frameInsets().outset(content));
         } else {
@@ -306,7 +292,6 @@ void Window::updateFrame()
     }
 
     updateSurfacePlacement();
-    // Mapping logs the initial state; this is for a mode change later on.
     if (!m_bounds.isEmpty()) {
         CF_DEBUG(cfCompositor) << "decoration" << (m_frame ? "on:" : "off:") << m_applicationId
                              << m_title << "outer" << m_bounds << "content"
@@ -356,8 +341,6 @@ void Window::setSurfaceOrigin(const base::Point &origin)
         return;
     m_surfaceOrigin = origin;
     updateSurfacePlacement();
-    // A resize anchored to a top or left edge moves the client's pixels inside
-    // the window without the buffer changing.
     forEachObserver(this, m_observers, [this](WindowObserver *observer) {
         observer->onWindowContentChanged(this);
     });
@@ -392,8 +375,7 @@ void Window::updateSurfacePlacement()
         m_node->setGeometry(m_bounds.translated(m_presentationOffset));
     if (!m_rootSurface)
         return;
-    // Only the origin crosses into the scene. The node's size stays the
-    // committed buffer's until the client resizes; see the class comment.
+    // Only the origin crosses into the scene.
     const base::Point origin = frameInsets().topLeft() + m_surfaceOrigin;
     m_rootSurface->setPosition(m_node ? origin : m_bounds.topLeft() + origin);
     updateSurfaceTargetBounds();
@@ -401,8 +383,6 @@ void Window::updateSurfacePlacement()
 
 void Window::updateSurfaceTargetBounds()
 {
-    // The presentation offset is left out, as aura leaves a layer transform
-    // out of a window's bounds.
     const scene::Node *node = surfaceNode();
     const base::Rect bounds(m_bounds.topLeft() + frameInsets().topLeft() + m_surfaceOrigin,
                             node ? node->geometry().size() : base::Size());
@@ -547,9 +527,6 @@ void Window::setRestoringFromDragInternal(bool restoring)
     if (restoring == m_restoringFromDrag)
         return;
     m_restoringFromDrag = restoring;
-    // The state type itself has not changed, but everything that keys off it -
-    // the frame, the rounded corners, the shadow and the client's configure -
-    // has to be re-evaluated.
     const WindowStateType type = m_state->stateType();
     forEachObserver(this, m_observers, [this, type](WindowObserver *observer) {
         observer->onWindowStateTypeChanged(this, type);
@@ -663,8 +640,6 @@ void Window::setRole(WindowRole role)
                                                                    : animationStyleFor(role));
     }
     m_visual->update();
-    // A shell window is placed where it asked to be, and a titlebar around it
-    // would move it there plus an inset; it also never resizes interactively.
     if (m_role != WindowRole::Normal) {
         setDecorated(false);
         m_resizable = false;
@@ -697,7 +672,6 @@ void Window::setCloseCallback(CloseCallback callback)
 
 void Window::requestClose()
 {
-    // A client that stopped answering pings cannot act on a close request.
     if (!m_responsive && m_killCallback) {
         if (!m_manager->promptNotResponding(this))
             m_manager->forceQuit(this);
@@ -705,11 +679,9 @@ void Window::requestClose()
     }
     if (!m_closeCallback)
         return;
-    // Asked first, while this window still exists: a client that hangs instead
-    // of closing turns unresponsive, and the next close request kills it.
+    // Asked first, while this window still exists.
     ping();
-    // A local copy: running the callback can destroy this window, and with it
-    // the std::function the captures live in.
+    // A local copy: running the callback can destroy this window.
     const CloseCallback callback = m_closeCallback;
     callback();
 }

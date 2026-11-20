@@ -14,7 +14,6 @@ namespace cutefish::input {
 
 ButtonFlags buttonFlagFromEvdev(uint32_t code)
 {
-    // Mirrors the button table in Exo's WaylandPointerDelegate::OnPointerButton.
     switch (code) {
     case BTN_LEFT:
         return LeftButton;

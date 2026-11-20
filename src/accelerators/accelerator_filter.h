@@ -5,11 +5,6 @@
 // Upstream: chromium/src/ui/wm/core/accelerator_filter.h and
 //           chromium/src/ash/accelerators/pre_target_accelerator_handler.h
 // Revision: 8abbac30b9cf2fe976422c58c000c94685648b65
-//
-// Adapted for Cutefish: the pre-target handler is an input::EventSink that
-// sits in front of the window manager's, the way DemoController does. It also
-// stands in for the aura::Env pre-target handlers Ash gives the accelerator
-// history, the launchpad state machine and the window cycle event filter.
 
 #ifndef CUTEFISH_ACCELERATORS_ACCELERATOR_FILTER_H_
 #define CUTEFISH_ACCELERATORS_ACCELERATOR_FILTER_H_
@@ -33,29 +28,26 @@ namespace cutefish::accelerators {
 
 class AcceleratorController;
 
-// ash::InputMethodManager::ArePositionalShortcutsUsedByCurrentInputMethod:
-// every layout but the US ones pins punctuation shortcuts by position.
+// Every layout but the US ones pins punctuation shortcuts by position.
 bool usesPositionalShortcuts(const input::XkbTracker &xkb);
 
 class AcceleratorFilter : public input::EventSink
 {
 
 public:
-    // `next` receives whatever is not consumed here; it is the window manager.
+    // `next` receives whatever is not consumed here.
     AcceleratorFilter(AcceleratorController *controller, const input::XkbTracker *xkb,
                       wm::WindowManager *windowManager, wm::WindowCycleController *windowCycle,
                       input::EventSink *next);
     ~AcceleratorFilter() override;
 
-    // The accelerator a physical key transition amounts to under the current
-    // xkb state, which the seat has already advanced for it.
+    // Under the current xkb state, which the seat has already advanced for this key.
     Accelerator acceleratorForKey(uint32_t evdevCode, bool pressed) const;
 
     // libinput sends no repeats, so a held repeatable accelerator is performed
     // again at the keyboard's own rate, the way the seat repeats for clients.
     void setKeyRepeatSettings(const input::KeyRepeatSettings &settings);
 
-    // input::EventSink:
     bool onPointerMotion(input::Timestamp timestamp, const base::PointF &location) override;
     bool onPointerButton(input::Timestamp timestamp, const base::PointF &location,
                          uint32_t evdevButton, bool pressed) override;
@@ -64,15 +56,13 @@ public:
     bool onPointerAxisStop(input::Timestamp timestamp, const base::PointF &location) override;
     bool onKey(input::Timestamp timestamp, uint32_t evdevCode, bool pressed) override;
     bool onSecureKey(input::Timestamp timestamp, uint32_t evdevCode, bool pressed) override;
-    // Touch passes straight through: ash's launcher state machine and window
-    // cycle filter watch the mouse only.
+    // Touch passes straight through.
     bool onTouchDown(input::Timestamp timestamp, int32_t id, const base::PointF &location) override;
     bool onTouchMotion(input::Timestamp timestamp, int32_t id, const base::PointF &location) override;
     bool onTouchUp(input::Timestamp timestamp, int32_t id) override;
     void onTouchCancel(input::Timestamp timestamp) override;
 
 private:
-    // PreTargetAcceleratorHandler::ProcessAccelerator.
     bool processAccelerator(const Accelerator &accelerator);
     bool shouldProcessAcceleratorNow(const Accelerator &accelerator) const;
     bool canConsumeSystemKeys() const;

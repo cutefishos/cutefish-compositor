@@ -24,17 +24,11 @@
 
 namespace cutefish::shell {
 
-// A client of a window's org.gtk.Menus menu bar and application menu and of
-// the org.gtk.Actions groups their items activate, written from the
-// protocols. Every menu group is subscribed as soon as it is linked, so the
-// whole tree stays current; sections are flattened between separators, and
-// the application menu becomes the submenu of the application role.
-// Enabled, check and radio state come from the actions, as GTK's own menus
-// show them. Nothing blocks; untrusted sizes are capped.
+// Every menu group is subscribed as soon as it is linked, so the whole tree
+// stays current; untrusted sizes are capped.
 class GtkMenu : public compositor::MenuModel
 {
 public:
-    // Past these, the rest is dropped.
     static constexpr size_t kMaxItems = 4096;
     static constexpr size_t kMaxGroups = 512;
     static constexpr int kMaxDepth = 16;
@@ -50,13 +44,11 @@ public:
     const compositor::MenuItem *item(int32_t id) const override;
     void refresh(int32_t id) override;
     void prepare(int32_t id) override;
-    // A submenu with a submenu action has it set while it is open.
     void opened(int32_t id) override;
     void closed(int32_t id) override;
     void activate(int32_t id) override;
 
 private:
-    // The menu bar's exporter, or the application menu's.
     enum Exporter { kMenuBar, kAppMenu, kExporterCount };
     using MenuKey = std::tuple<int, uint32_t, uint32_t>;
     using Link = std::tuple<uint32_t, uint32_t>;
@@ -73,7 +65,6 @@ private:
         std::optional<base::dbus::Variant> state;
     };
 
-    // What an item activates, by its full name ("app.quit").
     struct Target {
         std::string action;
         std::optional<base::dbus::Variant> parameter;
@@ -112,12 +103,9 @@ private:
     PendingCalls m_calls;
 
     std::map<MenuKey, std::vector<Entry>> m_menus;
-    // Groups asked for, and those whose reply is in.
     std::array<std::set<uint32_t>, kExporterCount> m_subscribed;
     std::array<std::set<uint32_t>, kExporterCount> m_loaded;
     std::map<std::string, std::map<std::string, Action>> m_actions;
-    // The calls before the first build still on their way: the menu shows
-    // once the whole tree is in.
     int m_loading = 0;
     bool m_built = false;
 

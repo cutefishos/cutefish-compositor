@@ -2,11 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// The desk switch animation's drawing, modelled on
-// chromium/src/ash/wm/desks/root_window_desk_switch_animator_unittest.cc and
-// desk_animation_impl_unittest.cc: where each desk's frame is drawn as the
-// strip moves, rather than layer transforms.
-
 #include <algorithm>
 
 #include <gtest/gtest.h>
@@ -62,7 +57,6 @@ public:
 };
 
 const base::Rect kViewport(0, 0, 1000, 800);
-// Long enough for any of the springs to come to rest.
 constexpr int kSettleMs = 1000;
 
 struct Fixture {
@@ -113,7 +107,6 @@ struct Fixture {
         return renderer.calls;
     }
 
-    // Where `texture` was drawn in the last paint, if it was.
     static std::optional<testsupport::FakeRenderer::Call>
     drawn(const std::vector<testsupport::FakeRenderer::Call> &calls, render::Texture *texture)
     {
@@ -139,14 +132,12 @@ TEST(DeskSwitchNode, TheStartingFrameCoversTheDeskContent)
     EXPECT_TRUE(f.node->paintsSubtree());
     EXPECT_EQ(f.node->content(), scene::Node::Content::Opaque);
 
-    // Drawn whole and opaque, with no black fill underneath to pay for.
     const auto calls = f.paint();
     ASSERT_EQ(calls.size(), 1);
     EXPECT_EQ(calls[0].texture, starting);
     EXPECT_EQ(calls[0].rect, kViewport);
     EXPECT_TRUE(starting->contentOpaque);
 
-    // An output the animation did not start on shows the live content.
     EXPECT_TRUE(f.paint("other").empty());
 }
 
@@ -170,7 +161,6 @@ TEST(DeskSwitchNode, EveryOutputCopiesTheEndingDeskAtItsNextFrame)
     f.node->takeEndingScreenshot(1);
     EXPECT_FALSE(f.node->endingScreenshotTaken());
 
-    // A capture of the screen copies nothing.
     f.renderer.capturing = true;
     f.paint("a");
     EXPECT_EQ(f.renderer.captures, 0);
@@ -185,7 +175,6 @@ TEST(DeskSwitchNode, EveryOutputCopiesTheEndingDeskAtItsNextFrame)
     EXPECT_EQ(f.renderer.captures, 2);
     EXPECT_EQ(f.endingTaken, 1);
     EXPECT_TRUE(f.node->endingScreenshotTaken());
-    // Nothing moves until the animation starts.
     EXPECT_FALSE(f.node->isAnimating());
 }
 
@@ -201,7 +190,6 @@ TEST(DeskSwitchNode, AContinuousSwitchSlidesAWidthAndTheGapBetweenDesks)
     f.node->startAnimation();
     auto calls = f.paint();
     EXPECT_EQ(Fixture::drawn(calls, starting)->rect, kViewport);
-    // Off the screen, beyond the gap.
     EXPECT_EQ(Fixture::drawn(calls, ending), std::nullopt);
 
     f.now += 150;
@@ -231,14 +219,12 @@ TEST(DeskSwitchNode, AQuickSwitchMovesAQuarterAndFadesTheEndingDeskIn)
     f.paint();
     render::Texture *ending = f.renderer.lastCapture;
 
-    // Taken, but not shown before the animation starts.
     auto calls = f.paint();
     EXPECT_FLOAT_EQ(Fixture::drawn(calls, ending)->alpha, 0);
     f.node->startAnimation();
     calls = f.paint();
     EXPECT_EQ(Fixture::drawn(calls, ending)->rect.x(), 250);
     EXPECT_FLOAT_EQ(Fixture::drawn(calls, ending)->alpha, 0);
-    // Drawn over the starting desk.
     EXPECT_EQ(calls.back().texture, ending);
 
     f.now += Node::kQuickFadeInAnimationDurationMs;
@@ -266,7 +252,6 @@ TEST(DeskSwitchNode, AGlideCrossesTheWholeGapOpaqueAndLandsOnTime)
     EXPECT_EQ(Fixture::drawn(calls, starting)->rect, kViewport);
     EXPECT_FALSE(Fixture::drawn(calls, ending));
 
-    // Halfway in time, on gfx::Tween::ACCEL_20_DECEL_60, and not faded.
     f.now += Node::kGlideDurationMs / 2;
     calls = f.paint();
     const double eased = scene::motion::cubicBezier(0.2, 0, 0.4, 1, 0.5);
@@ -321,7 +306,6 @@ TEST(DeskSwitchNode, ReplacingNeedsAFrameOnlyForADeskWithout)
     f.paint();
     f.node->startAnimation();
     EXPECT_EQ(f.node->endingDesk(), 2);
-    // Back to a desk the strip already holds.
     EXPECT_FALSE(f.node->replaceAnimation(1));
     f.node->startAnimation();
     f.now += kSettleMs;
@@ -345,7 +329,6 @@ TEST(DeskSwitchNode, AKeyPressedMidSwitchBendsTowardsTheNextDeskWithoutStopping)
     f.paint();
     f.node->startAnimation();
     f.now += 16;
-    // Still moving at the speed it had, a good way in one frame.
     EXPECT_LT(Fixture::drawn(f.paint(), starting)->rect.x(), before - 30);
     f.now += kSettleMs;
     f.paint();
@@ -359,13 +342,11 @@ TEST(DeskSwitchNode, ASwipeMovesTheStripWithTheFingersFromTheFirstEvent)
     render::Texture *starting = nullptr;
     f.node->start(Node::Type::Continuous, 3, 0, 1, f.frames(&starting), 1000);
     f.node->takeEndingScreenshot(1);
-    // The ending desk's frame is still to be taken, and the strip moves anyway.
     EXPECT_EQ(f.node->updateSwipeAnimation(-0.1, 1000), std::nullopt);
     EXPECT_TRUE(f.node->isTracking());
     auto calls = f.paint();
     EXPECT_EQ(Fixture::drawn(calls, starting)->rect.x(), -105);
 
-    // Half a desk to the left: fingers moving left bring the right desk in.
     EXPECT_EQ(f.node->updateSwipeAnimation(-0.4, 1008), std::nullopt);
     f.now = 1008 + Node::kResampleLatencyMs;
     calls = f.paint();
@@ -381,14 +362,11 @@ TEST(DeskSwitchNode, FramesShowTheFingersResampledAtTheirTime)
     render::Texture *starting = nullptr;
     f.node->start(Node::Type::Continuous, 2, 0, 1, f.frames(&starting), 1000);
     f.node->takeEndingScreenshot(1);
-    // Slower than a flick, so the strip stays with the fingers.
     f.node->updateSwipeAnimation(-0.1, 1000);
     f.node->updateSwipeAnimation(-0.002, 1008);
 
-    // Between the two events.
     f.now = 1004 + Node::kResampleLatencyMs;
     EXPECT_EQ(Fixture::drawn(f.paint(), starting)->rect.x(), -106);
-    // A little ahead of the newest, at most half the interval between them.
     f.now = 1100;
     EXPECT_EQ(Fixture::drawn(f.paint(), starting)->rect.x(), -108);
 }
@@ -402,8 +380,6 @@ TEST(DeskSwitchNode, FingersThatStopReportingAtSpeedHaveLiftedAndTheStripGoesOn)
     f.paint();
     for (int i = 1; i <= 4; ++i)
         f.node->updateSwipeAnimation(-0.05, 1000 + i * 8);
-    // libinput ends the gesture tens of milliseconds after the last motion;
-    // the strip keeps moving, one frame to the next, in the meantime.
     f.now = 1032 + Node::kResampleLatencyMs;
     int previous = Fixture::drawn(f.paint(), starting)->rect.x();
     for (int frame = 0; frame < 4; ++frame) {
@@ -412,7 +388,6 @@ TEST(DeskSwitchNode, FingersThatStopReportingAtSpeedHaveLiftedAndTheStripGoesOn)
         EXPECT_LT(x, previous - 20) << frame;
         previous = x;
     }
-    // The end carries on with the same motion.
     const double before = Fixture::drawn(f.paint(), starting)->target.x();
     EXPECT_EQ(f.node->endSwipeAnimation(f.now), 1);
     EXPECT_DOUBLE_EQ(Fixture::drawn(f.paint(), starting)->target.x(), before);
@@ -438,7 +413,6 @@ TEST(DeskSwitchNode, FingersThatSlowDownAndHoldKeepTheStrip)
     f.now += 200;
     EXPECT_EQ(Fixture::drawn(f.paint(), starting)->rect.x(), held);
 
-    // A swipe that pauses and moves on is followed from where it is.
     f.node->updateSwipeAnimation(-0.001, f.now - Node::kResampleLatencyMs);
     EXPECT_NEAR(Fixture::drawn(f.paint(), starting)->rect.x(), held - 1, 1);
 }
@@ -451,7 +425,6 @@ TEST(DeskSwitchNode, PastAnEndTheStripGivesWayLessAndLess)
     f.node->updateSwipeAnimation(0.05, 1000);
     f.now = 1000 + Node::kResampleLatencyMs;
     const int little = Fixture::drawn(f.paint(), starting)->rect.x();
-    // Less than the fingers moved.
     EXPECT_GT(little, 0);
     EXPECT_LT(little, 52);
     EXPECT_TRUE(f.node->reachedEdge());
@@ -459,12 +432,10 @@ TEST(DeskSwitchNode, PastAnEndTheStripGivesWayLessAndLess)
     f.node->updateSwipeAnimation(3, 1008);
     f.now = 1008 + Node::kResampleLatencyMs;
     const int far = Fixture::drawn(f.paint(), starting)->rect.x();
-    // Never beyond a tenth of the screen.
     EXPECT_GT(far, little);
     EXPECT_LT(far, 100);
     EXPECT_EQ(f.node->mostVisibleDesk(), 0);
 
-    // Let go, it comes back.
     f.now += 200;
     EXPECT_EQ(f.node->endSwipeAnimation(f.now), 0);
     f.now += kSettleMs;
@@ -481,8 +452,6 @@ TEST(DeskSwitchNode, AFlungSwipeGoesOnToTheNextDeskAndAHeldOneSettlesOnTheNeares
         f.node->takeEndingScreenshot(1);
         f.paint();
         render::Texture *ending = f.renderer.lastCapture;
-        // A fifth of a desk in 40 ms: five desks a second; held, the fingers
-        // then slow down and stay.
         for (int i = 1; i <= 5; ++i)
             f.node->updateSwipeAnimation(-0.04, 1000 + i * 8);
         for (int i = 1; !flung && i <= 15; ++i)
@@ -505,7 +474,6 @@ TEST(DeskSwitchNode, TheReleaseCarriesTheFingersSpeedWithoutShootingPast)
     f.node->start(Node::Type::Continuous, 2, 0, 1, f.frames(&starting), 1000);
     f.node->takeEndingScreenshot(1);
     f.paint();
-    // Most of the way, fast.
     for (int i = 1; i <= 10; ++i)
         f.node->updateSwipeAnimation(-0.09, 1000 + i * 8);
     f.now = 1080 + Node::kResampleLatencyMs;
@@ -516,7 +484,6 @@ TEST(DeskSwitchNode, TheReleaseCarriesTheFingersSpeedWithoutShootingPast)
         const auto calls = f.paint();
         const auto drawn = Fixture::drawn(calls, starting);
         const int x = drawn ? drawn->rect.x() : -1050;
-        // Straight on in, never past the ending desk and back.
         EXPECT_LE(x, previous);
         EXPECT_GE(x, -1050);
         previous = x;
@@ -531,13 +498,11 @@ TEST(DeskSwitchNode, AHardFlickLeavesTheRestOfTheWayToAVisibleSlide)
     f.node->start(Node::Type::Continuous, 2, 0, 1, f.frames(&starting), 1000);
     f.node->takeEndingScreenshot(1);
     f.paint();
-    // A third of a desk in 24 ms, then the fingers are gone.
     for (int i = 1; i <= 3; ++i)
         f.node->updateSwipeAnimation(-0.1, 1000 + i * 8);
     f.now = 1024 + Node::kResampleLatencyMs;
     EXPECT_EQ(f.node->endSwipeAnimation(f.now), 1);
     f.now += 100;
-    // Still a good way off after 100 ms, rather than there in a frame or two.
     EXPECT_LT(Fixture::drawn(f.paint(), starting)->rect.x(), -Node::kDesksSpacing);
     EXPECT_GT(Fixture::drawn(f.paint(), starting)->rect.x(), -1050 + 100);
     EXPECT_EQ(f.finished, 0);
@@ -584,8 +549,6 @@ TEST(DeskSwitchNode, ASwipeAsksForTheDeskBeyondTheStripOneAtATime)
     render::Texture *starting = nullptr;
     f.node->start(Node::Type::Continuous, 3, 0, 1, f.frames(&starting), 1000);
     f.node->takeEndingScreenshot(1);
-    // Near the strip's right end, but the frame of the last desk asked for is
-    // still to come.
     EXPECT_EQ(f.node->updateSwipeAnimation(-0.97, 1000), std::nullopt);
     f.paint();
     EXPECT_EQ(f.node->updateSwipeAnimation(-0.001, 1008), std::optional<int>(2));
@@ -658,7 +621,6 @@ TEST(DeskSwitchNode, HittingTheWallNudgesTheDeskAndComesBack)
     EXPECT_EQ(Fixture::drawn(calls, frame)->rect.x(), 0);
     f.now += Node::kHitTheWallDurationMs;
     calls = f.paint();
-    // Towards the left edge it could not pass, the content moves right.
     EXPECT_EQ(Fixture::drawn(calls, frame)->rect.x(), 100);
     f.now += Node::kHitTheWallDurationMs;
     calls = f.paint();
@@ -690,7 +652,6 @@ TEST(SlideOutNode, AWindowSentToAnotherDeskSlidesOffTowardsIt)
     EXPECT_EQ(renderer.calls[0].texture, texture);
     EXPECT_EQ(renderer.calls[0].rect.x(), 0);
 
-    // Ease in: slow at first, past the window's right edge at the end.
     now = scene::SlideOutNode::kDurationMs / 2;
     renderer.calls.clear();
     node.render(renderer);
@@ -749,7 +710,6 @@ TEST(DeskSwitchNode, TheDeskContentBelowIsNotDrawnWhereTheNodeCoversIt)
         return below;
     };
     EXPECT_FALSE(drawnUnderneath("out"));
-    // An output the animation did not start on still shows the live content.
     EXPECT_TRUE(drawnUnderneath("other"));
     f.node->stop();
     EXPECT_TRUE(drawnUnderneath("out"));

@@ -2,13 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// The server-side frame, from the window manager's side of it.
-//
-// The protocol half lives in xdg_decoration_protocol_test.cpp. What is
-// asserted here is what the frame does to geometry, where its hit regions are, what a press on
-// one of them asks the window manager to do, and that none of it reaches the
-// client's surface.
-
 #include <gtest/gtest.h>
 #include <linux/input-event-codes.h>
 
@@ -123,8 +116,6 @@ input::Timestamp at(int ms)
     return input::Timestamp(std::chrono::milliseconds(ms));
 }
 
-// Only what these tests need from a client pointer: whether the client was told
-// anything at all.
 class RecordingPointerDelegate : public input::PointerDelegate
 {
 public:
@@ -207,8 +198,6 @@ protected:
     WindowManager manager {&compositor, &seat};
     decoration::Theme theme;
     decoration::DecorationProvider provider {&theme};
-    // Shadows are no longer the frame's; the controller has to be here for the
-    // scene the frame appears in to be the real one.
     decoration::ShadowProvider shadowProvider {&theme};
     WmShadowControllerDelegate shadowDelegate;
     ShadowController shadowController {&manager, &shadowProvider, &shadowDelegate};
@@ -272,8 +261,7 @@ protected:
         return shell;
     }
 
-    // The whole xdg-shell handshake, with the decoration negotiated before the
-    // first buffer, as the protocol requires.
+    // The decoration is negotiated before the first buffer, as the protocol requires.
     ShellSurface *makeToplevel(const base::Size &size, bool serverSide = true,
                                Recorder **recorderOut = nullptr)
     {
@@ -293,7 +281,6 @@ protected:
         return shell;
     }
 
-    // A toplevel that never negotiates decoration at all.
     ShellSurface *makeUndecoratedToplevel(const base::Size &size, Recorder **recorderOut = nullptr)
     {
         Recorder *recorder = nullptr;
@@ -363,9 +350,6 @@ protected:
     }
 };
 
-////////////////////////////////////////////////////////////////////////////////
-// Geometry
-
 TEST_F(DecorationTest, TheFrameSitsOutsideTheClientArea)
 {
     ShellSurface *shell = makeToplevel(base::Size(400, 300));
@@ -373,18 +357,13 @@ TEST_F(DecorationTest, TheFrameSitsOutsideTheClientArea)
     ASSERT_NE(nullptr, window);
     ASSERT_NE(nullptr, window->frame());
 
-    // The outer bounds are the client area plus the frame; the client's own
-    // geometry is untouched by it.
     EXPECT_EQ(insets(), window->frameInsets());
     EXPECT_EQ(base::Size(400, 300), window->contentBounds().size());
     EXPECT_EQ(insets().outset(base::Size(400, 300)), window->bounds().size());
     EXPECT_EQ(window->bounds().topLeft() + insets().topLeft(), window->contentBounds().topLeft());
-    // And the client's buffer starts below the titlebar, not under it.
     EXPECT_EQ(window->contentBounds().topLeft(), shell->rootSurface()->node()->absolutePosition());
 }
 
-// The caption's texture belongs to the renderer, so it goes with the others
-// when the scene gives its render resources up, and is made again after.
 TEST_F(DecorationTest, TheCaptionIsMadeAgainOnceRenderResourcesAreReleased)
 {
     ShellSurface *shell = makeToplevel(base::Size(400, 300));
@@ -505,7 +484,6 @@ TEST_F(DecorationTest, FullscreenTakesTheFrameAwayAndLeavingItBringsItBack)
     EXPECT_TRUE(window->frameInsets().isNull());
     EXPECT_EQ(kOutput, window->contentBounds());
     EXPECT_EQ(kOutput.size(), recorder->last().size);
-    // The frame is still there, it just occupies nothing.
     EXPECT_NE(nullptr, window->frame());
 
     window->setFullscreen(false);
@@ -525,9 +503,6 @@ TEST_F(DecorationTest, TheMinimumSizeCoversTheFrameAsWellAsTheClientArea)
     EXPECT_EQ(base::Size(200, 150), window->minimumSize());
     EXPECT_EQ(insets().outset(base::Size(200, 150)), window->minimumOuterSize());
 }
-
-////////////////////////////////////////////////////////////////////////////////
-// Hit testing
 
 TEST_F(DecorationTest, TheFrameOwnsItsTitleBarButNotTheClientArea)
 {
@@ -587,8 +562,6 @@ TEST_F(DecorationTest, TheResizeGripReachesOutsideTheWindow)
     EXPECT_EQ(window, manager.frameAt(base::PointF(outside)));
 }
 
-// The window ends at its rounded outline, not at the square frame: the border
-// follows the arc inwards, and the corner reaches along each edge past it.
 TEST_F(DecorationTest, TheResizeBorderFollowsTheRoundedCorner)
 {
     ShellSurface *shell = makeToplevel(base::Size(400, 300));
@@ -600,8 +573,6 @@ TEST_F(DecorationTest, TheResizeBorderFollowsTheRoundedCorner)
     const render::RoundedShape shape {base::RectF(base::SizeF(window->bounds().width(), window->bounds().height())),
                                       visual.shape.radius};
 
-    // Down the top-left diagonal: resize wherever the pixel is within the margin
-    // of the arc, the close button or the title bar past that.
     const base::Rect close = frame->buttons()[0].geometry();
     bool beyondTheSquareBorder = false;
     for (int i = 0; i < 20; ++i) {
@@ -660,7 +631,6 @@ TEST_F(DecorationTest, TheButtonsCentreInTheTitleBarAtItsStart)
     EXPECT_EQ(decoration::CaptionButtonType::Minimize, buttons[1].type());
     EXPECT_EQ(decoration::CaptionButtonType::Maximize, buttons[2].type());
     const int top = (metrics.titleBarHeight - metrics.buttonSize) / 2;
-    // As far from the leading edge as from the top.
     EXPECT_EQ(top, buttons.front().geometry().left());
     for (size_t index = 0; index < buttons.size(); ++index) {
         const base::Rect geometry = buttons[index].geometry();
@@ -711,9 +681,6 @@ TEST_F(DecorationTest, AWindowUnderAnotherOneDoesNotGetTheFrameHit)
     EXPECT_EQ(upper->window(), manager.frameAt(onTitleBar(upper->window())));
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// Input
-
 TEST_F(DecorationTest, PressingTheTitleBarStartsAMove)
 {
     ShellSurface *shell = makeToplevel(base::Size(400, 300));
@@ -740,14 +707,12 @@ TEST_F(DecorationTest, TheClientNeverSeesInputOverTheFrame)
     RecordingPointerDelegate delegate;
     input::Pointer pointer(&delegate, &seat);
 
-    // Start inside the client area, so the client has the pointer.
     input.warpPointer(base::PointF(wm::centerPixel(window->contentBounds())));
     input.onPointerMotion(at(1), base::PointF(0, 0));
     ASSERT_EQ(1u, delegate.enters.size());
     EXPECT_EQ(shell->rootSurface(), delegate.enters.front());
     const int motions = delegate.motions;
 
-    // Then onto the titlebar: a leave, and nothing after it.
     input.warpPointer(onTitleBar(window));
     input.onPointerMotion(at(2), base::PointF(0, 0));
     EXPECT_EQ(1u, delegate.leaves.size());
@@ -772,8 +737,6 @@ TEST_F(DecorationTest, ADragFromTheClientAreaKeepsThePointerOverTheFrame)
     ASSERT_EQ(1, delegate.buttons);
     const int motions = delegate.motions;
 
-    // The drag wanders over the titlebar and then off the window entirely: the
-    // frame must not take it, and the client must keep receiving motion.
     input.warpPointer(onTitleBar(window));
     input.onPointerMotion(at(3), base::PointF(0, 0));
     input.warpPointer(base::PointF(900, 700));
@@ -799,7 +762,6 @@ TEST_F(DecorationTest, TheCloseButtonAsksTheClientToClose)
 
     release(onFrame(window, wm::centerPixel(close)));
     EXPECT_EQ(1, recorder->closes);
-    // Asking is all it does: the window is still here until the client acts.
     EXPECT_FALSE(manager.windows().empty());
 }
 
@@ -815,7 +777,6 @@ TEST_F(DecorationTest, APressThatWandersOffItsButtonDoesNothing)
 
     EXPECT_EQ(0, recorder->closes);
     EXPECT_FALSE(frameOf(window)->isTrackingPress());
-    // And no move was started by the release either.
     EXPECT_FALSE(manager.eventHandler()->isDragging());
 }
 
@@ -847,7 +808,6 @@ TEST_F(DecorationTest, TheMaximizeButtonMaximizesAndThenRestores)
     ASSERT_TRUE(shell->acknowledgeConfigure(recorder->serials.back()));
     attach(shell->rootSurface(), window->contentBounds().size());
     shell->rootSurface()->commit();
-    // The button follows the newly presented frame.
     const base::Rect restore = frameOf(window)->buttons()[2].geometry();
     press(onFrame(window, wm::centerPixel(restore)));
     release(onFrame(window, wm::centerPixel(restore)));
@@ -883,7 +843,6 @@ TEST_F(DecorationTest, AFingerOnTheTitleBarDragsTheWindow)
     touchMotion(2, 1, start + base::PointF(40, 30));
     EXPECT_EQ(bounds.translated(40, 30), window->bounds());
 
-    // Neither the pointer nor another finger moves or ends it.
     input.onPointerMotion(at(3), base::PointF(100, 100));
     input.onPointerButton(at(3), BTN_LEFT, true);
     input.onPointerButton(at(3), BTN_LEFT, false);
@@ -913,9 +872,6 @@ TEST_F(DecorationTest, AFingerOnAResizeBorderResizes)
     touchUp(3, 1);
     EXPECT_FALSE(manager.eventHandler()->isDragging());
 }
-
-////////////////////////////////////////////////////////////////////////////////
-// Server resize handles on client-decorated windows
 
 class ServerResizeTest : public DecorationTest
 {
@@ -967,7 +923,6 @@ TEST_F(ServerResizeTest, TheHandlesReachOutsideAndOnePixelIn)
     EXPECT_EQ(ResizeEdge::Left, edgeAt(base::PointF(bounds.left() - 1, y)));
     EXPECT_EQ(ResizeEdge::Top, edgeAt(base::PointF(wm::centerPixel(bounds).x(), bounds.top() - 1)));
     EXPECT_EQ(ResizeEdge::Bottom, edgeAt(base::PointF(wm::centerPixel(bounds).x(), bounds.bottom())));
-    // A finger gets five times the reach outside.
     EXPECT_EQ(ResizeEdge::Left, edgeAt(base::PointF(bounds.left() - 20, y), /*touch=*/true));
 }
 
@@ -976,7 +931,6 @@ TEST_F(ServerResizeTest, TheCornersFollowTheRoundedOutline)
     Window *window = makeWindow();
     const base::Rect bounds = window->bounds();
 
-    // Inside the square but outside the arc.
     EXPECT_EQ(ResizeEdge::TopLeft, edgeAt(base::PointF(bounds.topLeft() + base::Point(1, 1))));
     EXPECT_EQ(ResizeEdge::TopLeft, edgeAt(base::PointF(bounds.topLeft() - base::Point(3, 3))));
     EXPECT_EQ(ResizeEdge::BottomRight, edgeAt(base::PointF(bounds.bottomRight() + base::Point(2, 2))));
@@ -1032,8 +986,6 @@ TEST_F(ServerResizeTest, AWindowAboveCoversTheHandles)
     EXPECT_EQ(ResizeEdge::Right, edgeAt(base::PointF(lower->bounds().right() + 2, 150)));
 }
 
-// Outside its input region, as over the dock's clear strip beside its plate,
-// a window above leaves the handles below reachable.
 TEST_F(ServerResizeTest, AWindowAboveCoversTheHandlesOnlyWhereItTakesInput)
 {
     Window *lower = makeWindow();
@@ -1097,7 +1049,6 @@ TEST_F(DecorationTest, TappingTheCloseButtonAsksTheClientToClose)
     Window *window = shell->window();
     const base::Rect close = frameOf(window)->buttons()[0].geometry();
 
-    // A tap that slides off the button does nothing.
     touchDown(1, 1, onFrame(window, wm::centerPixel(close)));
     touchMotion(2, 1, onTitleBar(window));
     touchUp(3, 1);
@@ -1105,7 +1056,6 @@ TEST_F(DecorationTest, TappingTheCloseButtonAsksTheClientToClose)
     EXPECT_FALSE(manager.eventHandler()->isDragging());
 
     touchDown(4, 1, onFrame(window, wm::centerPixel(close)));
-    // The pointer does not take a button a finger holds.
     EXPECT_FALSE(frameOf(window)->isTrackingPress());
     EXPECT_EQ(0, recorder->closes);
     touchUp(5, 1);
@@ -1120,7 +1070,6 @@ TEST_F(DecorationTest, DoubleTappingTheTitleBarTogglesMaximize)
 
     touchDown(0, 1, point);
     touchUp(50, 1);
-    // A finger lands a little off where it did the first time.
     touchDown(150, 1, point + base::PointF(12, 5));
 
     EXPECT_EQ(WindowStateType::Maximized, window->stateType());
@@ -1136,7 +1085,6 @@ TEST_F(DecorationTest, AClientMovesItsWindowWithTheFingerItWasTouched)
     RecordingTouchDelegate delegate;
     input::Touch touch(&delegate, &seat);
 
-    // Without a finger on the window there is nothing to move it with.
     EXPECT_FALSE(shell->startMove(true));
 
     const base::PointF start = base::PointF(window->contentBounds().topLeft()) + base::PointF(100, 10);
@@ -1144,7 +1092,6 @@ TEST_F(DecorationTest, AClientMovesItsWindowWithTheFingerItWasTouched)
     touchMotion(2, 1, start + base::PointF(2, 0));
     ASSERT_EQ((std::vector<std::string>{"down", "motion"}), delegate.calls);
 
-    // As a client does from its own titlebar, with the touch-down's serial.
     ASSERT_TRUE(shell->startMove(true));
     EXPECT_TRUE(manager.eventHandler()->isTouchDrag());
     EXPECT_EQ("cancel", delegate.calls.back());
@@ -1153,7 +1100,6 @@ TEST_F(DecorationTest, AClientMovesItsWindowWithTheFingerItWasTouched)
     EXPECT_EQ(bounds.translated(50, 40), window->bounds());
     touchUp(4, 1);
     EXPECT_FALSE(manager.eventHandler()->isDragging());
-    // The rest of the point went to the drag, not the client.
     EXPECT_EQ((std::vector<std::string>{"down", "motion", "cancel"}), delegate.calls);
 }
 
@@ -1167,7 +1113,6 @@ TEST_F(DecorationTest, TheDeviceCancellingItsPointsEndsATouchDrag)
     touchMotion(2, 1, onTitleBar(window) + base::PointF(20, 20));
     input.onTouchCancel(at(3));
     EXPECT_FALSE(manager.eventHandler()->isDragging());
-    // It ends where it was, as ash completes a gesture drag.
     EXPECT_EQ(bounds.translated(20, 20), window->bounds());
 }
 
@@ -1194,8 +1139,7 @@ TEST_F(DecorationTest, APopupIsPlacedAgainstTheClientAreaAndIsNeverDecorated)
     attach(popup->rootSurface(), base::Size(120, 90));
     popup->rootSurface()->commit();
 
-    // The popup's coordinates are relative to the parent's xdg window geometry,
-    // which starts inside the frame.
+    // Popup coordinates are relative to the parent's window geometry, which starts inside the frame.
     EXPECT_EQ(window->contentBounds().topLeft() + base::Point(10, 20), popup->absoluteOrigin());
     EXPECT_EQ(popup->absoluteOrigin(), popup->rootSurface()->node()->absolutePosition());
     ASSERT_NE(nullptr, popup->window());
@@ -1203,7 +1147,6 @@ TEST_F(DecorationTest, APopupIsPlacedAgainstTheClientAreaAndIsNeverDecorated)
     EXPECT_FALSE(popup->window()->isDecorated());
     EXPECT_EQ(nullptr, popup->window()->frame());
     EXPECT_EQ(window, popup->ownerWindow());
-    // And the frame does not take input meant for it.
     EXPECT_EQ(nullptr, manager.frameAt(base::PointF(popup->absoluteOrigin() + base::Point(60, 45))));
 }
 
@@ -1225,9 +1168,6 @@ TEST_F(DecorationTest, ATransientToplevelKeepsItsParentAndItsFrame)
     EXPECT_EQ(base::Size(200, 150), child->window()->contentBounds().size());
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// Activation
-
 TEST_F(DecorationTest, TheFrameFollowsActivation)
 {
     ShellSurface *first = makeToplevel(base::Size(400, 300));
@@ -1242,9 +1182,6 @@ TEST_F(DecorationTest, TheFrameFollowsActivation)
     EXPECT_FALSE(frameOf(second->window())->isActive());
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// Scene
-
 TEST_F(DecorationTest, TheFrameIsSceneContentOfItsOwn)
 {
     ShellSurface *shell = makeToplevel(base::Size(400, 300));
@@ -1253,13 +1190,11 @@ TEST_F(DecorationTest, TheFrameIsSceneContentOfItsOwn)
     scene::Node *windowNode = window->node();
     ASSERT_NE(nullptr, windowNode);
     EXPECT_EQ(window->bounds(), windowNode->geometry());
-    // The shadow stays outside the visual body shared by frame and client.
     ASSERT_EQ(2u, windowNode->children().size());
     EXPECT_EQ("shadow", windowNode->children()[0]->name());
     EXPECT_EQ("decoration", window->visualNode()->children()[0]->name());
     EXPECT_EQ(shell->rootSurface()->node(), window->visualNode()->children().back());
 
-    // And it draws something.
     renderer.calls.clear();
     scene.render(renderer);
     EXPECT_FALSE(renderer.calls.empty());
@@ -1304,7 +1239,6 @@ TEST_F(DecorationTest, HoveringTheButtonRowRedrawsEveryButton)
     const auto &buttons = frame->buttons();
     ASSERT_EQ(3u, buttons.size());
 
-    // The gap between close and minimize.
     const base::Point gap(buttons[0].geometry().right(), buttons[0].geometry().center().y());
     frame->onPointerMotion({}, onFrame(window, gap));
     EXPECT_TRUE(frame->isControlsHovered());
@@ -1346,9 +1280,6 @@ TEST_F(DecorationTest, AFullscreenWindowDrawsNoFrame)
     EXPECT_TRUE(decorationNode->isEffectivelyVisible());
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// Lifetime
-
 TEST_F(DecorationTest, TheFrameGoesWithTheWindow)
 {
     ShellSurface *shell = makeToplevel(base::Size(400, 300));
@@ -1356,7 +1287,6 @@ TEST_F(DecorationTest, TheFrameGoesWithTheWindow)
     scene::Node *windowNode = window->node();
     compositor::Surface *surface = shell->rootSurface();
 
-    // Unmapping destroys the window; the client's surface node survives it.
     surface->attach(nullptr, {});
     surface->commit();
 
@@ -1373,12 +1303,9 @@ TEST_F(DecorationTest, ADecorationTornDownFromInsideItsOwnCallbackIsSurvivable)
     Window *window = shell->window();
     const base::Rect close = frameOf(window)->buttons()[0].geometry();
 
-    // A client that reacts to xdg_toplevel.close by unmapping straight away,
-    // which destroys the window and the frame from inside the button release.
     shell->setCloseCallback([this, shell] {
         shell->rootSurface()->attach(nullptr, {});
         shell->rootSurface()->commit();
-        // And maps something else while the old frame is being torn down.
         makeToplevel(base::Size(200, 100));
     });
 
@@ -1404,7 +1331,6 @@ TEST_F(DecorationTest, DestroyingTheShellSurfaceUnderAHoveredFrameIsSurvivable)
     shells.erase(it);
 
     EXPECT_TRUE(manager.windows().empty());
-    // The next motion has nothing to leave and must not reach a dead frame.
     input.onPointerMotion(at(2), base::PointF(5, 5));
 }
 
@@ -1461,8 +1387,6 @@ TEST_F(DecorationTest, ShadowPolicyGeometryStackingAndLifetime)
     for (int i = 0; i < 3; ++i) {
         window->setDecorated(false);
         paint();
-        // The shadow is the window's, not the frame's: taking the frame away
-        // leaves it drawn.
         EXPECT_EQ(exteriorCount(), 8);
         EXPECT_EQ(window->contentBounds(), beforeSwitch);
         window->setDecorated(true);
@@ -1479,8 +1403,6 @@ TEST_F(DecorationTest, ShadowPolicyGeometryStackingAndLifetime)
     const auto &siblings = window->node()->parent()->children();
     EXPECT_LT(std::find(siblings.begin(), siblings.end(), window->node()),
               std::find(siblings.begin(), siblings.end(), transient->node()));
-    // Each window draws its shadow under its frame, and its frame under its
-    // client, within the same group.
     EXPECT_EQ(window->node()->children().front()->name(), "shadow");
     EXPECT_EQ(window->visualNode()->children()[0]->name(), "decoration");
     EXPECT_EQ(transient->node()->children().front()->name(), "shadow");
@@ -1563,11 +1485,9 @@ TEST_F(DecorationTest, ShadowCoverageDoesNotStealUnderlyingInput)
     upper->setBounds(base::Rect(base::Point(240, 180), insets().outset(base::Size(300, 200))));
     upper->activate();
     scene.render(renderer);
-    // Below the top window's resize border, inside its painted shadow.
     const base::Point below(wm::centerPixel(upper->bounds()).x(), upper->bounds().bottom() + 10);
     EXPECT_EQ(manager.windowAt(below), lower);
     EXPECT_EQ(manager.frameAt(below), nullptr);
-    // Moving shadow coverage over the lower titlebar cannot intercept its frame.
     upper->setBounds(base::Rect(base::Point(240, -145), upper->bounds().size()));
     scene.render(renderer);
     EXPECT_EQ(manager.frameAt({390, 100}), lower);
@@ -1651,7 +1571,6 @@ TEST_F(DecorationTest, CaptionTexelsMatchPhysicalPixelsAndEachScaleKeepsItsOwn)
         renderer.setRasterScale(scale);
         const auto call = caption();
         ASSERT_NE(call.texture, nullptr);
-        // Rasterized at the scale it is shown at: one texel per physical pixel.
         EXPECT_EQ(call.texture->size(),
                   base::Size(base::roundToInt(call.rect.width() * scale),
                              base::roundToInt(call.rect.height() * scale)))
@@ -1660,8 +1579,6 @@ TEST_F(DecorationTest, CaptionTexelsMatchPhysicalPixelsAndEachScaleKeepsItsOwn)
         if (!textures)
             textures = renderer.createdTextures;
     }
-    // One raster per scale, not one per frame as the outputs alternate: the
-    // caption's and each button's.
     EXPECT_EQ(renderer.createdTextures,
               textures + 1 + int(frameOf(window)->buttons().size()));
 }

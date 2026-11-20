@@ -2,8 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Hot corners: which corners count, when they fire, and their settings.
-
 #include <gtest/gtest.h>
 
 #include "accelerators/accelerator.h"
@@ -63,8 +61,6 @@ TEST_F(HotCornerTest, CornersWhereOutputsMeetDoNotCount)
 
 TEST_F(HotCornerTest, ATallerOutputKeepsTheCornerBesideTheShorterOne)
 {
-    // The right output reaches further down: its bottom-left corner has
-    // nothing to its left or below, so it is a corner too.
     const base::Rect tall(1000, 0, 1000, 1000);
     controller.setOutputs({kLeft, tall});
     bool found = false;
@@ -88,11 +84,9 @@ TEST_F(HotCornerTest, FiresOnArrival)
 TEST_F(HotCornerTest, FiresOncePerVisit)
 {
     controller.onPointerMoved(base::PointF(0, 0));
-    // Jitter around the corner, then back into it.
     controller.onPointerMoved(base::PointF(3, 5));
     controller.onPointerMoved(base::PointF(0, 0));
     EXPECT_EQ(performed.size(), 1u);
-    // Out of its neighbourhood and back.
     controller.onPointerMoved(base::PointF(HotCornerController::kRearmDistance + 1, 0));
     controller.onPointerMoved(base::PointF(0, 0));
     EXPECT_EQ(performed.size(), 2u);
@@ -102,7 +96,6 @@ TEST_F(HotCornerTest, ADragUsesTheVisitUp)
 {
     controller.onPointerMoved(base::PointF(0, 0), true);
     EXPECT_TRUE(performed.empty());
-    // Released in the corner: it waits for the pointer to leave first.
     controller.onPointerMoved(base::PointF(0, 0));
     EXPECT_TRUE(performed.empty());
     controller.onPointerMoved(base::PointF(HotCornerController::kRearmDistance + 1, 0));
@@ -119,7 +112,6 @@ TEST_F(HotCornerTest, ACornerWithoutAnActionDoesNothing)
 
 TEST_F(HotCornerTest, ARequiredModifierMustBeHeld)
 {
-    // Nothing is held without a seat.
     controller.setBinding(HotCorner::TopLeft, {AcceleratorAction::ToggleOverview, AltDown});
     controller.onPointerMoved(base::PointF(0, 0));
     EXPECT_TRUE(performed.empty());
@@ -129,7 +121,6 @@ TEST_F(HotCornerTest, TheCornerUnderThePointerWaitsForItToLeave)
 {
     controller.onPointerMoved(base::PointF(0, 0));
     performed.clear();
-    // An output change while the pointer rests in the corner.
     controller.setOutputs({kLeft});
     controller.onPointerMoved(base::PointF(0, 0));
     EXPECT_TRUE(performed.empty());
@@ -148,7 +139,6 @@ TEST(HotCornerSettingsTest, KeepsCornersInTheSettingsFile)
                            int(ControlDown | AltGrDown));
         settings.setCorner("nowhere", "lock-screen", 0);
         EXPECT_EQ(settings.topLeft(), "toggle-overview");
-        // AltGr is not something a corner can ask for.
         EXPECT_EQ(settings.bottomRightModifiers(), int(ControlDown));
     }
     HotCornerSettings reloaded(file);
@@ -157,7 +147,6 @@ TEST(HotCornerSettingsTest, KeepsCornersInTheSettingsFile)
     EXPECT_EQ(reloaded.binding(HotCorner::BottomRight),
               (HotCornerBinding {AcceleratorAction::LockScreen, ControlDown}));
 
-    // An unknown action turns the corner off and leaves no keys behind.
     reloaded.setCorner("top-left", "no-such-action", 0);
     EXPECT_TRUE(reloaded.topLeft().empty());
     cutefish::base::Settings raw(file);

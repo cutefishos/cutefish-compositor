@@ -15,7 +15,6 @@
 
 namespace cutefish::compositor {
 
-// One entry of an application's menu.
 struct MenuItem {
     enum class Toggle {
         None,
@@ -23,10 +22,8 @@ struct MenuItem {
         Radio,
     };
 
-    // What a submenu of a main menu is for.
     enum class Role {
         None,
-        // The application's own menu, opened from its name.
         Application,
         Windows,
         Help,
@@ -50,10 +47,8 @@ struct MenuItem {
     int32_t toggleState = -1;
     // Its entries come when it opens.
     bool hasSubmenu = false;
-    // The role of the submenu the entry opens.
     Role role = Role::None;
     std::vector<int32_t> children;
-    // A layout of its children arrived at least once.
     bool childrenLoaded = false;
 };
 
@@ -72,7 +67,6 @@ struct GtkMenuAddress {
     bool operator==(const GtkMenuAddress &) const = default;
 };
 
-// The label without its mnemonic markers.
 inline std::string plainMenuLabel(const std::string &label)
 {
     std::string text;
@@ -90,10 +84,6 @@ inline std::string plainMenuLabel(const std::string &label)
     return text;
 }
 
-// An application's menu as the menu bar shows it, from whichever channel
-// the application uses: entries by id, the root being 0, each listing its
-// children. Before a submenu shows the application is asked to bring it up
-// to date; it says when its entries arrived and when one of them changed.
 class MenuModel
 {
 public:
@@ -103,30 +93,21 @@ public:
     virtual const MenuItem *item(int32_t id) const = 0;
     const MenuItem &root() const { return *item(0); }
 
-    // Fetches the entries of `id` again.
     virtual void refresh(int32_t id) = 0;
-    // The submenu `id` opens: prepare() and opened() at once.
     void aboutToShow(int32_t id)
     {
         prepare(id);
         opened(id);
     }
-    // The submenu `id` is about to open: the application brings its entries
-    // up to date, and menuUpdated follows.
+    // The application brings its entries up to date, and menuUpdated follows.
     virtual void prepare(int32_t id) = 0;
-    // The submenu `id` is on screen.
     virtual void opened(int32_t id) = 0;
-    // The submenu `id` closed.
     virtual void closed(int32_t id) = 0;
-    // The entry was chosen.
     virtual void activate(int32_t id) = 0;
 
-    // The entries of `id` arrived, or a fetch failed; either way the menu
-    // shows what it has.
+    // Also emitted when a fetch failed.
     base::Signal<int32_t> menuUpdated;
-    // Properties of an entry changed in place.
     base::Signal<int32_t> itemChanged;
-    // The application asks for the entry to be shown, e.g. for its shortcut.
     base::Signal<int32_t> activationRequested;
 };
 

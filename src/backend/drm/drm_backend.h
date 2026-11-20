@@ -28,8 +28,6 @@ class DrmOutput;
 class DrmHotplugMonitor;
 class Session;
 
-// Owns the DRM device: discovery, KMS resources and the page-flip event source.
-// The rendering card also owns secondary scanout devices and their lifetimes.
 class DrmBackend
 {
 public:
@@ -39,18 +37,14 @@ public:
     DrmBackend(const DrmBackend &) = delete;
     DrmBackend &operator=(const DrmBackend &) = delete;
 
-    // Opens `devicePath`, or the first card supporting atomic modesetting when it
-    // is empty. Enables universal planes and atomic modesetting.
+    // An empty `devicePath` picks the first card with atomic modesetting.
     bool open(const std::string &devicePath = {});
 
-    // Builds every connected output after solving shared CRTC and plane use.
     bool createOutputs();
     bool tryNextConfigurationResources();
     bool reprobe();
     void retainFlipEvent(std::unique_ptr<DrmOutput::FlipEvent> event);
 
-    // Creates the EGL renderer on this device's GBM device and initializes
-    // every output with it.
     bool initRenderer();
     bool refreshDevices();
     std::vector<DrmOutput *> allOutputs(bool retiring = false) const;
@@ -80,8 +74,7 @@ public:
         return m_renderBackend ? m_renderBackend->renderer() : m_renderer.get();
     }
 
-    // The ioctl surface the display path uses. Valid between open() and
-    // destruction.
+    // Valid between open() and destruction.
     DrmDeviceApi *device() const;
 
     DrmOutput *primaryOutput() const
@@ -97,13 +90,9 @@ public:
         return m_retiringOutputs;
     }
 
-    // A gesture began: the frames it is about to drive should not wait for
-    // the clock to be raised.
     void expectAnimation();
 
-    // The outputs no longer match the hardware and need a reprobe.
     base::Signal<> outputsInvalidated;
-    // Emits outputsInvalidated from the loop, unless this is gone by then.
     void invalidateOutputsLater();
 
 private:
@@ -132,15 +121,12 @@ private:
     std::string m_driverName;
 
     std::unique_ptr<DrmDevice> m_device;
-    // On the rendering card when it is amdgpu: holds its clock up while the
-    // compositor draws motion of its own.
     std::unique_ptr<AmdgpuBoost> m_boost;
     gbm_device *m_gbm = nullptr;
     uint32_t m_format = 0;
 
     int m_watch = 0;
     base::Subscription m_sessionActive;
-    // A secondary device's outputsInvalidated, forwarded to the rendering card.
     base::Subscription m_forwardInvalidation;
     std::vector<base::Subscription> m_hotplugSubscriptions;
     std::shared_ptr<bool> m_alive = std::make_shared<bool>(true);

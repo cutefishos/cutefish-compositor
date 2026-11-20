@@ -29,7 +29,6 @@
 namespace {
 using Output = backend::DrmOutput;
 
-// RGBA bytes of a `size` image in one colour.
 std::vector<uint8_t> solidRgba(const base::Size &size, const std::array<uint8_t, 4> &color)
 {
     std::vector<uint8_t> pixels;
@@ -65,7 +64,6 @@ public:
     int references = 0, releases = 0;
 };
 
-// Reads back a property value a commit programmed for an object.
 uint64_t propertyValue(const backend::AtomicRequest &request, uint32_t objectId,
                        uint32_t propertyId, bool *found = nullptr)
 {
@@ -107,8 +105,7 @@ protected:
     ScopedFd outFence;
     std::chrono::steady_clock::duration clockOffset {};
     bool acquireFails = false;
-    // The first pixel every acquired buffer must have; any byte order, so a
-    // grey is the colour to expect.
+    // The first pixel every acquired buffer must have; a grey, so the byte order does not matter.
     std::optional<uint8_t> checkPixel;
     // The first pixel of the last acquired buffer, red, green and blue, while asked for.
     bool recordPixel = false;
@@ -397,8 +394,6 @@ protected:
 
 TEST_F(DrmOutputTest, ProbedCursorIsThePreviousMastersCursorPlane)
 {
-    // What the pointer takes over at startup: an image on this CRTC's cursor
-    // plane, whose position is signed, and nothing once the plane is off.
     auto config = initialConfig;
     backend::DrmPlane cursor;
     cursor.id = 12;
@@ -905,8 +900,6 @@ double slowestDrawMs(const Output &output)
     return base::strings::toDouble(*(field + 1)).value_or(0);
 }
 
-// The scheduler learns what composition takes on this GPU from every frame
-// that lands, whether a timestamp query or a fence timed it.
 TEST_F(DrmOutputTest, EachLandedFrameTellsTheSchedulerWhenItWasDrawn)
 {
     ASSERT_TRUE(drm->enable());
@@ -916,7 +909,7 @@ TEST_F(DrmOutputTest, EachLandedFrameTellsTheSchedulerWhenItWasDrawn)
         update();
         drm->scheduleFrame();
         ASSERT_TRUE(waitEvents(frame + 1));
-        // Flips come at once here; a real one lands once the GPU is done.
+        // Flips land at once here, so this waits for the GPU as a real flip would.
         glFinish();
         flip(frame, 42 + frame);
     }
@@ -925,8 +918,6 @@ TEST_F(DrmOutputTest, EachLandedFrameTellsTheSchedulerWhenItWasDrawn)
     EXPECT_GT(slowestDrawMs(*drm), 0);
 }
 
-// virtio-gpu and others have neither CTM nor gamma LUT; Ash composites a
-// colour matrix there, as the output does here over every frame.
 TEST_F(DrmOutputTest, WithoutColourPropertiesTheTintIsBlendedOverEachFrame)
 {
     auto config = initialConfig;
@@ -934,7 +925,6 @@ TEST_F(DrmOutputTest, WithoutColourPropertiesTheTintIsBlendedOverEachFrame)
     config.crtcProperties.insert("MODE_ID", 20, 0);
     config.crtcProperties.insert("ACTIVE", 21, 0);
     config.crtcProperties.insert("OUT_FENCE_PTR", 23, 0);
-    // The fixture's output drives the same CRTC.
     drm.reset();
     drm = std::make_unique<Output>(
             &device, config,
@@ -963,7 +953,6 @@ TEST_F(DrmOutputTest, WithoutColourPropertiesTheTintIsBlendedOverEachFrame)
     EXPECT_TRUE(drm->blendsColorTransform());
     ASSERT_TRUE(waitEvents(2));
     EXPECT_EQ(lastPixel, (std::array<uint8_t, 3> {204, 102, 51}));
-    // Nothing went to the CRTC for it.
     EXPECT_FALSE(propertyValue(device.commits.back().request, 7, 24));
     flip(1);
 
@@ -974,8 +963,7 @@ TEST_F(DrmOutputTest, WithoutColourPropertiesTheTintIsBlendedOverEachFrame)
     flip(2);
 }
 
-// virtio-gpu has no vblank: every flip carries sequence 0, and the mode's
-// refresh is QEMU's invention. Two such flips switch the output to 60 Hz.
+// virtio-gpu has no vblank: every flip carries sequence 0.
 TEST_F(DrmOutputTest, AnOutputWithoutVblankIsPacedAtSixtyHertz)
 {
     auto &a = update();
@@ -992,8 +980,7 @@ TEST_F(DrmOutputTest, AnOutputWithoutVblankIsPacedAtSixtyHertz)
     EXPECT_NEAR(drm->refreshRate(), 75.0, 0.01);
 }
 
-// nvidia-drm counts no vblanks either, but stamps every flip when the display
-// took it and its mode is the panel's: 60 Hz would judder on a 155 Hz display.
+// nvidia-drm counts no vblanks but stamps each flip with the time the display took it.
 TEST_F(DrmOutputTest, AnOutputWithoutVblankKeepsItsModeRateWhenFlipTimesMarkTheRefresh)
 {
     device.flipTimesMark = true;
@@ -1010,15 +997,12 @@ TEST_F(DrmOutputTest, AnOutputWithoutVblankKeepsItsModeRateWhenFlipTimesMarkTheR
     EXPECT_NEAR(drm->refreshRate(), 75.0, 0.01);
 }
 
-// A frame drawn behind a flip that missed its vblank would land a refresh
-// late, and so would every frame begun before the queue drains.
 TEST_F(DrmOutputTest, NoFrameIsDrawnBehindALateFlip)
 {
     auto &a = update();
     ASSERT_TRUE(drm->enable());
     flip(0);
     EXPECT_EQ(a.events, std::vector<char> {'p'});
-    // One flip on its way to the screen, and it misses its vblank.
     auto &b = update();
     drm->scheduleFrame();
     ASSERT_TRUE(waitEvents(2));
@@ -1028,8 +1012,6 @@ TEST_F(DrmOutputTest, NoFrameIsDrawnBehindALateFlip)
     EXPECT_EQ(events.size(), 2u);
     EXPECT_EQ(prepared, 2);
     EXPECT_TRUE(c.events.empty());
-    // Once it lands, the next frame is drawn in its own slot and lands on the
-    // following vblank.
     flip(1, 43);
     EXPECT_EQ(b.events, std::vector<char> {'p'});
     EXPECT_EQ(b.seqLo, 43u);
@@ -1044,14 +1026,8 @@ TEST_F(DrmOutputTest, NoFrameIsDrawnBehindALateFlip)
     EXPECT_EQ(pacing, 3);
 }
 
-// exo completes wl_surface.frame when viz acks the frame it drew
-// (Display::DrawAndSwap -> RunDrawCallbacks), not when the flip lands. Held
-// for the flip, a client whose frame was queued behind another waited two
-// refreshes for its next one.
 TEST_F(DrmOutputTest, FrameCallbacksCompleteWhenTheFrameIsDrawnNotWhenItLands)
 {
-    // The fixture's bare display has no Server to send wl_callback.done
-    // through, so the callback is taken where the protocol hands it over.
     const auto requestFrame = [&](int &done) {
         compositor.surfaces().front()->requestFrameCallback(
                 [&done](std::optional<uint32_t> time) {
@@ -1067,8 +1043,6 @@ TEST_F(DrmOutputTest, FrameCallbacksCompleteWhenTheFrameIsDrawnNotWhenItLands)
     drm->scheduleFrame();
     ASSERT_TRUE(waitEvents(2));
     EXPECT_EQ(first, 1);
-    // The next frame, drawn once that flip lands, completes it before its own
-    // flip does.
     int second = 0;
     requestFrame(second);
     update();
@@ -1092,8 +1066,6 @@ TEST_F(DrmOutputTest, ALostFlipEventStopsHoldingLaterFrames)
     auto &b = update();
     drm->scheduleFrame();
     ASSERT_TRUE(waitEvents(2));
-    // B's event never arrives. C is drawn behind it and waits, until the
-    // output gives up on B and commits C.
     auto &c = update();
     drm->scheduleFrame();
     ASSERT_TRUE(waitEvents(3));
@@ -1104,7 +1076,6 @@ TEST_F(DrmOutputTest, ALostFlipEventStopsHoldingLaterFrames)
     flip(2, 44);
     EXPECT_EQ(c.events, std::vector<char> {'p'});
     EXPECT_EQ(c.seqLo, 44u);
-    // B's event arriving late completes nothing twice.
     flip(1, 43);
     EXPECT_EQ(b.events, std::vector<char> {'d'});
     EXPECT_EQ(pacing, 3);
@@ -1124,7 +1095,6 @@ TEST_F(DrmOutputTest, AFrameWithNothingToDrawBeginsButIsNeitherDrawnNorFlipped)
     update();
     ASSERT_TRUE(drm->enable());
     flip(0);
-    // Enabled, the output still owes the screen a frame of its own.
     drm->scheduleFrame();
     ASSERT_TRUE(waitEvents(2));
     flip(1);
@@ -1140,15 +1110,11 @@ TEST_F(DrmOutputTest, AFrameWithNothingToDrawBeginsButIsNeitherDrawnNorFlipped)
     ASSERT_TRUE(waitEvents(3));
     EXPECT_GT(begun.back(), begun.front());
     flip(2);
-    // A frame committed under another policy is drawn with or without damage.
     needed = false;
     drm->setSecureScanout(true);
     ASSERT_TRUE(waitEvents(4));
 }
 
-// What holds the GPU clock up: frames begun after the compositor changed what
-// it draws itself, and drawn. Demand alone, as a client's commit raises, does
-// not count, nor does a change that leaves nothing to draw.
 TEST_F(DrmOutputTest, OnlyDrawnFramesAfterACompositorChangeAreCounted)
 {
     int counted = 0;
@@ -1171,7 +1137,6 @@ TEST_F(DrmOutputTest, OnlyDrawnFramesAfterACompositorChangeAreCounted)
     ASSERT_TRUE(waitEvents(3));
     flip(2);
     EXPECT_EQ(counted, 1);
-    // The change is answered by the frame begun after it, drawn or not.
     needed = false;
     drm->noteCompositorChange();
     drm->scheduleFrame();
@@ -1183,8 +1148,6 @@ TEST_F(DrmOutputTest, OnlyDrawnFramesAfterACompositorChangeAreCounted)
     EXPECT_EQ(counted, 1);
 }
 
-// The night light tints through the CRTC: a flip carries the tint when nothing
-// on screen changed, and an output that wakes up modesets with it in place.
 TEST_F(DrmOutputTest, ATintFlipsWithNothingNewToDrawAndSurvivesAWake)
 {
     drm->setBeginFrameCallback([](double) {
@@ -1206,7 +1169,6 @@ TEST_F(DrmOutputTest, ATintFlipsWithNothingNewToDrawAndSurvivesAWake)
     EXPECT_NE(blob, 0u);
     flip(1);
 
-    // The same tint again asks for nothing.
     const size_t commits = device.commits.size();
     drm->setColorTransform({1.0f, 0.75f, 0.5f});
     settle();
@@ -1226,7 +1188,6 @@ TEST_F(DrmOutputTest, ATintFlipsWithNothingNewToDrawAndSurvivesAWake)
 
 TEST_F(DrmOutputTest, DisablingDiscardsTheQueuedFrameAndReleasesItsBuffer)
 {
-    // Only flips without a vblank stamp leave a frame queued behind another.
     update();
     ASSERT_TRUE(drm->enable());
     flip(0, 0);
@@ -1248,14 +1209,10 @@ TEST_F(DrmOutputTest, DisablingDiscardsTheQueuedFrameAndReleasesItsBuffer)
     active = false;
     drm->disable();
     EXPECT_EQ(discarded, (std::vector<uint64_t> {events[2].frame, events[2].frame + 1}));
-    // Once discarded, a frame owes nothing more.
     drm->disable();
     EXPECT_EQ(discarded.size(), 2u);
     connection.reset();
     EXPECT_EQ(events.size(), 3u);
-    // Only the queued frame's buffer is free; the flipped ones are retained
-    // until a modeset replaces them. Its content never reached the device, so
-    // its feedback stays pending for a later frame rather than being discarded.
     EXPECT_EQ(released, 2);
     ASSERT_GE(roundtrip(), 0);
     EXPECT_TRUE(c.events.empty());
@@ -1540,8 +1497,6 @@ TEST_F(DrmOutputTest, ElapsedTimeAndStaleEventsCannotPresentOrRetirePendingConte
     Output::dispatchPageFlip({drm->weakPtr(), events.front().frame + 100}, 123, 456789, 42);
     ASSERT_GE(roundtrip(), 0);
     EXPECT_TRUE(a.events.empty());
-    // The blocking modeset is on screen, so the next frame flips behind it
-    // without waiting for its event.
     EXPECT_EQ(events.size(), 2u);
     EXPECT_EQ(released, 0);
     EXPECT_EQ(pacing, 0);
@@ -1686,9 +1641,6 @@ TEST_F(DrmOutputTest, RetirementThatKeepsItsRouteLeavesTheFrameOnScreen)
     ASSERT_TRUE(drm->enable());
     const auto commits = device.commits.size();
     const int before = released;
-    // The replacement drives the same connector from the same CRTC, and its
-    // first commit replaces this frame; turning the route off in between would
-    // be a black frame and, on a panel, a power cycle.
     EXPECT_TRUE(drm->retireForReprobe(true, true));
     EXPECT_EQ(device.commits.size(), commits);
     EXPECT_GT(released, before);
@@ -1707,7 +1659,6 @@ TEST_F(DrmOutputTest, RetirementThatKeepsItsRouteStillTurnsOffAClientBuffer)
     flip(1, 43);
     ASSERT_EQ(drm->directScanoutFrames(), 1u);
     const auto commits = device.realCommitCount();
-    // The client gets its buffer back only once KMS has stopped reading it.
     EXPECT_TRUE(drm->retireForReprobe(true, true));
     ASSERT_EQ(device.realCommitCount(), commits + 1);
     bool found = false;
@@ -1753,7 +1704,6 @@ TEST_F(DrmOutputTest, ModesetBufferCarriesOverTheFrameTheCrtcShows)
     device.crtcFramebuffer = [&](uint32_t, render::DmaBufAttributes *attributes) {
         return shown({16, 16}, attributes);
     };
-    // A test commit leaves the screen alone, so it has nothing to carry over.
     ASSERT_TRUE(Output::configure({{drm.get(), drm->mode(), true}}, true));
     EXPECT_TRUE(device.exportedCrtcs.empty());
     checkPixel = 0x80;
@@ -1762,7 +1712,6 @@ TEST_F(DrmOutputTest, ModesetBufferCarriesOverTheFrameTheCrtcShows)
     EXPECT_TRUE(drm->isEnabled());
     EXPECT_FALSE(drm->takeCarriedFrame());
 
-    // Kept for the startup cover, the copy outlives the modeset buffer.
     drm->setKeepCarriedFrame(true);
     ASSERT_TRUE(Output::configure({{drm.get(), drm->mode(), true}}, false));
     const auto carried = drm->takeCarriedFrame();
@@ -1771,7 +1720,6 @@ TEST_F(DrmOutputTest, ModesetBufferCarriesOverTheFrameTheCrtcShows)
     EXPECT_FALSE(drm->takeCarriedFrame());
     drm->setKeepCarriedFrame(false);
 
-    // The login screen is blocked from its first frame, yet carries over too.
     drm->setSecureScanout(true);
     drm->setCarryOverWhileSecure(true);
     ASSERT_TRUE(Output::configure({{drm.get(), drm->mode(), true}}, false));
@@ -1780,7 +1728,6 @@ TEST_F(DrmOutputTest, ModesetBufferCarriesOverTheFrameTheCrtcShows)
     drm->setCarryOverWhileSecure(false);
     device.exportedCrtcs.clear();
 
-    // A frame of another size, as a mode change leaves it, is not stretched.
     device.crtcFramebuffer = [&](uint32_t, render::DmaBufAttributes *attributes) {
         return shown({8, 8}, attributes);
     };
@@ -1797,7 +1744,6 @@ TEST_F(DrmOutputTest, ModesetOfABlockedOrBlankedOutputStaysBlack)
         return false;
     };
     checkPixel = 0;
-    // A blocked session cannot present a frame it did not compose as secure.
     drm->setSecureScanout(true);
     ASSERT_TRUE(Output::configure({{drm.get(), drm->mode(), true}}, false));
     EXPECT_TRUE(drm->lastPresentedFrameWasSecure());
@@ -1981,7 +1927,6 @@ TEST_F(DrmOutputTest, ScreenshotForcesCompositionUntilPresentedThenResumesStatic
     flip(2);
     EXPECT_TRUE(clientState.ready);
     EXPECT_FALSE(clientState.failed);
-    // The pixels are the client's to read once the frame is ready.
     for (int y = 0; y < 16; ++y)
         for (int x = 0; x < 16; ++x)
             {
@@ -2012,8 +1957,6 @@ TEST_F(DrmOutputTest, ScreenshotForcesCompositionUntilPresentedThenResumesStatic
     munmap(pixels, 1024);
 }
 
-// --- Session lock: the KMS state behind the secure shield ---------------------
-
 TEST_F(DrmOutputTest, SecureScanoutStopsPromotionAndDisablesTheApplicationPlane)
 {
     update();
@@ -2027,23 +1970,17 @@ TEST_F(DrmOutputTest, SecureScanoutStopsPromotionAndDisablesTheApplicationPlane)
     ASSERT_EQ(drm->directScanoutFrames(), 1u);
     EXPECT_TRUE(drm->lastPresentedFrameWasSecure() == false);
 
-    // Locking. The client buffer is on the primary plane right now, so the very
-    // next commit has to replace it rather than draw the shield somewhere above.
     drm->setSecureScanout(true);
     EXPECT_FALSE(drm->lastPresentedFrameWasSecure());
     drm->scheduleFrame();
     ASSERT_TRUE(waitEvents(3));
 
-    // Composited, not promoted: the planner is not consulted at all.
     EXPECT_EQ(drm->directScanoutFrames(), 1u);
     const auto &request = device.commits.back().request;
-    // The overlay plane the config declares is explicitly cleared, whether or
-    // not this output ever programmed it.
     bool found = false;
     EXPECT_EQ(propertyValue(request, 11, 1, &found), 0u);
     EXPECT_TRUE(found) << "the overlay plane was not programmed off";
 
-    // Not secure until the frame is actually on screen.
     EXPECT_FALSE(drm->lastPresentedFrameWasSecure());
     flip(2, 44);
     EXPECT_TRUE(drm->lastPresentedFrameWasSecure());
@@ -2061,7 +1998,6 @@ TEST_F(DrmOutputTest, AFrameDrawnMidLockTransitionIsNotSecure)
         return settled;
     });
 
-    // The lock screen is still fading in over the desktop in this frame.
     drm->setSecureScanout(true);
     drm->scheduleFrame();
     ASSERT_TRUE(waitEvents(2));
@@ -2089,7 +2025,6 @@ TEST_F(DrmOutputTest, AFrameInFlightWhenATransitionStartsDoesNotCompleteIt)
     flip(1, 43);
     ASSERT_TRUE(drm->lastPresentedFrameWasSecure());
 
-    // Locked: the panel redraws, and the unlock begins before that frame lands.
     update();
     drm->scheduleFrame();
     ASSERT_TRUE(waitEvents(3));
@@ -2106,8 +2041,6 @@ TEST_F(DrmOutputTest, SecurePresentationIsWithdrawnUntilTheNextFrameLands)
     ASSERT_TRUE(drm->enable());
     ASSERT_TRUE(drm->lastPresentedFrameWasSecure());
 
-    // Unlocking: the policy changed, so what is on screen no longer counts even
-    // though the pixels have not moved.
     drm->setSecureScanout(false);
     EXPECT_FALSE(drm->lastPresentedFrameWasSecure());
 }
@@ -2119,8 +2052,6 @@ TEST_F(DrmOutputTest, ADarkOutputNeverHoldsTheSecureBarrierOpen)
     flip(0);
     drm->setSecureScanout(true);
 
-    // DPMS off. The output produces no frames, so treating it as "not yet
-    // secure" would leave a lock waiting forever.
     ASSERT_TRUE(Output::configure({{drm.get(), drm->mode(), false}}, false));
     ASSERT_FALSE(drm->isEnabled());
     EXPECT_TRUE(drm->lastPresentedFrameWasSecure());
@@ -2147,9 +2078,6 @@ TEST_F(DrmOutputTest, DpmsWakeWhileLockedComesBackSecureFromItsFirstFrame)
     ASSERT_TRUE(drm->isEnabled());
     ASSERT_GT(device.commits.size(), before);
 
-    // The modeset that brings the output back is itself a secure frame: it
-    // composites and clears the overlay, so not one frame of the old session's
-    // direct scanout can come back with the display.
     EXPECT_EQ(drm->directScanoutFrames(), 1u);
     bool found = false;
     EXPECT_EQ(propertyValue(device.commits.back().request, 11, 1, &found), 0u);

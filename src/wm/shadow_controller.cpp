@@ -26,8 +26,6 @@ ShadowController::ShadowController(WindowManager* manager, ShadowProvider* provi
     m_windowRemoved = m_manager->windowRemoved.connect([this](Window* window) {
         onWindowRemoved(window);
     });
-    // Windows that already exist: upstream walks aura::Env's window list for
-    // the same reason.
     for (Window* window : m_manager->windows())
         onWindowAdded(window);
 }
@@ -54,8 +52,6 @@ ShadowElevation ShadowController::elevationForWindow(const Window* window) const
 
 void ShadowController::onWindowAdded(Window* window)
 {
-    // Only a window with a shadow is observed: m_shadows is what the
-    // controller unregisters from again.
     if (!window || m_shadows.count(window) || !createShadowForWindow(window))
         return;
     window->addObserver(this);
@@ -64,9 +60,7 @@ void ShadowController::onWindowAdded(Window* window)
 
 void ShadowController::onWindowRemoved(Window* window)
 {
-    // windowRemoved is emitted while the window - and with it its scene node,
-    // which owns the shadow's node - is still alive. Nothing may wait for
-    // onWindowDestroying: by then the node tree has already been torn down.
+    // The window's scene node still lives here, but not by onWindowDestroying.
     const auto it = m_shadows.find(window);
     if (it == m_shadows.end())
         return;
@@ -92,9 +86,6 @@ void ShadowController::handlePossibleShadowVisibilityChange(Window* window)
     WindowShadow* shadow = shadowForWindow(window);
     if (!shadow)
         return;
-    // The shadow object outlives every elevation change; None hides it. That
-    // keeps its scene node - and its place at the bottom of the window - stable
-    // across maximize/restore, which is what upstream's kNone does to the layer.
     shadow->setContentBounds(window->bounds());
     shadow->setElevation(elevationForWindow(window));
 }
@@ -136,8 +127,7 @@ void ShadowController::onWindowClientDecorationChanged(Window* window)
 
 void ShadowController::onWindowFrameChanged(Window* window)
 {
-    // A frame added after the window was mapped puts its own node at the bottom
-    // of the window; the shadow has to go back under it.
+    // A frame added after mapping goes to the bottom of the window, so the shadow follows.
     if (WindowShadow* shadow = shadowForWindow(window))
         shadow->stackAtBottom();
     handlePossibleShadowVisibilityChange(window);

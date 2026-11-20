@@ -4,9 +4,6 @@
 //
 // Upstream: chromium/src/ui/ozone/platform/drm/gpu/page_flip_request.cc
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// What is taken: matched completion, kernel time, fixed interval and hardware
-// flags.
 #pragma once
 
 #include <map>
@@ -57,7 +54,6 @@ public:
             submission.submission.complete({});
     }
 
-    // Resolves one accepted submission as never presented.
     void abandon(uint64_t token)
     {
         if (auto entry = m_pending.extract(token))

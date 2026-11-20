@@ -21,25 +21,19 @@ struct CursorImage {
     base::Point hotspot;
 };
 
-// Somewhere the cursor can be shown without compositing it, normally a KMS
-// cursor plane.
-//
-// Every method may fail or be unavailable; the cursor then goes back into the
-// scene, which is always correct and only costs a repaint per motion event.
+// Every method may fail; the cursor then goes back into the scene.
 class CursorSink
 {
 public:
     virtual ~CursorSink() = default;
 
-    // Returns false when the sink cannot show this image - too large, no
-    // cursor plane, a driver rejection - and the caller must composite it.
+    // False when the sink cannot show this image; the caller must composite it.
     virtual bool setCursorImage(const CursorImage& image) = 0;
 
     virtual void hideCursor() = 0;
 
-    // Where the hotspot lands: in logical desktop coordinates for the cursor's
-    // own sink, which maps them onto each output, and in output pixels for an
-    // output. Fractions are kept until the output rounds them.
+    // Logical desktop coordinates for the cursor's own sink, output pixels for
+    // an output.
     virtual void moveCursor(const base::PointF& position) = 0;
 };
 

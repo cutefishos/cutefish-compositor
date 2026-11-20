@@ -11,18 +11,7 @@
 
 namespace cutefish::wm::overview {
 
-// The overview's arrangement of one output's windows: in rows, as few as give
-// the largest windows, filled top to bottom by the windows' vertical centres
-// and each ordered left to right by their horizontal ones, so the windows keep
-// roughly to where they are. A smaller window takes more room in its row than
-// its size, by the fourth root of how much smaller its area is than the
-// largest one's. The
-// rows are scaled together to fit `area`, never enlarging a window, and
-// centred; each window then grows on its own into the room left around it,
-// keeping its shape and never past its own size. At least `gap` logical pixels
-// stay between any two windows. Rectangles land on whole pixels of an output
-// at `deviceScale`.
-//
+// `gap` is in logical pixels; rectangles land on whole pixels at `deviceScale`.
 // The same windows in the same order always give the same arrangement.
 std::vector<base::RectF> spreadLayout(const std::vector<base::Rect> &windows, const base::Rect &area, int gap,
                                  double deviceScale);

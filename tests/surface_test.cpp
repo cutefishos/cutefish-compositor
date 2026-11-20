@@ -116,8 +116,6 @@ TEST_F(SurfaceTest, BufferDamageIsMappedThroughScale)
 
 TEST_F(SurfaceTest, AClientScaleActsAsAnImplicitViewport)
 {
-    // Xwayland at scale 1.5: a 300x150 buffer is 200x100 logical units, and
-    // buffer damage maps through that.
     m_surface->attach(makeBuffer(base::Size(300, 150)), base::Point());
     m_surface->setClientScale(1.5);
     m_surface->damageBuffer(base::Rect(30, 15, 60, 30));
@@ -141,7 +139,6 @@ TEST_F(SurfaceTest, BufferDamageIsMappedThroughTransform)
     std::shared_ptr<ShmBuffer> buffer = makeBuffer(base::Size(40, 20));
     m_surface->attach(buffer, base::Point());
     m_surface->setBufferTransform(Transform::Rotate90);
-    // A 90 degree rotation swaps the axes: a 40x20 buffer is a 20x40 surface.
     m_surface->damageBuffer(base::Rect(0, 0, 10, 5));
     m_surface->commit();
 
@@ -190,7 +187,6 @@ TEST_F(SurfaceTest, CommitWithoutAttachKeepsTheBuffer)
     m_surface->attach(buffer, base::Point());
     m_surface->commit();
 
-    // An unrelated commit must not drop the attached buffer.
     m_surface->setBufferScale(1);
     m_surface->commit();
     EXPECT_EQ(buffer, m_surface->buffer());
@@ -269,7 +265,6 @@ TEST_F(SurfaceTest, DamageDoesNotReadReleasedShmStorage)
     ASSERT_TRUE(m_surface->updateTexture(m_renderer));
     ASSERT_TRUE(*released);
 
-    // Released storage may contain an unfinished frame that has not been attached.
     pixels.assign(pixels.size(), 192);
     ASSERT_EQ(pwrite(fd, pixels.data(), pixels.size(), 0), ssize_t(pixels.size()));
     for (bool bufferDamage : {false, true}) {
@@ -302,7 +297,6 @@ TEST_F(SurfaceTest, RegionsAreCopiedAndPendingUntilCommit)
     EXPECT_TRUE(m_surface->opaqueRegion().isEmpty());
     EXPECT_FALSE(m_surface->inputRegion().has_value());
 
-    // Mutating the caller's region after the request must not be visible.
     opaque += base::Rect(100, 100, 10, 10);
 
     m_surface->commit();
@@ -318,18 +312,15 @@ TEST_F(SurfaceTest, FullyOpaqueNeedsTheWholeContentCovered)
     m_surface->commit();
     EXPECT_FALSE(m_surface->isFullyOpaque());
 
-    // A partial rectangle overlaps the content without covering it.
     m_surface->setOpaqueRegion(base::Region(base::Rect(0, 0, 10, 10)));
     m_surface->commit();
     EXPECT_FALSE(m_surface->isFullyOpaque());
 
-    // Several rectangles that tile the content do cover it.
     m_surface->setOpaqueRegion(base::Region(base::Rect(0, 0, 64, 16))
                                + base::Region(base::Rect(0, 16, 64, 16)));
     m_surface->commit();
     EXPECT_TRUE(m_surface->isFullyOpaque());
 
-    // A hole anywhere breaks it again; so does leaving a corner out.
     m_surface->setOpaqueRegion(base::Region(base::Rect(0, 0, 64, 32))
                                - base::Region(base::Rect(30, 14, 4, 4)));
     m_surface->commit();
@@ -339,7 +330,6 @@ TEST_F(SurfaceTest, FullyOpaqueNeedsTheWholeContentCovered)
     m_surface->commit();
     EXPECT_FALSE(m_surface->isFullyOpaque());
 
-    // A region larger than the content is fine.
     m_surface->setOpaqueRegion(base::Region(base::Rect(-10, -10, 200, 200)));
     m_surface->commit();
     EXPECT_TRUE(m_surface->isFullyOpaque());
@@ -401,7 +391,6 @@ TEST_F(SurfaceTest, FrameCallbacksBelongToTheCommitThatFollowsThem)
     EXPECT_EQ(1u, m_surface->committedFrameCallbackCount());
     EXPECT_TRUE(m_fired.empty()) << "commit must not fire frame callbacks";
 
-    // A callback requested after the commit waits for the next one.
     m_surface->requestFrameCallback(record);
     EXPECT_EQ(1u, m_surface->pendingFrameCallbackCount());
     EXPECT_EQ(1u, m_surface->committedFrameCallbackCount());
@@ -425,7 +414,6 @@ TEST_F(SurfaceTest, FrameCallbacksFireOnPresentation)
     EXPECT_EQ(4242u, *m_fired[0]);
     EXPECT_EQ(0u, m_surface->inFlightFrameCallbackCount());
 
-    // Presenting again fires nothing.
     m_surface->frameDrawn(5000);
     EXPECT_EQ(1u, m_fired.size());
 }
@@ -525,7 +513,6 @@ TEST_F(SurfaceTest, OnlyWhatChangedInTheBufferIsUploaded)
     ASSERT_TRUE(m_surface->updateTexture(m_renderer));
     EXPECT_EQ(m_renderer.lastUploadDamage, base::Region(base::Rect(1, 2, 3, 4)));
 
-    // Commits between two uploads add up.
     m_surface->attach(a, base::Point());
     m_surface->damage(base::Rect(0, 0, 1, 1));
     m_surface->commit();
@@ -535,8 +522,6 @@ TEST_F(SurfaceTest, OnlyWhatChangedInTheBufferIsUploaded)
     ASSERT_TRUE(m_surface->updateTexture(m_renderer));
     EXPECT_EQ(m_renderer.lastUploadDamage, base::Region(base::Rect(0, 0, 1, 1)) + base::Rect(10, 10, 2, 2));
 
-    // A new mapping cannot be told from new content; after it, surface damage
-    // is taken through the buffer scale.
     m_surface->attach(a, base::Point());
     m_surface->setBufferScale(2);
     m_surface->damage(base::Rect(0, 0, 1, 1));
@@ -549,7 +534,6 @@ TEST_F(SurfaceTest, OnlyWhatChangedInTheBufferIsUploaded)
     ASSERT_TRUE(m_surface->updateTexture(m_renderer));
     EXPECT_EQ(m_renderer.lastUploadDamage, base::Region(base::Rect(6, 6, 2, 2)));
 
-    // Undamaged, the new buffer holds what the texture has.
     m_surface->attach(a, base::Point());
     m_surface->commit();
     ASSERT_TRUE(m_surface->updateTexture(m_renderer));
@@ -568,13 +552,11 @@ TEST_F(SurfaceTest, TheTextureIsUploadedOnlyWhenTheContentsChanged)
     EXPECT_FALSE(m_surface->updateTexture(m_renderer));
     EXPECT_EQ(1, m_renderer.createdTextures);
 
-    // The same geometry and format re-uses the texture rather than making one.
     m_surface->attach(buffer, base::Point());
     m_surface->commit();
     EXPECT_TRUE(m_surface->updateTexture(m_renderer));
     EXPECT_EQ(1, m_renderer.createdTextures);
 
-    // A different size needs a new texture.
     std::shared_ptr<ShmBuffer> smaller = makeBuffer(base::Size(8, 8));
     m_surface->attach(smaller, base::Point());
     m_surface->commit();
@@ -598,7 +580,6 @@ TEST_F(SurfaceTest, SurfacesRegisterWithTheCompositor)
     EXPECT_EQ(1u, m_compositor.surfaces().size());
     std::unique_ptr<Surface> second = m_compositor.createSurface();
     EXPECT_EQ(2u, m_compositor.surfaces().size());
-    // Without a window manager, surfaces are cascaded rather than stacked.
     EXPECT_NE(m_surface->position(), second->position());
 
     second.reset();
@@ -612,7 +593,6 @@ TEST_F(SurfaceTest, DestroyAttachedBuffer)
     m_surface->commit();
     ASSERT_TRUE(m_surface->updateTexture(m_renderer));
 
-    // The content keeps its size after the client destroys the buffer.
     buffer.reset();
     m_surface->commit();
     m_surface->updateTexture(m_renderer);
@@ -672,9 +652,6 @@ private:
     Surface *m_surface;
 };
 
-// Exo's ObserversNotCalledWhenDestroying and NoOcclusionUpdateOnDestroyingSurface:
-// tearing down a parent detaches its children, and that must not reach the
-// parent's observers as anything but its destruction.
 TEST_F(SurfaceTest, ObserversNotCalledWhenDestroying)
 {
     std::shared_ptr<ShmBuffer> buffer = makeBuffer(base::Size(16, 16));
@@ -693,7 +670,6 @@ TEST_F(SurfaceTest, ObserversNotCalledWhenDestroying)
     EXPECT_EQ(0, parentObserver.others);
     EXPECT_EQ(0, childObserver.destroying);
 
-    // The orphaned child is unmapped but stays a usable surface.
     EXPECT_FALSE(child->isMapped());
     child->commit();
     sub.reset();
@@ -701,9 +677,6 @@ TEST_F(SurfaceTest, ObserversNotCalledWhenDestroying)
     EXPECT_EQ(1, childObserver.destroying);
 }
 
-// Exo's BufferTest.ProduceTransferableResourceFailure: a texture that cannot
-// be created leaves the surface showing nothing, lets the client have its
-// buffer back, and the next commit tries again.
 TEST_F(SurfaceTest, TextureCreationFailureShowsNothingAndRecovers)
 {
     std::shared_ptr<ShmBuffer> buffer = makeBuffer(base::Size(32, 16));

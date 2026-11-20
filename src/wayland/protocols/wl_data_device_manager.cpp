@@ -4,9 +4,6 @@
 //
 // Upstream: chromium/src/components/exo/wayland/wl_data_device_manager.cc
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: keeps the resource and event ordering and the fd
-// marshalling, without the Chromium clipboard backend.
 #include "wayland/protocols/wl_data_device_manager.h"
 
 #include <algorithm>
@@ -449,10 +446,8 @@ void setSelection(wl_client* client, wl_resource* resource, wl_resource* sourceR
     auto source = getSource(client, sourceResource);
     if (sourceResource && !source)
         return;
-    // GTK clients can repeat set_selection while a source is being retired
-    // (for example around SAVE_TARGETS). used_source is optional here: ignore
-    // the repeat rather than disconnecting Firefox. Never revive a retired
-    // source or change the selection in response to one.
+    // GTK clients can repeat set_selection while a source is being retired; ignore the repeat
+    // rather than disconnecting the client.
     if (source && (source->used() || !source->alive()))
         return;
     if (source && (source->actionsSet || source->dragOnly)) {
@@ -460,9 +455,8 @@ void setSelection(wl_client* client, wl_resource* resource, wl_resource* sourceR
                                "drag source cannot be a selection");
         return;
     }
-    // Security policy refusal is not a protocol error. The source is cancelled,
-    // so the client knows the selection is not its own and keeps following
-    // the selection events.
+    // A security policy refusal is not a protocol error: the source is cancelled, so the client
+    // keeps following the selection events.
     if (!device->controller || !device->controller->authorize(client, serial)) {
         if (source)
             source->cancel();

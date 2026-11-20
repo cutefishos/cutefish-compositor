@@ -20,16 +20,10 @@ class BatteryStatus;
 
 namespace cutefish::shell {
 
-// The menu bar's battery: the framework's BatteryStatus, the icon for its
-// level, and whether the percentage shows (MenuBar/BatteryPercentage in
-// shell.conf).
 class Battery
 {
 public:
-    // `path` is shell.conf.
     Battery(std::shared_ptr<upower::BatteryStatus> status, std::string path);
-    // cutefish-services starts after the compositor and is not activatable:
-    // each time it gets an owner the status is read anew from `make`.
     void followService(base::dbus::Connection *sessionBus,
                        std::function<std::shared_ptr<upower::BatteryStatus>()> make);
     ~Battery();
@@ -41,8 +35,7 @@ public:
     int chargePercent() const;
     const std::string &statusString() const;
 
-    // battery-level-<0..100 in tens>[-charging][-saver]-symbolic.svg, as the
-    // bar's images are named; -saver has a yellow level and no empty battery.
+    // Named battery-level-<0..100 in tens>[-charging][-saver]-symbolic.svg.
     std::string iconSource(bool powerSaver) const;
     static std::string iconSource(int percent, bool onBattery, bool powerSaver = false);
 

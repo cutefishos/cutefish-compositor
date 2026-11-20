@@ -123,7 +123,6 @@ void Controller::checkSettles()
     for (auto it = m_settles.begin(); it != m_settles.end();) {
         if (!read)
             it->readSince = time;
-        // Once a client reads its input, it gets the quiet time to draw.
         const input::Timestamp quietSince =
                 m_lastDrawn ? std::max(it->readSince, *m_lastDrawn) : it->readSince;
         const bool settled = time - quietSince >= kSettleQuiet;
@@ -241,7 +240,6 @@ void Controller::realInput()
 {
     if (m_injecting)
         return;
-    // RemoteInputFilter::LocalInputDetected: block, and let go of everything.
     m_lastRealInput = now();
     if (m_current && m_current->m_state == Control::State::Granted)
         releaseAll(m_current);
@@ -417,10 +415,8 @@ void Control::typeText(const std::string &text)
         }))
         return;
 
-    // Key strokes reach the client on wl_keyboard and commits on text-input,
-    // which toolkits apply out of order (a commit overtakes queued keys), so a
-    // string goes one way only. While an input method composes, keys would be
-    // its input rather than text, so it is committed.
+    // Toolkits apply text-input commits out of order with queued wl_keyboard keys, so a
+    // string goes one way only. While an input method composes, it is committed.
     const bool composing =
             environment.inputMethodGrabsKeyboard && environment.inputMethodGrabsKeyboard();
     const input::XkbTracker *keymap = controller->m_input->seat()->xkbTracker();

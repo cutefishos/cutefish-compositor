@@ -303,7 +303,6 @@ void PipeWireCapture::removeGlobal(uint32_t id)
 
 void PipeWireCapture::scheduleUpdate()
 {
-    // A stream starting brings its node, links and state in one burst.
     if (m_updatePending)
         return;
     m_updatePending = true;
@@ -323,8 +322,6 @@ void PipeWireCapture::update()
         const Properties &properties = stream->properties;
         if (!valueOf(properties, PW_KEY_MEDIA_CLASS).starts_with("Stream/Input/"))
             continue;
-        // Our own level meters, peak meters, and the loopback and filter
-        // plumbing that a real capture stream already stands for.
         if (valueOf(properties, PW_KEY_NODE_NAME).starts_with("cutefish.internal.")
             || valueOf(properties, PW_KEY_STREAM_MONITOR) == "true" || properties.count(PW_KEY_NODE_LINK_GROUP))
             continue;
@@ -497,7 +494,6 @@ void VideoDeviceWatch::scan()
         std::string name;
         std::ifstream comm(m_processDirectory + '/' + process->d_name + "/comm");
         std::getline(comm, name);
-        // PipeWire holds the devices it serves; its graph names the clients.
         if (name == "pipewire" || name == "wireplumber")
             continue;
         uses.push_back({DeviceUse::Camera, pid, {}, name});

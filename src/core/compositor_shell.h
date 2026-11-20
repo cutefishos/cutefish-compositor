@@ -124,11 +124,8 @@ class XwaylandServer;
 
 namespace core {
 
-// Everything the compositor process owns, in one place. Modelled on ash::Shell:
-// members are constructed in declaration order and torn down in reverse, so the
-// header's ordering is the lifetime contract. "Shell" here is Ash's sense - the
-// container for the process's subsystems - not the Cutefish shell UI, which is
-// one of those subsystems (m_shell).
+// Members are constructed in declaration order and destroyed in reverse, so the
+// order is the lifetime contract.
 class CompositorShell : private decoration::ThemeObserver, private input::SeatObserver
 {
 public:
@@ -137,20 +134,16 @@ public:
     CompositorShell &operator=(const CompositorShell &) = delete;
     ~CompositorShell();
 
-    // Brings up every subsystem. False means the process cannot continue; the
-    // reason has already been logged.
+    // False is fatal; the reason has already been logged.
     bool init();
 
-    // Stops accepting clients ahead of the event loop returning.
     void stop();
 
     std::string socketName() const;
 
-    // Tells the session the compositor is up, closing the descriptor it passed.
     bool notifyReady();
 
 private:
-    // The outline pair lives in the window manager's style, not the frame.
     void onThemeChanged() override;
 
     bool initWayland();
@@ -162,7 +155,6 @@ private:
     bool initDisplay();
     void initXwayland();
     void initShell();
-    // ShellEnvironment::shortcutText.
     std::string shortcutText(const std::string &key, uint32_t modifiers, bool activeWindow);
     shell::ScreenCaptureServices screenCaptureServices(shell::DockWindow *dockWindow, shell::Wallpaper *wallpaper);
     std::vector<compositor::Output *> outputModels() const;
@@ -171,15 +163,11 @@ private:
     void releaseCursor();
     void applyScale();
 
-    // Node changes arrive many times per frame; what clients are told about
-    // output membership and scale is derived from the whole scene, so it is
-    // recomputed once per event-loop turn, after every pending mutation.
+    // Recomputed once per event-loop turn, after every pending scene mutation.
     void scheduleSceneSync();
     void syncSceneToClients();
 
-    // Keeps the DRM secure-scanout policy in step with the session state. It has
-    // to run before the transition's first frame, which is why it is an observer
-    // of the state change rather than a check inside the frame path.
+    // Must run before the transition's first frame, so it observes the state change.
     class SecureScanoutPolicy : public session::SessionObserver
     {
     public:
@@ -216,8 +204,7 @@ private:
 
     const CompositorOptions m_options;
 
-    // Declared first so they outlive everything holding GL resources; the
-    // destructor still releases them explicitly and in order.
+    // Declared first so they outlive everything holding GL resources.
     std::unique_ptr<backend::LibseatSession> m_session;
     std::unique_ptr<backend::DrmBackend> m_backend;
     std::unique_ptr<backend::LibinputBackend> m_inputBackend;
@@ -227,24 +214,17 @@ private:
     std::unique_ptr<display::ipc::DisplayConfigService> m_displayService;
 
     scene::Scene m_scene;
-    // Separate containers so the cursor always composites above every surface
-    // without having to be re-raised whenever a client maps something.
     scene::Node *m_surfaceContainer = nullptr;
-    // Input-method candidates belong to the focused text field, above every
-    // window and its popups, but still below the lock screen.
+    // Above every window and its popups, below the lock screen.
     scene::Node *m_inputMethodContainer = nullptr;
     // The application switcher, over every window and below the lock screen.
     scene::Node *m_switcherContainer = nullptr;
     // The outgoing frame of a display change covers the session, not the lock screen.
     scene::ScreenTransitionNode *m_screenTransition = nullptr;
-    // Ash's container split, flattened to Cutefish's single scene: everything
-    // the session owns is below "secure", the lock screen is inside it, and the
-    // cursor stays above both. Membership - not a z-order comparison - is what
-    // input, activation and capture ask about.
+    // The session's content is below this and the lock screen inside it; input,
+    // activation and capture test membership, not z-order.
     scene::Node *m_secureContainer = nullptr;
-    // The previous DRM master's last frame while the session or the login
-    // screen comes up. Never this session's content, so it may cover the lock
-    // screen as well; only the cursor is above it.
+    // The previous DRM master's last frame; only the cursor is above it.
     scene::ScreenTransitionNode *m_startupCover = nullptr;
     scene::Node *m_cursorContainer = nullptr;
 
@@ -265,8 +245,6 @@ private:
     decoration::Theme m_decorationTheme;
     decoration::ThemePreferences m_themePreferences;
     decoration::DecorationProvider m_decorationProvider;
-    // Shadows are a per-window presentation concern, not part of the frame:
-    // client-decorated windows get one too, unless they already draw their own.
     decoration::ShadowProvider m_shadowProvider;
     wm::WmShadowControllerDelegate m_shadowDelegate;
     wm::ShadowController m_shadowController;
@@ -296,9 +274,8 @@ private:
     // chain, so they are destroyed before it.
     std::unique_ptr<wm::WindowCycleController> m_windowCycle;
     std::unique_ptr<switcher::SwitcherView> m_switcherView;
-    // The desktop shell drawn by the compositor; none in the greeter.
+    // None in the greeter.
     std::unique_ptr<shell::Shell> m_shell;
-    // The shell's desktop background; the startup cover waits for it.
     shell::Wallpaper *m_wallpaper = nullptr;
     std::unique_ptr<accelerators::AcceleratorConfiguration> m_acceleratorConfiguration;
     std::unique_ptr<accelerators::DBusAcceleratorDelegate> m_acceleratorDelegate;
@@ -313,12 +290,11 @@ private:
     base::Subscription m_hotCornerPointer;
     // In front of the whole chain, so the key reaches neither a shortcut nor a client.
     std::unique_ptr<session::PowerButton> m_powerButton;
-    // How the session quits every application before it ends.
     std::unique_ptr<wm::QuitAll> m_quitAll;
     std::unique_ptr<session::ApplicationsService> m_applicationsService;
     std::unique_ptr<session::WindowDebugService> m_windowDebugService;
-    // An agent driving the seat. The consent outlives the controller that asks
-    // it; the controller goes before the input manager it injects into.
+    // The consent outlives the controller, which goes before the input manager it
+    // injects into.
     std::unique_ptr<computer_control::RememberedApps> m_computerControlApps;
     std::unique_ptr<computer_control::PermissionConsent> m_computerControlConsent;
     std::unique_ptr<computer_control::Controller> m_computerControl;
@@ -328,8 +304,7 @@ private:
     std::vector<wl_global *> m_outputGlobals;
     wl_global *m_outputGlobal = nullptr;
     bool m_updatingOutput = false;
-    // The previous DRM master's cursor, in the native pixels of its output: the
-    // pointer takes it over once the displays settle.
+    // In the native pixels of its output.
     struct ProbedCursor {
         display::DisplayId destination;
         base::Point topLeft;
@@ -337,18 +312,15 @@ private:
     std::optional<ProbedCursor> m_probedCursor;
     bool m_cursorProbed = false;
     bool m_cursorHeld = false;
-    // Releases the cursor should the displays never settle.
     base::Timer m_cursorRelease {mainLoop()};
     base::Timer m_sceneSync {mainLoop()};
     std::string m_compositorInstanceId;
 
     std::unique_ptr<wayland::ExecutableSecurityDelegate> m_security;
 
-    // input::SeatObserver: cursor motion is damage to a capture that paints it.
     void onSurfaceFocused(compositor::Surface *, compositor::Surface *) override { }
     void onCursorChanged() override;
     void onCursorPositionChanged() override;
-    // input::SeatObserver: positional shortcuts depend on the layout.
     void onKeyboardLayoutUpdated() override;
     std::unique_ptr<wayland::Server> m_server;
     std::unique_ptr<wayland::LinuxDmabufGlobal> m_dmabufGlobal;
@@ -368,7 +340,6 @@ private:
     // Last, so they go before any receiver they call.
     base::Subscription m_computerControlDrawn;
     base::Subscription m_menuBarAgentControl;
-    // The shell components' connections to one another.
     std::vector<base::Subscription> m_shellSubscriptions;
     std::vector<base::Subscription> m_compositorSubscriptions;
 };

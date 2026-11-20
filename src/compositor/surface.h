@@ -4,9 +4,6 @@
 //
 // Upstream: chromium/src/components/exo/surface.h
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: aura::Window/ui::Layer become a scene::SurfaceNode and
-// the viz frame-submission half is replaced by the Cutefish renderer.
 
 #ifndef CUTEFISH_COMPOSITOR_SURFACE_H_
 #define CUTEFISH_COMPOSITOR_SURFACE_H_
@@ -61,21 +58,17 @@ enum class Transform {
     FlippedRotate270,
 };
 
-// Where a client asks its window to stack: among ordinary windows, above
-// them, or above the dock as well.
 enum class WindowLevel {
     Normal,
     Floating,
     AboveDock,
 };
 
-// The point of a window that a client-initiated resize keeps in place.
 enum class ResizeAnchor {
     TopLeft,
     Center,
 };
 
-// A side or corner of a rectangle, as xdg_positioner's anchor and gravity.
 enum class PlacementEdge {
     None,
     Top,
@@ -88,8 +81,7 @@ enum class PlacementEdge {
     BottomRight,
 };
 
-// Where a window maps instead of where the compositor would place it: next
-// to `rect`, in global logical coordinates.
+// `rect` is in global logical coordinates.
 struct PlacementAnchor {
     base::Rect rect;
     PlacementEdge anchor = PlacementEdge::None;
@@ -98,23 +90,12 @@ struct PlacementAnchor {
     bool operator==(const PlacementAnchor &) const = default;
 };
 
-// Client pacing notification, independent of measured presentation feedback.
 // A missing time destroys the wl_callback silently.
 using FrameCallback = std::function<void(std::optional<uint32_t> presentationTimeMs)>;
 
-// The compositor-side view of a wl_surface.
-//
-// State is committed in three steps: requests update pending state, commit()
-// transfers pending to cached state, and commitSurfaceHierarchy() applies cached
-// state to current state. Synchronized subsurfaces wait for their parent here.
-//
-// A commit whose buffer the client's GPU is still writing is held, and with it
-// every later commit in the same surface tree, until the buffer is ready.
-//
-// Some fields persist between commits (which buffer is attached, the regions,
-// scale and transform) and some do not (damage, frame callbacks). Attachment
-// is an optional so that an unrelated commit cannot silently drop the buffer:
-// an unset optional means "attach was not called since the last commit".
+// Pending state goes to cached at commit() and to current at
+// commitSurfaceHierarchy(); an unset attachment means attach() was not called
+// since the last commit.
 class Surface
 {
 public:
@@ -129,37 +110,27 @@ public:
     void setAlwaysOnTop(bool alwaysOnTop);
     WindowLevel level() const { return m_level; }
     void setLevel(WindowLevel level);
-    // Read when the client resizes its window; no observer needs to know.
     ResizeAnchor resizeAnchor() const { return m_resizeAnchor; }
     void setResizeAnchor(ResizeAnchor anchor) { m_resizeAnchor = anchor; }
-    // Read when the pointer or a touch reaches the window's edges.
     bool serverResize() const { return m_serverResize; }
     void setServerResize(bool enabled) { m_serverResize = enabled; }
-    // Read when the window maps and unmaps; see set_restore_id.
     const std::string &restoreId() const { return m_restoreId; }
     void setRestoreId(const std::string &id) { m_restoreId = id; }
-    // Read when the window maps maximized or fullscreen; see set_restore_size.
     const base::Size &restoreSize() const { return m_restoreSize; }
     void setRestoreSize(const base::Size &size) { m_restoreSize = size; }
-    // Read when the window maps; see set_placement_anchor.
     const std::optional<PlacementAnchor> &placementAnchor() const { return m_placementAnchor; }
     void setPlacementAnchor(const std::optional<PlacementAnchor> &anchor) { m_placementAnchor = anchor; }
-    // Where the window geometry's top left goes the next time the window
-    // maps, in global coordinates; see cutefish_window_placement_v1.
+    // In global coordinates.
     const std::optional<base::Point> &requestedPosition() const { return m_requestedPosition; }
     void setRequestedPosition(const std::optional<base::Point> &position) { m_requestedPosition = position; }
-    // The outline a window draws its body in; empty for its rectangle. See
-    // set_body_shape.
+    // Empty for its rectangle.
     const ui::Path &bodyShape() const { return m_bodyShape; }
     void setBodyShape(const ui::Path &shape);
-    // Whether the compositor casts the window's shadow; see set_shadow.
     bool castsShadow() const { return m_castsShadow; }
     void setCastsShadow(bool castsShadow);
-    // The client's opacity for the whole window, 0 to 1; see set_opacity.
+    // 0 to 1.
     float opacity() const { return m_opacity; }
     void setOpacity(float opacity);
-    // Read when the top panel slides over the window in the fullscreen
-    // state; see set_fullscreen_bars.
     bool hasFullscreenBars() const { return m_hasFullscreenBars; }
     int fullscreenBarsHeight() const { return m_fullscreenBarsHeight; }
     bool fullscreenBarsPush() const { return m_fullscreenBarsPush; }
@@ -183,19 +154,14 @@ public:
 
     const MenuAddress &menuAddress() const { return m_menuAddress; }
 
-    // The org.gtk.Menus menus the surface names through gtk_shell1.
     const GtkMenuAddress &gtkMenuAddress() const { return m_gtkMenuAddress; }
     void setGtkMenuAddress(const GtkMenuAddress &address);
 
-    // The main menu the window shows through cutefish_main_menu_v1; null for
-    // none. Takes precedence over the menu address.
+    // Null for none; takes precedence over the menu address.
     const std::shared_ptr<MenuModel> &mainMenu() const { return m_mainMenu; }
     void setMainMenu(std::shared_ptr<MenuModel> menu);
-    // The entries the dock's menu for the window's application shows.
     const std::shared_ptr<MenuModel> &dockMenu() const { return m_dockMenu; }
     void setDockMenu(std::shared_ptr<MenuModel> menu);
-
-    // --- Requests. All of these are pending until commit(). ---
 
     void attach(const std::shared_ptr<Buffer> &buffer, const base::Point &offset);
     void damage(const base::Rect &rect);
@@ -216,14 +182,12 @@ public:
         m_pending.basicState.blurShape = shape;
     }
 
-    // The committed shape clipped to the blur rectangle; empty when there is
-    // none, no rectangle, or glass.
+    // Empty when there is none, no rectangle, or glass.
     ui::Path backgroundBlurShape() const;
 
     void setGlass(const render::GlassParams &glass) { m_pending.basicState.glass = glass; }
 
-    // The material a further glass request should build on, which is the pending
-    // one: requests within a commit accumulate.
+    // Requests within a commit accumulate.
     const render::GlassParams &pendingGlass() const { return m_pending.basicState.glass; }
 
     const render::GlassParams &glass() const { return m_state.basicState.glass; }
@@ -241,13 +205,11 @@ public:
     // Surface-local; empty for the rounded rectangle.
     void setSubsurfaceBlurShape(const ui::Path &shape) { m_pending.basicState.subsurfaceBlurShape = shape; }
 
-    // What that blur lays over the blurred subsurfaces: the fill fields of
-    // the parameters only.
+    // The fill fields of the parameters only.
     void setSubsurfaceBlurFill(const render::GlassParams &fill) { m_pending.basicState.subsurfaceBlurFill = fill; }
     const render::GlassParams &subsurfaceBlurFill() const { return m_state.basicState.subsurfaceBlurFill; }
 
-    // The committed shape clipped to the rectangle; empty when there is none
-    // or no rectangle.
+    // Empty when there is none or no rectangle.
     ui::Path subsurfaceBlurShape() const;
 
     void setOpaqueRegion(const base::Region &region);
@@ -285,38 +247,28 @@ public:
     base::AffineTransform textureMapping() const;
 
     void setBufferScale(int scale);
-    // Pending state, applied at the next commit. See State::clientScale.
     void setClientScale(double scale);
     void setBufferTransform(Transform transform);
 
-    // Explicit synchronization, from wp_linux_drm_syncobj_surface_v1. All are
-    // double-buffered and apply to the buffer attached in the same commit; the
-    // protocol layer enforces that they come in pairs with a buffer.
+    // Double-buffered and applied to the buffer attached in the same commit.
     void setAcquireFence(render::SyncFence fence);
     void setAcquirePoint(std::shared_ptr<render::DrmSyncobj> timeline, uint64_t point);
     void setBufferRelease(std::shared_ptr<BufferRelease> release);
 
-    // Whether the most recent commit carried a non-null buffer attachment: the
-    // one requested last, or inside onSurfaceCommit() the one being applied.
-    // Explicit sync needs this and not hasContents(): a synchronized subsurface
-    // commits its buffer into cached state without applying it yet.
+    // Inside onSurfaceCommit() this is the buffer being applied; a synchronized
+    // subsurface caches its buffer without applying it.
     bool lastCommitAttachedBuffer() const { return m_lastCommitAttachedBuffer; }
 
-    // Whether that buffer can be synchronized explicitly, through fences.
     bool lastCommitBufferSupportsExplicitSync() const
     {
         return m_lastCommitBufferSupportsExplicitSync;
     }
 
-    // A desynchronized subsurface its parent moved since it last applied a
-    // buffer: what it shows was drawn for where it used to be.
+    // What it shows was drawn for where it used to be.
     bool isMovedAheadOfContent() const { return m_movedAheadOfContent; }
 
-    // Caches pending state once its buffer is ready; applies it atomically if
-    // not synchronized.
     void commit();
 
-    // Commits waiting for their buffer, or behind one that is.
     size_t heldCommitCount() const { return m_heldCommits.size(); }
 
     bool isSynchronized() const;
@@ -324,15 +276,11 @@ public:
 
     bool isMapped() const;
     void commitSurfaceHierarchy(bool synchronized);
-    // Applies a desynchronized surface's cached state from the root down, as
-    // Exo's SubSurface::OnSurfaceCommit hands the commit up to the root's
-    // delegate, so every ancestor's hit test region takes the change in.
+    // From the root down, so every ancestor's hit test region takes the change
+    // in.
     void commitDesynchronized();
 
-    // --- Roles and observers. ---
-
-    // A surface may take at most one role. SubSurface sets this itself; other
-    // role owners (the pointer cursor, later xdg-shell) call setHasRole().
+    // SubSurface sets this itself; other role owners call setHasRole().
     bool hasRole() const { return m_subSurface != nullptr || m_hasRole; }
 
     void setHasRole(bool hasRole) { m_hasRole = hasRole; }
@@ -341,35 +289,26 @@ public:
     void removeSurfaceObserver(SurfaceObserver *observer);
     bool hasSurfaceObserver(const SurfaceObserver *observer) const;
 
-    // --- Input. ---
-
-    // Subsurfaces in stacking order, bottom to top, with their positions
-    // relative to this surface. The entry whose surface is `this` is the
-    // sentinel marking where the parent's own content sits in the stack.
+    // Bottom to top, positions relative to this surface; the entry for `this`
+    // marks the parent's own content.
     const std::vector<std::pair<Surface *, base::Point>> &subSurfaceStack() const
     {
         return m_subSurfaceStack;
     }
 
-    // This surface's own input region, clipped to its content. Does not include
-    // subsurfaces.
+    // Excludes subsurfaces.
     bool hitTest(const base::Point &point) const { return m_localHitTestRegion.contains(point); }
 
     base::Region localHitTestRegion() const { return m_localHitTestRegion; }
 
-    // The input region of this surface and all its subsurfaces, in
-    // surface-local coordinates. Matches Exo's Surface::hit_test_region_.
+    // In surface-local coordinates.
     base::Region hitTestRegion() const { return m_hitTestRegion; }
-
-    // --- Pending state, for tests and diagnostics. ---
 
     bool hasPendingAttachedBuffer() const;
 
     base::Region pendingDamage() const { return m_pending.damage; }
 
     size_t pendingFrameCallbackCount() const { return m_pending.frameCallbacks.size(); }
-
-    // --- Committed state. ---
 
     std::shared_ptr<Buffer> buffer() const;
     // -1x-1 without a buffer.
@@ -387,37 +326,27 @@ public:
 
     std::optional<base::Region> inputRegion() const { return m_state.basicState.inputRegion; }
 
-    // Committed damage in surface-local coordinates. Buffer damage is folded in
-    // through the buffer scale and transform.
+    // In surface-local coordinates.
     base::Region damageRegion() const;
 
-    // Buffer size mapped through the buffer scale and transform; -1x-1 without
-    // a buffer.
+    // -1x-1 without a buffer.
     base::Size contentSize() const;
-    // The same for the cached state, which a synchronized subsurface shows
-    // once its parent commits.
+    // For the cached state, which a synchronized subsurface shows once its
+    // parent commits.
     base::Size cachedContentSize() const;
 
     bool hasContents() const { return !bufferSize().isEmpty(); }
 
-    // Whether the committed content is opaque over its whole geometry, either
-    // because the format has no alpha or because the client said so.
     bool isFullyOpaque() const;
 
     size_t committedFrameCallbackCount() const { return m_state.frameCallbacks.size(); }
 
     size_t inFlightFrameCallbackCount() const { return m_inFlightFrameCallbacks.size(); }
 
-    // Whether the next output frame showing the surface has frame callbacks
-    // to start or presentation feedback to settle for it.
     bool awaitsFrame() const;
 
-    // Takes note of where the surface shows and whether it shows at all, and
-    // says whether that changed since the last call: only then can it have
-    // entered or left an output, or come to prefer another scale.
+    // Returns whether that changed since the last call.
     bool updatePlacement();
-
-    // --- Scene and rendering. ---
 
     void setExternalInputRegion(std::optional<base::Region> region);
 
@@ -425,34 +354,26 @@ public:
 
     base::Point position() const { return m_position; }
 
-    // Hidden by the window manager (a minimized window). Independent of
-    // mapping: the surface keeps its buffer, its state and its role, it is
-    // simply not composited and not hit tested.
+    // A minimized window: kept with its buffer, state and role, but not
+    // composited or hit tested.
     bool isHidden() const { return m_hidden; }
 
     void setHidden(bool hidden);
 
     void setPosition(const base::Point &position);
 
-    // Moves this surface's scene node under `newParent`, or detaches it from
-    // the scene entirely when `newParent` is null. Used by the pointer to lift
-    // a cursor surface out of the normal surface stack.
+    // A null `newParent` detaches the node from the scene.
     void reparentNode(scene::Node *newParent);
 
-    // Uploads the committed buffer into the node's texture if it changed since
-    // the last call, and lets the buffer go. Returns true if anything was
-    // uploaded.
+    // Returns true if anything was uploaded.
     bool updateTexture(render::Renderer &renderer);
 
-    // Snapshot applied callbacks for the scene about to be composed. Nonzero
-    // generations include only mapped, effectively visible surfaces; generation
-    // zero retains the legacy direct test API. No cached callbacks are moved.
+    // Nonzero generations include only mapped, effectively visible surfaces.
     void frameSubmitted(uint64_t generation = 0);
     void frameDiscarded(uint64_t generation);
 
     std::shared_ptr<Surface *> lifetimeToken() const { return m_lifetime; }
 
-    // Completes those callbacks.
     void frameDrawn(uint32_t timeMs, uint64_t generation = 0);
 
 private:
@@ -461,12 +382,10 @@ private:
 
     void addSubSurface(Surface *child);
     void removeSubSurface(Surface *child);
-    // wl_subsurface.set_sync and set_desync, in order with the tree's held
-    // commits; false when none is held and the mode can change now.
+    // False when none is held and the mode can change now.
     bool holdCommitBehavior(bool synchronized);
     void applyCommit(CommitRequest &request);
     void holdCommit(std::unique_ptr<CommitRequest> request);
-    // Applies the tree's held commits, oldest first, up to one still waiting.
     void applyReadyCommits();
     Surface *rootSurface();
     Surface *oldestHeldCommit();
@@ -488,7 +407,7 @@ private:
     SubSurfaceList m_pendingSubSurfaces;
     SubSurfaceList m_cachedSubSurfaces;
     SubSurfaceList m_subSurfaces;
-    SubSurface *m_subSurface = nullptr; // non-owning role, owned by wl_resource
+    SubSurface *m_subSurface = nullptr; // Owned by the wl_resource.
     bool m_hadSubSurfaceRole = false;
     bool m_hasRole = false;
     bool m_hasFractionalScale = false;
@@ -508,21 +427,18 @@ private:
         ui::Path subsurfaceBlurShape;
         render::GlassParams subsurfaceBlurFill;
         base::Region opaqueRegion;
-        // Unset means "the whole surface accepts input", which is the default
-        // and is not the same as an empty region.
+        // Unset means the whole surface accepts input, not an empty region.
         std::optional<base::Region> inputRegion;
         int bufferScale = 1;
-        // How many of the client's surface units make one logical unit. Only
-        // Xwayland has one: it draws at device resolution, and a buffer of
-        // scale 1 maps onto size / clientScale logical units.
+        // Only Xwayland sets it: a buffer of scale 1 maps onto size /
+        // clientScale logical units.
         double clientScale = 1;
         Transform bufferTransform = Transform::Normal;
         base::Point offset;
     };
 
-    // Exo keeps a weak reference plus the size, so that a client destroying its
-    // wl_buffer while it is committed cannot dangle and the surface still knows
-    // how large its content is.
+    // Weak, so a client destroying its committed wl_buffer cannot dangle, while
+    // the size is kept.
     struct BufferAttachment {
         std::weak_ptr<Buffer> buffer;
         base::Size size;
@@ -530,17 +446,16 @@ private:
 
     struct ExtendedState {
         State basicState;
-        // Persisted between commits; unset in the pending state means attach()
-        // was not called since the last commit.
+        // Unset in the pending state means attach() was not called since the
+        // last commit.
         std::optional<BufferAttachment> buffer;
         // Not persisted between commits.
         base::Region damage;
         base::Region bufferDamage;
         bool fullDamage = false;
         std::vector<FrameCallback> frameCallbacks;
-        // Not persisted between commits, and never copied: they belong to
-        // exactly one buffer attachment. The acquire point only lives until
-        // commit, which waits for it.
+        // Not persisted and never copied: they belong to exactly one buffer
+        // attachment.
         render::SyncFence acquireFence;
         std::shared_ptr<render::DrmSyncobj> acquireTimeline;
         uint64_t acquirePoint = 0;
@@ -565,19 +480,15 @@ private:
     ExtendedState m_cached;
     ExtendedState m_state;
 
-    // The committed buffer contents have not reached a texture yet.
     std::shared_ptr<Buffer> m_uploadBuffer;
     bool m_textureDirty = false;
-    // What the buffer changed since the texture was last uploaded, in buffer
-    // pixels, unless a new mapping leaves only a whole upload.
+    // In buffer pixels.
     base::Region m_uploadDamage;
     bool m_uploadAll = true;
     bool m_lastCommitAttachedBuffer = false;
     bool m_movedAheadOfContent = false;
     bool m_lastCommitBufferSupportsExplicitSync = false;
 
-    // Callbacks for state that has been drawn into the frame now on its way to
-    // the display.
     std::vector<FrameCallback> m_inFlightFrameCallbacks;
     uint64_t m_frameGeneration = 0;
 
@@ -615,7 +526,6 @@ private:
 
     std::shared_ptr<Surface *> m_lifetime = std::make_shared<Surface *>(this);
 
-    // Committed input geometry, refreshed by commitSurfaceHierarchy().
     base::Region m_localHitTestRegion;
     base::Region m_hitTestRegion;
     std::vector<std::pair<Surface *, base::Point>> m_subSurfaceStack;

@@ -20,8 +20,7 @@ namespace cutefish::toolkit {
 
 namespace {
 
-// Skia on the compositor's own context, shared by every panel. The context
-// is kept so its GL objects can be freed with it current.
+// The context is kept so its GL objects can be freed with it current.
 struct GpuHost {
     std::shared_ptr<render::EglContext> context;
     std::unique_ptr<ui::EmbeddedGpu> gpu;
@@ -38,7 +37,6 @@ GpuHost &gpuHost()
 
 void closeBatch();
 
-// The GPU for the context current now, made the first time.
 ui::EmbeddedGpu *currentGpu(const std::shared_ptr<render::EglContext> &context)
 {
     GpuHost &host = gpuHost();
@@ -64,8 +62,7 @@ ui::EmbeddedGpu *currentGpu(const std::shared_ptr<render::EglContext> &context)
     return host.context == context ? host.gpu.get() : nullptr;
 }
 
-// The batch PanelBatch brackets: opened on the first GPU render inside it,
-// and closed before any GL work of the compositor's own in between.
+// Closed before any GL work of the compositor's own in between.
 struct BatchState {
     int depth = 0;
     ui::EmbeddedGpu *gpu = nullptr;
@@ -217,8 +214,7 @@ std::shared_ptr<render::Texture> PanelTexture::gpuTexture(render::Renderer &rend
 {
     if (&renderer == m_cpuRenderer || !gpuHost().allowed)
         return nullptr;
-    // The frame's animations may resize the window: the texture takes the
-    // size they leave.
+    // The frame's animations may resize the window.
     if (dirty || !m_gpuCurrent)
         m_window->beginFrame(m_frameTimeNs);
     const base::Size size(m_window->pixelWidth(), m_window->pixelHeight());
@@ -228,7 +224,7 @@ std::shared_ptr<render::Texture> PanelTexture::gpuTexture(render::Renderer &rend
     if (!texture || m_gpuTexture->size() != size) {
         m_gpuTexture.reset();
         m_gpuCurrent = false;
-        // The upload is the compositor's GL work, which a batch may not hold.
+        // A batch may not hold the compositor's GL work.
         closeBatch();
         // Only to learn whether the renderer is GL, and on which context.
         const std::vector<uint8_t> clear(size_t(size.width()) * size.height() * 4, 0);
@@ -285,8 +281,8 @@ std::shared_ptr<render::Texture> PanelTexture::cpuTexture(render::Renderer &rend
     }
     m_lastDamage = m_pendingUpload;
     if (!m_cpuTexture) {
-        // The renderer uploads the texture's own size and cannot see the
-        // image's, so a panel redrawn at another size needs a new one.
+        // The renderer uploads the texture's own size, so a panel redrawn at
+        // another size needs a new one.
         m_cpuTexture = render::labelled(renderer.createTexture(m_image.size(), m_image.constBits(),
                                                                int(m_image.stride()),
                                                                render::PixelFormat::Rgba8888),

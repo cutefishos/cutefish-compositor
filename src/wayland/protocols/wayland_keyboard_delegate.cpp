@@ -4,13 +4,6 @@
 //
 // Upstream: chromium/src/components/exo/wayland/wayland_keyboard_delegate.cc
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: integrates the upstream behavior with native
-// compositor types and ownership.
-//
-// Adaptation: keys are evdev codes already, so the DomCode conversion is gone,
-// and the keymap travels through a memfd rather than a Chromium shared memory
-// region.
 
 #include "wayland/protocols/wayland_keyboard_delegate.h"
 
@@ -101,7 +94,6 @@ uint32_t WaylandKeyboardDelegate::onKeyboardKey(input::Timestamp timestamp, uint
 
 void WaylandKeyboardDelegate::onKeyboardModifiers(const input::KeyboardModifiers &modifiers)
 {
-    // Send the update only when they differ.
     if (m_currentModifiers == modifiers)
         return;
     m_currentModifiers = modifiers;
@@ -151,11 +143,7 @@ void WaylandKeyboardDelegate::onKeyboardLayoutUpdated(const std::string &keymap)
     m_currentModifiers = {};
 }
 
-// Convert a key repeat interval to Wayland's repeat rate. An interval of 500ms
-// is a rate of 1000/500 = 2 Hz.
-//
-// Known issue: a 2000ms interval is 0.5 Hz, which rounds to 1 Hz, twice as
-// fast. That is not fixable without a change to the Wayland specification.
+// A 2000 ms interval is 0.5 Hz, which rounds to 1 Hz; the protocol has no slower rate.
 int32_t waylandRepeatRate(bool enabled, std::chrono::milliseconds interval)
 {
     if (!enabled)

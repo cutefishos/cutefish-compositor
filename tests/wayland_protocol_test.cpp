@@ -37,7 +37,6 @@ using namespace cutefish;
 
 namespace {
 
-// Everything a client learns from the registry, plus whether its work finished.
 struct ClientResult {
     std::atomic<uint32_t> compositorName { 0 };
     std::atomic<uint32_t> compositorVersion { 0 };
@@ -54,8 +53,7 @@ struct ClientResult {
     std::atomic<int> bufferReleases { 0 };
 };
 
-// Runs a client on its own thread so the server can keep dispatching on the
-// event loop of the main thread.
+// Runs the client on its own thread; the server dispatches on the main thread.
 class TestClient
 {
 public:
@@ -187,7 +185,6 @@ protected:
         m_compositor.reset();
     }
 
-    // Runs the event loops, which drive the server, until `predicate` holds.
     template<class Predicate>
     bool waitFor(Predicate predicate, int timeoutMs = 5000)
     {
@@ -279,8 +276,7 @@ TEST_F(WaylandProtocolTest, AClientCreatesASurfaceAndAShmBuffer)
 
 TEST_F(WaylandProtocolTest, TheCommittedBufferReachesTheSceneAndReleasesTheClient)
 {
-    // The surface has to outlive the client thread, so the client parks after
-    // committing and this test drives the frame from the server side.
+    // The surface must outlive the client thread, so the client parks after committing.
     std::atomic<bool> committed { false };
     std::atomic<bool> mayFinish { false };
 
@@ -353,10 +349,8 @@ TEST_F(WaylandProtocolTest, TheCommittedBufferReachesTheSceneAndReleasesTheClien
     ASSERT_NE(nullptr, surface->node());
     ASSERT_NE(nullptr, surface->node()->texture());
 
-    // The upload copied the pixels, so the client gets its buffer back.
     EXPECT_TRUE(waitFor([&client] { return client.result.bufferReleases.load() == 1; }));
 
-    // Frame callbacks wait for a presented frame, not for the commit.
     EXPECT_EQ(0, client.result.frameCallbacks);
     m_compositor->frameSubmitted();
     EXPECT_EQ(0, client.result.frameCallbacks);
@@ -403,7 +397,6 @@ TEST_F(WaylandProtocolTest, AnOutOfPoolBufferIsAProtocolError)
         const int fd = makeMemfd(4096);
         ASSERT_GE(fd, 0);
         wl_shm_pool* pool = wl_shm_create_pool(shm, fd, 4096);
-        // 64 * 64 * 4 is far more than the pool holds.
         wl_buffer* buffer =
             wl_shm_pool_create_buffer(pool, 0, 64, 64, 64 * 4, WL_SHM_FORMAT_ARGB8888);
         wl_display_roundtrip(display);
@@ -459,7 +452,6 @@ TEST_F(WaylandProtocolTest, TheCompositorSurvivesAClientProtocolError)
     }));
     ASSERT_NE(-1, bad.result.protocolError);
 
-    // The offending client is gone and its surface with it.
     EXPECT_TRUE(waitFor([this] { return m_compositor->surfaces().empty(); }));
 
     TestClient good;
@@ -537,7 +529,6 @@ TEST_F(WaylandProtocolTest, AShmBufferUnderASyncobjSurfaceIsUnsupported)
         wl_shm_pool* pool = wl_shm_create_pool(shm, fd, 16 * 16 * 4);
         wl_buffer* buffer =
             wl_shm_pool_create_buffer(pool, 0, 16, 16, 16 * 4, WL_SHM_FORMAT_ARGB8888);
-        // A commit without a buffer is still fine.
         wl_surface_commit(surface);
         wl_display_roundtrip(display);
         EXPECT_EQ(wl_display_get_error(display), 0);

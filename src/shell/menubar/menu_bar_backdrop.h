@@ -13,10 +13,6 @@ namespace cutefish::shell {
 
 class Wallpaper;
 
-// What lies behind the menu bar: the wallpaper's top strip under the bar
-// decides whether the bar's contents are light or dark. The compositor's
-// wallpaper judges what it shows; the bar follows that verdict, in the frame
-// the picture changes.
 class MenuBarBackdrop
 {
 public:
@@ -29,14 +25,12 @@ public:
     MenuBarBackdrop(const MenuBarBackdrop &) = delete;
     MenuBarBackdrop &operator=(const MenuBarBackdrop &) = delete;
 
-    // Whether a wallpaper or colour has been judged; otherwise the bar
-    // follows the system's dark mode.
+    // Until then the bar follows the system's dark mode.
     bool isValid() const { return m_valid; }
     bool useLightForeground() const { return m_style.useLightForeground; }
 
-    // Follows what the desktop shows; null stops.
+    // Null stops.
     void follow(Wallpaper *wallpaper);
-    // A verdict given directly.
     void present(bool valid, const Style &style);
     void setColor(const ui::Color &color);
     void setUnavailable();

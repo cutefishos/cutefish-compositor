@@ -20,11 +20,6 @@ namespace cutefish::shell {
 class DetailChevron;
 class LevelTrack;
 
-// The level track made draggable, the control
-// centre's sliders and the volume panel's. A press jumps the knob's centre to
-// the pointer and a drag follows it; a wheel notch moves five steps and
-// glides. The service's value is shown again only once the pointer is up and
-// the last move has had 300 ms to come back, so it never flashes back.
 class LevelSlider : public ui::View
 {
 public:
@@ -33,18 +28,13 @@ public:
     LevelSlider();
 
     void setRange(double from, double to, double stepSize);
-    // The service's value.
     void setValue(double value);
-    // What the knob shows: the value, or the last move until it settles.
     double visualValue() const { return m_visualValue; }
     double position() const;
-    // Artwork for the track's cap: the light variant in either theme.
     void setIcon(std::string file);
 
-    // A wheel or touchpad turn, also from the tile around the slider.
     void wheel(const ui::ScrollEvent &event);
 
-    // The value the user moved the knob to.
     std::function<void(double value)> onMoved;
 
     bool acceptsPointer() const override { return true; }
@@ -73,10 +63,6 @@ private:
     base::Timer m_settle;
 };
 
-// A titled tile holding a level slider; the whole
-// tile takes the wheel. A tile with a detail page shows a chevron at the
-// title row's end while hovered, and a click anywhere off the slider opens
-// the page.
 class TileSlider : public ui::View
 {
 public:
@@ -110,13 +96,8 @@ private:
     bool m_detailPressed = false;
 };
 
-// FishUI.Dpi's snap(): onto the device pixel grid of `scale`.
 double snapToDevice(double value, double scale);
-// Where an AlignedLabel goes in a layout at `top`: its baseline at
-// `textBaseline` below it, the label placed by its line box.
 double alignedLabelTop(const ui::Label *label, double textBaseline, double scale);
-// The height an AlignedLabel takes in a column: its line less what its
-// (possibly negative) top margin takes away.
 double alignedLabelHeight(const ui::Label *label, double textBaseline, double scale);
 
 } // namespace cutefish::shell

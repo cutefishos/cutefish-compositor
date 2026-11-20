@@ -4,9 +4,6 @@
 //
 // Upstream: chromium/src/components/exo/xkb_tracker.cc
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: integrates the upstream behavior with native
-// compositor types and ownership.
 
 #include "input/xkb_tracker.h"
 
@@ -44,7 +41,7 @@ bool XkbTracker::updateKeyboardLayout(const std::string &name)
         if (!updateKeyboardLayoutInternal(nullptr))
             return false;
     } else {
-        // ui::XkbKeyboardLayoutEngine::ParseLayoutName: "layout-variant".
+        // "layout-variant".
         std::string layout = name;
         std::string variant;
         const size_t dash = name.find('-');

@@ -349,8 +349,6 @@ private:
     ShellInput *m_input;
 };
 
-// One of zwp_pointer_gestures_v1's three, for the shell window under the
-// pointer, as a client's gesture objects take them.
 class ShellInput::GestureDelegate final : public input::PointerGestureDelegate
 {
 public:
@@ -563,8 +561,6 @@ void ShellInput::sendKey(uint32_t code, bool pressed, bool repeat)
         if (xkb_keysym_to_utf8(event.key, text, sizeof(text)) > 0)
             event.text = text;
     }
-    // The host repeats keys for the toolkit, as a Wayland client's toolkit
-    // repeats them from wl_keyboard.repeat_info.
     if (pressed && !repeat && m_repeatEnabled && xkb->keyRepeats(code)) {
         m_repeatCode = code;
         m_repeatTimer.start(m_repeatDelay);

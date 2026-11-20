@@ -2,10 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// The screen capture interface as the compositor draws it: its overlays,
-// toolbar, selection, window picking, timer, what a capture becomes and
-// org.cutefish.Screenshot, headless on a fake renderer and a fake grabber.
-
 #include <chrono>
 #include <cmath>
 #include <filesystem>
@@ -185,7 +181,6 @@ protected:
         return capture->overlays().empty() ? nullptr : capture->overlays().front().get();
     }
 
-    // The toolbar's rect on the screen.
     base::RectF toolbarRect() const
     {
         const ui::RectF rect = overlay()->toolbarRect();
@@ -199,7 +194,6 @@ protected:
         return {toolbar.x() + rect.x + rect.width / 2, toolbar.y() + rect.y + rect.height / 2};
     }
 
-    // An application window as a client's would be, and its task.
     wm::Window *openWindow(const base::Rect &bounds)
     {
         surfaces.push_back(compositor.createSurface());
@@ -254,10 +248,8 @@ TEST_F(ScreenshotTest, CaptureModeCoversTheOutputWithTheToolbarAndASelection)
     ASSERT_NE(nullptr, window->wmWindow());
     EXPECT_EQ(wm::WindowRole::Capture, window->wmWindow()->role());
     EXPECT_EQ(kOutput, window->wmWindow()->bounds());
-    // The keyboard, for Escape and Return.
     EXPECT_EQ(window->surface(), seat.focusedSurface());
 
-    // A portion of half the screen in the middle, picture of a portion.
     EXPECT_EQ(shell::ScreenCapture::Image, capture->type());
     EXPECT_EQ(shell::ScreenCapture::Region, capture->source());
     EXPECT_EQ(base::Rect(359, 239, 720, 480), capture->selection());
@@ -275,13 +267,11 @@ TEST_F(ScreenshotTest, CaptureModeCoversTheOutputWithTheToolbarAndASelection)
     EXPECT_FALSE(bar->modeButton(shell::ScreenCapture::Image, shell::ScreenCapture::Screen)->isChecked());
     EXPECT_TRUE(bar->actionButton()->isVisible());
 
-    // The compositor's glass under the toolbar, 18 round.
     const compositor::Surface *surface = window->surface();
     EXPECT_TRUE(surface->glass().enabled);
     EXPECT_EQ(18, surface->backgroundBlurRadius());
     EXPECT_EQ(int(std::lround(toolbar.y())), surface->backgroundBlurRect().y());
 
-    // The same shortcut closes it again, keeping the selection.
     capture->startCaptureMode();
     EXPECT_FALSE(capture->isActive());
     EXPECT_EQ(nullptr, window->wmWindow());
@@ -295,7 +285,6 @@ TEST_F(ScreenshotTest, TheSelectionIsDrawnMovedAndResized)
 {
     capture->startCaptureMode();
     frame();
-    // A new one outside the old.
     move(100, 100);
     EXPECT_EQ(shell::CaptureOverlay::Shape::Crosshair, overlay()->shape());
     press();
@@ -304,7 +293,6 @@ TEST_F(ScreenshotTest, TheSelectionIsDrawnMovedAndResized)
     release();
     EXPECT_EQ(base::Rect(100, 100, 200, 100), capture->selection());
 
-    // Inside moves it.
     move(200, 150);
     EXPECT_EQ(shell::CaptureOverlay::Shape::OpenHand, overlay()->shape());
     press();
@@ -313,7 +301,6 @@ TEST_F(ScreenshotTest, TheSelectionIsDrawnMovedAndResized)
     release();
     EXPECT_EQ(base::Rect(150, 120, 200, 100), capture->selection());
 
-    // The bottom right corner resizes; edges and corners show their arrows.
     move(350, 220);
     EXPECT_EQ(shell::CaptureOverlay::Shape::ResizeDiagonal, overlay()->shape());
     move(250, 220);
@@ -326,7 +313,6 @@ TEST_F(ScreenshotTest, TheSelectionIsDrawnMovedAndResized)
     release();
     EXPECT_EQ(base::Rect(150, 120, 250, 180), capture->selection());
 
-    // Dragged to the far edges it takes them whole.
     move(300, 200);
     press();
     move(1439.7, 959.7);
@@ -334,7 +320,6 @@ TEST_F(ScreenshotTest, TheSelectionIsDrawnMovedAndResized)
     EXPECT_EQ(1440, capture->selection().right());
     EXPECT_EQ(960, capture->selection().bottom());
 
-    // Over the toolbar, the arrow.
     const base::RectF toolbar = toolbarRect();
     move(toolbar.x() + 3, toolbar.y() + 24);
     EXPECT_EQ(shell::CaptureOverlay::Shape::Arrow, overlay()->shape());
@@ -362,7 +347,6 @@ TEST_F(ScreenshotTest, CaptureTakesThePortionAtTheScreensDensityToAFile)
     EXPECT_EQ(base::Size(300, 150), picture.size());
     EXPECT_EQ(1, shutters);
 
-    // A second one the same second takes the next name.
     saved.clear();
     capture->startCaptureMode();
     tap(KEY_ENTER);
@@ -376,7 +360,6 @@ TEST_F(ScreenshotTest, CopiesGoToTheClipboardAsPng)
     capture->startCaptureMode();
     frame();
     capture->setSelection(base::Rect(0, 0, 40, 20));
-    // Ctrl+Return.
     key(KEY_LEFTCTRL, true);
     tap(KEY_ENTER);
     key(KEY_LEFTCTRL, false);
@@ -421,7 +404,6 @@ TEST_F(ScreenshotTest, TheCrosshairCapturesOnRelease)
     ASSERT_TRUE(test::runUntil([&saved] { return !saved.empty(); }));
     EXPECT_EQ(base::Size(150, 150), ui::Bitmap::decodeFile(saved.front()).size());
 
-    // Space picks a window instead; a click takes it, with its shadow.
     wm::Window *window = openWindow({400, 300, 300, 200});
     capture->takePartialScreenshot(false);
     tap(KEY_SPACE);
@@ -452,7 +434,6 @@ TEST_F(ScreenshotTest, TheTimerCountsDownOverWhatItTakesAndLetsInputThrough)
     EXPECT_TRUE(capture->isActive());
     EXPECT_EQ(5, capture->countdown());
     EXPECT_EQ(kOutput, capture->countdownArea());
-    // The toolbar goes; input reaches what is under the interface.
     EXPECT_FALSE(overlay()->toolbar()->isVisible());
     ASSERT_TRUE(overlay()->window()->surface()->inputRegion());
     EXPECT_TRUE(overlay()->window()->surface()->inputRegion()->isEmpty());
@@ -468,7 +449,6 @@ TEST_F(ScreenshotTest, OptionsListsWhereItGoesTheTimerAndThePointer)
     capture->startCaptureMode();
     frame();
     shell::CaptureToolbar *bar = overlay()->toolbar();
-    // Hovering a button shows its name above it.
     const base::PointF window = centreOf(bar->modeButton(0, 1));
     move(window.x(), window.y());
     ASSERT_TRUE(bar->tooltip()->isShown());
@@ -480,12 +460,10 @@ TEST_F(ScreenshotTest, OptionsListsWhereItGoesTheTimerAndThePointer)
     EXPECT_FALSE(bar->tooltip()->isShown());
     EXPECT_TRUE(bar->optionsButton()->isChecked());
     EXPECT_EQ(shell::CaptureOverlay::Shape::Arrow, overlay()->shape());
-    // A press on Options again only closes it.
     click(options.x(), options.y());
     EXPECT_FALSE(bar->isOptionsOpen());
     click(options.x(), options.y());
     EXPECT_TRUE(bar->isOptionsOpen());
-    // Escape closes the menu, then the interface.
     tap(KEY_ESC);
     test::processPendingEvents();
     EXPECT_FALSE(bar->isOptionsOpen());
@@ -494,8 +472,6 @@ TEST_F(ScreenshotTest, OptionsListsWhereItGoesTheTimerAndThePointer)
     EXPECT_FALSE(capture->isActive());
 }
 
-// The tooltip's text fills the label on one line, the same gap on both sides
-// of it in the bubble, at whole and fractional scales alike.
 TEST_F(ScreenshotTest, TooltipsFitTheirTextWithEqualSidePadding)
 {
     for (const int numerator : {120, 180}) {
@@ -533,7 +509,6 @@ TEST_F(ScreenshotTest, TheToolbarIsDraggedAndRemembered)
     capture->startCaptureMode();
     frame();
     const base::RectF toolbar = toolbarRect();
-    // Its background, between the last button and the end.
     const double x = toolbar.x() + toolbar.width() - 2;
     const double y = toolbar.y() + 24;
     move(x, y);
@@ -544,7 +519,6 @@ TEST_F(ScreenshotTest, TheToolbarIsDraggedAndRemembered)
     release();
     EXPECT_NEAR(toolbar.x() - 100, toolbarRect().x(), 1e-9);
     EXPECT_NEAR(toolbar.y() - 300, toolbarRect().y(), 1e-9);
-    // The selection stays.
     EXPECT_EQ(base::Rect(359, 239, 720, 480), capture->selection());
     const base::Rect saved = capture->settings().toolbarGeometry();
     EXPECT_EQ(int(std::lround(toolbar.y() - 300)), saved.y());
@@ -577,7 +551,6 @@ TEST_F(ScreenshotTest, ACaptureWithinTheDelayKeepsTheOverlays)
     capture->startCaptureMode();
     EXPECT_EQ(first, overlay());
     EXPECT_FALSE(shell::ScreenCaptureTestAccess::expiryPending(*capture));
-    // Past the delay while it is up.
     test::runFor(std::chrono::milliseconds(300));
     EXPECT_EQ(first, overlay());
     capture->cancel();
@@ -596,7 +569,6 @@ TEST_F(ScreenshotTest, ACaptureAfterTheOverlaysWentLooksAsTheFirst)
     capture->setMode(shell::ScreenCapture::Image, shell::ScreenCapture::Region);
     capture->setSelection(base::Rect(100, 50, 200, 100));
     capture->cancel();
-    // Opened again at once, on the overlays it had.
     capture->startCaptureMode();
     frame();
     const auto kept = shown();
@@ -651,15 +623,12 @@ TEST_F(ScreenshotTest, ServesOrgCutefishScreenshot)
     client.call("org.cutefish.Screenshot", "/Screenshot", "org.cutefish.Screenshot", "takePartialScreenshot", true);
     EXPECT_TRUE(capture->isActive());
     EXPECT_FALSE(capture->isToolbarStyle());
-    // Every screen at once, the interface gone.
     client.call("org.cutefish.Screenshot", "/Screenshot", "org.cutefish.Screenshot", "takeScreenshot", true);
     EXPECT_FALSE(capture->isActive());
     ASSERT_TRUE(test::runUntil([this] { return seat.selection()->source() != nullptr; }));
     EXPECT_EQ("outputs 1", grabber->calls.back());
 }
 
-// cutefish-screenshot captures nothing itself: the shell takes the picture,
-// with the shutter and a notification, and hands it over.
 TEST_F(ScreenshotTest, TheCommandLineToolGetsItsPictureFromTheShell)
 {
     base::dbus::Connection *bus = base::dbus::Connection::session(core::mainLoop());
@@ -727,8 +696,6 @@ TEST(ScreenshotHelpers, TheRecorderIsToldWhatToRecord)
               shell::ScreenRecording::arguments(window, "/tmp/b.mp4"));
 }
 
-// The recorder captures on a connection the compositor made for it, never by
-// finding the public socket.
 TEST(ScreenshotHelpers, TheRecorderRunsOnTheConnectionItIsGiven)
 {
     test::TemporaryDirectory directory;
@@ -769,7 +736,6 @@ TEST(ScreenshotHelpers, TheRecorderRunsOnTheConnectionItIsGiven)
     EXPECT_EQ(0, recv(compositorEnd, &byte, 1, 0));
     close(compositorEnd);
 
-    // No connection, no recorder.
     shell::ScreenRecording refused(directory.filePath("recorder"), {}, [] { return -1; });
     std::optional<bool> refusedOk;
     base::Subscription refusedFinished =

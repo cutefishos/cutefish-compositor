@@ -22,12 +22,8 @@
 
 namespace cutefish::shell {
 
-// Decodes a wallpaper once for everyone who wants it. A wallpaper is a huge,
-// usually progressive JPEG: one decode per path and device size is shared by
-// the desktop, the menu bar's backdrop, the launchpad's blurred copy and the
-// lock screen, the last few stay in memory, and results go to a disk cache so
-// the next session reads the screen-size pixels instead of decoding the file
-// again.
+// One decode per path and device size is shared by every user, the last few stay
+// in memory, and results go to a disk cache for the next session.
 class WallpaperCache
 {
 public:
@@ -39,40 +35,32 @@ public:
     // How long a decode no screen shows stays after the last request; then it
     // comes back from the disk cache.
     static constexpr std::chrono::seconds kExpiry {60};
-    // Each screen's current and previous wallpaper, for two screens.
     static constexpr int kMaxCachedFiles = 4;
 
     using Done = std::function<void(const ui::Bitmap &image)>;
 
-    // `directory` holds the disk cache; empty is ~/.cache/cutefish/wallpapers.
+    // Empty `directory` is ~/.cache/cutefish/wallpapers.
     explicit WallpaperCache(std::string directory = {});
     ~WallpaperCache();
 
     WallpaperCache(const WallpaperCache &) = delete;
     WallpaperCache &operator=(const WallpaperCache &) = delete;
 
-    // The wallpaper scaled and centre-cropped to exactly `deviceSize`, null
-    // when the file cannot be read. A decode in memory is handed over before
-    // this returns; otherwise `done` runs on the loop once it is decoded,
-    // while the returned handle is kept.
+    // Null when the file cannot be read. A decode in memory is handed over before this
+    // returns; otherwise `done` runs on the loop while the returned handle is kept.
     [[nodiscard]] std::shared_ptr<void> load(const std::string &path, const base::Size &deviceSize, Done done);
 
-    // A finished decode in memory, or null.
+    // Null for none.
     ui::Bitmap cached(const std::string &path, const base::Size &deviceSize) const;
-    // The decodes in memory and their bytes.
     std::pair<int, size_t> memory() const;
-    // What the screens show and are about to show, by path and device size:
-    // those decodes stay in memory however long ago they were asked for.
+    // Those decodes stay in memory however long ago they were asked for.
     void setShown(const std::vector<std::pair<std::string, base::Size>> &pictures);
 
-    // The decode itself, on any thread.
+    // On any thread.
     static ui::Bitmap decode(const std::string &path, const base::Size &deviceSize);
-    // decode(), read from the disk cache in `directory` when an earlier
-    // session did it; a new decode is written there.
     static ui::Bitmap cachedOrDecode(const std::string &path, const base::Size &deviceSize,
                                      const std::string &directory);
-    // Names the source file as it is now: an edit or a replacement misses.
-    // Empty for a file that is not there.
+    // An edit or a replacement misses; empty for a file that is not there.
     static std::string cacheKey(const std::string &path, const base::Size &deviceSize);
     static std::string defaultDirectory();
 
@@ -98,8 +86,7 @@ private:
 
     void finish(const Key &key, const ui::Bitmap &image);
     bool isShown(const Key &key) const;
-    // Counts kExpiry again from now while a decode no screen shows is in
-    // memory; with `restart` false, only when it is not counting already.
+    // With `restart` false, only when it is not counting already.
     void scheduleExpiry(bool restart);
 
     std::string m_directory;
@@ -107,7 +94,6 @@ private:
     // Most recent first.
     std::list<std::pair<Key, ui::Bitmap>> m_images;
     std::vector<Key> m_shown;
-    // Made the first time a decode no screen shows is kept.
     std::unique_ptr<base::Timer> m_expiry;
     std::chrono::milliseconds m_expiryDelay = kExpiry;
 };

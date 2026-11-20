@@ -95,9 +95,7 @@ wl_client *PrivilegedClients::adopt(TrustedConnection &connection, int fd)
     if (fd < 0)
         return nullptr;
 
-    // Only one at a time. The old connection is destroyed first, which runs its
-    // destroy listener and clears every piece of its state, so a late event
-    // from it can never reach the new one.
+    // The old connection is destroyed first, clearing its state, so a late event from it never reaches the new one.
     if (connection.client) {
         wl_client *previous = connection.client;
         forget(connection);

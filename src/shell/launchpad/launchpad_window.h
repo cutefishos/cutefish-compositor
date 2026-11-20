@@ -21,17 +21,10 @@ class LaunchpadWallpaper;
 class Wallpaper;
 class ShellWindow;
 
-// The launchpad window: a window of
-// the Launchpad role covering the primary output, menu bar included, with
-// room left for the dock; shown, activated and hidden by the Launchpad it is
-// given, and hidden again when it loses the activation to anything but its
-// own menu, a drag or the capture tools. The compositor animates its
-// opening and closing by its role.
 class LaunchpadWindow : public Component
 {
 public:
-    // `dock` gives the room to leave; it may be null.
-    // `wallpaper` is the desktop's, whose decode the launchpad shrinks.
+    // `dock` may be null.
     LaunchpadWindow(Shell *shell, std::unique_ptr<Launchpad> launchpad, Dock *dock, Wallpaper *wallpaper);
     ~LaunchpadWindow() override;
 

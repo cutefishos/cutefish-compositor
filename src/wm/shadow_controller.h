@@ -25,36 +25,21 @@ class ShadowControllerDelegate;
 class Window;
 class WindowManager;
 
-// Owns every window's shadow and decides, from one place, whether it is shown
-// and how strong it is. Shadows are a presentation concern of the window
-// manager: no decoration, frame or client surface owns one.
-//
-// Upstream splits this into ShadowController and ShadowController::Impl, where
-// the Impl is a refcounted singleton observing aura::Env for every window in
-// the process. Cutefish has one WindowManager, so there is one controller and
-// no Impl. The observation set is the same: windows appearing and disappearing,
-// activation, show state, bounds, visibility and drags.
-//
 // Must be destroyed before the WindowManager it observes.
 class ShadowController : public WindowObserver
 {
 public:
-    // `provider` may be null, which leaves every window without a shadow but
-    // keeps the policy observable; that is what protocol-only tests want.
+    // `provider` may be null, which leaves every window without a shadow.
     ShadowController(WindowManager* manager, ShadowProvider* provider,
                      ShadowControllerDelegate* delegate);
     ~ShadowController() override;
 
-    // Null until the window has one. Upstream: ShadowController::GetShadowForWindow.
+    // Null until the window has one.
     WindowShadow* shadowForWindow(const Window* window) const;
 
     ShadowElevation elevationForWindow(const Window* window) const;
 
-    // Re-asks the delegate and re-applies bounds. Every observer below funnels
-    // into this; upstream calls it HandlePossibleShadowVisibilityChange.
     void handlePossibleShadowVisibilityChange(Window* window);
-
-    // --- WindowObserver ---
 
     void onWindowBoundsChanged(Window* window, const base::Rect& oldBounds) override;
     void onWindowStateTypeChanged(Window* window, WindowStateType oldType) override;

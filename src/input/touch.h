@@ -4,12 +4,6 @@
 //
 // Upstream: chromium/src/components/exo/touch.h
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: the seat resolves each new touch point's target once
-// and hands it to every client's Touch, where aura targets the event before
-// its pre-target handlers see it. A frame follows each libinput frame rather
-// than each event, which is the end-of-sequence signal upstream's TODO asks
-// ui::TouchEvent for. The stylus delegate is not carried over.
 
 #ifndef CUTEFISH_INPUT_TOUCH_H_
 #define CUTEFISH_INPUT_TOUCH_H_
@@ -26,12 +20,10 @@ namespace cutefish::input {
 class Seat;
 class TouchDelegate;
 
-// One client's view of the seat's touch devices.
 class Touch : public compositor::SurfaceObserver
 {
 public:
-    // The delegate outlives the touch device, or destroys itself from
-    // onTouchDestroying(), as the Wayland delegate does upstream.
+    // The delegate outlives the touch device, or destroys itself from onTouchDestroying().
     Touch(TouchDelegate* delegate, Seat* seat);
     Touch(const Touch&) = delete;
     Touch& operator=(const Touch&) = delete;
@@ -39,9 +31,7 @@ public:
 
     TouchDelegate* delegate() const { return m_delegate; }
 
-    // Called by the Seat. `target` is the surface the point went down on, or
-    // null when it landed on nothing a client owns; `rootLocation` is in
-    // output coordinates.
+    // `target` is null when the point landed on nothing a client owns; `rootLocation` is in output coordinates.
     void onTouchDown(compositor::Surface* target, Timestamp timestamp, int32_t id,
                      const base::PointF& rootLocation);
     void onTouchMotion(Timestamp timestamp, int32_t id, const base::PointF& rootLocation);
@@ -49,10 +39,8 @@ public:
     void onTouchCancel();
     void onTouchFrame();
 
-    // Whether `id` is a point this client is being sent.
     bool tracks(int32_t id) const { return m_points.contains(id); }
 
-    // compositor::SurfaceObserver:
     void onSurfaceDestroying(compositor::Surface* surface) override;
 
 private:
@@ -64,7 +52,6 @@ private:
     // surface is observed exactly while it has a point on it.
     std::map<int32_t, compositor::Surface*> m_points;
     std::map<compositor::Surface*, int> m_surfaceCounts;
-    // Something was sent since the last frame.
     bool m_framePending = false;
 };
 

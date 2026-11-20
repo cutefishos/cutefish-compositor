@@ -65,28 +65,21 @@ public:
     bool onPointerButton(input::Timestamp, const base::PointF &position, uint32_t button,
                          bool pressed) override;
 
-    // The panel's toolkit window, made with the controller on the first
-    // refresh with an output.
     ui::EmbeddedWindow *window() const { return m_window.get(); }
-    // The view that has the keyboard, for tests.
     ui::View *focusView() const;
 
     AuthController *controller() const { return m_controller.get(); }
 
-    // Off for a user who has no password to give; the next lock screen asks
-    // for Enter instead. The login screen always asks for one.
+    // Off for a user who has no password; the login screen always asks for one.
     void setPasswordRequired(bool required) { m_passwordRequired = required; }
 
-    // Whether a refresh() is queued. Nothing queues one while the panel is idle.
+    // Nothing queues one while the panel is idle.
     bool isRefreshPending() const { return m_refresh.isActive(); }
 
-    // The panel has its size for the output, so the next frame can show it.
     bool isPanelDrawn() const { return m_window && m_sized; }
 
-    // Changes whenever renderImage() draws the panel anew.
     uint64_t imageGeneration() const { return m_imageGeneration; }
 
-    // Where the pointer is, for the panel to open on the screen it is on.
     void setPointerLocator(std::function<base::PointF()> locator)
     {
         m_pointerLocator = std::move(locator);
@@ -97,36 +90,26 @@ public:
         m_keyRepeat = settings;
     }
 
-    // The password field in panel coordinates, for the backdrop blur behind it.
+    // In panel coordinates.
     base::RectF fieldBounds() const;
     double fieldOpacity() const;
 
-    // The panel rendered on the CPU, when it changed.
     ui::Bitmap renderImage();
-    // In the panel node's paint: the panel as a texture of the renderer,
-    // drawn on the GPU where the renderer allows.
     render::Texture *panelTexture(render::Renderer &renderer);
     void releaseRenderResources();
 
-    // The Wi-Fi and battery icons in the top-right corner of the panel's
-    // output, in a window of their own: the panel's scales as it comes and
-    // goes, they only fade with the wallpaper.
     ui::EmbeddedWindow *statusWindow() const { return m_statusWindow.get(); }
     AuthStatus *status() const { return m_status; }
-    // The icons rendered on the CPU, when they changed.
     ui::Bitmap renderStatusImage();
     render::Texture *statusTexture(render::Renderer &renderer);
     void releaseStatusRenderResources();
     void refresh();
-    // The cursor the session shows while it is blocked.
     base::Signal<input::CursorShape> cursorShapeChanged;
 
 private:
     void clear();
     void scheduleRefresh();
     void refreshStatus(const session::SecureOutput &target);
-    // Light or dark icons from the wallpaper under them, as the menu bar
-    // judges its own.
     void judgeBackdrop();
     const session::SecureOutput &
     panelOutput(const std::vector<session::SecureOutput> &outputs) const;
@@ -154,7 +137,6 @@ private:
     std::unique_ptr<ui::EmbeddedWindow> m_window;
     std::unique_ptr<toolkit::PanelTexture> m_panel;
     AuthScreen *m_screen = nullptr;
-    // The cursor the panel's views ask for, shown while the session is blocked.
     input::CursorShape m_viewCursor = input::CursorShape::Default;
     double m_scale = 1;
     bool m_sized = false;
@@ -176,7 +158,6 @@ private:
     bool m_statusDirty = true;
     base::Subscription m_wallpaperLoaded;
     base::Job m_judgement;
-    // What the icons were last judged against.
     std::string m_judgedOutput;
     const void *m_judgedPixels = nullptr;
     bool m_judged = false;

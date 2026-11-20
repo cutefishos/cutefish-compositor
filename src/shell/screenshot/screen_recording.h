@@ -21,9 +21,8 @@ class Process;
 
 namespace cutefish::shell {
 
-// One run of cutefish-screenrecorder,
-// which captures and encodes on its own: "started" on its output once the
-// first frame is in, and "stop" or the end of its input ends it.
+// "started" on its output once the first frame is in; "stop" or the end of its
+// input ends it.
 class ScreenRecording
 {
 public:
@@ -31,35 +30,30 @@ public:
         std::string output;
         // Global logical coordinates; empty for the whole output.
         base::Rect region;
-        // Or a window, by its window id.
         uint64_t window = 0;
         bool cursor = true;
         // A PipeWire node name; empty for no sound.
         std::string microphone;
     };
 
-    // Gives the recorder its Wayland connection, one end of a socketpair the
-    // compositor lets capture; -1 when there is none.
+    // -1 when there is none.
     using Connect = std::function<int()>;
 
-    // `environment`: what the recorder runs with; empty keeps this process's.
-    // Without `connect` the recorder finds the compositor on its own.
+    // Empty `environment` keeps this process's; without `connect` the recorder finds
+    // the compositor on its own.
     ScreenRecording(std::string program, std::vector<std::string> environment, Connect connect = {});
     ~ScreenRecording();
 
     bool isRunning() const { return m_process != nullptr; }
     const std::string &path() const { return m_path; }
 
-    // The recorder's arguments for `target`, ending with `path`.
     static std::vector<std::string> arguments(const Target &target, const std::string &path);
 
     bool start(const Target &target, const std::string &path);
     void stop();
 
     base::Signal<> recordingChanged;
-    // `ok` with a complete file at path(), otherwise `error` says why.
     base::Signal<bool, std::string> finished;
-    // The recorder's process came and went, for whose microphone use it is.
     std::function<void(int64_t pid)> onStarted;
     std::function<void(int64_t pid)> onStopped;
 

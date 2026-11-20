@@ -17,10 +17,8 @@
 
 namespace cutefish::backend {
 
-// Holds an amdgpu device at its peak stable pstate while GpuBoostPolicy says
-// so, through a context of the compositor's own on the device's descriptor.
-// Under CPU load the SMU gives the shared power budget to the CPU and the
-// graphics clock falls far enough to miss most animation frames.
+// Holds an amdgpu device at its peak stable pstate: under CPU load the SMU
+// otherwise gives the power budget to the CPU and frames are missed.
 class AmdgpuBoost
 {
 public:
@@ -49,8 +47,8 @@ private:
     bool m_wanted = false;
     base::Timer m_release {core::mainLoop()};
 
-    // The pstate ioctl waits for the SMU, a few milliseconds and over ten
-    // under load, so it is made on a thread of its own.
+    // The pstate ioctl blocks for milliseconds, so it runs on a thread of its
+    // own.
     std::mutex m_mutex;
     std::condition_variable m_changed;
     bool m_peak = false;

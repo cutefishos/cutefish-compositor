@@ -14,11 +14,8 @@ namespace cutefish::scene {
 
 namespace {
 
-// Upstream kScrimStartBoundsRatio: the plate starts at this fraction of its
-// size, centred on where it ends.
 constexpr double kStartScale = 0.75;
 
-// gfx::Tween::ACCEL_20_DECEL_100.
 double accel20Decel100(double t)
 {
     return motion::cubicBezier(.2, 0, 0, 1, t);
@@ -91,13 +88,10 @@ void SnapPreviewNode::paint(render::Renderer &renderer, const base::Rect &absolu
 
     if (opacity > 0) {
         const render::RoundedShape shape {bounds, kRadius, {1, 1}};
-        // fillRectF is a rectangle; the rounded clip is what gives it its corners.
         renderer.pushRoundedClip(shape);
         renderer.fillRectF(bounds, faded(m_fill, opacity));
         renderer.popRoundedClip();
 
-        // views::HighlightBorder: a physical-pixel hairline, and a second one
-        // just inside it on the same radius.
         renderer.drawRoundedOutline(shape, faded(m_outline, opacity), 1);
         const double pixel = 1 / renderer.rasterScale();
         const render::RoundedShape inner {bounds.adjusted(pixel, pixel, -pixel, -pixel), kRadius,

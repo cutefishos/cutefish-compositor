@@ -14,7 +14,6 @@
 
 namespace cutefish::clipboard {
 
-// A source whose payloads the compositor holds, written out without blocking.
 class StoredSource : public DataSource
 {
 public:

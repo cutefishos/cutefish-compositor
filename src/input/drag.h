@@ -84,18 +84,14 @@ private:
     bool m_finishDeferred = false;
 };
 
-// Moves a window along with a drag, for xdg_toplevel_drag_v1. The data
-// transfer goes on as usual; the window follows the pointer on top of it.
 class DragWindowDelegate
 {
 public:
     virtual ~DragWindowDelegate() = default;
     virtual void dragMoved(const base::PointF& location) = 0;
-    // The surface under the pointer, and whether it takes the drop; null when
-    // the drag is over nothing.
+    // `target` is null when the drag is over nothing.
     virtual void dragTargetChanged(compositor::Surface* target, bool accepted) = 0;
-    // `released` is a drop, whether or not a target took the data; otherwise
-    // the drag was cancelled, by Escape or by its source or origin going away.
+    // `released` is a drop, whether or not a target took the data; otherwise a cancel.
     virtual void dragEnded(bool released) = 0;
 };
 
@@ -107,8 +103,7 @@ public:
 
     bool active() const { return m_origin != nullptr; }
 
-    // Driven by XDND messages instead of the pointer: the client that started
-    // the drag keeps its implicit grab, and input goes on reaching it.
+    // Driven by XDND messages; the originating client keeps its implicit grab.
     bool isExternal() const { return m_external; }
 
     bool grabsInput() const { return active() && !m_external; }
@@ -119,7 +114,6 @@ public:
 
     compositor::Surface* target() const { return m_target; }
 
-    // Over a target whose offer would take a drop now.
     bool targetAcceptsDrop() const
     {
         const DragOffer* offer = selectedOffer();
@@ -134,56 +128,37 @@ public:
     void setIconOpacity(float opacity);
     bool hasIcon() const { return m_icon != nullptr; }
     float iconOpacity() const { return m_iconOpacity; }
-    // For the running drag only: let go, whether or not a target takes the
-    // data, its icon shrinks and fades out where it was.
     void setVanishesOnDrop(bool vanishes);
-    // The let go icon is still shrinking.
     bool isVanishing() const { return m_vanishNode != nullptr; }
 
-    // For the running drag only: over nothing that takes the drop it shows
-    // the default pointer rather than no-drop.
     void setPlainIdleCursor(bool plain);
 
-    // For the running drag only: ended with nothing taking the data, by a
-    // cancel or a release, its icon slides back to where the drag started,
-    // as ash's cancel animation does.
     void setReturnsHome(bool returns);
-    // Where the pointer position goes back to; where the drag started otherwise.
     void setHome(const base::PointF& home);
 
-    // The ended drag's icon is on its way back; returned() follows.
     bool isReturning() const { return m_returning; }
 
-    // A returned icon waits where it arrived, so whoever draws it there next
-    // can take over without a frame showing neither; this lets it go, and
-    // ends a return still on its way.
+    // A returned icon stays until this is called, which also ends a return still on its way.
     void releaseReturn();
 
     void start(compositor::Surface* origin, compositor::Surface* icon,
                std::shared_ptr<clipboard::DataSource> source, uint32_t actions, ButtonFlags button);
-    // A drag that follows touch point `touchId` from `location` and drops where
-    // it is lifted, as ash drags with a touch source. The clients that have the
-    // point are sent a cancel.
+    // The clients that have touch point `touchId` are sent a cancel.
     void startTouch(compositor::Surface* origin, compositor::Surface* icon,
                     std::shared_ptr<clipboard::DataSource> source, uint32_t actions,
                     int32_t touchId, const base::PointF& location);
     // The touch point a drag follows; empty for a pointer or external drag.
     std::optional<int32_t> touchId() const { return m_touchId; }
-    // An X11 drag seen through the XDND proxy. motion() follows XdndPosition,
-    // and drop() or cancel() end it.
     void startExternal(compositor::Surface* origin, std::shared_ptr<clipboard::DataSource> source,
                        uint32_t actions);
     std::shared_ptr<DragOffer> createOffer(bool legacy);
     void motion(Timestamp timestamp, const base::PointF& location);
     void button(Timestamp timestamp, uint32_t button, bool pressed);
     bool key(uint32_t code, bool pressed);
-    // Drops on the selected offer, or cancels when nothing can take the drop.
     void drop();
     void cancel();
     uint32_t modifierAction() const;
-    // For the running drag only; it is forgotten when the drag ends. A drag
-    // with a window drops anywhere: the source learns of the drop even when no
-    // target accepts it, which is how it tells a drop from Escape.
+    // For the running drag only. With a window, the source learns of a drop even when no target accepts it.
     void setWindowDelegate(DragWindowDelegate* delegate);
 
     DragWindowDelegate* windowDelegate() const { return m_windowDelegate; }
@@ -201,7 +176,6 @@ public:
     base::Signal<> left;
     // The drag was let go, before the source hears how the drop went.
     base::Signal<> released;
-    // The icon of a drag that returns home is back, or had none to slide.
     base::Signal<> returned;
     base::Signal<DragOffer*> dropped;
     base::Signal<> ended;
@@ -218,10 +192,8 @@ private:
     void updateIcon();
     void updateFeedback(DragOffer* offer);
     void setCursor(CursorShape shape);
-    // The cursor over nothing that takes the drop.
     CursorShape idleCursor() const;
     void notifyWindowTarget();
-    // The icon's content, moved to a node of its own before the icon goes.
     std::unique_ptr<scene::SurfaceNode> takeIcon(std::string name) const;
     void startReturn(std::unique_ptr<scene::SurfaceNode> node);
     void advanceReturn(double frameTimeMs);
@@ -262,7 +234,6 @@ private:
     bool m_external = false;
     uint64_t m_generation = 0;
     base::Subscription m_sourceConnection;
-    // Each offer's feedbackChanged, dropped once the offer is gone.
     std::vector<std::pair<std::weak_ptr<DragOffer>, base::Subscription>> m_offerConnections;
     base::WeakPtrFactory<DragController> m_weakFactory {this};
 };

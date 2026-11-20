@@ -71,7 +71,6 @@ void StatusNotifierItem::performRefresh()
         return m_proxy.getAllAsync([this, finished](const dbus::Reply &reply) {
             m_refreshing = false;
             if (m_needsRefresh) {
-                // What arrived is already out of date.
                 m_needsRefresh = false;
                 performRefresh();
             } else if (const std::optional<dbus::VariantMap> properties = reply.value<dbus::VariantMap>()) {
@@ -110,9 +109,8 @@ void StatusNotifierItem::apply(const dbus::VariantMap &properties)
     const auto iconByName = [this](const std::string &name) -> std::string {
         if (name.empty())
             return {};
-        // The item's own directory is looked in first: a theme lookup would
-        // otherwise settle on a copy elsewhere and draw it as an application
-        // icon.
+        // The item's own directory is looked in first, or a theme lookup would
+        // settle on a copy elsewhere.
         if (!m_iconThemePath.empty() && name.find('/') == std::string::npos) {
             std::error_code error;
             for (const char *suffix : {".png", ".svg"}) {
@@ -149,14 +147,12 @@ void StatusNotifierItem::apply(const dbus::VariantMap &properties)
         m_pixmaps.clear();
     }
 
-    // Some tray clients have no usable icon: the one of the matching desktop
-    // entry stands in before a generic one would.
     if (!hasPixmaps)
         lookUpApplicationIcon();
 
     if (!m_menu) {
         const std::string menuPath = property(properties, "Menu");
-        // "/NO_DBUSMENU" is how KStatusNotifierItem turns the menu off.
+        // "/NO_DBUSMENU" is how items turn the menu off.
         if (!menuPath.empty() && !menuPath.starts_with("/NO_DBUSMENU"))
             m_menu = std::make_unique<DBusMenu>(m_bus, m_service, menuPath);
     }

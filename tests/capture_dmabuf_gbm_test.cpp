@@ -53,7 +53,6 @@ protected:
         m_target = m_renderer->createTarget(m_surface.get(), {64, 48});
         ASSERT_TRUE(m_target);
 
-        // The client's buffer, allocated the way the portal does.
         m_bo.reset(gbm_bo_create(m_device.get(), 64, 48, DRM_FORMAT_ARGB8888,
                                  GBM_BO_USE_RENDERING | GBM_BO_USE_LINEAR));
         ASSERT_TRUE(m_bo);
@@ -87,18 +86,14 @@ protected:
             return false;
         const bool rendered =
                 m_renderer->captureToDmaBuf(context, base::Size(64, 48), m_attributes, paint);
-        // The compositor hands a frame over only after its presentation, by
-        // which time the GPU has finished; here nothing waits for it but this.
+        // The compositor hands a frame over only after its presentation; here nothing else waits for the GPU.
         glFinish();
         m_renderer->cancelFrame();
         return rendered;
     }
 
-    // Reads the buffer back the way a consumer does: through a fresh import of
-    // the same DMA-BUF. A CPU map is no oracle on virgl, whose guest copy is
-    // not refreshed for another context's rendering; a consumer samples the
-    // host copy directly. Texture row 0 is the first row in memory, so
-    // glReadPixels y counts memory rows from the top of the image.
+    // A CPU map is stale on virgl, so this reads back through a fresh import, as a consumer does.
+    // Texture row 0 is the first row in memory.
     std::function<std::string(int, int)> readback()
     {
         auto createImage = reinterpret_cast<PFNEGLCREATEIMAGEKHRPROC>(
@@ -162,14 +157,10 @@ protected:
 
 } // namespace
 
-// Renders a capture straight into a client-style DMA-BUF and reads the buffer
-// back through GBM: the rows must come out top-down, as a PipeWire consumer
-// expects, without any readback on the compositor side.
 TEST_F(CaptureDmaBuf, RendersTopDownIntoALinearBuffer)
 {
     ASSERT_TRUE(capture([&] {
         m_renderer->clear({0, 0, 1, 1});
-        // Red at the top-left corner, green at the bottom-right corner.
         m_renderer->fillRect(base::Rect(0, 0, 8, 8), {1, 0, 0, 1});
         m_renderer->fillRect(base::Rect(56, 40, 8, 8), {0, 1, 0, 1});
     }));
@@ -181,12 +172,8 @@ TEST_F(CaptureDmaBuf, RendersTopDownIntoALinearBuffer)
     releaseReadback();
 }
 
-// A consumer reuses its buffers, so the copy must replace every pixel: what
-// the buffer held before may not show through transparent or translucent
-// parts of the capture.
 TEST_F(CaptureDmaBuf, TransparentPixelsReplaceTheOldContents)
 {
-    // Leave the previous frame in the buffer: opaque magenta everywhere.
     ASSERT_TRUE(capture([&] { m_renderer->clear({1, 0, 1, 1}); }));
 
     ASSERT_TRUE(capture([&] {
@@ -198,7 +185,6 @@ TEST_F(CaptureDmaBuf, TransparentPixelsReplaceTheOldContents)
     const auto at = readback();
     EXPECT_EQ(at(2, 2), std::string("\xff\x00\x00\xff", 4));
     EXPECT_EQ(at(32, 24), std::string("\x00\x00\x00\x00", 4));
-    // Premultiplied half green, with no magenta underneath.
     const std::string translucent = at(61, 45);
     EXPECT_EQ(uint8_t(translucent[0]), 0);
     EXPECT_NEAR(uint8_t(translucent[1]), 128, 1);
@@ -207,8 +193,6 @@ TEST_F(CaptureDmaBuf, TransparentPixelsReplaceTheOldContents)
     releaseReadback();
 }
 
-// Consumers that negotiate modifiers (Sunshine, OBS) never offer INVALID; they
-// meet the compositor on an explicit LINEAR and allocate with it.
 TEST_F(CaptureDmaBuf, AcceptsAnExplicitLinearModifier)
 {
     const auto &formats = m_renderer->captureDmaBufFormats();

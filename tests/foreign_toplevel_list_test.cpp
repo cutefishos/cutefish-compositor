@@ -235,7 +235,6 @@ protected:
         return window;
     }
 
-    // Resolves a client handle through the server-side proxy of the same id.
     std::shared_ptr<compositor::CaptureSource> sourceOf(const Handle &handle)
     {
         wl_client *wlClient = nullptr;
@@ -254,7 +253,6 @@ TEST_F(ForeignToplevelListTest, ListsApplicationWindowsWithIdentityAndSource)
     const Handle &handle = *handles.front();
     EXPECT_EQ(handle.title, "Editor");
     EXPECT_EQ(handle.appId, "org.example.Editor");
-    // The shell names a window to capture clients by the id it knows it by.
     EXPECT_EQ(handle.identifier, std::format("cutefish-{}", window->id()));
     EXPECT_GE(handle.done, 1);
     EXPECT_FALSE(handle.closed);
@@ -265,7 +263,6 @@ TEST_F(ForeignToplevelListTest, ListsApplicationWindowsWithIdentityAndSource)
     EXPECT_EQ(source->node, window->node());
     EXPECT_EQ(source->bounds, base::Rect(100, 50, 300, 200));
     EXPECT_EQ(source->renderedOn(), "eDP-1");
-    // Pixels follow the output's scale.
     EXPECT_EQ(source->pixelSize(), base::Size(600, 400));
 
     window->setTitle("Editor - file.txt");
@@ -273,7 +270,6 @@ TEST_F(ForeignToplevelListTest, ListsApplicationWindowsWithIdentityAndSource)
     EXPECT_EQ(handle.title, "Editor - file.txt");
     EXPECT_GE(handle.done, 2);
 
-    // A resize changes the buffer size the session must announce.
     int changes = 0;
     // The subscription dies with the locals the lambda captures.
     const auto scope = source->changed.connect([&] {
@@ -337,7 +333,6 @@ TEST_F(ForeignToplevelListTest, AShadowedSourceCoversTheShadowBounds)
     EXPECT_NE(shadowed, plain);
     EXPECT_EQ(shadowed->kind, compositor::CaptureSource::Kind::Window);
     EXPECT_EQ(shadowed->node, window->node());
-    // Without a shadow the picture is the window.
     EXPECT_EQ(shadowed->bounds, base::Rect(100, 50, 300, 200));
     EXPECT_EQ(toplevels->shadowedSourceFor(nullptr), nullptr);
 
@@ -355,7 +350,6 @@ TEST_F(ForeignToplevelListTest, AShadowedSourceCoversTheShadowBounds)
     EXPECT_EQ(changes, 1);
     EXPECT_EQ(plain->bounds, base::Rect(100, 50, 300, 200));
 
-    // The margins may reach outside the output.
     window->setBounds(base::Rect(0, 0, 300, 200));
     EXPECT_EQ(shadowed->bounds, base::Rect(-20, -10, 340, 250));
     EXPECT_EQ(changes, 1);
@@ -385,7 +379,6 @@ TEST_F(ForeignToplevelListTest, AnUnlistedWindowStillHasAShadowedSource)
     EXPECT_EQ(shadowed->node, popup->node());
     EXPECT_EQ(shadowed->bounds, base::Rect(42, 52, 116, 56));
     EXPECT_EQ(toplevels->shadowedSourceFor(popup), shadowed);
-    // A late list still sees only the application window.
     bindList(registry, listName);
     ASSERT_TRUE(roundtrip());
     EXPECT_EQ(handles.size(), 2u);
@@ -436,7 +429,6 @@ TEST_F(ForeignToplevelListTest, AWindowSourceIsPaintedOnItsOwnAtItsScale)
             [](void *, ext_image_copy_capture_session_v1 *) {}};
     ext_image_copy_capture_session_v1_add_listener(session, &sessionListener, &constraint);
     ASSERT_TRUE(roundtrip());
-    // 300x200 logical on a 2x output.
     EXPECT_EQ(constraint, base::Size(600, 400));
 
     const int size = 600 * 400 * 4;
@@ -509,10 +501,9 @@ TEST_F(ForeignToplevelListTest, StopFinishesTheListAndLateBindersSeeExistingWind
     EXPECT_EQ(handles.size(), 1u);
 }
 
-// A screen recorder binds a list for each recording and drops it when it exits.
 TEST_F(ForeignToplevelListTest, ADestroyedListLeavesNothingBehind)
 {
-    // SetUp's roundtrip only delivers the globals; the list bind they send reaches the server now.
+    // The list bind reaches the server only with this roundtrip.
     ASSERT_TRUE(roundtrip());
     ASSERT_EQ(toplevels->boundListCount(), 1);
     for (int recording = 0; recording < 3; ++recording) {

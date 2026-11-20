@@ -75,7 +75,6 @@ TEST_F(SleepLockTest, SleepWaitsForTheLockOnEveryOutput)
     EXPECT_FALSE(lock.holdsInhibitor());
     EXPECT_TRUE(waitFor([&] { return !logind.held(); }));
 
-    // Awake again: the next sleep is held back too.
     const size_t inhibits = logind.readEnds.size();
     logind.prepareForSleep(false);
     EXPECT_TRUE(waitFor([&] { return lock.holdsInhibitor(); }));

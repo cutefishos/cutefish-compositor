@@ -32,8 +32,7 @@ public:
     ~KeyboardSettings();
     bool registerService();
 
-    // Installs the saved layout right away. A saved layout that no longer
-    // compiles falls back to the default.
+    // Installs the saved layout right away, falling back to the default if it no longer compiles.
     void setLayoutApplier(LayoutApplier applier);
 
     bool repeatEnabled() const { return m_repeatEnabled; }
@@ -48,7 +47,7 @@ public:
 
     ShortcutConvention shortcutConvention() const { return m_shortcutConvention; }
 
-    // "pc" or "command"; see ShortcutConvention.
+    // "pc" or "command".
     std::string shortcutConventionName() const;
 
     void setRepeatEnabled(bool enabled);

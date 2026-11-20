@@ -11,14 +11,8 @@
 namespace cutefish::session {
 class SessionController;
 
-// Locks the session before the system sleeps, however the sleep was asked
-// for: a menu, the lid, idle or systemctl. A logind delay inhibitor holds the
-// sleep back until the lock is on every output, so waking never shows the
-// desktop. Upstream: ash/system/power/power_event_observer.cc, which delays
-// suspend the same way until the lock screen has been composited.
-//
-// It also keeps logind's LockedHint on the session in step with the lock, as
-// Ash tells session_manager that the lock screen was shown or dismissed.
+// A logind delay inhibitor holds sleep back until the lock is on every output, so
+// waking never shows the desktop.
 class SleepLock : public SessionObserver
 {
 public:
@@ -28,8 +22,6 @@ public:
     SleepLock &operator=(const SleepLock &) = delete;
     ~SleepLock() override;
 
-    // Follows logind's PrepareForSleep, takes the inhibitor and from then on
-    // sets the session's LockedHint.
     bool start();
 
     bool holdsInhibitor() const { return m_inhibitor.isValid(); }

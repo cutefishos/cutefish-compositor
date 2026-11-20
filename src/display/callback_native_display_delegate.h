@@ -4,9 +4,6 @@
 //
 // Upstream: chromium/src/ui/display/types/native_display_delegate.h
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: injected callbacks connect the backend-independent
-// native delegate contract to the compositor's in-process display runtime.
 
 #pragma once
 

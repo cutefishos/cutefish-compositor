@@ -6,15 +6,8 @@
 //           chromium/src/ash/accelerators/accelerator_table.h
 // Revision: 8abbac30b9cf2fe976422c58c000c94685648b65
 //
-// Adapted for Cutefish: the default bindings and the action categories, with
-// keys as xkb keysyms. Deprecated, debug and developer accelerators are not
-// carried over.
-//
-// Cutefish has no key-ack extension, so a client can never report that it did
-// not consume a key: every accelerator here is handled before the focused
-// window sees it. Defaults therefore prefer Meta and the dedicated media and
-// brightness keys, which applications do not claim, over Ctrl-based
-// combinations that ChromeOS can afford to offer the browser first.
+// Adapted for Cutefish: without a key-ack extension, every accelerator here is
+// handled before the focused window sees it.
 
 #ifndef CUTEFISH_ACCELERATORS_ACCELERATOR_TABLE_H_
 #define CUTEFISH_ACCELERATORS_ACCELERATOR_TABLE_H_
@@ -35,22 +28,14 @@ struct AcceleratorData {
     AcceleratorAction action;
 };
 
-// There are three classes of accelerators, as in Ash:
-//
-// Reserved: handled whatever the focused window is, fullscreen included, and
-// even while a window inhibits shortcuts.
-// Preferred: handled whatever the focused window is, fullscreen included,
-// unless a window inhibits shortcuts. Ash leaves these to a fullscreen window.
-// Everything else: handled before the focused window unless it is fullscreen,
-// since without a key-ack extension there is no post-target pass.
-//
-// As in Ash, a lone Meta opens the launchpad on release; the
-// AcceleratorLaunchpadStateMachine keeps Meta+L from doing it as well.
+// Reserved: handled whatever the focused window is, even while a window inhibits
+// shortcuts. Preferred: handled whatever the focused window is, unless a window
+// inhibits shortcuts. Everything else: handled before the focused window unless it
+// is fullscreen.
 inline constexpr auto kAcceleratorData = std::to_array<AcceleratorData>({
         {false, XKB_KEY_Super_L, NoModifier, AcceleratorAction::ToggleAppList},
         {true, XKB_KEY_l, MetaDown, AcceleratorAction::LockScreen},
 
-        // Window management.
         {true, XKB_KEY_Tab, AltDown, AcceleratorAction::CycleForwardMru},
         {true, XKB_KEY_Tab, AltDown | ShiftDown, AcceleratorAction::CycleBackwardMru},
         {true, XKB_KEY_equal, AltDown, AcceleratorAction::ToggleMaximized},
@@ -67,7 +52,6 @@ inline constexpr auto kAcceleratorData = std::to_array<AcceleratorData>({
         {true, XKB_KEY_Tab, MetaDown, AcceleratorAction::ToggleOverview},
         {true, XKB_KEY_XF86LaunchA, NoModifier, AcceleratorAction::ToggleOverview},
 
-        // Desks, with Meta where upstream has Search.
         {true, XKB_KEY_bracketleft, MetaDown, AcceleratorAction::DesksActivateDeskLeft},
         {true, XKB_KEY_bracketright, MetaDown, AcceleratorAction::DesksActivateDeskRight},
         {true, XKB_KEY_bracketleft, MetaDown | ShiftDown,
@@ -86,16 +70,13 @@ inline constexpr auto kAcceleratorData = std::to_array<AcceleratorData>({
         {true, XKB_KEY_8, MetaDown | ShiftDown, AcceleratorAction::DesksActivate7},
         {true, XKB_KEY_a, MetaDown | ShiftDown, AcceleratorAction::DesksToggleAssignToAllDesks},
 
-        // Screen capture.
         {true, XKB_KEY_Print, NoModifier, AcceleratorAction::StartCaptureMode},
         {true, XKB_KEY_Print, ShiftDown, AcceleratorAction::TakeScreenshot},
         {true, XKB_KEY_Print, MetaDown | ShiftDown, AcceleratorAction::TakePartialScreenshot},
         {true, XKB_KEY_Escape, ControlDown | MetaDown, AcceleratorAction::StopScreenRecording},
 
-        // Clipboard history.
         {true, XKB_KEY_v, MetaDown, AcceleratorAction::ToggleClipboardHistory},
 
-        // Device keys.
         {true, XKB_KEY_XF86AudioPlay, NoModifier, AcceleratorAction::MediaPlayPause},
         {true, XKB_KEY_XF86AudioPause, NoModifier, AcceleratorAction::MediaPause},
         {true, XKB_KEY_XF86AudioPrev, NoModifier, AcceleratorAction::MediaPrevious},
@@ -112,21 +93,10 @@ inline constexpr auto kAcceleratorData = std::to_array<AcceleratorData>({
         {true, XKB_KEY_XF86KbdBrightnessUp, NoModifier, AcceleratorAction::KeyboardBrightnessUp},
 });
 
-// The defaults under input::ShortcutConvention::Command. Command reaches the
-// compositor as Meta, so MetaDown reads as Command. Applications get Command
-// and Control as Ctrl, so the system keeps to Control+Command, which they
-// never see, apart from a few actions on Command alone: Command+Tab switches
-// applications, Command+M minimizes, and Command+Q, Command+H and
-// Command+Option+H are the application menu's Quit, Hide and Hide Others.
-// Control+Up alone shows all windows; applications still get Ctrl+Up from
-// Command+Up. Keys no application uses stay as under PC: XF86LaunchA, Print
-// and its combinations, the device keys, and Control+Command+Escape stops a
-// recording. Command+Shift+3, 4 and 5 capture as well, onto the clipboard with
-// Control. The launchpad has no default.
+// Command reaches the compositor as Meta, so MetaDown reads as Command.
 inline constexpr auto kCommandAcceleratorData = std::to_array<AcceleratorData>({
         {true, XKB_KEY_q, ControlDown | MetaDown, AcceleratorAction::LockScreen},
 
-        // Window management.
         {true, XKB_KEY_Tab, MetaDown, AcceleratorAction::CycleForwardMru},
         {true, XKB_KEY_Tab, MetaDown | ShiftDown, AcceleratorAction::CycleBackwardMru},
         {true, XKB_KEY_m, MetaDown, AcceleratorAction::WindowMinimize},
@@ -142,7 +112,6 @@ inline constexpr auto kCommandAcceleratorData = std::to_array<AcceleratorData>({
         {true, XKB_KEY_Up, ControlDown, AcceleratorAction::ToggleOverview},
         {true, XKB_KEY_XF86LaunchA, NoModifier, AcceleratorAction::ToggleOverview},
 
-        // Desks, with Control+Command where PC has Meta.
         {true, XKB_KEY_bracketleft, ControlDown | MetaDown,
          AcceleratorAction::DesksActivateDeskLeft},
         {true, XKB_KEY_bracketright, ControlDown | MetaDown,
@@ -164,7 +133,6 @@ inline constexpr auto kCommandAcceleratorData = std::to_array<AcceleratorData>({
         {true, XKB_KEY_8, ControlDown | MetaDown, AcceleratorAction::DesksActivate7},
         {true, XKB_KEY_a, ControlDown | MetaDown, AcceleratorAction::DesksToggleAssignToAllDesks},
 
-        // Screen capture.
         {true, XKB_KEY_3, MetaDown | ShiftDown, AcceleratorAction::TakeScreenshot},
         {true, XKB_KEY_3, ControlDown | MetaDown | ShiftDown,
          AcceleratorAction::TakeScreenshotToClipboard},
@@ -177,10 +145,8 @@ inline constexpr auto kCommandAcceleratorData = std::to_array<AcceleratorData>({
         {true, XKB_KEY_Print, MetaDown | ShiftDown, AcceleratorAction::TakePartialScreenshot},
         {true, XKB_KEY_Escape, ControlDown | MetaDown, AcceleratorAction::StopScreenRecording},
 
-        // Clipboard history.
         {true, XKB_KEY_v, ControlDown | MetaDown, AcceleratorAction::ToggleClipboardHistory},
 
-        // Device keys.
         {true, XKB_KEY_XF86AudioPlay, NoModifier, AcceleratorAction::MediaPlayPause},
         {true, XKB_KEY_XF86AudioPause, NoModifier, AcceleratorAction::MediaPause},
         {true, XKB_KEY_XF86AudioPrev, NoModifier, AcceleratorAction::MediaPrevious},
@@ -205,13 +171,10 @@ inline constexpr std::array kPreferredActions = {
         AcceleratorAction::ToggleOverview,
 };
 
-// Actions that are always handled.
 inline constexpr std::array kReservedActions = {
         AcceleratorAction::LockScreen,
 };
 
-// Actions allowed while the session is blocked: the lock screen and the login
-// screen.
 inline constexpr std::array kActionsAllowedAtLockScreen = {
         AcceleratorAction::MediaPlayPause,
         AcceleratorAction::MediaPause,
@@ -229,7 +192,6 @@ inline constexpr std::array kActionsAllowedAtLockScreen = {
         AcceleratorAction::VolumeUp,
 };
 
-// Actions performed again while their key is held.
 inline constexpr std::array kRepeatableActions = {
         AcceleratorAction::BrightnessDown,
         AcceleratorAction::BrightnessUp,
@@ -239,7 +201,6 @@ inline constexpr std::array kRepeatableActions = {
         AcceleratorAction::VolumeUp,
 };
 
-// Actions that require at least one window.
 inline constexpr std::array kActionsNeedingWindow = {
         AcceleratorAction::DesksMoveActiveItemLeft,
         AcceleratorAction::DesksMoveActiveItemRight,
@@ -255,8 +216,6 @@ inline constexpr std::array kActionsNeedingWindow = {
         AcceleratorAction::HideApplication,
 };
 
-// Actions on the active window or its application, which do nothing while
-// the overview has the keys.
 inline constexpr std::array kActionsBlockedInOverview = {
         AcceleratorAction::DesksMoveActiveItemLeft,
         AcceleratorAction::DesksMoveActiveItemRight,

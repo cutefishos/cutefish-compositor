@@ -20,18 +20,11 @@ class SelectionController;
 
 namespace cutefish::shell {
 
-// Follows the session's clipboard, the seat's selection, and puts history
-// entries back on it, through the selection itself rather than data
-// control.
-//
-// Each new selection is read without blocking: the kept types one after the
-// other through a pipe, within a deadline and a size cap. A newer selection
-// cancels a read in progress, so a program that writes the clipboard twice
-// in a row leaves one copy.
+// A newer selection cancels a read in progress, so a program that writes the
+// clipboard twice in a row leaves one copy.
 class ClipboardMonitor
 {
 public:
-    // How long one copy may take to read before it is dropped.
     static constexpr std::chrono::milliseconds kReadDeadline{2000};
     // Carries the history entry's key, so the selection coming back is known.
     static constexpr const char *kEntryType = "application/x-cutefish-clipboard-history";
@@ -45,13 +38,10 @@ public:
     ClipboardMonitor(const ClipboardMonitor &) = delete;
     ClipboardMonitor &operator=(const ClipboardMonitor &) = delete;
 
-    // Offers the payload as the selection; `key` names the history entry,
-    // so the selection coming back is recognised rather than read.
+    // `key` names the history entry, so the selection coming back is recognised.
     bool setSelection(const ClipboardPayload &payload, const std::string &key);
 
-    // Something new was copied and read in full.
     base::Signal<const ClipboardPayload &> copied;
-    // The selection is the entry setSelection() put there.
     base::Signal<const std::string &> ownSelectionShown;
 
 private:

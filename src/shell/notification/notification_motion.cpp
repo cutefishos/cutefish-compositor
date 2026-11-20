@@ -9,8 +9,6 @@
 
 namespace cutefish::shell {
 
-// A cubic bezier from (0, 0) to (1, 1) through (x1, y1) and (x2, y2): x solved
-// for t, then y at t.
 static double cubicBezier(double x1, double y1, double x2, double y2, double x)
 {
     const auto at = [](double a, double b, double t) {
@@ -31,7 +29,6 @@ static double cubicBezier(double x1, double y1, double x2, double y2, double x)
             break;
         t -= error / d;
     }
-    // Bisection where Newton's steps stall.
     double low = 0;
     double high = 1;
     t = x;
@@ -99,7 +96,6 @@ void Tween::snap(double value)
 
 void Tween::tick(uint64_t frameTimeNs)
 {
-    // The first frame after the change shows where it starts from.
     if (!m_startNs)
         m_startNs = frameTimeNs;
     const double elapsed = double(frameTimeNs - m_startNs) / 1e6;

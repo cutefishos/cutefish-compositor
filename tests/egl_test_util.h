@@ -17,8 +17,6 @@ struct TargetRetirement {
     ~TargetRetirement() { renderer->releaseTarget(target); }
 };
 
-// Only replaces display/target acquisition. Shader, upload, cache, draw and
-// blending are the real EglRenderer paths, without DRM or a second compositor.
 class EglRendererTestAccess
 {
 public:

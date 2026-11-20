@@ -2,10 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Desks, modelled on chromium/src/ash/wm/desks/desks_unittest.cc,
-// desk_animation_impl_unittest.cc and wm_gesture_handler_unittest.cc,
-// rewritten against the Cutefish window manager. No DRM, no GL.
-
 #include <chrono>
 #include <cstdlib>
 #include <deque>
@@ -140,7 +136,6 @@ protected:
     }
 };
 
-// With the switch animation drawn on a node of the scene.
 class DeskAnimationTest : public DesksTest
 {
 protected:
@@ -184,7 +179,6 @@ protected:
         flush();
     }
 
-    // Draws until the animation has landed.
     void finish()
     {
         paint();
@@ -201,9 +195,6 @@ protected:
 
 } // namespace
 
-////////////////////////////////////////////////////////////////////////////////
-// The desks and their windows
-
 TEST_F(DesksTest, ThereIsAlwaysOneActiveDeskAndAtMostEight)
 {
     ASSERT_EQ(1u, desks->desks().size());
@@ -214,7 +205,6 @@ TEST_F(DesksTest, ThereIsAlwaysOneActiveDeskAndAtMostEight)
     EXPECT_EQ(nullptr, desks->newDesk(DesksCreationRemovalSource::Keyboard));
     EXPECT_TRUE(desk(0)->isActive());
     EXPECT_FALSE(desk(1)->isActive());
-    // Every desk is told apart for good.
     EXPECT_NE(desk(0)->id(), desk(1)->id());
     EXPECT_EQ(desk(3), desks->deskById(desk(3)->id()));
 }
@@ -242,7 +232,6 @@ TEST_F(DesksTest, ADeskReorderedTakesItsWindowsAndActivationAlong)
     EXPECT_TRUE(window->isVisible());
     EXPECT_EQ((std::vector<std::pair<int, int>> {{0, 2}}), observer.reordered);
 
-    // Nowhere to go, or no desk there.
     desks->reorderDesk(1, 1);
     desks->reorderDesk(0, 3);
     desks->reorderDesk(-1, 0);
@@ -264,7 +253,6 @@ TEST_F(DesksTest, NewWindowsGoToTheActiveDeskAndLeaveTheScreenWithIt)
     EXPECT_TRUE(window->targetVisibility());
     EXPECT_FALSE(window->node()->isVisible());
     EXPECT_TRUE(window->rootSurface()->isHidden());
-    // Hidden with its desk, not minimized and not hidden by the user.
     EXPECT_FALSE(window->state()->isMinimized());
     EXPECT_FALSE(window->isHidden());
     EXPECT_EQ(nullptr, active());
@@ -274,7 +262,6 @@ TEST_F(DesksTest, NewWindowsGoToTheActiveDeskAndLeaveTheScreenWithIt)
     desks->activateDesk(desk(0), DesksSwitchSource::DeskSwitchShortcut);
     EXPECT_TRUE(window->isVisible());
     EXPECT_FALSE(second->isVisible());
-    // The window last used on the desk comes back active.
     EXPECT_EQ(window, active());
 }
 
@@ -286,7 +273,6 @@ TEST_F(DesksTest, ActivatingAWindowOnAnotherDeskSwitchesToIt)
     Window *second = makeWindow();
     ASSERT_EQ(second, active());
 
-    // The dock or the application switcher asking for it.
     manager.activation()->activate(first);
     EXPECT_EQ(first, active());
     EXPECT_TRUE(desk(0)->isActive());
@@ -306,7 +292,6 @@ TEST_F(DesksTest, AMinimizedWindowRestoredFromAnotherDeskIsDrawnLive)
     desks->activateDesk(desk(1), DesksSwitchSource::DeskSwitchShortcut);
     makeWindow();
 
-    // The dock's click: restored while its desk is still hidden, then activated.
     first->restore();
     manager.activation()->activate(first);
     EXPECT_TRUE(first->isVisible());
@@ -333,7 +318,6 @@ TEST_F(DesksTest, NextActivationStaysOnTheActiveDesk)
     desks->activateDesk(desk(1), DesksSwitchSource::DeskSwitchShortcut);
     Window *second = makeWindow();
     manager.destroyWindow(second);
-    // Not the window of the other desk, which would take the user there.
     EXPECT_EQ(nullptr, active());
     EXPECT_TRUE(desk(1)->isActive());
     EXPECT_FALSE(first->isVisible());
@@ -344,14 +328,12 @@ TEST_F(DesksTest, DialogsGoWhereTheirParentsAre)
     addDesks(1);
     Window *parent = makeWindow();
     desks->activateDesk(desk(1), DesksSwitchSource::DeskSwitchShortcut);
-    // A dialog of a window on another desk starts out hidden with it.
     Window *dialog = manager.createWindow(makeSurface({100, 100}),
                                           {.requestedSize = {100, 100}, .transientParent = parent});
     EXPECT_EQ(desk(0), desks->deskOf(dialog));
     EXPECT_FALSE(dialog->isVisible());
     EXPECT_TRUE(desk(1)->isActive());
 
-    // Sending the parent along takes the dialog too.
     desks->activateDesk(desk(0), DesksSwitchSource::DeskSwitchShortcut);
     EXPECT_TRUE(dialog->isVisible());
     desks->sendToDeskAtIndex(parent, 1);
@@ -359,7 +341,6 @@ TEST_F(DesksTest, DialogsGoWhereTheirParentsAre)
     EXPECT_FALSE(dialog->isVisible());
     EXPECT_FALSE(parent->isVisible());
 
-    // Left behind when the parent closes, it stays on that desk.
     manager.destroyWindow(parent);
     EXPECT_EQ(desk(1), desks->deskOf(dialog));
     EXPECT_FALSE(dialog->isVisible());
@@ -375,16 +356,13 @@ TEST_F(DesksTest, AWindowSentToAnotherDeskLeavesTheUserWhereTheyAre)
     EXPECT_TRUE(desk(0)->isActive());
     EXPECT_EQ(desk(2), desks->deskOf(sent));
     EXPECT_FALSE(sent->isVisible());
-    // Activation moves to what is left on the desk.
     EXPECT_EQ(stays, active());
 
-    // A minimized window sent elsewhere comes back on its new desk.
     stays->minimize();
     desks->sendToDeskAtIndex(stays, 2);
     EXPECT_FALSE(stays->state()->isMinimized());
     desks->activateDesk(desk(2), DesksSwitchSource::IndexedDeskSwitchShortcut);
     EXPECT_TRUE(stays->isVisible());
-    // It was the one in use, so it came in on top.
     EXPECT_EQ(stays, manager.windows().back());
 }
 
@@ -402,7 +380,6 @@ TEST_F(DesksTest, RemovingADeskHandsItsWindowsToTheDeskOnItsLeft)
     ASSERT_EQ(2u, desks->desks().size());
     EXPECT_EQ(desk(0), desks->deskOf(removed));
     EXPECT_TRUE(removed->isVisible());
-    // Below the windows already there, and last in the order they were used.
     const auto &stacking = manager.windows();
     EXPECT_LT(std::find(stacking.begin(), stacking.end(), removed),
               std::find(stacking.begin(), stacking.end(), left));
@@ -421,7 +398,6 @@ TEST_F(DesksTest, RemovingTheActiveDeskGoesLeftOrRightFromTheFirst)
     EXPECT_TRUE(first->isVisible());
     EXPECT_TRUE(second->isVisible());
 
-    // The first desk has none on its left.
     desks->removeDesk(desks->activeDesk(), DesksCreationRemovalSource::Keyboard);
     ASSERT_EQ(1u, desks->desks().size());
     EXPECT_TRUE(desk(0)->isActive());
@@ -439,11 +415,9 @@ TEST_F(DesksTest, WindowsOnEveryDeskStayOnScreen)
     desks->activateDesk(desk(1), DesksSwitchSource::DeskSwitchShortcut);
     EXPECT_TRUE(pinned->isVisible());
 
-    // Back on a desk of its own, the one in front of the user.
     desks->setVisibleOnAllDesks(pinned, false);
     EXPECT_EQ(desk(1), desks->deskOf(pinned));
 
-    // Always-on-top windows are on every desk as they are.
     Window *floating = makeWindow();
     floating->setAlwaysOnTop(true);
     EXPECT_EQ(nullptr, desks->deskOf(floating));
@@ -477,7 +451,6 @@ TEST_F(DesksTest, MinimizedAndHiddenWindowsKeepTheirStateAcrossDesks)
     EXPECT_FALSE(minimized->isVisible());
     EXPECT_TRUE(hidden->isHidden());
     EXPECT_FALSE(hidden->isVisible());
-    // Neither comes back as the desk's active window.
     EXPECT_EQ(nullptr, active());
 }
 
@@ -524,9 +497,6 @@ TEST_F(DesksTest, PreferencesKeepTheDesksAcrossSessions)
     std::filesystem::remove_all(directory);
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// Animations
-
 TEST_F(DeskAnimationTest, ASwitchActivatesTheDeskBehindTheStartingFrame)
 {
     addDesks(1);
@@ -535,12 +505,10 @@ TEST_F(DeskAnimationTest, ASwitchActivatesTheDeskBehindTheStartingFrame)
     ASSERT_NE(nullptr, desks->animation());
     EXPECT_EQ(1, screenshots);
     EXPECT_TRUE(node->isActive());
-    // Upstream activates the ending desk at the end of phase (1).
     EXPECT_TRUE(desk(1)->isActive());
     EXPECT_FALSE(first->isVisible());
     EXPECT_TRUE(desks->areDesksBeingModified());
 
-    // The ending desk is copied at the next frame, then the strip slides.
     paint();
     EXPECT_TRUE(node->isAnimating());
     now += 1000;
@@ -583,7 +551,6 @@ TEST_F(DeskAnimationTest, AnOutputThatNeverDrawsDoesNotHoldTheSwitchUp)
     addDesks(1);
     desks->activateDesk(desk(1), DesksSwitchSource::DeskSwitchShortcut);
     ASSERT_NE(nullptr, desks->animation());
-    // No frame is drawn; the timeout lands the switch.
     test::runFor(std::chrono::milliseconds(DeskAnimationBase::kEndingScreenshotTimeoutMs + 100));
     flush();
     EXPECT_EQ(nullptr, desks->animation());
@@ -596,14 +563,12 @@ TEST_F(DeskAnimationTest, PressingAgainTakesTheAnimationOneDeskFurther)
     addDesks(2);
     desks->activateAdjacentDesk(false, DesksSwitchSource::DeskSwitchShortcut);
     paint();
-    // A second press while the first still animates extends it.
     EXPECT_TRUE(desks->activateAdjacentDesk(false, DesksSwitchSource::DeskSwitchShortcut));
     EXPECT_EQ(2, desks->animation()->endingDeskIndex());
     EXPECT_EQ(desk(2), desks->activeDesk());
     finish();
     EXPECT_EQ(nullptr, desks->animation());
     EXPECT_EQ(2, desks->activeDeskIndex());
-    // One starting frame for the whole run.
     EXPECT_EQ(1, screenshots);
 }
 
@@ -627,7 +592,6 @@ TEST_F(DeskAnimationTest, RemovingTheActiveDeskSlidesToTheOneThatTakesItsWindows
     const Desk *removed = desk(1);
     desks->removeDesk(desk(1), DesksCreationRemovalSource::Keyboard);
     ASSERT_NE(nullptr, desks->animation());
-    // The desk goes only once the animation has landed.
     EXPECT_EQ(2u, desks->desks().size());
     EXPECT_TRUE(desk(0)->isActive());
     finish();
@@ -643,19 +607,16 @@ TEST_F(DeskAnimationTest, ASwipeFollowsTheFingersAndLandsOnTheNearestDesk)
     addDesks(2);
     WmGestureHandler gestures(desks);
     input.setGestureFilter(&gestures);
-    // Finger travel in millimetres at `now`; the accelerated motion, far
-    // larger, has no say.
+    // Finger travel in millimetres; the accelerated motion has no say.
     const auto swipe = [this](double mm) {
         const base::PointF travel(mm / WmGestureHandler::kMmPerUnacceleratedUnit, 0);
         input.onPointerGestureUpdate(at(now), input::GestureType::Swipe, travel * 5, travel, 1, 0);
     };
 
-    // Four fingers belong to the application.
     EXPECT_FALSE(gestures.claimGesture(input::Timestamp(), input::GestureType::Swipe, 4));
     EXPECT_FALSE(gestures.claimGesture(input::Timestamp(), input::GestureType::Pinch, 3));
 
     input.onPointerGestureBegin(at(now), input::GestureType::Swipe, 3);
-    // Fingers moving left bring the desk on the right in.
     swipe(-1);
     EXPECT_EQ(nullptr, desks->animation());
     swipe(-2);
@@ -663,8 +624,6 @@ TEST_F(DeskAnimationTest, ASwipeFollowsTheFingersAndLandsOnTheNearestDesk)
     EXPECT_EQ(desk(1), desks->activeDesk());
     EXPECT_EQ(desk(0), desks->chosenDesk());
     paint();
-    // A desk's worth of travel: the strip is a little past the second desk,
-    // and the desk beyond was activated for its frame.
     for (int i = 0; i < 6; ++i) {
         now += 8;
         swipe(-WmGestureHandler::kSwipeLengthPerDeskMm / 6);
@@ -672,8 +631,6 @@ TEST_F(DeskAnimationTest, ASwipeFollowsTheFingersAndLandsOnTheNearestDesk)
     EXPECT_EQ(desk(2), desks->activeDesk());
     EXPECT_EQ(desk(0), desks->chosenDesk());
     paint();
-    // A fifth of a desk back towards the second, slowing down to hold there,
-    // then let go.
     now += 8;
     swipe(WmGestureHandler::kSwipeLengthPerDeskMm / 5);
     for (int i = 0; i < 3; ++i) {
@@ -702,7 +659,6 @@ TEST_F(DeskAnimationTest, AShortFlickSwitchesDesksAndAShortHeldSwipeDoesNot)
             input.onPointerGestureUpdate(at(now), input::GestureType::Swipe, travel, travel, 1, 0);
             paint();
         }
-        // Held, the fingers slow down and stay before they lift.
         for (int i = 0; !flick && i < 3; ++i) {
             now += 8;
             const base::PointF travel(-0.05 / WmGestureHandler::kMmPerUnacceleratedUnit, 0);
@@ -723,7 +679,6 @@ TEST_F(DeskAnimationTest, AFlickInOneEventSwitchesDesks)
     WmGestureHandler gestures(desks);
     input.setGestureFilter(&gestures);
 
-    // A quick flick that libinput reports in a single event past the threshold.
     input.onPointerGestureBegin(at(now), input::GestureType::Swipe, 3);
     now += 8;
     const base::PointF travel(-6 / WmGestureHandler::kMmPerUnacceleratedUnit, 0);
@@ -754,7 +709,6 @@ TEST_F(DeskAnimationTest, ASwipeStartedDuringADragSwitchesNothing)
         }
     };
 
-    // Not even once the drag is over: the rest of that swipe is ignored too.
     swipe();
     EXPECT_EQ(nullptr, desks->animation());
     dragging = false;
@@ -762,7 +716,6 @@ TEST_F(DeskAnimationTest, ASwipeStartedDuringADragSwitchesNothing)
     input.onPointerGestureEnd(at(now), input::GestureType::Swipe, false);
     EXPECT_EQ(desk(0), desks->activeDesk());
 
-    // The next swipe switches again.
     swipe();
     ASSERT_NE(nullptr, desks->animation());
     now += 8;
@@ -855,7 +808,6 @@ TEST_F(DeskAnimationTest, AnotherSwipeCatchesTheSettlingDesks)
     ASSERT_NE(nullptr, animation);
     EXPECT_TRUE(node->isAnimating());
 
-    // The same animation goes on under the fingers.
     input.onPointerGestureBegin(at(now), input::GestureType::Swipe, 3);
     swipe(-3);
     EXPECT_EQ(animation, desks->animation());
@@ -892,8 +844,6 @@ TEST_F(DeskAnimationTest, ASwipeBackActivatesTheDeskAsTheFingersLift)
     paint();
     EXPECT_EQ(desk(1), desks->activeDesk());
 
-    // Flung back while the strip still settles: the first desk has its frame
-    // in the strip already, and is active before the strip gets there.
     input.onPointerGestureBegin(at(now), input::GestureType::Swipe, 3);
     for (int i = 0; i < 4; ++i) {
         now += 8;
@@ -945,7 +895,6 @@ TEST_F(DeskAnimationTest, ADeskClickedInTheOverviewGlidesThereOnTime)
     desks->activateDesk(desk(2), DesksSwitchSource::MiniViewButton);
     ASSERT_NE(nullptr, desks->animation());
     paint();
-    // Still under way where the quick switch would have landed.
     now += scene::DeskSwitchNode::kQuickAnimationDurationMs;
     paint();
     EXPECT_TRUE(node->isAnimating());
@@ -974,7 +923,6 @@ TEST_F(DeskAnimationTest, RemovingAnotherDeskMidSwitchStillLandsOnTheChosenDesk)
     Desk *chosen = desk(1);
     desks->activateDesk(chosen, DesksSwitchSource::MiniViewButton);
     ASSERT_NE(nullptr, desks->animation());
-    // As the overview's close button does while the switch slides.
     desks->removeDesk(first, DesksCreationRemovalSource::Button);
     finish();
     EXPECT_EQ(nullptr, desks->animation());
@@ -993,7 +941,6 @@ TEST_F(DeskAnimationTest, ADialogSentAwayTakesItsParentAlongInTheSlide)
     renderer.calls.clear();
     desks->sendToDeskAtIndex(dialog, 1);
     EXPECT_TRUE(slideOut->isActive());
-    // The frame that slides away shows the parent and the dialog over it.
     int drawn = 0;
     for (const auto &call : renderer.calls) {
         if (call.kind == "texture")
@@ -1011,7 +958,6 @@ TEST_F(DeskAnimationTest, ActivatingAWindowElsewhereMidSwitchLandsTheSwitchFirst
     Window *first = makeWindow();
     desks->activateDesk(desk(2), DesksSwitchSource::IndexedDeskSwitchShortcut);
     ASSERT_NE(nullptr, desks->animation());
-    // Never an active window on a desk nobody sees.
     manager.activation()->activate(first);
     EXPECT_EQ(first, active());
     EXPECT_TRUE(desk(0)->isActive());
@@ -1058,11 +1004,9 @@ TEST_F(DeskAnimationTest, EveryOutputHasItsEndingFrameBeforeTheStripMoves)
     addDesks(1);
     desks->activateDesk(desk(1), DesksSwitchSource::DeskSwitchShortcut);
     paint("a");
-    // The displays move together, so the one that drew first waits.
     EXPECT_FALSE(node->isAnimating());
     paint("b");
     EXPECT_TRUE(node->isAnimating());
-    // An output plugged in meanwhile shows the live desk, not a black strip.
     renderer.setOutputContext({"c", kOutput, kOutput.size(), 1, 0, 0, {}});
     EXPECT_FALSE(node->occludesOutput(renderer));
     now += 1000;
@@ -1071,12 +1015,8 @@ TEST_F(DeskAnimationTest, EveryOutputHasItsEndingFrameBeforeTheStripMoves)
     EXPECT_TRUE(desk(1)->isActive());
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// Random runs
-
 namespace {
 
-// What must hold after anything the user or a client does, animation or not.
 std::string checkInvariants(WindowManager &manager, DesksController *desks)
 {
     const auto &list = desks->desks();
@@ -1277,13 +1217,11 @@ TEST_F(DeskAnimationTest, RandomRunsKeepEveryInvariant)
         finish();
         EXPECT_EQ(nullptr, desks->animation()) << "seed " << seed;
         EXPECT_EQ("", checkInvariants(manager, desks)) << "seed " << seed;
-        // Next seed from a clean slate.
         while (!manager.windows().empty())
             manager.destroyWindow(manager.windows().back());
         while (desks->canRemoveDesks())
             desks->removeDesk(desk(int(desks->desks().size()) - 1),
                               DesksCreationRemovalSource::DesksRestore);
-        // What a frame would do: closed windows' nodes leave the scene.
         surfaces.clear();
         scene.root()->collectRetired();
     }

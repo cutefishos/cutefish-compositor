@@ -16,7 +16,6 @@
 
 namespace cutefish::testsupport {
 
-// Keeps the pixels it was given so tests can assert what was uploaded.
 class FakeTexture : public render::Texture
 {
 public:
@@ -30,7 +29,6 @@ public:
 
     ~FakeTexture() override { --alive; }
 
-    // How many there are, for a test that something let go of its texture.
     static inline int alive = 0;
 
     base::Size size() const override { return m_size; }
@@ -58,7 +56,6 @@ private:
     std::vector<uint8_t> m_pixels;
 };
 
-// Records draw calls in order so paint ordering can be asserted without GL.
 class FakeRenderer : public render::Renderer
 {
 public:
@@ -126,10 +123,8 @@ public:
         return true;
     }
 
-    // Stands in for the GPU refusing an allocation.
     bool failTextureCreation = false;
 
-    // What the last partial update was asked to take.
     std::optional<base::Region> lastUploadDamage;
 
     bool updateTexture(render::Texture *texture, const uint8_t *pixels, int stride,
@@ -141,7 +136,6 @@ public:
 
     using render::Renderer::createTexture;
 
-    // A transparent image of the size asked for; the caster is not painted.
     std::unique_ptr<render::Texture> renderShadow(const base::Size &size,
                                                   const std::vector<render::ShadowLobe> &lobes,
                                                   const std::function<void()> &) override
@@ -157,7 +151,6 @@ public:
 
     base::Size viewportSize() const override { return base::Size(1920, 1080); }
 
-    // The kinds of the recorded calls in order.
     class KindList : public std::vector<std::string>
     {
     public:

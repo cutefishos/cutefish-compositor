@@ -33,32 +33,21 @@ class UnlockPrompt;
 class UserNameField;
 class UserView;
 
-// The lock screen and the greeter: the clock at the top and the login column
-// at the bottom, as tall as the output. The compositor draws the wallpaper and
-// the blur behind the password field; this is what goes over them.
-// Upstream: LockContentsView.
 class AuthScreen final : public ui::View
 {
 public:
     AuthScreen(ui::Window *window, AuthController *controller);
     ~AuthScreen() override;
 
-    // Set while the session is blocked; the clock only ticks then, so a
-    // prepared, unseen panel never wakes the compositor.
+    // The clock only ticks while blocked, so an unseen panel never wakes the compositor.
     void setBlocked(bool blocked);
-    // Whether the panel has the keyboard: the password field looks focused
-    // and its caret blinks only then.
     void setKeyboardFocused(bool focused);
-    // The password field, or the unlock prompt where no password is asked.
     void focusPassword();
 
-    // The password field in panel coordinates, for the blur behind it; it
-    // moves with the shake.
+    // In panel coordinates; it moves with the shake.
     base::RectF fieldBounds() const;
-    // How visible the password field is: it fades out while the accounts
-    // are shown, and its blur with it.
     double fieldOpacity() const;
-    // Seconds since the epoch the clock shows instead of the time, for tests.
+    // Seconds since the epoch.
     void setClockForTesting(std::time_t now);
 
 protected:

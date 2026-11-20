@@ -2,15 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Development harness: does what cutefish-session does for the file manager's
-// desktop, without starting a compositor or a session.
-//
-// It connects to the compositor's shell control socket, creates a Wayland
-// socketpair, hands one end to the compositor over SCM_RIGHTS and execs the
-// given program with `--desktop-socket <fd>` appended for the other end. That
-// makes it possible to run `cutefish-filemanager --daemon` against a headless
-// compositor from a test script.
-//
 // Usage: cutefish-shell-session-launcher <control-socket> <program> [args...]
 //
 // This duplicates a few lines of core/session's ShellConnection on purpose: the

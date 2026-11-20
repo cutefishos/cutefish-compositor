@@ -58,7 +58,6 @@ bool WindowModalityController::processLocatedEvent(Window *target, bool pressed)
 {
     if (!modalTransient(target))
         return false;
-    // Activation follows the modal transient, so this is what brings it back.
     if (pressed)
         m_manager->activation()->activate(target);
     return true;

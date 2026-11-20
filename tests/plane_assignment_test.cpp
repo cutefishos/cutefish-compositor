@@ -6,11 +6,6 @@
 //           (IsCompatible, AssignOverlayPlanes)
 //           chromium/src/ui/ozone/platform/drm/gpu/hardware_display_plane_manager_unittest.cc
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Plane compatibility and assignment.
-//
-// Adapted for Cutefish: exercises the corresponding behavior with native
-// compositor test doubles and APIs.
 
 #include <gtest/gtest.h>
 
@@ -39,7 +34,6 @@ DrmPlane makePlane(uint32_t id, uint32_t type, uint32_t possibleCrtcs,
     return plane;
 }
 
-// A primary plane and two overlays, all on CRTC index 0.
 std::vector<DrmPlane> typicalPlanes()
 {
     return {
@@ -84,8 +78,7 @@ TEST(DrmPlaneTest, AnImplicitModifierIsLeftToTheDriver)
 {
     const DrmPlane plane = makePlane(10, DRM_PLANE_TYPE_PRIMARY, 0b1, {{kXrgb, {kTiled}}});
 
-    // Only the driver knows what an implicitly modified buffer really is, so
-    // the answer comes from the atomic test rather than from here.
+    // Only the driver knows an implicit-modifier buffer's layout, so the atomic test decides.
     EXPECT_TRUE(plane.supportsFormat(kXrgb, DRM_FORMAT_MOD_INVALID));
 }
 
@@ -121,7 +114,6 @@ TEST(PlaneAssignmentTest, OverlaysTakeOverlayPlanesInOrder)
 
     ASSERT_EQ(assignments.size(), 3u);
     EXPECT_EQ(assignments[0].planeId, 10u);
-    // Ascending plane ids preserve the z order the caller asked for.
     EXPECT_EQ(assignments[1].planeId, 20u);
     EXPECT_EQ(assignments[2].planeId, 30u);
 }
@@ -131,14 +123,11 @@ TEST(PlaneAssignmentTest, MoreOverlaysThanPlanesFails)
     const auto assignments =
         assignPlanes(typicalPlanes(), 0, {primary(), overlay(), overlay(), overlay()});
 
-    // A partial assignment is never useful: the caller would have to composite
-    // the leftovers and plan again from scratch.
     EXPECT_TRUE(assignments.empty());
 }
 
 TEST(PlaneAssignmentTest, AnUnsupportedFormatIsRejected)
 {
-    // Only plane 30 handles NV12, and it cannot be the primary.
     EXPECT_TRUE(assignPlanes(typicalPlanes(), 0, {primary(kNv12)}).empty());
 
     const auto assignments = assignPlanes(typicalPlanes(), 0, {primary(), overlay(kNv12)});
@@ -148,7 +137,6 @@ TEST(PlaneAssignmentTest, AnUnsupportedFormatIsRejected)
 
 TEST(PlaneAssignmentTest, AnUnsupportedModifierIsRejected)
 {
-    // The primary plane takes the tiled buffer; no overlay plane does.
     EXPECT_FALSE(assignPlanes(typicalPlanes(), 0, {primary(kXrgb, kTiled)}).empty());
     EXPECT_TRUE(
         assignPlanes(typicalPlanes(), 0, {primary(), overlay(kXrgb, kTiled)}).empty());
@@ -156,8 +144,7 @@ TEST(PlaneAssignmentTest, AnUnsupportedModifierIsRejected)
 
 TEST(PlaneAssignmentTest, TheCursorPlaneIsNeverHandedOut)
 {
-    // The cursor is driven through the legacy cursor ioctls, so its plane must
-    // stay out of the overlay pool even when the format would fit.
+    // The cursor goes through the legacy cursor ioctls, so its plane stays out of the overlay pool.
     const std::vector<DrmPlane> planes = {
         makePlane(10, DRM_PLANE_TYPE_PRIMARY, 0b1, {{kXrgb, {DRM_FORMAT_MOD_LINEAR}}}),
         makePlane(40, DRM_PLANE_TYPE_CURSOR, 0b1, {{kXrgb, {DRM_FORMAT_MOD_LINEAR}}}),
@@ -173,8 +160,7 @@ TEST(PlaneAssignmentTest, PlanesBelongingToAnotherCrtcAreNotUsed)
 
 TEST(PlaneAssignmentTest, APrimaryPlaneAfterTheOverlaysIsStillFound)
 {
-    // possible_crtcs and plane ids are driver-assigned; the primary is not
-    // guaranteed to come first, and reaching it must not strand the overlays.
+    // Plane ids are driver-assigned, so the primary need not come first.
     const std::vector<DrmPlane> planes = {
         makePlane(10, DRM_PLANE_TYPE_OVERLAY, 0b1, {{kXrgb, {DRM_FORMAT_MOD_LINEAR}}}),
         makePlane(20, DRM_PLANE_TYPE_PRIMARY, 0b1, {{kXrgb, {DRM_FORMAT_MOD_LINEAR}}}),

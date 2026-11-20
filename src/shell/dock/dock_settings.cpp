@@ -59,7 +59,6 @@ DockSettings::DockSettings(std::string path)
 DockSettings::Values DockSettings::load(const std::string &path)
 {
     base::Settings settings(path);
-    // Missing keys are written with their defaults.
     if (!settings.contains("Dock/IconSize"))
         settings.setValue("Dock/IconSize", kBaseIconSize);
     if (!settings.contains("Dock/Direction"))

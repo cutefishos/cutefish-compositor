@@ -27,12 +27,9 @@ namespace cutefish::shell {
 class Shell;
 class ShellWindow;
 
-// Drags from and onto the shell's windows, through the seat's drag
-// controller like a client's wl_data_device drags, as Ash's
-// DragDropController serves both exo's surfaces and its own views. A drag
-// started in a shell window is a data source the controller offers to
-// clients and shell windows alike; a drag over a shell window, whoever
-// started it, is offered to its views through ui::DropOffer.
+// A drag started in a shell window is a data source offered to clients and
+// shell windows alike; a drag over a shell window is offered to its views
+// through ui::DropOffer.
 class ShellDrag
 {
 public:
@@ -41,15 +38,13 @@ public:
     ShellDrag &operator=(const ShellDrag &) = delete;
     ~ShellDrag();
 
-    // The toolkit's startDrag(): the drag starts on the next loop turn, out
-    // of the input dispatch that asked for it, from the pointer button or
-    // touch point still held on `window`. False when one is running.
+    // The drag starts on the next loop turn, out of the input dispatch that
+    // asked for it; false when one is running.
     bool start(ShellWindow *window, ui::DragSource source);
 
     // The window under a drag, or null.
     ShellWindow *target() const;
 
-    // Called by ShellWindow; not part of the public API.
     void windowDestroying(ShellWindow *window);
 
 private:
@@ -64,13 +59,11 @@ private:
     void apply(uint32_t answer);
 
     Shell *m_shell;
-    // The icon of the drag this shell started, until it ends. A surface only
-    // refers to its buffer, as to a client's wl_buffer, so the drag owns it.
+    // A surface only refers to its buffer, so the drag owns it.
     std::unique_ptr<compositor::Surface> m_icon;
     std::shared_ptr<compositor::Buffer> m_iconBuffer;
     bool m_starting = false;
-    // The offer to the shell window under the drag; dropped offers stay
-    // until their reads are done.
+    // Dropped offers stay until their reads are done.
     std::shared_ptr<Offer> m_offer;
     std::vector<std::shared_ptr<Offer>> m_dropped;
     std::vector<base::Subscription> m_subscriptions;

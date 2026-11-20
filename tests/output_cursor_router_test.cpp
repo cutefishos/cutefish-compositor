@@ -4,9 +4,6 @@
 //
 // Upstream: chromium/src/ash/display/extended_mouse_warp_controller_unittest.cc
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: tests cover output-local cursor sinks and mirrored
-// physical destinations.
 
 #include <gtest/gtest.h>
 
@@ -106,8 +103,6 @@ TEST(OutputCursorRouter, ReconfigurationKeepsAStationaryCursorVisible)
     EXPECT_EQ(router.activeTarget(), 0);
 }
 
-// An animated cursor sets a new image every frame without moving; the next move
-// must neither blank the plane nor upload the image again.
 TEST(OutputCursorRouter, AnimationFramesKeepOnePlaneActive)
 {
     Sink sink;

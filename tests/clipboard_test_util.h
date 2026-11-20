@@ -83,8 +83,7 @@ struct Client {
 
     std::vector<Write> writes;
 
-    // `connect` turns the server end of the socket into a wl_client, as the
-    // privileged shell connection is made; wl_client_create when empty.
+    // An empty `connect` makes the client with wl_client_create.
     explicit Client(wayland::Server& server, uint32_t version = 3,
                     const std::function<wl_client*(int)>& connect = {})
         : version(version)

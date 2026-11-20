@@ -21,15 +21,13 @@ public:
     ~WindowVisualController() override;
     static scene::WindowVisualState evaluate(const Window& window,
                                              const decoration::WindowVisualStyle& style);
-    // Same, against the default style; kept out of line so the defaults stay
-    // in window_visual_style.cpp.
     static scene::WindowVisualState evaluate(const Window& window);
 
     scene::WindowVisualNode* node() const { return m_node; }
 
     void update();
 
-    // Re-evaluates `window` from outside its own controller; a no-op for null.
+    // A no-op for null.
     static void refresh(Window* window);
 
     void onWindowBoundsChanged(Window*, const base::Rect&) override { update(); }
@@ -46,7 +44,6 @@ public:
 
     void onWindowResponsiveChanged(Window*) override { update(); }
 
-    // The parent's dim follows whether this window is a modal in effect.
     void onWindowVisibilityChanged(Window* window, bool) override;
 
     void onWindowModalChanged(Window* window) override;

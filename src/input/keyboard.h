@@ -4,16 +4,6 @@
 //
 // Upstream: chromium/src/components/exo/keyboard.h
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: integrates the upstream behavior with native
-// compositor types and ownership.
-//
-// Adaptation: the key-ack extension, IME interaction and the virtual-keyboard
-// type reporting are dropped. Accelerators are not processed here: without a
-// key-ack there is no post-target pass, so accelerators::AcceleratorFilter
-// handles them all before the seat dispatches to any keyboard. What remains
-// is focus follow, the pressed-key set delivered on enter, modifier and layout
-// resend, and repeat settings.
 
 #ifndef CUTEFISH_INPUT_KEYBOARD_H_
 #define CUTEFISH_INPUT_KEYBOARD_H_
@@ -30,7 +20,6 @@ namespace cutefish::input {
 
 class Seat;
 
-// A client keyboard, representing one or more physical keyboards.
 class Keyboard : public compositor::SurfaceObserver, public SeatObserver
 {
 public:
@@ -43,13 +32,10 @@ public:
 
     compositor::Surface* focusedSurface() const { return m_focus; }
 
-    // Called by the Seat for every physical key transition.
     void onKey(Timestamp timestamp, uint32_t evdevCode, bool pressed);
 
-    // compositor::SurfaceObserver:
     void onSurfaceDestroying(compositor::Surface* surface) override;
 
-    // SeatObserver:
     void onSurfaceFocused(compositor::Surface* gainedFocus,
                           compositor::Surface* lostFocus) override;
     void onKeyboardModifierUpdated() override;
@@ -65,14 +51,10 @@ private:
     compositor::Surface* m_focus = nullptr;
     // Another client borrows the keys; `m_focus` keeps focus without a leave.
     bool m_lent = false;
-    // Keys held when the borrow ended, pressed while it lasted: the borrower
-    // had their press, which may be what ended it, so neither the press nor
-    // the release reaches this client.
+    // Keys held when the borrow ended: neither their press nor release reaches this client.
     std::set<uint32_t> m_borrowedKeys;
 
-    // Keys pressed as of the moment focus was taken, plus everything pressed
-    // since. Exo keeps this separate from the seat's set so that a key pressed
-    // before this surface was focused is still released to it.
+    // Apart from the seat's set, so a key pressed before focus is still released to this surface.
     KeyboardDelegate::PressedKeys m_pressedKeys;
 };
 

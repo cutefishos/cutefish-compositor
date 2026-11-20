@@ -88,11 +88,9 @@ TEST(GreetdBackendTest, CancellationAcknowledgementCannotAuthenticate)
     send(Value::object({{"type", "success"}}));
     const Value start = request();
     EXPECT_EQ(start["type"].toString(), "start_session");
-    // cutefish-dm starts the session by id; greetd runs the command.
     EXPECT_EQ(start["session"].toString(), "gnome");
     EXPECT_EQ(start["cmd"][size_t(0)].toString(), "gnome-session");
     EXPECT_EQ(start["env"][size_t(0)].toString(), "XDG_SESSION_TYPE=wayland");
-    // The members in sorted order.
     EXPECT_EQ(start.serialize(),
               "{\"cmd\":[\"gnome-session\"],\"env\":[\"XDG_SESSION_TYPE=wayland\"],"
               "\"session\":\"gnome\",\"type\":\"start_session\"}");

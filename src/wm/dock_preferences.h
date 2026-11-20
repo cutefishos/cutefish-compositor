@@ -13,9 +13,6 @@ namespace cutefish::wm {
 class DockLayoutManager;
 class WindowManager;
 
-// Follows the dock's visibility and minimized area settings into the dock
-// layout and the stacking: the shared settings file the dock writes when the
-// user changes them.
 class DockPreferences
 {
 public:

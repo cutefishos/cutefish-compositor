@@ -65,7 +65,6 @@ TEST_F(LaunchpadTest, SortsTheFirstListAndKeepsTheUsersOrderAfter)
     start();
     applications.scan();
     ASSERT_TRUE(test::runUntil([&] { return model().count() == 3; }));
-    // Alphabetical in the user's language; terminal programs are left out.
     EXPECT_EQ(ids(), (std::vector<std::string>{"alpha", "mid", "zeta"}));
     EXPECT_FALSE(model().rows()[0].newInstalled);
 
@@ -78,7 +77,6 @@ TEST_F(LaunchpadTest, SortsTheFirstListAndKeepsTheUsersOrderAfter)
     EXPECT_EQ(settings.stringListValue("Launchpad/order"), (std::vector<std::string>{"zeta", "alpha", "mid"}));
     EXPECT_TRUE(settings.contains("Launchpad/newAppIds"));
 
-    // A new installation is appended and marked new.
     applications.addSimple("beta", "Beta");
     applications.scan();
     EXPECT_EQ(ids(), (std::vector<std::string>{"zeta", "alpha", "mid", "beta"}));
@@ -116,7 +114,6 @@ TEST_F(LaunchpadTest, SearchesNamesCommentsAndIds)
     EXPECT_EQ(ids(), (std::vector<std::string>{"alpha"}));
     model().search("\xc3\xa9" "c");
     EXPECT_EQ(ids(), (std::vector<std::string>{"mid"}));
-    // No moving while a search shows.
     model().move(0, 1);
     model().search("");
     EXPECT_EQ(ids(), (std::vector<std::string>{"alpha", "mid", "zeta"}));
@@ -136,7 +133,6 @@ TEST_F(LaunchpadTest, FoldersHoldApplicationsAndAreSaved)
         return list;
     };
 
-    // Dropped on another application, the two make a folder in its place.
     const std::string folder = model().merge("zeta", "alpha", "Work");
     EXPECT_EQ(folder, "folder:1");
     EXPECT_EQ(ids(), (std::vector<std::string>{"folder:1", "mid"}));
@@ -144,13 +140,10 @@ TEST_F(LaunchpadTest, FoldersHoldApplicationsAndAreSaved)
     EXPECT_EQ(model().item(folder)->name, "Work");
     EXPECT_EQ(model().folderOf("zeta"), folder);
     EXPECT_EQ(model().findById("zeta"), -1);
-    // A folder does not go into another, and an application dropped on its
-    // own folder stays where it is.
     EXPECT_EQ(model().merge(folder, "mid", "Other"), "");
     EXPECT_EQ(model().merge("zeta", folder, {}), "");
     EXPECT_EQ(children(folder), (std::vector<std::string>{"alpha", "zeta"}));
 
-    // A search looks into the folders and finds applications only.
     model().search("zeta");
     EXPECT_EQ(ids(), (std::vector<std::string>{"zeta"}));
     model().search("");
@@ -167,7 +160,6 @@ TEST_F(LaunchpadTest, FoldersHoldApplicationsAndAreSaved)
         EXPECT_EQ(settings.stringListValue("Launchpad/Folder1/apps"), (std::vector<std::string>{"zeta", "alpha"}));
     }
 
-    // Read back as it was written.
     launchpad.reset();
     start();
     applications.scan();
@@ -183,17 +175,12 @@ TEST_F(LaunchpadTest, AFolderLeftWithOneApplicationGivesWayToIt)
     start("[Launchpad]\norder=folder:4, mid\nFolder4/name=Tools\nFolder4/apps=alpha, gone, zeta\n");
     applications.scan();
     ASSERT_TRUE(test::runUntil([&] { return model().count() == 2; }));
-    // Applications no longer installed leave it.
     ASSERT_EQ(model().item("folder:4")->children.size(), 2u);
 
-    // Out of the folder, just after it; the one left takes the folder's
-    // place.
     model().removeFromFolder("alpha");
     EXPECT_EQ(ids(), (std::vector<std::string>{"zeta", "alpha", "mid"}));
     EXPECT_EQ(model().item("folder:4"), nullptr);
 
-    // Made from the menu, a folder holds one application; ungrouped, its
-    // applications take its place.
     EXPECT_EQ(model().createFolder("alpha", "Folder"), "folder:1");
     model().merge("mid", "folder:1", {});
     EXPECT_EQ(ids(), (std::vector<std::string>{"zeta", "folder:1"}));
@@ -202,8 +189,6 @@ TEST_F(LaunchpadTest, AFolderLeftWithOneApplicationGivesWayToIt)
     model().ungroupFolder("folder:1");
     EXPECT_EQ(ids(), (std::vector<std::string>{"alpha", "mid", "zeta"}));
 
-    // An application uninstalled from a folder of two leaves the other in
-    // its place at the next login; until then the folder waits for it.
     model().merge("zeta", "mid", "Pair");
     EXPECT_EQ(ids(), (std::vector<std::string>{"alpha", "folder:1"}));
     applications.remove("zeta");
@@ -236,8 +221,6 @@ TEST_F(LaunchpadTest, AnEntryGoneForAMomentKeepsItsPlace)
         return list;
     };
 
-    // As a package upgrade replaces the entries: they leave the rows, a
-    // folder of two keeps the other, and an emptied folder hides.
     applications.remove("alpha");
     applications.remove("zeta");
     applications.remove("gamma");
@@ -245,7 +228,6 @@ TEST_F(LaunchpadTest, AnEntryGoneForAMomentKeepsItsPlace)
     EXPECT_EQ(ids(), (std::vector<std::string>{"folder:1", "mid"}));
     EXPECT_EQ(children("folder:1"), (std::vector<std::string>{"beta"}));
 
-    // Saved in their places meanwhile.
     model().save();
     shell::waitForFileThread();
     {
@@ -256,7 +238,6 @@ TEST_F(LaunchpadTest, AnEntryGoneForAMomentKeepsItsPlace)
         EXPECT_EQ(settings.stringListValue("Launchpad/Folder2/apps"), (std::vector<std::string>{"gamma"}));
     }
 
-    // A new folder takes a number not held by the hidden one.
     EXPECT_EQ(model().createFolder("mid", "New"), "folder:3");
     model().ungroupFolder("folder:3");
 
@@ -288,7 +269,6 @@ TEST_F(LaunchpadTest, NeighboursGoneTogetherComeBackInOrder)
     applications.remove("mid");
     applications.scan();
     EXPECT_EQ(ids(), (std::vector<std::string>{"alpha", "zeta"}));
-    // Moved meanwhile, each still follows the one it followed.
     model().move(0, 1);
     applications.addSimple("mid", "Middle");
     applications.scan();
@@ -333,7 +313,6 @@ TEST_F(LaunchpadTest, ShowsHidesAndRemembersOpenedApplications)
     session.call("org.cutefish.Launchpad", "/Launchpad", "org.cutefish.Launchpad", "toggle");
     EXPECT_TRUE(launchpad->isShown());
     EXPECT_EQ(shown, 1);
-    // A drag keeps it up when it loses activation.
     launchpad->setDragging(true);
     launchpad->deactivated();
     EXPECT_TRUE(launchpad->isShown());
@@ -348,9 +327,6 @@ TEST_F(LaunchpadTest, ShowsHidesAndRemembersOpenedApplications)
     EXPECT_TRUE(launchpad->takeOpenedApplications().empty());
 }
 
-// A search for "te" over a typical set of applications, in the en_SG locale:
-// name, generic name, comment and desktop id, as substrings ignoring case,
-// in the user's order.
 TEST(LaunchpadSearchTest, MatchesTheQtLauncherOnTheReferenceApplications)
 {
     struct App {

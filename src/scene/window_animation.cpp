@@ -43,35 +43,24 @@ double easeOut(double t, double power)
     return 1 - std::pow(1 - std::clamp(t, 0.0, 1.0), power);
 }
 
-// How much larger than the output a launchpad is when fully transparent.
 constexpr double kLaunchpadZoom = 1.05;
 
-// gfx::Tween::ACCEL_20_DECEL_60: moving from the first frame, with no dwell
-// at either end, so the motion fills the whole duration and lands softly.
 double accel20Decel60(double t)
 {
     return motion::cubicBezier(.2, 0, .4, 1, t);
 }
 
-// Windows open and close on critically damped springs: response in seconds.
-// The fade leads the scale, so the first frames already show most of it.
+// Spring responses in seconds.
 constexpr double kOpenMotion = .36;
 constexpr double kOpenFade = .12;
 constexpr double kCloseMotion = .26;
 constexpr double kCloseFade = .16;
 constexpr int kOpenDurationMs = 360;
 constexpr int kCloseDurationMs = 220;
-// A preview growing into the window it stands for, on the ease-out of a window
-// opening, without the spring's overshoot.
 constexpr int kScaleDurationMs = 250;
-// The share of a cross-fade over which the old content dissolves. A client
-// that lays itself out differently at the new size would otherwise show both
-// layouts at once for most of the scale.
 constexpr double kCrossFadeContentShare = 1.0 / 3;
 
-// A spring's step response from rest `elapsed` ms in. Early on it runs in real
-// time; its tail is warped to end at `duration` with no speed left, instead of
-// spending frames on the last fraction of a pixel.
+// `elapsed` and `duration` are in milliseconds.
 double springStep(double response, double elapsed, double duration)
 {
     const double t = elapsed / duration;
@@ -94,7 +83,6 @@ base::Rect subtreeBounds(const Node *node)
     return bounds;
 }
 
-// A surface on a hardware plane is left out of the texture for this frame only.
 bool hasPromotedSurface(const Node &node)
 {
     if (node.isPromotedToOverlay())
@@ -104,8 +92,6 @@ bool hasPromotedSurface(const Node &node)
     });
 }
 
-// What SurfaceNode::paint records, for surfaces reaching the screen through a
-// texture drawn from them earlier.
 void recordPresentation(render::Renderer &renderer, const Node &node)
 {
     if (!node.isVisible())
@@ -126,7 +112,6 @@ const Node &sceneRoot(const Node &node)
     return *root;
 }
 
-// The viewport the scene's damage tracker is given for the output drawn now.
 base::Rect outputViewport(const render::Renderer &renderer, const Node &node)
 {
     const base::Rect viewport = renderer.outputContext().logicalViewport;
@@ -151,8 +136,6 @@ int WindowAnimation::duration(Type type, const base::RectF &from, const base::Re
         return 360;
     if (style == Style::Launchpad && type == Type::Close)
         return 160;
-    // Menus open under the pointer and are read immediately: shorter than the
-    // 150 ms ui/wm gives WINDOW_TYPE_MENU so the fade never reads as a delay.
     if (style == Style::Popup && type == Type::Open)
         return 100;
     if (style == Style::Popup && type == Type::Close)
@@ -165,9 +148,6 @@ int WindowAnimation::duration(Type type, const base::RectF &from, const base::Re
         return 320;
     if (type == Type::Restore)
         return 320;
-    // Ash's kCrossFadeDuration. A drag cross-fade is a flourish on top of a
-    // gesture that is still running, so it is much shorter than a state change
-    // the user only watches.
     if (type == Type::DragBounds)
         return 120;
     const double a = from.width() * from.height();
@@ -181,11 +161,6 @@ WindowAnimation::Sample WindowAnimation::sample(Type type, const base::RectF &fr
 {
     const double t = std::clamp(progress, 0.0, 1.0);
     if (style == Style::Launchpad && (type == Type::Open || type == Type::Close)) {
-        // Opening decelerates: the launchpad responds on the first frame and
-        // lands without a visible stop. Closing, it fades out at an even rate
-        // (an eased fade lingers as a faint ghost) and is still zooming as it
-        // vanishes, at 0.4 of its mean speed: a zoom that settles first leaves
-        // a still image fading out.
         const double eased = type == Type::Open ? easeOut(t, 4) : t + .6 * t * (1 - t);
         const float opacity = type == Type::Open ? easeOut(t / .6, 3) : 1 - t;
         return {base::RectF(from.topLeft() + (to.topLeft() - from.topLeft()) * eased,
@@ -193,8 +168,6 @@ WindowAnimation::Sample WindowAnimation::sample(Type type, const base::RectF &fr
                 opacity, t};
     }
     if (style == Style::Popup && (type == Type::Open || type == Type::Close)) {
-        // No motion: the popup is drawn where it is and only its opacity moves,
-        // decelerating so the first frame already shows most of the change.
         const float opacity = type == Type::Open ? easeOut(t, 2) : 1 - easeOut(t, 2);
         return {to, opacity, t};
     }
@@ -202,13 +175,8 @@ WindowAnimation::Sample WindowAnimation::sample(Type type, const base::RectF &fr
         const float opacity = type == Type::Open ? smoothStep(t / .55) : 1 - smoothStep(t);
         return {to, opacity, t};
     }
-    // Upstream passes gfx::Tween::LINEAR for the drag cross-fades. Bounds
-    // changes land like ash's EASE_OUT, but ramp up over the first frames
-    // instead of starting at full speed.
     double eased = type == Type::DragBounds ? t : accel20Decel60(t);
     float opacity = 1;
-    // Minimize stays opaque: the window lands on the dock thumbnail that shows
-    // the same image. Restore only fades in when it interrupts a fade.
     if (type == Type::Restore) {
         opacity = smoothStep(t / .3);
     } else if (type == Type::Open || type == Type::Close) {
@@ -227,15 +195,11 @@ WindowAnimation::Sample WindowAnimation::sample(Type type, const base::RectF &fr
 WindowAnimation::Sample WindowAnimation::current() const
 {
     double length = duration(m_type, m_from, m_to, m_style);
-    // A launchpad close vanishes on a refresh: a fraction of a step left over
-    // shows as one faint frame that lingers after the even steps before it.
     if (m_style == Style::Launchpad && m_type == Type::Close && m_framePeriod > 0)
         length = std::max(1.0, std::round(length / m_framePeriod)) * m_framePeriod;
     const double t = (m_started >= 0) ? (now() - m_started) / length : 0;
     Sample result = sample(m_type, m_from, m_to, t, m_style);
     if (m_type == Type::Minimize && result.progress < 1) {
-        // Replace each new endpoint's contribution with a smooth correction
-        // over the remaining time, leaving the preceding trajectory intact.
         for (const auto &adjustment : m_minimizeAdjustments) {
             const double remaining = (result.progress - adjustment.progress)
                     / (1 - adjustment.progress);
@@ -277,7 +241,6 @@ void WindowAnimation::skip(Type type)
 void WindowAnimation::changed() const
 {
     notifyChanged();
-    // A hidden node asks for no frame of its own, yet a minimize plays on.
     if (!isVisible() && parent())
         parent()->requestFrame();
 }
@@ -320,8 +283,7 @@ void WindowAnimation::start(Type type, const base::Rect &from, const base::Rect 
     m_boundsContentReady = true;
     m_running = true;
     m_firstFrame = false;
-    // Start on the next presented opportunity, so a delayed client/event loop
-    // cannot consume an animation before its first frame is drawn.
+    // Starts on the next presented frame, so a late event loop cannot skip the first frame.
     m_started = -1;
     const bool launchpad = m_style == Style::Launchpad;
     const bool inPlace = m_style == Style::Popup || m_style == Style::Fade;
@@ -335,8 +297,6 @@ void WindowAnimation::start(Type type, const base::Rect &from, const base::Rect 
         m_dragScale =
                 base::SizeF(double(from.width()) / to.width(), double(from.height()) / to.height());
     }
-    // Whatever m_texture holds after this, it was not drawn from the subtree's
-    // current state.
     m_textureReusable = false;
     m_stashedTexture.reset();
     if (isCrossFade(type) && m_texture) {
@@ -372,12 +332,10 @@ void WindowAnimation::readSnapshot(render::Renderer &renderer, bool landing) con
     const auto callback = std::exchange(landing ? m_landingSnapshot : m_snapshot, nullptr);
     if (!callback || !m_texture || m_textureBounds.isEmpty())
         return;
-    // A missing dock uses a one-pixel target; keep its useful preview for a later shell.
     if (landing && (m_to.width() <= 1 || m_to.height() <= 1))
         return;
     base::SizeF pixels = (landing ? m_to.size() : base::SizeF(m_textureBounds.size())) * renderer.rasterScale();
     if (pixels.width() > m_snapshotPixels || pixels.height() > m_snapshotPixels) {
-        // Fitted inside the square, keeping the aspect ratio.
         const double width = m_snapshotPixels * pixels.width() / pixels.height();
         pixels = width <= m_snapshotPixels
                 ? base::SizeF(width, m_snapshotPixels)
@@ -387,12 +345,9 @@ void WindowAnimation::readSnapshot(render::Renderer &renderer, bool landing) con
                      std::max(1, landing ? int(std::ceil(pixels.height())) : base::roundToInt(pixels.height())));
     const double sx = size.width() / double(m_textureBounds.width());
     const double sy = size.height() / double(m_textureBounds.height());
-    // The shadow margins of the coverage land outside the image.
     const base::RectF target((m_coverage.x() - m_textureBounds.x()) * sx,
                         (m_coverage.y() - m_textureBounds.y()) * sy, m_coverage.width() * sx,
                         m_coverage.height() * sy);
-    // Trilinear filtering, which the flight needs, blends in the next smaller
-    // level and softens a still image; the dock shows this one texel per pixel.
     const double minification = std::min(m_texture->size().width() / target.width(),
                                           m_texture->size().height() / target.height());
     const int level = int(std::floor(std::log2(std::max(1.0, minification))));
@@ -421,8 +376,6 @@ void WindowAnimation::setMinimizeTarget(const base::Rect &target)
         return;
     if (m_running && m_started >= 0) {
         const double progress = current().progress;
-        // Introduce each target change with zero velocity and acceleration,
-        // preserving the flight already in progress and its landing deadline.
         if (progress < 1) {
             m_minimizeAdjustments.push_back({base::RectF(target).topLeft() - m_to.topLeft(),
                                             base::SizeF(target.size()) - m_to.size(), progress});
@@ -438,8 +391,6 @@ void WindowAnimation::releaseHold()
     if (!m_holding)
         return;
     m_holding = false;
-    // Nothing draws or reads the snapshots of a minimized window again: a
-    // restore draws the live window, and the preview is the window's own image.
     m_texture.reset();
     m_stashedTexture.reset();
     m_oldTexture.reset();
@@ -485,15 +436,12 @@ void WindowAnimation::drawExteriorMorph(render::Renderer &renderer, const Sample
                                         float blend) const
 {
     const float progress = accel20Decel60(value.progress);
-    // Only a window in its normal state has a shadow and an outline.
     const bool oldExterior = m_oldVisual.drawOutline;
     const bool newExterior = m_visual.drawOutline;
     render::RoundedShape body = transformedShape(m_visual.shape, m_textureBounds, value);
     body.radius = morphedRadius(value);
     body.radiusScale = base::SizeF(1, 1);
 
-    // The old shadow fades out under the window growing out of it; its corners
-    // are never tighter than the body's, so none of its content shows.
     if (oldExterior && !newExterior)
         draw(renderer, m_oldTexture.get(), m_oldCoverage, m_oldBounds, value, 1 - progress);
     const float exterior = newExterior ? (oldExterior ? 1 : progress) : 0;
@@ -580,7 +528,6 @@ void WindowAnimation::setPresentationScale(double scale, const base::PointF &anc
     m_scaleTo = scale;
     m_scaleStarted = -1;
     m_scaleAnchor = anchor;
-    // Whether the snapshot has its blurs may change.
     m_textureReusable = false;
     changed();
 }
@@ -602,12 +549,8 @@ void WindowAnimation::close()
         changed();
         return;
     }
-    // The snapshot is scaled relative to where it was captured; the live
-    // geometry may have changed since the last paint.
     base::Rect &bounds = m_texture ? m_textureBounds : m_oldBounds;
     base::Rect &coverage = m_texture ? m_coverage : m_oldCoverage;
-    // Frames drawn directly leave the snapshot where it was captured, up to
-    // kDirectRefresh frames back; a window dragged since closes where it was drawn.
     const base::RectF drawn = m_presented.bounds;
     if (!m_running && base::fuzzyCompare(drawn.size(), base::SizeF(bounds.size()))) {
         const base::Point moved = drawn.topLeft().toPoint() - bounds.topLeft();
@@ -654,11 +597,9 @@ void WindowAnimation::outline(render::Renderer &renderer, const WindowVisualStat
 {
     if (!visual.drawOutline || renderer.suppressWindowOutlines)
         return;
-    // The snapshot holds the surface where it was snapped to physical pixels.
     const base::PointF snap = clientBodySnap(renderer, visual, original.topLeft());
     if (!visual.outlinePath.isEmpty() && !original.isEmpty()) {
         if (base::fuzzyCompare(sample.bounds.size(), base::SizeF(original.size()))) {
-            // Rasterized where it lands, so it stays on physical pixels.
             auto placed = visual;
             const base::PointF origin = sample.bounds.topLeft() + snap;
             placed.outlinePath.translate(origin.x(), origin.y());
@@ -688,11 +629,8 @@ base::Rect WindowAnimation::absolutePaintBounds() const
         if (child->isVisible())
             bounds = bounds.united(subtreeBounds(child));
     }
-    // A translucent window at rest blends its shadow too, and an opacity
-    // change repaints it; the travel of a past animation is not drawn.
     if (!animating())
         return bounds.united(m_coverage);
-    // Retired live nodes cannot describe the frozen shadow or its travel path.
     return bounds.united(m_coverage)
             .united(m_oldCoverage)
             .united(m_presented.bounds.toEnclosingRect())
@@ -702,7 +640,6 @@ base::Rect WindowAnimation::absolutePaintBounds() const
 
 base::Rect WindowAnimation::textureCoverage() const
 {
-    // Include outlying subsurfaces and the SSD shadow's paint overflow.
     base::Rect coverage = absoluteGeometry();
     for (const auto *child : children()) {
         if (child->isVisible())
@@ -718,10 +655,7 @@ bool WindowAnimation::textureReusable(const base::Rect &coverage, const base::Re
         || scale != m_textureScale || viewport != m_textureViewport
         || sceneRoot(*this).revision() != m_textureRootRevision || hasPromotedSurface(*this))
         return false;
-    // A window that only moved keeps its texture, as viz keeps a render pass
-    // whose content is unchanged (DirectRenderer::CanSkipRenderPass), when it
-    // moved by whole device pixels: the content inside is rasterized at the
-    // subpixel phase of the window's origin, and a fractional move changes it.
+    // Only whole device pixel moves keep the texture: it is rasterized at the origin's phase.
     const base::PointF moved = base::PointF(coverage.topLeft() - m_coverage.topLeft()) * scale;
     return base::fuzzyIsNull(moved.x() - std::round(moved.x()))
             && base::fuzzyIsNull(moved.y() - std::round(moved.y()));
@@ -729,7 +663,6 @@ bool WindowAnimation::textureReusable(const base::Rect &coverage, const base::Re
 
 bool WindowAnimation::redrawsSubtree(const base::Rect &viewport, double scale) const
 {
-    // Hidden, or drawing a snapshot, render() makes no texture pass at all.
     if (!isVisible() || m_closing || m_type == Type::Minimize)
         return false;
     const base::Rect coverage = textureCoverage();
@@ -737,9 +670,6 @@ bool WindowAnimation::redrawsSubtree(const base::Rect &viewport, double scale) c
         return false;
     if (textureReusable(coverage, viewport, scale))
         return false;
-    // Drawn directly, its blurs draw on the output like any other. Only its own
-    // content decides, as in render(): a blur's backdrop changing would draw
-    // it to the texture again and pull the repaint wide.
     return !drawsDirectly(m_textureDamage.hasDamage(*this, coverage, scale));
 }
 
@@ -751,9 +681,6 @@ bool WindowAnimation::settled() const
 
 bool WindowAnimation::drawsDirectly(bool contentChanged) const
 {
-    // A menu's highlight follows the pointer frame after frame and the menu
-    // closes on the click that ends it: its close fades out the snapshot, which
-    // has to be the frame that was on screen, not one up to kDirectRefresh back.
     if (m_style == Style::Popup)
         return false;
     const double period = m_framePeriod > 0 ? m_framePeriod : 1000.0 / 60;
@@ -782,12 +709,10 @@ bool WindowAnimation::renderSiblingsBelow(render::Renderer &renderer, size_t beg
         m_belowTextures.clear();
         return false;
     }
-    // Captures draw everything live, and the overview draws blurs elsewhere.
     const base::Rect viewport = outputViewport(renderer, *this);
     if (renderer.capturing || renderer.suppressBackgroundBlur
         || !absolutePaintBounds().intersects(viewport))
         return false;
-    // A launchpad this one takes over leaves on its first frame.
     const auto &siblings = parent()->children();
     for (size_t i = begin; i < end; ++i) {
         const auto *animation = dynamic_cast<const WindowAnimation *>(siblings[i]);
@@ -800,9 +725,6 @@ bool WindowAnimation::renderSiblingsBelow(render::Renderer &renderer, size_t beg
     below.damage.setChildRange(begin, end);
     const bool reusable = below.texture && below.scale == scale && below.viewport == viewport
             && below.rootRevision == sceneRoot(*this).revision();
-    // Opening, the launchpad covers what changes under it by its end: focus
-    // leaving the windows there would otherwise redraw their blurs each frame.
-    // The history stays put, so a close from here catches up.
     if (reusable && m_type == Type::Open && !m_closing) {
         if (!below.damage.hasDamage(*parent(), viewport, scale)) {
             for (size_t i = begin; i < end; ++i)
@@ -847,16 +769,8 @@ bool WindowAnimation::renderSiblingsBelow(render::Renderer &renderer, size_t beg
 bool WindowAnimation::textureIsCurrent(render::Renderer &renderer, const base::Rect &coverage,
                                        base::Rect *repaint) const
 {
-    // A texture drawn without its blurs, or with them, is only kept for a draw
-    // that wants the same.
     const bool blurSuppressed =
             renderer.suppressBackgroundBlur || presentedScaled() || m_presentedAt;
-    // The blurs in the texture read the output behind the window, which may
-    // have changed wherever this frame draws it again, and nowhere else. One
-    // drawn without them reads nothing behind it: the overview's full repaints
-    // would otherwise draw every blurred window's texture again each frame.
-    // A blur the output pass redoes in part from its kept result changes only
-    // where that redo reaches.
     const uint64_t scope = renderer.backdropScope;
     const auto kept = [&](uint64_t owner) {
         return renderer.keptBackdropChange(scope, owner).has_value();
@@ -875,8 +789,6 @@ bool WindowAnimation::textureIsCurrent(render::Renderer &renderer, const base::R
             : blurSuppressed
             ? damage.boundingRect()
             : render::coverSamples(damage.boundingRect(), m_textureDamage.samples(kept));
-    // Without blurs the two are the same texture: entering the overview does
-    // not draw every window again.
     return valid && damage.isEmpty()
             && (m_textureBlurSuppressed == blurSuppressed || !hasBackgroundBlurs());
 }
@@ -975,7 +887,6 @@ void WindowAnimation::drawPresentedBlurs(render::Renderer &renderer, const Sampl
             if (surface && surface->hasBackgroundBlur() && surface->texture()) {
                 const base::Rect geometry = surface->absoluteGeometry();
                 render::GlassParams glass = surface->glass();
-                // Its lengths shrink with the window, or the lip would swallow it.
                 glass.blurSigma *= float(scale);
                 glass.bevel *= float(scale);
                 glass.depth *= float(scale);
@@ -1003,9 +914,7 @@ void WindowAnimation::render(render::Renderer &renderer) const
 {
     if ((!isVisible() && m_type != Type::Minimize && !m_closing && !m_presentedAt) || isRetired())
         return;
-    // Sampled per frame, not per draw: every output frame advances the
-    // animation by what the display showed since the last one, however late
-    // the wakeup or the uploads before this draw were.
+    // Sampled per output frame, not per draw.
     m_frameTime = renderer.frameTime;
     m_framePeriod = renderer.framePeriod;
     if (m_firstFrame) {
@@ -1024,7 +933,6 @@ void WindowAnimation::render(render::Renderer &renderer) const
         }
     }
     // A configure acknowledgement alone does not replace the old client buffer.
-    // Keep its snapshot until the corresponding surface commit is applied.
     if (m_running && isCrossFade(m_type) && !m_boundsContentReady && m_oldTexture) {
         Sample held = m_presented;
         held.opacity *= m_opacity;
@@ -1034,8 +942,6 @@ void WindowAnimation::render(render::Renderer &renderer) const
     }
     if (m_running && m_started < 0) {
         m_firstStepAt = now();
-        // A window opening or closing already moves in its first frame: one
-        // showing where it starts would only add a frame of latency.
         const bool leadIn =
                 (m_style == Style::Window && (m_type == Type::Open || m_type == Type::Close))
                 || (m_style == Style::Launchpad && m_type == Type::Close);
@@ -1043,14 +949,9 @@ void WindowAnimation::render(render::Renderer &renderer) const
         m_firstStep = true;
     } else if (m_running && std::exchange(m_firstStep, false) && renderer.framePeriod > 0
                && now() - m_firstStepAt > renderer.framePeriod) {
-        // A slow first frame (snapshot pass, readback, buffer import) delays
-        // the animation by the slots it missed instead of opening with a jump.
-        // One drawn at once mid-refresh is sampled early, yet shows a refresh
-        // before the next, so the second step is one refresh too.
         m_started += now() - m_firstStepAt - renderer.framePeriod;
     }
 
-    // A minimized window's snapshot goes to the dock; presented, it is drawn live.
     const bool frozen = (m_closing || m_type == Type::Minimize) && !isPresentedHidden();
     if (frozen && !m_texture) {
         m_snapshot = nullptr;
@@ -1066,12 +967,10 @@ void WindowAnimation::render(render::Renderer &renderer) const
                 m_visual = visual->state();
         }
         const base::Rect coverage = textureCoverage();
-        // An idle window on another output is not drawn here, so its snapshot
-        // keeps the scale of an output that shows it.
         const base::Rect viewport = renderer.outputContext().logicalViewport;
         if (!animating() && !m_presentedAt && !viewport.isEmpty() && !coverage.intersects(viewport))
             return;
-        // Corners in texture space that the draw below scales to morphedRadius().
+        // In texture space; the draw below scales them to morphedRadius().
         std::optional<render::Renderer::WindowCorners> corners;
         if (morphsExterior()) {
             const Sample sample = current();
@@ -1083,12 +982,8 @@ void WindowAnimation::render(render::Renderer &renderer) const
                                geometry.height() / sample.bounds.height())};
             }
         }
-        // The pass suspends presentation recording, which is right for a
-        // snapshot kept for later. This one is drawn in the same frame, so the
-        // live content in it is presented like any layer cc draws through a
-        // render surface.
+        // The pass suspends presentation recording, but this snapshot is shown in the same frame.
         render::PresentationSubmission *submission = renderer.presentationSubmission;
-        // The overview draws a window's blurs where it shows it.
         const bool blurSuppressed =
                 renderer.suppressBackgroundBlur || presentedScaled() || m_presentedAt;
         swapStashedTexture(blurSuppressed);
@@ -1101,28 +996,18 @@ void WindowAnimation::render(render::Renderer &renderer) const
             m_directFrames = direct ? m_directFrames + 1 : 0;
             if (!direct)
                 m_textureDrawnAt = m_now();
-            // A first texture, or an animation's own frames, start no run.
             m_contentChanged = contentChanged && settled() && m_texture;
         }
         base::Rect repaint;
         if (textureIsCurrent(renderer, coverage, &repaint)) {
             recordPresentation(renderer, *this);
         } else if (direct) {
-            // The texture keeps its last image, bounds and coverage, and is
-            // drawn whole again by the next frame that does not draw directly.
-            // Asking for that frame here damaged the whole window and its
-            // shadow on every frame, which cost more than the pass it saved.
             m_textureReusable = false;
             Node::render(renderer);
             m_presented = {base::RectF(absoluteGeometry()), 1, 1};
             return;
         } else {
-            // Mid-animation passes and plane promotions draw what only this
-            // frame shows. A capture of the same output draws what the screen
-            // does, so the two share the snapshot; one at another scale or
-            // viewport fails textureReusable() anyway.
             const bool reusable = !animating() && !hasPromotedSurface(*this);
-            // The blurs in it read the target this texture is drawn on.
             const uint64_t backdropScope = renderer.backdropScope;
             if (!renderer.renderToTexture(m_texture, coverage, repaint, [&] {
                     renderer.backdropScope = backdropScope;
@@ -1142,15 +1027,11 @@ void WindowAnimation::render(render::Renderer &renderer) const
                 })) {
                 m_textureReusable = false;
                 Node::render(renderer);
-                // Whoever waits for the end, e.g. to unmap a closed window, still hears of it.
                 if (std::exchange(m_running, false) && m_finished)
                     m_finished();
                 return;
             }
             m_texture->label = "window snapshot";
-            // A blur drawn from what the last frame left behind the window is
-            // not on screen now, but would be wrong later. The scene repaints
-            // all a blur reads when the whole texture is drawn again next frame.
             const base::Rect drawn = repaint.isEmpty() ? coverage : repaint;
             const base::Rect output = outputViewport(renderer, *this);
             const auto &samples = m_textureDamage.samples();
@@ -1168,15 +1049,12 @@ void WindowAnimation::render(render::Renderer &renderer) const
         }
         m_coverage = coverage;
         m_textureBounds = absoluteGeometry();
-        // A popup repositioned by its client mid-fade is drawn where it now is.
         if (m_style == Style::Popup && m_running) {
             auto *self = const_cast<WindowAnimation *>(this);
             self->m_from = self->m_to = base::RectF(m_textureBounds);
         }
     }
 
-    // Shrunk to a dock slot, a bilinear snapshot shimmers; the dock images
-    // are read through the same filtering, so the landing still matches.
     if (m_running && m_type == Type::Minimize)
         renderer.enableTrilinearFiltering(m_texture.get());
     if (m_snapshot && m_type == Type::Minimize && !m_presentedAt)
@@ -1185,14 +1063,12 @@ void WindowAnimation::render(render::Renderer &renderer) const
     Sample value = (m_running || m_holding) && !isPresentedHidden()
             ? current()
             : Sample {absoluteGeometry(), 1, 1};
-    // What was presented stays the animation's own; each draw adds the client's.
     if (!m_presentedAt)
         m_presented = value;
     value.opacity *= m_opacity;
     if (m_scaleFrom != m_scaleTo && m_scaleStarted < 0)
         m_scaleStarted = now();
     if (const double scale = presentationScale(); scale != 1) {
-        // Kept inside, so a shrunk window never draws outside its own bounds.
         const base::Rect geometry = absoluteGeometry();
         const base::PointF anchor(geometry.x() + std::clamp<double>(m_scaleAnchor.x(), 0, geometry.width()),
                              geometry.y() + std::clamp<double>(m_scaleAnchor.y(), 0, geometry.height()));
@@ -1208,7 +1084,6 @@ void WindowAnimation::render(render::Renderer &renderer) const
             const base::PointF from = value.bounds.topLeft() - base::PointF(geometry.topLeft());
             value.bounds = base::RectF(to.topLeft() + base::PointF(from.x() * sx, from.y() * sy),
                                   base::SizeF(value.bounds.width() * sx, value.bounds.height() * sy));
-            // Far below its size, a bilinear texture shimmers as it moves.
             if (m_texture && !m_textureMipmapped && std::min(sx, sy) < 0.75) {
                 renderer.enableTrilinearFiltering(m_texture.get());
                 m_textureMipmapped = true;
@@ -1221,13 +1096,10 @@ void WindowAnimation::render(render::Renderer &renderer) const
 
     if ((m_running || m_holding) && m_type == Type::Minimize && value.progress >= 1
         && m_landingTexture && !isPresentedHidden()) {
-        // The clip and resampling are already baked into the image sent to the dock.
         renderer.drawTextureF(m_landingTexture.get(), value.bounds, value.opacity);
     } else if (!frozen || m_running || m_holding) {
         const double dissolved = std::min(value.progress / kCrossFadeContentShare, 1.0);
         const float blend = m_running && isCrossFade(m_type) ? 1 - std::pow(1 - dissolved, 2) : 1;
-        // The current snapshot supplies the exterior once. Old content fades
-        // only inside its silhouette, so a square old buffer cannot leak out.
         const float exterior = exteriorOpacity(value);
         if (m_presentedAt) {
             drawPresented(renderer, value);
@@ -1269,8 +1141,6 @@ void WindowAnimation::render(render::Renderer &renderer) const
             if (m_finished)
                 m_finished();
         }
-        // Also repaint the final removal/hide. OutputScheduler coalesces these
-        // requests with KMS presentation; no independent animation timer runs.
         changed();
     }
 }

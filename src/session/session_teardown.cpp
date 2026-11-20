@@ -39,15 +39,13 @@ void SessionTeardown::setWindowCycle(wm::WindowCycleController *windowCycle)
 
 void SessionTeardown::clearCursor()
 {
-    // Dropping pointer focus is what detaches the client's cursor surface from
-    // the cursor container; without it a stale wl_surface would keep compositing
-    // above the secure scene, which is the one place nothing else covers.
+    // Dropping pointer focus detaches the client's cursor surface, which would
+    // otherwise keep compositing above the secure scene.
     m_seat->clearPointerFocus();
     m_seat->setCursorOverride(std::nullopt);
     m_seat->setCompositorCursorShape(input::CursorShape::Default);
     m_seat->notifyCursorChanged();
-    // The scene cursor is now compositor-owned; the KMS cursor plane still
-    // holds the last image it was given and has to be reprogrammed.
+    // The KMS cursor plane still holds the last image it was given.
     if (m_cursorReset)
         m_cursorReset();
 }
@@ -58,11 +56,9 @@ void SessionTeardown::onSessionBlocked()
     m_windowManager->cancelInteractions();
     if (m_windowCycle)
         m_windowCycle->cancelCycling();
-    // Cancels the drag and takes its icon out of the scene with it.
     m_seat->drag()->cancel();
     m_seat->setFocusedSurface(nullptr);
-    // Keys held now are not suppressed: their releases must still reach the
-    // key translator, which holds them in its own codes (see InputManager::onKey).
+    // Held keys are not suppressed: their releases must still reach the key translator.
     const wm::Window *active = m_windowManager->activation()->activeWindow();
     m_activeBeforeBlock = active ? active->id() : 0;
     m_windowManager->activation()->activate(nullptr);
@@ -75,9 +71,6 @@ void SessionTeardown::onSessionBlocked()
 
 void SessionTeardown::onSessionUnblocked()
 {
-    // The window that had the keyboard gets it back, so typing carries on
-    // where it stopped; one that closed meanwhile leaves it to the topmost
-    // window left. The cursor stays the compositor's until the pointer moves.
     m_seat->selection()->setIsolated(false);
     m_seat->primarySelection()->setIsolated(false);
     clearCursor();

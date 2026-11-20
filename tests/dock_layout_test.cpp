@@ -2,9 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Dock auto-hide policy. Behaviour modelled on ash/shelf/shelf_layout_manager_unittest.cc,
-// rewritten against the Cutefish abstractions. No DRM, no GL, no Wayland client.
-
 #include <gtest/gtest.h>
 
 #include "base/geometry.h"
@@ -60,9 +57,7 @@ protected:
         dock = makeWindow(kDockBounds);
         dock->setRole(WindowRole::Dock);
         dock->setFocusPolicy(FocusPolicy::NoFocus);
-        // The pointer rests in the middle of the screen unless a test moves it.
         moveTo(base::PointF(500, 400));
-        // The dock slides in as it maps; every test starts with it in place.
         finishSlide();
     }
 
@@ -91,13 +86,11 @@ protected:
 
     void moveTo(const base::PointF &location) { manager.onPointerMotion(at(0), location); }
 
-    // Runs the event loop until the auto-hide delay has passed.
     void waitForReveal()
     {
         test::runFor(std::chrono::milliseconds(DockLayoutManager::kAutoHideDelayMs + 200));
     }
 
-    // Plays the slide out to its end.
     void finishSlide()
     {
         layout.advance(1000);
@@ -131,7 +124,6 @@ TEST_F(DockLayoutTest, FullscreenWindowHidesTheDockWhateverTheSetting)
     finishSlide();
     EXPECT_FALSE(layout.isSliding(dock));
     EXPECT_TRUE(dock->isPresentationHidden());
-    // Fully past the bottom edge.
     EXPECT_EQ(kOutput.bottom(), dock->node()->absoluteGeometry().top());
 
     window->setFullscreen(false);
@@ -148,7 +140,6 @@ TEST_F(DockLayoutTest, PanelOnlyGivesWayToFullscreen)
     layout.setBehavior(DockAutoHideBehavior::Always);
     Window *window = makeWindow(base::Rect(100, 100, 300, 200));
     window->activate();
-    // The setting is the dock's: the panel stays.
     EXPECT_EQ(DockVisibilityState::Visible, layout.visibilityState(panel));
     EXPECT_FALSE(isShown());
 
@@ -162,8 +153,6 @@ TEST_F(DockLayoutTest, PanelOnlyGivesWayToFullscreen)
     EXPECT_TRUE(panel->isPresentationHidden());
     EXPECT_EQ(base::Point(0, -30), panel->presentationOffset());
 
-    // The top edge leaves it away over a window that has not declared its
-    // bars, and brings it back once the window has.
     moveTo(base::PointF(500, 2));
     waitForReveal();
     EXPECT_EQ(DockAutoHideState::Hidden, layout.autoHideState(panel));
@@ -182,7 +171,6 @@ TEST_F(DockLayoutTest, DocksAndPanelsSlideInFromTheirEdgeAsTheyMap)
     panel->setRole(WindowRole::Panel);
     layout.update();
 
-    // Parked past the top edge, then on its way in without the reveal delay.
     EXPECT_EQ(DockAutoHideState::Shown, layout.autoHideState(panel));
     EXPECT_TRUE(layout.isSliding(panel));
     EXPECT_FALSE(panel->isPresentationHidden());
@@ -207,7 +195,6 @@ TEST_F(DockLayoutTest, DocksAndPanelsWaitForTheSessionToStart)
     EXPECT_TRUE(panel->isPresentationHidden());
     EXPECT_EQ(base::Point(0, -30), panel->presentationOffset());
 
-    // Released: in at once, without the reveal delay.
     layout.setSessionStarting(false);
     EXPECT_EQ(DockAutoHideState::Shown, layout.autoHideState(panel));
     EXPECT_TRUE(layout.isSliding(panel));
@@ -235,7 +222,6 @@ TEST_F(DockLayoutTest, EndingTheSessionPutsDocksAndPanelsAwayUntilItCarriesOn)
 {
     Window *panel = makeWindow(base::Rect(0, 0, 1000, 30));
     panel->setRole(WindowRole::Panel);
-    // Even with nothing to make room for, and the pointer on the dock.
     moveTo(base::PointF(500, centerPixel(kDockBounds).y()));
 
     layout.setSessionEnding(true);
@@ -245,7 +231,6 @@ TEST_F(DockLayoutTest, EndingTheSessionPutsDocksAndPanelsAwayUntilItCarriesOn)
     EXPECT_TRUE(dock->isPresentationHidden());
     EXPECT_EQ(base::Point(0, -30), panel->presentationOffset());
 
-    // Cancelled: both come straight back, without the reveal delay.
     layout.setSessionEnding(false);
     EXPECT_TRUE(isShown());
     EXPECT_EQ(DockAutoHideState::Shown, layout.autoHideState(panel));
@@ -265,7 +250,6 @@ TEST_F(DockLayoutTest, EndingTheSessionHidesTheDesktopUntilItCarriesOn)
     EXPECT_TRUE(desktop->isPresentationHidden());
     EXPECT_FALSE(desktop->node()->isEffectivelyVisible());
 
-    // One that maps meanwhile, as a restarted desktop does, stays hidden too.
     Window *second = makeWindow(kOutput);
     second->setRole(WindowRole::Desktop);
     layout.update();
@@ -340,7 +324,6 @@ TEST_F(DockLayoutTest, YieldingZoneLeavesTheWorkAreaToMaximizedWindows)
     window->restore();
     EXPECT_EQ(reserved, manager.workAreaForOutput(kOutput));
     EXPECT_EQ(base::Rect(100, 100, 300, 200), window->bounds());
-    // A window left under the dock is not pushed out or shrunk.
     EXPECT_EQ(underTheDock, other->bounds());
 
     window->maximize();
@@ -368,7 +351,6 @@ TEST_F(DockLayoutTest, AlwaysHideStaysShownWithNothingToMakeRoomFor)
     EXPECT_FALSE(isShown());
 
     manager.destroyWindow(window);
-    // Coming back is delayed like any reveal.
     EXPECT_FALSE(isShown());
     waitForReveal();
     EXPECT_TRUE(isShown());
@@ -383,7 +365,6 @@ TEST_F(DockLayoutTest, PointerAtTheEdgeRevealsAfterTheDelay)
     ASSERT_TRUE(dock->isPresentationHidden());
 
     moveTo(base::PointF(500, 799));
-    // Not yet: brushing the edge does not pull the dock out.
     EXPECT_FALSE(isShown());
 
     waitForReveal();
@@ -426,7 +407,6 @@ TEST_F(DockLayoutTest, LeavingTheDockHidesAfterTheDelayAndTheGapCounts)
     ASSERT_TRUE(isShown());
     finishSlide();
 
-    // Between the dock and the edge, and off the dock's span but on the edge.
     moveTo(base::PointF(500, 797));
     waitForReveal();
     EXPECT_TRUE(isShown());
@@ -579,7 +559,6 @@ TEST_F(DockLayoutTest, ADockDrawingPastItsReachHidesAndStaysShownAsFarAsItReache
     makeWindow(base::Rect(100, 100, 300, 200));
     finishSlide();
 
-    // 40 taller past its far side, reaching as far from the edge as before.
     dock->setEdgeReach(kDockBounds.height());
     dock->setBounds(base::Rect(200, 680, 600, 115));
     finishSlide();
@@ -590,7 +569,6 @@ TEST_F(DockLayoutTest, ADockDrawingPastItsReachHidesAndStaysShownAsFarAsItReache
     ASSERT_TRUE(isShown());
     finishSlide();
     EXPECT_EQ(base::Point(), dock->presentationOffset());
-    // Within its reach it stays; in the room past it, it goes.
     moveTo(base::PointF(500, 730));
     waitForReveal();
     EXPECT_TRUE(isShown());
@@ -628,14 +606,12 @@ TEST_F(DockLayoutTest, TopPanelTellsAFullscreenWindowAndPushesItWhenAsked)
     finishSlide();
     EXPECT_TRUE(reveals.empty());
 
-    // Bars of 40 under the panel: the pointer over them keeps it.
     window->rootSurface()->setFullscreenBars(40, true);
     moveTo(base::PointF(500, 2));
     waitForReveal();
     ASSERT_EQ(DockAutoHideState::Shown, layout.autoHideState(panel));
     ASSERT_EQ(1u, reveals.size());
     EXPECT_EQ(std::make_pair(30, DockLayoutManager::kSlideDurationMs), reveals.back());
-    // The window comes down with the panel, all the way once it is in.
     layout.advance(2000);
     EXPECT_EQ(base::Point(0, 0), window->presentationOffset());
     layout.advance(2000 + DockLayoutManager::kSlideDurationMs);
@@ -651,7 +627,6 @@ TEST_F(DockLayoutTest, TopPanelTellsAFullscreenWindowAndPushesItWhenAsked)
     finishSlide();
     EXPECT_EQ(base::Point(), window->presentationOffset());
 
-    // Without push the window stays where it is.
     window->rootSurface()->setFullscreenBars(40, false);
     moveTo(base::PointF(500, 2));
     waitForReveal();
@@ -660,7 +635,6 @@ TEST_F(DockLayoutTest, TopPanelTellsAFullscreenWindowAndPushesItWhenAsked)
     EXPECT_EQ(base::Point(), window->presentationOffset());
     EXPECT_EQ(30, reveals.back().first);
 
-    // Leaving fullscreen under the panel takes the offset back.
     window->setFullscreen(false);
     EXPECT_EQ(0, reveals.back().first);
 }
@@ -669,7 +643,6 @@ TEST_F(DockLayoutTest, OnlyTheActiveFullscreenWindowIsPushedAndOnlyByTheBar)
 {
     Window *panel = makeWindow(base::Rect(0, 0, 1000, 30));
     panel->setRole(WindowRole::Panel);
-    // A panel that only lies along the top edge, as a notification does.
     Window *banner = makeWindow(base::Rect(600, 0, 400, 88));
     banner->setRole(WindowRole::Panel);
     Window *window = makeWindow(base::Rect(100, 100, 300, 200));
@@ -690,8 +663,6 @@ TEST_F(DockLayoutTest, OnlyTheActiveFullscreenWindowIsPushedAndOnlyByTheBar)
     EXPECT_EQ(std::vector<int>({30}), reveals);
     EXPECT_EQ(base::Point(0, 30), window->presentationOffset());
 
-    // Another window taking the activation takes the push and the reveal
-    // back, and the top edge brings neither while it has it.
     Window *other = makeWindow(base::Rect(200, 200, 300, 200));
     other->activate();
     ASSERT_TRUE(other->isActive());
@@ -705,7 +676,6 @@ TEST_F(DockLayoutTest, OnlyTheActiveFullscreenWindowIsPushedAndOnlyByTheBar)
     EXPECT_EQ(std::vector<int>({30, 0}), reveals);
     EXPECT_EQ(base::Point(), window->presentationOffset());
 
-    // Active again, the bar pushes it by its own height.
     window->activate();
     moveTo(base::PointF(500, 300));
     waitForReveal();

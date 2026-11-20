@@ -23,44 +23,31 @@
 
 namespace cutefish::scene {
 
-// ScreenRotationAnimator's smooth animation for every output that rotates. The
-// outgoing frame holds the screen until the new content is ready, which upstream
-// gets from an extended compositor lock; then a copy of the new content turns in
-// over a black mask while the outgoing copy turns on and fades out. Unturned, it
-// is the startup cover: another DRM master's last frame, held until the session
-// is ready and then faded out.
 class ScreenTransitionNode : public Node
 {
 public:
     struct Output {
         std::unique_ptr<render::Texture> outgoing;
-        // The outgoing frame's turn in the new orientation, in base::AffineTransform
-        // degrees: 90, -90 or -180.
+        // In base::AffineTransform degrees: 90, -90 or -180.
         int degrees = 0;
     };
 
     using Outputs = std::map<std::string, Output>;
     using Paint = std::function<void(render::Renderer &)>;
 
-    // Upstream kRotationDegrees and kRotationDurationInMs.
     static constexpr int kRotationDegrees = 20;
     static constexpr int kRotationDurationMs = 250;
 
     explicit ScreenTransitionNode(std::function<int64_t()> clock = {});
 
-    // `outputs` are keyed by OutputRenderContext::outputId. `paintIncoming`
-    // paints the live content the node covers. The hold ends at the first frame
-    // where `ready` holds, or once `timeoutMs` has passed; the caller must
-    // request a frame at the deadline.
+    // Keyed by OutputRenderContext::outputId; the caller requests a frame at the deadline.
     void start(Outputs outputs, Paint paintIncoming, std::function<bool()> ready, int timeoutMs);
 
-    // Upstream StopAnimating: a running animation ends at once, while an
-    // outgoing frame that is still held stays for the next rotation to capture.
+    // A held outgoing frame stays for the next rotation to capture.
     void stopAnimating();
 
     bool isActive() const { return !m_outputs.empty(); }
 
-    // Whether the held phase is over and the animation is running.
     bool isAnimating() const { return m_animationStarted >= 0; }
 
     void render(render::Renderer &renderer) const override;
@@ -73,7 +60,6 @@ public:
 
     void releaseRenderResources() override;
 
-    // gfx::Tween::FAST_OUT_LINEAR_IN.
     static double fastOutLinearIn(double t);
 
     struct RotationSample {
@@ -82,10 +68,9 @@ public:
         double newDegrees;
     };
 
-    // Both layers of the animation at untweened `progress`.
+    // `progress` is untweened.
     static RotationSample sampleRotation(int degrees, double progress);
 
-    // A `source`-sized frame turned by `degrees`, scaled to cover `viewport`.
     static base::RectF coverRect(const base::SizeF &source, int degrees, const base::RectF &viewport);
 
     static base::AffineTransform aboutCenter(const base::PointF &center, double degrees);

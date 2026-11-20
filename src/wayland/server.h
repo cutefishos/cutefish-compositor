@@ -5,12 +5,6 @@
 // Upstream: chromium/src/components/exo/wayland/server.h
 //           chromium/src/components/exo/wayland/wayland_watcher.h
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: integrates the upstream behavior with native
-// compositor types and ownership.
-//
-// Trimmed for Cutefish: no globals are registered yet, and the fd is watched by
-// the compositor's own main loop instead of base::MessagePumpForUI.
 
 #ifndef CUTEFISH_WAYLAND_SERVER_H_
 #define CUTEFISH_WAYLAND_SERVER_H_
@@ -27,8 +21,6 @@
 
 namespace cutefish::wayland {
 
-// A thin wrapper around a libwayland display server, driven by the main
-// thread's event loop.
 class Server
 {
 public:
@@ -37,22 +29,19 @@ public:
     Server& operator=(const Server&) = delete;
     ~Server();
 
-    // Returns the Server instance owning `display`, or nullptr.
+    // Null when no Server owns `display`.
     static Server* serverForDisplay(wl_display* display);
 
-    // Creates the listening socket. With an empty `name` a free `wayland-N`
-    // name is picked automatically. Must be called before start().
+    // An empty `name` picks a free `wayland-N`. Must be called before start().
     bool addSocket(const std::string& name = {});
 
-    // Attaches the event loop fd to the thread's event loop. Clients are
-    // flushed after every dispatch and before that loop blocks.
+    // Clients are flushed after every dispatch and before the loop blocks.
     bool start();
 
     // Detaches from the event loop; the display stays alive.
     void stop();
 
-    // The socket name clients should use as WAYLAND_DISPLAY. Empty until
-    // addSocket() succeeds.
+    // Empty until addSocket() succeeds.
     const std::string& socketName() const { return m_socketName; }
 
     wl_display* display() const { return m_display.get(); }
@@ -64,10 +53,8 @@ public:
     // timeout polls. Returns false on a dispatch error.
     bool dispatch(std::chrono::milliseconds timeout);
 
-    // Flushes queued events to every connected client.
     void flush();
 
-    // Whether a client of this server has started destruction.
     bool isClientDestroyed(wl_client* client) const;
 
     // Compatibility frontends publish their surfaces only after role association.
@@ -83,9 +70,8 @@ public:
         return m_hiddenSurfaceClients.contains(client);
     }
 
-    // The client's surface units per logical unit; see Surface::State::clientScale.
-    // Surface coordinates the client sends are divided by it, and surface and
-    // output coordinates it receives are multiplied by it.
+    // Client surface units per logical unit: surface coordinates from the client are divided by it,
+    // and those it receives multiplied.
     void setClientScale(wl_client* client, double scale)
     {
         if (scale == 1)

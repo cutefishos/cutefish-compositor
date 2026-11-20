@@ -52,7 +52,6 @@ namespace {
 constexpr uint64_t kModifierA = 0x0100000000000001ull;
 constexpr uint64_t kModifierB = 0x0100000000000002ull;
 
-// Stands in for the imported EGLImage.
 class FakeDmaBufTexture : public render::Texture
 {
 public:
@@ -70,8 +69,7 @@ private:
     render::PixelFormat m_format;
 };
 
-// A DmaBufDevice with the capabilities a test wants, recording what it was
-// asked to import. Runs on the server (main) thread only.
+// Used on the server (main) thread only.
 class FakeDmaBufDevice : public render::DmaBufDevice
 {
 public:
@@ -128,14 +126,12 @@ private:
     dev_t m_mainDevice = 0x1234;
 };
 
-// One entry of the zwp_linux_dmabuf_feedback_v1 format table.
 struct FormatTableEntry {
     uint32_t format;
     uint32_t padding;
     uint64_t modifier;
 };
 
-// Everything the client learns, plus whether its work finished.
 struct ClientResult {
     std::atomic<uint32_t> compositorName { 0 };
     std::atomic<uint32_t> compositorVersion { 0 };
@@ -154,7 +150,6 @@ struct ClientResult {
     std::atomic<uint32_t> trancheFlags { 0 };
     std::atomic<uint64_t> mainDevice { 0 };
     std::atomic<uint64_t> trancheDevice { 0 };
-    // Lets a test inspect server state while the client is still connected.
     std::atomic<bool> reachedHold { false };
     std::atomic<bool> releaseHold { false };
 
@@ -173,7 +168,6 @@ struct ClientResult {
     std::mutex mutex;
     std::vector<FormatTableEntry> formatTable;
     std::vector<uint16_t> trancheFormats;
-    // Every tranche in the order received: its flags and its format indices.
     struct Tranche {
         uint32_t flags = 0;
         std::vector<uint16_t> formats;
@@ -213,8 +207,7 @@ struct ClientContext {
     ClientResult* result = nullptr;
 };
 
-// Runs a client on its own thread so the server can keep dispatching on the
-// event loop of the main thread.
+// Runs the client on its own thread; the server dispatches on the main thread.
 class TestClient
 {
 public:
@@ -346,8 +339,7 @@ private:
     bool m_stopping = false;
 };
 
-// A memfd of `size` bytes standing in for a DMA-BUF. The compositor only ever
-// looks at its length, which is what the out-of-bounds check needs.
+// The compositor only checks a DMA-BUF's length, which a memfd stands in for.
 int makeFakeDmaBufFd(size_t size)
 {
     const int fd = memfd_create("cutefish-dmabuf-test", MFD_CLOEXEC);
@@ -480,7 +472,7 @@ protected:
     std::unique_ptr<wayland::LinuxDmabufGlobal> m_dmabufGlobal;
 };
 
-// Adds one valid plane to `params`, closing the fd afterwards as clients do.
+// Closes the fd afterwards, as clients do.
 void addPlane(zwp_linux_buffer_params_v1* params, uint32_t index, uint32_t offset,
               uint32_t stride, uint64_t modifier, size_t fdSize = 64 * 1024)
 {
@@ -490,9 +482,6 @@ void addPlane(zwp_linux_buffer_params_v1* params, uint32_t index, uint32_t offse
                                    modifier & 0xffffffff);
     close(fd);
 }
-
-////////////////////////////////////////////////////////////////////////////////
-// Globals and feedback.
 
 TEST_F(DmaBufTest, TheGlobalIsAdvertisedAtTheVersionThePlatformSupports)
 {
@@ -509,8 +498,6 @@ TEST_F(DmaBufTest, OlderClientsStillGetFormatAndModifierEvents)
     TestClient client;
     ASSERT_TRUE(runClient(client, nullptr, /*bindVersion=*/3));
     EXPECT_EQ(client.result.formatEvents, 3);
-    // ARGB8888 has two modifiers, XRGB8888 and NV12 one; each also gets the
-    // implicit modifier.
     EXPECT_EQ(client.result.modifierEvents, 7);
 }
 
@@ -532,10 +519,9 @@ TEST_F(DmaBufTest, DefaultFeedbackDescribesTheDeviceCapabilities)
     EXPECT_EQ(client.result.trancheDone, 1);
     EXPECT_EQ(client.result.mainDevice, 0x1234u);
     EXPECT_EQ(client.result.trancheDevice, 0x1234u);
-    EXPECT_EQ(client.result.trancheFlags, 0u); // No scanout tranche yet.
+    EXPECT_EQ(client.result.trancheFlags, 0u);
 
     std::lock_guard<std::mutex> lock(client.result.mutex);
-    // Three formats, each with the implicit modifier plus its own.
     ASSERT_EQ(client.result.formatTable.size(), 7u);
     ASSERT_EQ(client.result.trancheFormats.size(), 7u);
 
@@ -577,9 +563,6 @@ TEST_F(DmaBufTest, SurfaceFeedbackIsDeliveredForASurface)
     EXPECT_EQ(client.result.protocolErrorCode, -1);
 }
 
-// The first tranche is the scanout one, restricted to what the primary plane
-// takes: the modifiers both sides list, the implicit modifier where the plane
-// has no explicit ones, and nothing for a format the plane cannot show.
 TEST_F(DmaBufTest, AScanoutCandidateGetsAScanoutTrancheFirstAndLosesItAgain)
 {
     auto* manager = m_dmabufGlobal->feedbackManager();
@@ -617,9 +600,7 @@ TEST_F(DmaBufTest, AScanoutCandidateGetsAScanoutTrancheFirstAndLosesItAgain)
 
     manager->setScanoutCandidate(surface, true);
     EXPECT_TRUE(manager->isScanoutCandidate(surface));
-    // Marking it again re-sends nothing.
     manager->setScanoutCandidate(surface, true);
-    // Dropping the candidate re-sends the plain feedback.
     manager->setScanoutCandidate(surface, false);
     manager->setScanoutCandidate(surface, true);
     client.result.release();
@@ -629,7 +610,6 @@ TEST_F(DmaBufTest, AScanoutCandidateGetsAScanoutTrancheFirstAndLosesItAgain)
 
     EXPECT_EQ(client.result.feedbackDone, 4);
     std::lock_guard<std::mutex> lock(client.result.mutex);
-    // Plain, scanout + default, plain, scanout + default.
     ASSERT_EQ(client.result.tranches.size(), 6u);
     EXPECT_EQ(client.result.tranches[0].flags, 0u);
     EXPECT_EQ(client.result.tranches[1].flags, ZWP_LINUX_DMABUF_FEEDBACK_V1_TRANCHE_FLAGS_SCANOUT);
@@ -645,14 +625,12 @@ TEST_F(DmaBufTest, AScanoutCandidateGetsAScanoutTrancheFirstAndLosesItAgain)
         const FormatTableEntry& entry = client.result.formatTable[index];
         scanout.emplace_back(entry.format, entry.modifier);
     }
-    // In format table order, which is the device's fourcc order.
     const std::vector<std::pair<uint32_t, uint64_t>> expected = {
         { DRM_FORMAT_NV12, DRM_FORMAT_MOD_INVALID },
         { DRM_FORMAT_ARGB8888, kModifierA },
     };
     EXPECT_EQ(scanout, expected);
 
-    // The surface went with its resource: nothing is left behind.
     EXPECT_TRUE(waitFor([&] { return m_compositor->surfaces().empty(); }));
     EXPECT_EQ(manager->surfaceFeedbackCount(), 0u);
     EXPECT_FALSE(manager->isScanoutCandidate(surface));
@@ -680,9 +658,6 @@ TEST_F(DmaBufTest, NoGlobalWithoutAnImportableFormat)
         wayland::LinuxDmabufGlobal::create(server.display(), m_compositor.get(), &device));
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// Buffer creation.
-
 TEST_F(DmaBufTest, CreateImmedImportsTheBufferAndTheSurfaceSamplesIt)
 {
     TestClient client;
@@ -704,7 +679,6 @@ TEST_F(DmaBufTest, CreateImmedImportsTheBufferAndTheSurfaceSamplesIt)
         wl_surface_commit(surface);
         wl_display_roundtrip(context.display);
 
-        // Stay connected while the test looks at the committed surface.
         context.result->reachedHold = true;
         EXPECT_TRUE(context.result->waitForRelease());
 
@@ -732,7 +706,6 @@ TEST_F(DmaBufTest, CreateImmedImportsTheBufferAndTheSurfaceSamplesIt)
     m_compositor->updateTextures(renderer);
     ASSERT_TRUE(surface->node());
     ASSERT_TRUE(surface->node()->texture());
-    // Sampled straight from the client's DMA-BUF: nothing was uploaded.
     EXPECT_EQ(renderer.createdTextures, 0);
     EXPECT_EQ(surface->node()->texture()->size(), base::Size(32, 16));
 
@@ -788,9 +761,6 @@ TEST_F(DmaBufTest, AFailedImportSendsFailedRatherThanAProtocolError)
     EXPECT_EQ(client.result.failedEvents, 1);
     EXPECT_EQ(client.result.protocolErrorCode, -1);
 }
-
-////////////////////////////////////////////////////////////////////////////////
-// Protocol errors. Each one disconnects the client, so each gets its own.
 
 TEST_F(DmaBufTest, ZeroWidthIsInvalidDimensions)
 {
@@ -915,7 +885,6 @@ TEST_F(DmaBufTest, APlaneReachingPastItsFdIsOutOfBounds)
         ClientProxy<zwp_linux_buffer_params_v1, zwp_linux_buffer_params_v1_destroy> params(
             context.display, zwp_linux_dmabuf_v1_create_params(context.dmabuf));
         ASSERT_TRUE(params.get());
-        // 16 rows of 1024 bytes need 16 KiB; the fd only holds 4 KiB.
         addPlane(params, 0, 0, 1024, kModifierA, /*fdSize=*/4096);
         zwp_linux_buffer_params_v1_create(params, 32, 16, DRM_FORMAT_ARGB8888, 0);
         wl_display_roundtrip(context.display);
@@ -989,9 +958,6 @@ TEST_F(DmaBufTest, DestructionIsSafeWithoutAConnection)
     client.stop();
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// Buffer lifetime, independent of the protocol.
-
 render::DmaBufAttributes makeAttributes(const base::Size& size)
 {
     render::DmaBufAttributes attributes;
@@ -1017,7 +983,6 @@ TEST(DmaBufBufferTest, TheImportedTextureIsReusedAcrossCommits)
     EXPECT_EQ(buffer->stride(), 32);
     ASSERT_TRUE(buffer->texture());
     EXPECT_EQ(buffer->texture()->size(), base::Size(8, 8));
-    // Imported once; later commits reuse it rather than importing again.
     EXPECT_EQ(buffer->texture().get(), buffer->texture().get());
     EXPECT_EQ(buffer->attributes().modifier, kModifierA);
     EXPECT_EQ(buffer->attributes().planes.size(), 1u);
@@ -1035,7 +1000,6 @@ TEST(DmaBufBufferTest, ReleaseWaitsForDetachBecauseClientStorageIsSampled)
     buffer->onAttach();
     EXPECT_FALSE(buffer->isReleased());
 
-    // Drawing a frame does not hand the storage back: the GPU keeps reading it.
     buffer->onContentsConsumed();
     EXPECT_EQ(releases, 0);
     EXPECT_FALSE(buffer->isReleased());
@@ -1055,7 +1019,6 @@ TEST(DmaBufBufferTest, AFailedImportProducesNoBufferAndClosesThePlaneFds)
     EXPECT_GE(fcntl(fd, F_GETFD), 0);
 
     EXPECT_FALSE(compositor::DmaBufBuffer::create(&device, std::move(attributes)));
-    // The attributes were consumed and destroyed with them, so the fd is gone.
     EXPECT_EQ(fcntl(fd, F_GETFD), -1);
     EXPECT_EQ(errno, EBADF);
 }

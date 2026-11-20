@@ -4,9 +4,6 @@
 //
 // Upstream: chromium/src/ash/accelerators/accelerator_controller_impl.cc
 // Revision: 8abbac30b9cf2fe976422c58c000c94685648b65
-//
-// Adapted for Cutefish: integrates the upstream behavior with native
-// compositor types and ownership.
 
 #include "accelerators/accelerator_controller.h"
 
@@ -138,7 +135,6 @@ bool AcceleratorController::acceleratorPressed(const Accelerator &accelerator)
     if (!action || !canPerformAction(*action, accelerator))
         return false;
     performAction(*action, accelerator);
-    // ShouldActionConsumeKeyEvent: adding exceptions is strongly discouraged.
     return true;
 }
 
@@ -149,8 +145,7 @@ bool AcceleratorController::canPerformAction(AcceleratorAction action,
     if (restriction != Restriction::None)
         return restriction == Restriction::PreventProcessingAndPropagation;
 
-    // True when running the action does something; false gives the focused
-    // window a chance at the key instead.
+    // False gives the focused window a chance at the key instead.
     switch (action) {
     case AcceleratorAction::CycleBackwardMru:
     case AcceleratorAction::CycleForwardMru:
@@ -171,7 +166,6 @@ bool AcceleratorController::canPerformAction(AcceleratorAction action,
     case AcceleratorAction::ToggleShowDesktop:
         return commands::canToggleShowDesktop(m_context);
 
-    // The following are always enabled.
     case AcceleratorAction::DesksActivateDeskLeft:
     case AcceleratorAction::DesksActivateDeskRight:
     case AcceleratorAction::DesksMoveActiveItemLeft:

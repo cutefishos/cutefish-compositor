@@ -14,8 +14,6 @@ namespace cutefish::shell {
 
 namespace {
 
-// The levels the on-screen display shows: the default sink and source, the
-// screen and the keyboard backlight.
 class SessionOsdLevels final : public OsdLevels
 {
 public:

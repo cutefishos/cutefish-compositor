@@ -41,8 +41,7 @@ struct Curve {
     double tangentParabolicRoot;
 };
 
-// HIDAccelCurves of the generic HID pointer, converted from 16.16 fixed point.
-// No entry has a quartic gain.
+// The generic HID pointer's acceleration curves, converted from 16.16 fixed point.
 constexpr std::array<Curve, 10> kCurves = {{
         {0.0, 1.0, 0.0, 0.0, 8.0, 0.0},
         {0.125, 0.92, 0.4, 0.08, 8.2, 19.0},
@@ -58,10 +57,8 @@ constexpr std::array<Curve, 10> kCurves = {{
 // The slider has a step per table entry, the default the fourth.
 constexpr double kDefaultStep = 3;
 
-// The table's units: counts per 1/67 s frame, scaled by a 400 dpi default
-// resolution, in and 96 pixels per inch out. Those units read the counts of a
-// single report, so the curve moves with the report rate; here it is pinned
-// to hand speed as a 1000 dpi mouse reporting at 125 Hz meets it.
+// Table units: counts per 1/67 s frame at 400 dpi in, pixels at 96 per inch out.
+// The curve is pinned to hand speed as a 1000 dpi mouse at 125 Hz meets it.
 constexpr double kFrameRate = 67;
 constexpr double kScreenResolution = 96;
 constexpr double kTableResolution = 400;
@@ -90,7 +87,6 @@ double tableIndex(double speed)
     return kCurves[low].index + (kCurves[low + 1].index - kCurves[low].index) * t;
 }
 
-// Parameters for an index between two table entries are interpolated.
 Curve curveAt(double index)
 {
     size_t current = 0;
@@ -114,10 +110,6 @@ Curve curveAt(double index)
             mix(low.tangentParabolicRoot, high.tangentParabolicRoot)};
 }
 
-// The accelerated speed for a standardized one: the polynomial up to the
-// first tangent speed, its tangent line up to the second, then the square
-// root that meets that line with the same slope. Each gain multiplies the
-// speed before the power is taken.
 double accelerated(const Curve &c, double x)
 {
     const auto polynomial = [&c](double v) {

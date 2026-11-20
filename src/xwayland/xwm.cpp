@@ -5,9 +5,6 @@
 //
 // Upstream: chromiumos/platform2/vm_tools/sommelier/{sommelier,sommelier-window}.cc
 // Revision: aa8a57908bdcff297e229679dc3240b1b108f57e
-//
-// Adapted for Cutefish: X11 metadata, configure and focus messages map to the
-// native window manager, including translated negative desktop coordinates.
 #include "xwm.h"
 
 #include "scene/surface_node.h"
@@ -53,7 +50,6 @@ const base::LogCategory &logs()
     return base::LogCategory::defaultCategory();
 }
 
-// A property's value as bytes.
 std::string_view propertyBytes(xcb_get_property_reply_t *reply)
 {
     return std::string_view(static_cast<const char *>(xcb_get_property_value(reply)),
@@ -249,8 +245,7 @@ struct Xwm::X11Window : compositor::SurfaceObserver, wm::WindowObserver {
     bool hasTitle = false, popup = false, roleLocked = false;
     uint64_t mapOrder = 0;
     uint32_t transient = 0;
-    // The process on the X server's end of the client's socket; zero for the
-    // server itself or this compositor. See ownerPid().
+    // The process behind the client's socket; zero for the server itself or this compositor.
     uint32_t pid = 0;
     bool dialog = false, urgent = false, demandsAttention = false, initiallyMinimized = false;
     bool dragIcon = false;
@@ -264,8 +259,7 @@ struct Xwm::X11Window : compositor::SurfaceObserver, wm::WindowObserver {
     bool input = true, takeFocus = false, deleteWindow = false, pingable = false;
     // Requested through _NET_WM_STATE; there is no pager, but the state is kept.
     bool above = false, skipTaskbar = false, skipPager = false;
-    // _NET_WM_WINDOW_OPACITY, which KWin, Mutter and picom honour; some
-    // clients set zero to stay mapped but unseen.
+    // _NET_WM_WINDOW_OPACITY; some clients set zero to stay mapped but unseen.
     float opacity = 1;
     uint32_t pingSerial = 0;
     std::string clientMachine;
@@ -275,9 +269,8 @@ struct Xwm::X11Window : compositor::SurfaceObserver, wm::WindowObserver {
     xcb_sync_counter_t syncCounter = 0;
     xcb_sync_alarm_t syncAlarm = 0;
     int64_t syncValue = 0;
-    // The size last sent whose painted content has not been committed, in
-    // X11 pixels; synced once the client's counter has passed it, as only a
-    // commit after that holds what it painted rather than a bare new buffer.
+    // In X11 pixels; synced once the client's counter has passed it, as only a commit after that
+    // holds what it painted.
     std::optional<base::Size> awaitedSize;
     bool awaitedSynced = false;
     uint64_t awaitRevision = 0;
@@ -475,8 +468,6 @@ xcb_atom_t Xwm::atom(const char *name) const
     return it == m_atoms.end() ? XCB_ATOM_NONE : it->second;
 }
 
-// Sommelier's direct scale does the same between host and guest; see
-// sommelier-transform.cc.
 base::Point Xwm::fromX(const base::Point &point) const
 {
     return base::Point(base::roundToInt(point.x() / m_scale), base::roundToInt(point.y() / m_scale))
@@ -541,9 +532,8 @@ base::Region Xwm::regionFromX(const base::Region &region) const
     return result;
 }
 
-// X11 clients scale themselves: Qt and Xft read Xft.dpi, GTK reads XSETTINGS.
-// The values follow gsd-xsettings: GTK takes an integer window scale and keeps
-// any fraction as a larger font DPI.
+// X11 clients scale themselves from Xft.dpi or XSETTINGS; GTK takes an integer window scale and
+// keeps any fraction as a larger font DPI.
 void Xwm::publishResources()
 {
     const int dpi = base::roundToInt(96 * m_scale);
@@ -625,8 +615,7 @@ void Xwm::publishResources()
     xcb_flush(m_connection);
 }
 
-// The EWMH counterpart of xdg_wm_base.ping. The client echoes the message to
-// the root window, with the timestamp it was sent.
+// The client echoes the message to the root window, with the timestamp it was sent.
 void Xwm::ping(uint32_t window)
 {
     auto it = m_windows.find(window);
@@ -658,8 +647,8 @@ void Xwm::ping(uint32_t window)
           });
 }
 
-// A hung client cannot act on WM_DELETE_WINDOW. As in KWin, a local client's
-// process is killed, and its connection closed whatever it runs on.
+// A hung client cannot act on WM_DELETE_WINDOW: a local client's process is killed, and its
+// connection closed wherever it runs.
 void Xwm::kill(uint32_t window)
 {
     auto it = m_windows.find(window);
@@ -681,9 +670,8 @@ uint32_t Xwm::ownerPid(const X11Window &w)
     return runsOnThisMachine(w.clientMachine) ? w.pid : 0;
 }
 
-// EWMH _NET_WM_SYNC_REQUEST: the client sets its counter to the requested
-// value once it has handled the configure that follows and painted at the new
-// size. The alarm on the counter reports that.
+// The client sets its counter to the requested value once it has handled the next configure and
+// painted at the new size.
 bool Xwm::requestSync(X11Window &w)
 {
     if (!m_syncEvent || !w.syncable || !w.syncCounter)
@@ -905,10 +893,8 @@ void Xwm::setup()
         const char name[] = "Cutefish";
         xcb_change_property(m_connection, XCB_PROP_MODE_REPLACE, m_support, atom("_NET_WM_NAME"),
                             atom("UTF8_STRING"), 8, sizeof(name) - 1, name);
-        // Xwayland accepts other clients only once WM_S0 has an owner, so the
-        // client that started it reads the scale and cursor size from its first
-        // request. Nothing in the session runs an XSETTINGS manager; one started
-        // later takes the selection over.
+        // Xwayland accepts other clients only once WM_S0 has an owner, so its first client reads
+        // the scale and cursor size here.
         auto claim = [this](const char *selection) {
             xcb_set_selection_owner(m_connection, m_support, atom(selection), XCB_CURRENT_TIME);
             xcb_client_message_event_t e {};
@@ -1098,7 +1084,7 @@ void Xwm::message(uint32_t window, xcb_atom_t protocol, xcb_timestamp_t time)
     xcb_flush(m_connection);
 }
 
-// Adapted from Sommelier sommelier-xshape.cc; keep regions in the native scene.
+// Adapted from sommelier-xshape.cc.
 void Xwm::shape(X11Window &w)
 {
     if (!m_shapeEvent)
@@ -1194,8 +1180,7 @@ void Xwm::properties(X11Window &w, std::vector<xcb_atom_t> atoms)
                           w.syncPending = false;
                           if (w.syncAlarm)
                               xcb_sync_destroy_alarm(m_connection, std::exchange(w.syncAlarm, 0));
-                          // As KWin does: requests count up from a counter the
-                          // window manager zeroed.
+                          // Requests count up from a counter the window manager zeroed.
                           w.syncValue = 0;
                           if (counter && m_syncEvent)
                               xcb_sync_set_counter(m_connection, counter, {0, 0});
@@ -1664,8 +1649,8 @@ void Xwm::synchronize(X11Window &w)
     present(w);
     w.geometry = exterior(w).outset(rect);
     const base::Point xPosition = bodyToX(w, rect).topLeft();
-    // A client that paints to a sync counter takes one size at a time; a newer
-    // one waits for the counter, as in KWin, and only the latest is sent.
+    // A client that paints to a sync counter takes one size at a time; a newer one waits, and
+    // only the latest is sent.
     bool deferred = false;
     if (xSize != w.xGeometry.size()) {
         if (w.awaitedSize != xSize) {
@@ -2004,7 +1989,6 @@ void Xwm::event(xcb_generic_event_t *generic)
             properties(w, {e->atom});
     } else if (type == XCB_CONFIGURE_REQUEST) {
         auto *e = reinterpret_cast<xcb_configure_request_event_t *>(generic);
-        // The request in X11 pixels, then in logical units.
         base::Rect xRect = w.window ? bodyToX(w, w.window->contentBounds()) : w.xGeometry;
         // The event fills what the request leaves out from the server's geometry, which
         // can predate our answer to an earlier request; it only replaces an unknown size.
@@ -2063,10 +2047,8 @@ void Xwm::event(xcb_generic_event_t *generic)
                 property(id, "_NET_FRAME_EXTENTS", XCB_ATOM_CARDINAL, {0, 0, 0, 0});
         } else if (e->type == atom("_NET_WM_STATE") && d[0] <= 2 && !w.window && w.mapped
                    && !w.overrideRedirect && !w.popup) {
-            // Mapped, so the client asks rather than sets the property, but the
-            // window is only created once Xwayland's surface has content. SDL
-            // and GTK ask for fullscreen right after mapping. A client that
-            // keeps asking before then is not remembered past a few requests.
+            // Mapped, so the client asks rather than sets the property, but the window only exists
+            // once Xwayland's surface has content; at most a few requests are kept.
             if (w.stateRequests.size() < 16) {
                 w.stateRequests.push_back({d[0], d[1], d[2]});
                 applyStateRequest(w, w.stateRequests.back());

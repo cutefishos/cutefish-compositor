@@ -23,8 +23,7 @@ namespace cutefish::render {
 
 namespace {
 
-// A fence that will not merge is waited out rather than dropped. Bounded so a
-// wedged client cannot stall the compositor indefinitely.
+// Bounded so a wedged client cannot stall the compositor.
 constexpr int kMergeFallbackWaitMs = 100;
 
 } // namespace
@@ -98,8 +97,7 @@ SyncFence SyncFence::merge(std::vector<SyncFence> fences)
         if (::ioctl(merged.get(), SYNC_IOC_MERGE, &data) == 0) {
             merged = SyncFence(ScopedFd(data.fence));
         } else {
-            // Waiting on a subset of the fences would be unsafe, so a fence
-            // that will not merge is waited out here instead.
+            // Waiting on a subset of the fences would be unsafe.
             fence.wait(kMergeFallbackWaitMs);
         }
     }

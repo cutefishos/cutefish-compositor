@@ -18,8 +18,6 @@ constexpr render::Color rgb(int r, int g, int b, float a = 1.0f)
     return render::Color {r / 255.0f, g / 255.0f, b / 255.0f, a};
 }
 
-// kwin-plugins: m_titleBarBgColor / m_titleBarFgColor / m_unfocusedFgColor,
-// with FishUI's window border alphas.
 const Palette kLight {
     rgb(255, 255, 255), // titleBar
     rgb(56, 56, 56), // captionActive   #383838
@@ -27,8 +25,6 @@ const Palette kLight {
     rgb(245, 246, 250), // opaqueBackdrop  #F5F6FA
 };
 
-// kwin-plugins: m_titleBarBgDarkColor / m_titleBarFgDarkColor /
-// m_unfocusedFgDarkColor.
 const Palette kDark {
     rgb(44, 44, 45), // titleBar        #2C2C2D
     rgb(202, 203, 206), // captionActive   #CACBCE

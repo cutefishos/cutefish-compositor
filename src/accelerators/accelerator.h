@@ -4,11 +4,6 @@
 //
 // Upstream: chromium/src/ui/base/accelerators/accelerator.h
 // Revision: 8abbac30b9cf2fe976422c58c000c94685648b65
-//
-// Adapted for Cutefish: ui::KeyboardCode becomes the xkb keysym at the base
-// shift level of the current layout, ui::EventFlags becomes an xkb-derived
-// modifier mask, and ui::DomCode becomes the evdev code. Time stamps, source
-// device ids and the mouse-interruption flag are not needed.
 
 #ifndef CUTEFISH_ACCELERATORS_ACCELERATOR_H_
 #define CUTEFISH_ACCELERATORS_ACCELERATOR_H_
@@ -23,7 +18,6 @@
 
 namespace cutefish::accelerators {
 
-// ui::EventFlags, reduced to the modifiers an accelerator can carry.
 enum Modifier : uint32_t {
     NoModifier = 0,
     ShiftDown = 1u << 0,
@@ -53,8 +47,7 @@ public:
     {
     }
 
-    // ui::Accelerator(KeyboardCode, DomCode, ...): the evdev code pins the key
-    // position for the positional lookup in AcceleratorMap.
+    // The evdev code pins the key position for the positional lookup.
     constexpr Accelerator(uint32_t keysym, uint32_t evdevCode, uint32_t modifiers,
                           KeyState keyState)
         : m_keysym(keysym)
@@ -107,8 +100,6 @@ public:
                 | (static_cast<size_t>(m_keysym) << 8);
     }
 
-    // "Ctrl+Shift+Q", for logs and D-Bus results. Modifier order follows
-    // ui::Accelerator::GetShortcutText.
     std::string shortcutText() const;
 
 private:
@@ -121,18 +112,14 @@ private:
 // The keysym name xkbcommon knows the key by ("Up", "XF86AudioRaiseVolume").
 std::string keysymName(uint32_t keysym);
 
-// Parses what keysymName() produced; 0 when the name is unknown.
+// 0 when the name is unknown.
 uint32_t keysymFromName(const std::string &name);
 
-// The printable character for a keysym, or an empty string. Letters come back
-// upper-cased so "Ctrl+Q" reads as it does on the key cap.
+// Empty for none; letters come back upper-cased.
 std::string keysymText(uint32_t keysym);
 
-// The key at `evdevCode` on a US layout, for the subset of punctuation keys
-// ChromeOS pins by position. Port of
-// ui::KeycodeConverter::MapPositionalDomCodeToUSShortcutKey: returns 0 when
-// the code is not a positional key, or when the layout puts a letter or a
-// digit there, since that key then means the letter and not the position.
+// 0 when the code is not a positional key, or when the layout puts a letter or a
+// digit there.
 uint32_t positionalUsKeysym(uint32_t evdevCode, uint32_t layoutKeysym);
 
 bool isModifierKeysym(uint32_t keysym);

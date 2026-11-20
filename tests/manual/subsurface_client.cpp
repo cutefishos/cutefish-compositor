@@ -2,9 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Libwayland-only subsurface hardware demo. Static buffers are never modified after
-// attach; a desynchronized child provides presentation-driven animation while
-// its sibling's blue state is deliberately held in the synchronized cache.
+// Libwayland-only subsurface hardware demo.
 
 #include <algorithm>
 #include <chrono>

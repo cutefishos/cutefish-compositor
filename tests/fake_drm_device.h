@@ -4,11 +4,6 @@
 //
 // Upstream: chromium/src/ui/ozone/platform/drm/gpu/fake_drm_device.h
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: a scripted DrmDeviceApi rather than a fake of the whole
-// DRM ioctl surface. It records commits, can be told to fail a specific one,
-// and hands out synthetic handles, which is what the plane planning, the atomic
-// TEST_ONLY path and buffer lifetime need to be testable without a GPU.
 
 #ifndef CUTEFISH_TESTS_FAKE_DRM_DEVICE_H_
 #define CUTEFISH_TESTS_FAKE_DRM_DEVICE_H_
@@ -38,8 +33,6 @@ public:
 
     gbm_device *gbmDevice() const override { return gbm; }
 
-    // --- Framebuffers. ---
-
     bool addFramebuffer(const backend::FramebufferParams &params, uint32_t *framebufferId) override
     {
         addFramebufferCalls.push_back(params);
@@ -64,8 +57,7 @@ public:
         return crtcFramebuffer && crtcFramebuffer(crtcId, attributes);
     }
 
-    // What the CRTC shows before this device's first commit, as another DRM
-    // master left it. Unset, the CRTC shows nothing.
+    // What the CRTC shows before the first commit; unset, it shows nothing.
     std::function<bool(uint32_t, render::DmaBufAttributes *)> crtcFramebuffer;
     std::vector<uint32_t> exportedCrtcs;
 
@@ -73,8 +65,7 @@ public:
     {
         if (primeFails)
             return false;
-        // The kernel hands out one handle per underlying buffer; keying on the
-        // fd reproduces that, which is what the handle refcount has to survive.
+        // The kernel hands out one handle per underlying buffer, which keying on the fd reproduces.
         auto entry = m_handles.find(fd);
         if (entry == m_handles.end())
             entry = m_handles.emplace(fd, m_nextHandle++).first;
@@ -105,7 +96,6 @@ public:
 
     void destroyPropertyBlob(uint32_t id) override { destroyedBlobs.push_back(id); }
 
-    // The blob's contents viewed as an array of T.
     template<typename T>
     std::vector<T> blobAs(uint32_t id) const
     {
@@ -122,8 +112,6 @@ public:
     std::map<uint32_t, std::vector<uint8_t>> blobs;
     std::vector<uint32_t> destroyedBlobs;
 
-    // --- Atomic commits. ---
-
     bool atomicCommit(const backend::AtomicRequest &request, uint32_t flags,
                       void *userData) override
     {
@@ -132,8 +120,6 @@ public:
             return commitFilter(commits.back());
         return true;
     }
-
-    // --- Cursor. ---
 
     bool setCursor(uint32_t crtcId, uint32_t handle, const base::Size &size,
                    const base::Point &hotspot) override
@@ -198,8 +184,6 @@ public:
         --liveMappings;
     }
 
-    // --- Scripting. ---
-
     // Returns false to fail a commit. Called for every commit, test and flip.
     std::function<bool(const Commit &)> commitFilter;
     bool addFramebufferFails = false;
@@ -210,10 +194,7 @@ public:
     bool cursorWaits = false;
     bool flipTimesMark = false;
     base::Size maxCursor {64, 64};
-    // A real GBM device standing in for the renderer that shares this file.
     gbm_device *gbm = nullptr;
-
-    // --- Recorded state. ---
 
     std::vector<Commit> commits;
     std::vector<backend::FramebufferParams> addFramebufferCalls;
@@ -229,10 +210,8 @@ public:
     int moveCursorCalls = 0;
     int liveDumbBuffers = 0;
     int liveMappings = 0;
-    // What each mapped dumb buffer holds, by handle.
     std::map<uint32_t, void *> dumbMappings;
 
-    // Commits that were validation only, and the ones that were real.
     size_t testCommitCount() const { return countCommits(true); }
 
     size_t realCommitCount() const { return countCommits(false); }

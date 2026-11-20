@@ -21,32 +21,28 @@ public:
     AuthBackend &operator=(const AuthBackend &) = delete;
     virtual ~AuthBackend() = default;
 
-    // Who the screen offers to authenticate as. Empty means the UI should ask.
+    // Empty means the UI should ask.
     virtual std::string defaultUserName() const = 0;
 
-    // Open the conversation with the authentication service. Called once, after
-    // the UI exists, so a prompt or an early error has somewhere to go.
+    // Called once, after the UI exists, so a prompt or an early error has somewhere
+    // to go.
     virtual void start() = 0;
 
-    // Check one credential. The Secret is moved in and dies with the backend's
-    // conversation; there is no copy left for the caller to worry about.
+    // The secret dies with the backend's conversation.
     virtual void authenticate(const std::string &userName, Secret secret) = 0;
 
-    // Drop any conversation in progress and return to the initial state. Must
-    // leave no credential behind.
+    // Must leave no credential behind.
     virtual void reset() = 0;
 
     virtual void accept() = 0;
 
-    // The session a login starts, chosen before authenticate(). Only a login
-    // backend starts one; the others ignore it.
+    // Chosen before authenticate(); only a login backend uses it.
     virtual void setSession(const LoginSession &) { }
 
-    // The credential was accepted. accept() may now be called, exactly once.
+    // accept() may now be called, exactly once.
     base::Signal<> succeeded;
 
-    // The credential was rejected, or the conversation failed. The UI clears
-    // the field and shows `message`, which never contains the credential.
+    // `message` never contains the credential.
     base::Signal<const std::string &> failed;
 };
 

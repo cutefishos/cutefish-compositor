@@ -31,10 +31,7 @@ class WindowManager;
 
 namespace cutefish::wayland {
 
-// ext_foreign_toplevel_list_v1 for capture clients: every ordinary application
-// window as a handle carrying title, app id and a stable identifier, and, for
-// the capture source manager, the window's own CaptureSource. Only announced
-// to clients allowed to capture.
+// Only announced to clients allowed to capture.
 class ForeignToplevelList : private wm::WindowObserver
 {
 public:
@@ -45,7 +42,7 @@ public:
                         compositor::Compositor *compositor, Authorize authorize);
     ~ForeignToplevelList() override;
 
-    // Releases the global and closes every handle; before the display goes.
+    // Before the display goes.
     void shutdown();
 
     wl_global *global() const { return m_global; }
@@ -58,13 +55,9 @@ public:
     // logical coordinates; unset, a shadowed source covers the window bounds.
     void setShadowBounds(ShadowBounds bounds);
 
-    // The window painted with its shadow, as the screenshot interface grabs
-    // a window. Any live window has one, listed or not; its bounds are
-    // refreshed here, so a shadow that changed with the window's state is
-    // current.
+    // Any live window has one, listed or not; its bounds are refreshed on each call.
     std::shared_ptr<compositor::CaptureSource> shadowedSourceFor(wm::Window *window);
 
-    // List resources bound and not yet destroyed.
     int boundListCount() const { return int(m_clients.size()); }
 
 private:

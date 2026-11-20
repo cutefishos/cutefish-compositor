@@ -4,9 +4,6 @@
 //
 // Upstream: chromium/src/ash/display/resolution_notification_controller.cc
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: a server-side timer and client ownership guard protect
-// complete layout previews, with rollback using the same native configurator.
 
 #include "display/display_configuration_controller.h"
 

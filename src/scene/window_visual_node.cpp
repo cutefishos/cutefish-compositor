@@ -18,7 +18,6 @@ namespace cutefish::scene {
 
 namespace {
 
-// ash/wm/window_dimmer.cc kDefaultDimAnimationDurationMs.
 constexpr int64_t kDimDurationMs = 200;
 
 } // namespace
@@ -28,7 +27,6 @@ void paintWindowOutline(render::Renderer &renderer, const render::RoundedShape &
 {
     const double stroke = state.outlineWidthPx / renderer.rasterScale();
     auto inner = shape;
-    // On whole pixels, so no edge splits its stroke over two.
     inner.bounds = renderer.pixelsInside(shape.bounds);
     auto outer = inner;
     outer.bounds = outer.bounds.adjusted(-stroke, -stroke, stroke, stroke);
@@ -68,7 +66,6 @@ void paintShapeOutline(render::Renderer &renderer, const WindowVisualState &stat
                                        "window outline"));
         return set;
     });
-    // Looked up even when culled, so the cache keeps it as long as before.
     const base::RectF target = transform.mapRect(raster.target());
     if (textures.front() && renderer.drawsInto(target.toEnclosingRect()))
         renderer.drawTextureF(textures.front().get(), target, opacity);
@@ -85,7 +82,6 @@ float WindowVisualNode::presentedDim(const render::Renderer &renderer) const
 {
     if (!m_dimFading)
         return m_dimPresented;
-    // Outside an output frame there is nothing to pace the fade against.
     if (renderer.frameTime < 0) {
         m_dimFading = false;
         return m_dimPresented = m_state.dimOpacity;
@@ -110,7 +106,6 @@ void WindowVisualNode::render(render::Renderer &renderer) const
     const base::PointF placed = position + clientBodySnap(renderer, m_state, position);
     auto shape = m_state.shape;
     shape.bounds = renderer.pixelsInside(shape.bounds.translated(placed));
-    // Taken here, so a window nested below keeps its own corners.
     const auto corners = std::exchange(renderer.windowCorners, std::nullopt);
     if (corners) {
         shape.radius = corners->radius;
@@ -126,7 +121,6 @@ void WindowVisualNode::render(render::Renderer &renderer) const
     if (clip)
         renderer.popRoundedClip();
     if (m_state.drawOutline && !renderer.suppressWindowOutlines && !m_state.outlinePath.isEmpty()) {
-        // Rasterized where it lands, so it stays on physical pixels at any scale.
         auto state = m_state;
         state.outlinePath.translate(placed.x(), placed.y());
         paintShapeOutline(renderer, state, base::AffineTransform());

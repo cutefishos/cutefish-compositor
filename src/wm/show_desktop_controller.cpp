@@ -22,9 +22,6 @@ double easeOut(double t)
     return 1 - std::pow(1 - t, 3);
 }
 
-// Moved aside: the application windows on screen, dialogs and sheets
-// included, but not the shell's own or popups, which belong to the window they
-// open from.
 bool isMovable(const Window *window)
 {
     return window->isVisible() && !window->isPopup()
@@ -73,10 +70,8 @@ void ShowDesktopController::toggle()
 
 void ShowDesktopController::enter()
 {
-    // The overview has the screen and the windows meanwhile.
     if (m_active || !m_manager->allowsActivation() || m_manager->overview()->isActive())
         return;
-    // Windows still sliding back from the last time are taken along.
     for (Window *window : m_manager->windows()) {
         if (isMovable(window) && !isMovedAside(window)) {
             window->addObserver(this);
@@ -85,8 +80,7 @@ void ShowDesktopController::enter()
     }
     if (m_windows.empty())
         return;
-    // The desktop takes the keyboard. Activating it before the mode starts
-    // keeps that activation from ending the mode.
+    // Activating the desktop before the mode starts keeps that activation from ending it.
     for (Window *window : m_manager->windows()) {
         if (window->role() == WindowRole::Desktop && window->isVisible()) {
             m_manager->activation()->activate(window);
@@ -169,13 +163,10 @@ void ShowDesktopController::onWindowDestroying(Window *window)
 
 base::Point ShowDesktopController::awayOffset(const Window *window) const
 {
-    // A dialog goes the way of the window it belongs to, and keeps its place
-    // over it.
     const Window *root = transientRoot(window);
     const base::Rect output = m_manager->outputBoundsFor(root);
     const base::Rect bounds = root->bounds();
 
-    // An edge another output continues past would show the window there.
     const auto continues = [this, &output](int x) {
         for (const WindowManager::OutputArea &area : m_manager->outputAreas()) {
             if (area.bounds != output && area.bounds.contains(x, centerPixel(output).y()))
@@ -196,7 +187,6 @@ base::Point ShowDesktopController::awayOffset(const Window *window) const
 
 void ShowDesktopController::slideTo(double target)
 {
-    // A reversal mid-slide turns around from where the windows are.
     m_slideFrom = m_progress;
     m_slideTo = target;
     m_slideStarted = -1;

@@ -2,8 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// The compositor's main loop.
-
 #include <atomic>
 #include <thread>
 #include <unistd.h>

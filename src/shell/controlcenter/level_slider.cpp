@@ -17,7 +17,6 @@
 
 namespace cutefish::shell {
 
-// How long the knob keeps the user's value for the service to come back.
 static constexpr std::chrono::milliseconds kSettle {300};
 
 double snapToDevice(double value, double scale)
@@ -59,7 +58,6 @@ LevelSlider::LevelSlider()
     m_settle.onTimeout = [this] {
         m_settling = false;
         m_gliding = false;
-        // The binding takes the service's value again.
         if (!m_pressed)
             setVisualValue(m_value);
     };
@@ -93,7 +91,6 @@ void LevelSlider::setIcon(std::string file)
 void LevelSlider::setVisualValue(double value)
 {
     m_visualValue = value;
-    // Only wheel steps glide; a drag and the service's values snap.
     m_track->setAnimated(m_gliding && !m_pressed);
     m_track->setPosition(position());
 }
@@ -189,7 +186,6 @@ void TileSlider::setHasDetail(bool detail)
     requestLayout();
 }
 
-// The capitals' top, not the line box, keeps the padding from the tile's edge.
 double TileSlider::heightForWidth(double) const
 {
     const double padding = ui::Theme::current().largeSpacing;
@@ -213,7 +209,6 @@ void TileSlider::layout()
     const double labelHeight = m_title->sizeHint().height;
     double titleWidth = width - 3;
     if (m_hasDetail) {
-        // At the title row's end, centred on the title's capitals.
         const double size = DetailChevron::kSize;
         const double capCenter = padding + labelTop + m_title->baselineOffset() - m_title->capHeight() / 2;
         m_chevron->setColor(panel::secondaryTextColor());

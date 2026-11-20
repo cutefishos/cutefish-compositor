@@ -174,8 +174,7 @@ void StatusItem::place(const base::Point &position)
             m_surface->setHasRole(true);
             return;
         }
-        // Synchronized: a new size shows in the bar's commit that makes room
-        // for it, and the items beside it move in the same frame.
+        // Synchronized: a new size shows in the bar's commit that makes room for it.
         m_subSurface->setCommitBehavior(true);
         m_position = {};
     }

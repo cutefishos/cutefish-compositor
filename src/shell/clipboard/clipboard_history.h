@@ -23,7 +23,6 @@ class SelectionController;
 
 namespace cutefish::shell {
 
-// The picker's rows: the history's entries a filter finds, newest first.
 class ClipboardHistoryModel : public ListModelSignals
 {
 public:
@@ -41,9 +40,8 @@ public:
     // One line: the text's start, "Image, <time>", a file's name or
     // "<n> Files".
     std::string title(int row) const;
-    // The text the entry keeps, for the tooltip and the preview.
     std::string detail(int row) const;
-    // The icon of the first file's type; empty for others, or until known.
+    // Empty for others, or until known.
     std::string iconName(int row) const;
 
 private:
@@ -59,10 +57,6 @@ private:
     base::Subscription m_changed;
 };
 
-// The clipboard history component without its picker view: what is copied
-// is recorded, an entry goes back on the clipboard and is pasted, and
-// org.cutefish.ClipboardHistory at /ClipboardHistory toggles the picker on
-// the compositor's shortcut.
 class ClipboardHistory
 {
 public:
@@ -78,18 +72,13 @@ public:
     ClipboardStore &store() { return m_store; }
     ClipboardHistoryModel &model() { return m_model; }
 
-    // The view's.
     std::function<void()> togglePicker;
     std::function<void()> closePicker;
-    // The window manager's sendPaste(), which waits for the keys the user
-    // still holds.
+    // Waits for the keys the user still holds.
     std::function<void()> sendPaste;
 
-    // Puts the row's entry on the clipboard, closes the picker and pastes it
-    // into the application in front; the body is read first, without
-    // blocking.
+    // The body is read first, without blocking.
     void paste(int row);
-    // Puts it on the clipboard only.
     void copy(int row);
     void remove(int row);
     void clear();

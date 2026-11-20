@@ -51,26 +51,14 @@ namespace cutefish::switcher {
 
 class SwitcherContent;
 
-// The application switcher's list: a row of application icons on a glass
-// panel, centred on the output being switched on, with the selected one's
-// name under it. Drawn by the compositor itself, as the lock screen is: a
-// toolkit view tree rendered into an image the panel node composites over
-// the backdrop blur. Upstream: WindowCycleView.
 class SwitcherView : public wm::WindowCycleView
 {
 public:
     // Logical pixels. Cells shrink together until the row fits the output.
-    // The distance from one icon to the next: the icons' artwork, which themes
-    // draw a few pixels inside the icon's square, stands a quarter of its
-    // width apart. The selection hugs the artwork.
     static constexpr double kCellSize = 108;
     static constexpr double kIconRatio = 96.0 / 108;
     static constexpr double kSelectionRatio = 98.0 / 108;
-    // Beside the row.
     static constexpr double kPadding = 16;
-    // Above and below the row, alike, so the icons sit in the middle of the
-    // panel as far from every edge; the selected one's name goes just under
-    // its selection.
     static constexpr double kVerticalPadding = 18;
     static constexpr double kScreenMargin = 40;
     static constexpr int kRadius = 36;
@@ -81,17 +69,13 @@ public:
                  const decoration::Theme *theme);
     ~SwitcherView() override;
 
-    // Builds the view tree ahead of the first switch, which would otherwise
-    // pay for the fonts and the icon theme while the list appears.
-    // From then on the application of every window that maps is looked up and
-    // its icon rendered, one window at a time while the compositor is idle.
+    // Builds the view tree ahead of the first switch, then renders the icon of every
+    // window that maps, one at a time while idle.
     void preload();
     // preload() once `delay` has passed; the view going first cancels it.
     void preloadAfter(std::chrono::milliseconds delay);
 
     static constexpr int kWarmDelayMs = 200;
-
-    // --- wm::WindowCycleView ---
 
     void showWindowCycle(const std::vector<wm::Window *> &entries, int selected,
                          const std::string &output) override;
@@ -100,15 +84,11 @@ public:
     bool windowCycleViewContains(const base::PointF &location) const override;
     int windowCycleEntryAt(const base::PointF &location) const override;
 
-    // The panel's contents, rendered anew on the CPU when they changed.
     ui::Bitmap renderImage();
-    // In the panel node's paint: its contents as a texture of the renderer,
-    // drawn on the GPU where the renderer allows.
     render::Texture *panelTexture(render::Renderer &renderer);
     void releaseRenderResources();
     base::Rect bounds() const { return m_bounds; }
-    // The selected entry's own glass, in global logical coordinates; empty
-    // with nothing selected.
+    // In global logical coordinates; empty with nothing selected.
     base::Rect selectionBounds() const;
     int selectionRadius() const { return base::roundToInt(kSelectionRadius * m_cellSize / kCellSize); }
     const decoration::Theme *theme() const { return m_theme; }
@@ -116,15 +96,11 @@ public:
 private:
     void ensureWindow();
     void markDirty();
-    // The logical bounds and scale of the output named `output`.
     std::pair<base::Rect, double> outputFor(const std::string &output) const;
-    // Sizes the image and the views for `entries` centred on `area`.
     void layout(const std::vector<ApplicationInfo> &entries, int selected, const base::Rect &area,
                 double scale);
-    // The row's top in the panel, centred in it.
     double rowY() const { return (m_bounds.height() - m_cellSize) / 2; }
-    // The icon size cells have at full size, in device pixels: icons are made
-    // once at it and scaled into shrunken cells.
+    // In device pixels: icons are made once at it and scaled into shrunken cells.
     static int iconPixels(double scale);
     void followIconTheme();
     void warmNext();

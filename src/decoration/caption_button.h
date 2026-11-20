@@ -2,14 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// The three window controls in the titlebar.
-//
-// Behaviour follows ash/frame/caption_buttons: a button tracks its own hover
-// and pressed state, a press is only honoured if the release lands on the same
-// button, and the action is a window-state request rather than anything done to
-// the client directly. The artwork is the toolkit's window controls, so
-// frames drawn here match the headers apps draw.
-
 #ifndef CUTEFISH_DECORATION_CAPTION_BUTTON_H_
 #define CUTEFISH_DECORATION_CAPTION_BUTTON_H_
 

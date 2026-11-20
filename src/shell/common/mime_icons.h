@@ -9,11 +9,7 @@
 
 namespace cutefish::shell {
 
-// The icon name of a file's type, for the common cases: a folder; the type the
-// shared-mime-info globs give its name, the heaviest and longest pattern
-// first; else plain text or octet-stream by a look at its start. The icon is
-// the "icons" file's, else the type with '/' as '-'. Touches the disk: the
-// file thread's or a worker's.
+// Touches the disk: call it on the file thread or a worker.
 std::string mimeIconNameForFile(const std::string &path);
 
 } // namespace cutefish::shell

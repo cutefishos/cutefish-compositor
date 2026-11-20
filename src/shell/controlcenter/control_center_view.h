@@ -23,23 +23,17 @@ class MediaTile;
 class StatusPanelView;
 class TileSlider;
 
-// The control centre's content without its window: the device-users tile,
-// the cards, the media card and the two sliders, 360 wide.
 class ControlCenterView : public ui::View
 {
 public:
     static constexpr double kWidth = 360;
-    // Between the tiles and round them.
     static constexpr double kGap = 10;
 
     explicit ControlCenterView(ControlCenterServices &services);
     ~ControlCenterView() override;
 
-    // Reads the services again.
     void refresh();
-    // Takes its text again after the session language changed.
     void retranslate();
-    // The window height at `scale`: the layout's, on whole device pixels.
     double windowHeight(double scale) const;
 
     CardItem *wirelessCard() const { return m_wireless; }
@@ -51,12 +45,9 @@ public:
     TileSlider *brightnessSlider() const { return m_brightness; }
     TileSlider *soundSlider() const { return m_sound; }
 
-    // The Wi-Fi or Bluetooth card's chevron: its detail page.
     std::function<void()> onWirelessDetail;
     std::function<void()> onBluetoothDetail;
-    // The Sound slider's chevron: the sound panel.
     std::function<void()> onSoundDetail;
-    // The layout's height may have changed.
     std::function<void()> onHeightChanged;
 
 protected:
@@ -79,11 +70,6 @@ private:
     bool m_darkModeShown = false;
 };
 
-// The control centre's pages: the tiles, and a tile's detail page (the
-// Wi-Fi, Bluetooth or Sound panel) over them. Between the two the pages slide kSlide and
-// cross-fade while the window's height glides from one to the other, on the
-// panels' 380 ms curve; a change of direction on the way turns from where
-// the pages are.
 class ControlCenterPager : public ui::View
 {
 public:
@@ -93,25 +79,19 @@ public:
     ~ControlCenterPager() override;
 
     ControlCenterView *mainPage() const { return m_main; }
-    // While shown, and while it slides away.
+    // Null unless shown or sliding away.
     StatusPanelView *detailPage() const { return m_detail; }
     bool isShowingDetail() const { return m_detail && m_target == 1; }
     bool isSliding() const;
     // 0 at the tiles, 1 at the detail page.
     double progress() const { return m_progress; }
 
-    // `page` is shown at once at its height; its maximum height set.
     void showDetail(std::unique_ptr<StatusPanelView> page);
     void showMain();
 
-    // The window's width: the tiles' or a status panel's, and between the
-    // two while the pages slide.
     double windowWidth() const;
-    // The window's height at `scale`: the tiles' or the detail page's as it
-    // is drawn, and between the two while the pages slide.
     double windowHeight(double scale) const;
 
-    // windowWidth() or windowHeight() may have changed.
     std::function<void()> onSizeChanged;
 
 protected:

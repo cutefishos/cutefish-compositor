@@ -40,21 +40,19 @@ struct Color {
     friend bool operator==(const Color &, const Color &) = default;
 };
 
-// One Gaussian lobe of a drop shadow, in the pixels of the image it is drawn into.
+// In the pixels of the image it is drawn into.
 struct ShadowLobe {
     float sigma = 0;
     base::Point offset; // Positive down/right.
     float opacity = 0;
 };
 
-// While set, every background blur and glass shows this opaque colour in place
-// of what lies behind it; the material's fill, tint and lighting still apply.
+// The material's fill, tint and lighting still apply.
 std::optional<Color> opaqueBackdrop();
 void setOpaqueBackdrop(std::optional<Color> color);
 
-// A blur that draws again from the result it kept. A non-empty `changed` is
-// the logical rectangle of its backdrop that changed since; the blur then
-// redoes only the part of its result that reads it.
+// A non-empty `changed` is the logical rectangle of its backdrop that changed
+// since.
 struct KeptBackdrop {
     uint64_t owner = 0;
     base::Rect changed;
@@ -62,8 +60,7 @@ struct KeptBackdrop {
     friend bool operator==(const KeptBackdrop &, const KeptBackdrop &) = default;
 };
 
-// A drawable owned by an output. Opaque to everything except the renderer that
-// created it.
+// Opaque to everything except the renderer that created it.
 class RenderTarget
 {
 public:
@@ -73,13 +70,11 @@ public:
 
 // Draw geometry is logical; rasterScale maps it into the physical target.
 
-// Pixels on their way back from the GPU.
 class PendingImage
 {
 public:
     virtual ~PendingImage() = default;
-    // Premultiplied ARGB32, rows top-down; null if the read failed. Waits for
-    // the GPU only if it has not finished by then.
+    // Premultiplied ARGB32, rows top-down; null if the read failed.
     virtual ui::Bitmap take() = 0;
 };
 class Renderer
@@ -113,7 +108,6 @@ public:
 
     const OutputRenderContext &outputContext() const { return m_outputContext; }
 
-    // The logical point nearest `logical` that lies on a physical pixel of the output.
     base::PointF pixelAligned(const base::PointF &logical) const
     {
         const base::PointF outputOrigin = m_outputContext.logicalViewport.topLeft();
@@ -121,8 +115,8 @@ public:
         return outputOrigin + base::PointF(std::round(origin.x()), std::round(origin.y())) / m_rasterScale;
     }
 
-    // The physical pixels a client body at `logical` fills whole. The client
-    // antialiases an edge that falls inside a pixel, so that pixel is left out.
+    // An edge that falls inside a pixel is the client's antialiasing, so that
+    // pixel is left out.
     base::RectF pixelsInside(const base::RectF &logical) const
     {
         constexpr double kEpsilon = 0.01;
@@ -137,7 +131,6 @@ public:
         return base::RectF::fromEdges(topLeft.x(), topLeft.y(), bottomRight.x(), bottomRight.y());
     }
 
-    // The physical pixels `logical` touches, partly covered ones included.
     base::RectF pixelsAround(const base::RectF &logical) const
     {
         constexpr double kEpsilon = 0.01;
@@ -151,57 +144,47 @@ public:
         return base::RectF::fromEdges(topLeft.x(), topLeft.y(), bottomRight.x(), bottomRight.y());
     }
 
-    // Binds `target` and sets up the viewport. Every draw call must sit between
-    // beginFrame() and endFrame().
+    // Every draw call must sit between beginFrame() and endFrame().
     virtual bool beginFrame(RenderTarget *target) = 0;
     virtual bool endFrame() = 0;
 
     // `samples` are the logical regions backdrop blurs read, which a repaint
-    // reaching them has to cover whole.
+    // reaching them covers whole.
     virtual void prepareDamage(const base::Region &, const std::vector<base::Rect> &) { }
 
-    // Whether this frame draws any of `logical` again. Everywhere else the
-    // target keeps what the last frame left there.
+    // Everywhere else the target keeps what the last frame left there.
     virtual bool repaints(const base::Rect &) const { return true; }
 
-    // The logical rectangle outside which nothing drawn now reaches the target,
-    // the repaint of an output frame or the bounds of a pass; none culls nothing.
+    // The repaint of an output frame or the bounds of a pass; none culls
+    // nothing.
     std::optional<base::Rect> paintClip;
 
-    // False when a draw inside `logical` would be clipped away whole, so it
-    // and any work feeding only it can be skipped, as viz's ShouldSkipQuad.
+    // False when a draw inside `logical` would be clipped away whole.
     bool drawsInto(const base::Rect &logical) const
     {
         return !paintClip || paintClip->intersects(logical);
     }
 
-    // Ends the frame without presenting it. Used when the display controller
-    // decided to scan a client buffer out instead, so the previous composited
-    // buffer must be left untouched and reusable.
+    // The previous composited buffer must be left untouched and reusable.
     virtual void cancelFrame() { }
 
     // Animation snapshots retain the body; the physical-width outline is drawn afterward.
     bool suppressWindowOutlines = false;
 
-    // A window drawn scaled from its snapshot is not where its blurs would
-    // read the screen, so it goes without them.
+    // A window drawn scaled from its snapshot is not where its blurs would read
+    // the screen.
     bool suppressBackgroundBlur = false;
 
-    // A window drawn by the desk bar while it is on another desk:
-    // its surfaces hidden along with it are drawn too.
+    // Its surfaces hidden along with it are drawn too.
     bool revealHiddenSurfaces = false;
 
-    // Multiplies the opacity of every surface and colour drawn: the overview
-    // darkens the desktop as it draws it rather than over it, one full-output
-    // pass fewer for an iGPU that composes a frame in several milliseconds.
+    // Multiplies the opacity of every surface and colour drawn.
     float opacityScale = 1;
-    // With it, an opaque texture drawn at an opacity below 1 replaces the
-    // pixels under it, scaled, instead of blending over them: the overview
-    // darkens a desktop that covers the output without clearing first.
+    // An opaque texture drawn at an opacity below 1 then replaces the pixels
+    // under it, scaled, instead of blending.
     bool overwriteOpaque = false;
 
-    // Set by an animation morphing a window's corners into its snapshot: the
-    // window's visual node clips its content with these instead of its own.
+    // The window's visual node clips its content with these instead of its own.
     struct WindowCorners {
         double radius = 0;
         base::SizeF radiusScale {1, 1};
@@ -209,12 +192,10 @@ public:
     std::optional<WindowCorners> windowCorners;
     bool capturing = false;
 
-    // The output's presentation-timeline time for the frame being composited,
-    // in milliseconds of the steady clock; -1 outside an output frame. What
-    // Chromium animations step on as BeginFrameArgs::frame_time. Fractional:
-    // whole milliseconds would step a 13.3 ms period by 13 or 14 at random.
+    // Milliseconds of the steady clock, -1 outside an output frame; fractional,
+    // as whole milliseconds would step a 13.3 ms period unevenly.
     double frameTime = -1;
-    // The output's refresh interval in milliseconds; 0 outside an output frame.
+    // Milliseconds; 0 outside an output frame.
     double framePeriod = 0;
 
     virtual void pushRoundedClip(const RoundedShape &shape) { m_roundedClips.push_back(shape); }
@@ -257,8 +238,6 @@ public:
         base::AffineTransform mapping;
     };
 
-    // drawTextureMapped() for several rectangles of one texture, as the
-    // slices of a shadow: a renderer that can draws them in one call.
     virtual void drawTextureMappedRects(Texture *texture, const std::vector<MappedRect> &rects,
                                         float alpha)
     {
@@ -266,20 +245,16 @@ public:
             drawTextureMapped(texture, rect.target.toEnclosingRect(), alpha, rect.mapping);
     }
 
-    // A non-empty `shape`, in the same coordinates as `bounds`, masks the blur
-    // instead of the rounded rectangle. In a BackdropPass, the blur of surface
-    // `owner`, by damage id, keeps its result for the next pass.
+    // A non-empty `shape`, in the coordinates of `bounds`, masks the blur
+    // instead of the rounded rectangle.
     virtual void drawBackgroundBlur(const base::Rect &bounds, int radius, const base::Rect &clip,
                                     const GlassParams &glass = {}, const ui::Path &shape = {},
                                     uint64_t owner = 0)
     {
     }
 
-    // Blur results kept between passes into the target `scope` names.
     virtual bool keepsBackdrop(uint64_t /*scope*/, uint64_t /*owner*/) const { return false; }
-    // In a pass, for a blur that draws from the result it kept in `scope`: the
-    // logical rectangle of its backdrop it redoes, empty when none. Nothing for
-    // a blur drawn from scratch.
+    // Empty when none; nothing for a blur drawn from scratch.
     virtual std::optional<base::Rect> keptBackdropChange(uint64_t /*scope*/, uint64_t /*owner*/) const
     {
         return std::nullopt;
@@ -288,14 +263,11 @@ public:
     // Zero outside a BackdropPass, and in the passes nested in one.
     uint64_t backdropScope = 0;
 
-    // Makes subsequent draws wait for `fence` before sampling. Renderers that
-    // can queue the wait on the GPU do so; the base implementation blocks,
-    // which is the correct fallback and never wrong, only slower.
+    // The base implementation blocks, which is never wrong, only slower.
     virtual void waitFence(const SyncFence &fence) { fence.wait(kFenceWaitMs); }
 
-    // Signalled once every draw issued so far has finished reading its sources.
-    // An invalid fence means the renderer cannot produce one, in which case the
-    // caller must fall back to releasing buffers on frame completion.
+    // An invalid fence means the caller must release buffers on frame
+    // completion instead.
     virtual SyncFence createReleaseFence() { return SyncFence(); }
 
     // A wedged client must not stall the compositor forever.
@@ -305,17 +277,13 @@ public:
     virtual std::unique_ptr<Texture> createTexture(const base::Size &size, const uint8_t *pixels,
                                                    int stride, PixelFormat format) = 0;
 
-    // Re-uploads into an existing texture. Returns false when `texture` was not
-    // created by this renderer, cannot be uploaded into, or its format or the
-    // row stride no longer fit it, in which case the caller must create a new
-    // one. The size is the texture's own; a caller whose pixels changed size
-    // compares that itself.
+    // False when `texture` was not created by this renderer or its format or
+    // stride no longer fit; the caller then creates a new one.
     virtual bool updateTexture(Texture *texture, const uint8_t *pixels, int stride,
                                PixelFormat format) = 0;
 
-    // The same for `damage` alone, in buffer pixels; everywhere else the
-    // texture keeps what it holds. A renderer without partial uploads takes
-    // the whole buffer, which outside `damage` holds the same pixels.
+    // `damage` is in buffer pixels; everywhere else the texture keeps what it
+    // holds.
     virtual bool updateTexture(Texture *texture, const uint8_t *pixels, int stride,
                                PixelFormat format, const base::Region &)
     {
@@ -328,27 +296,24 @@ public:
         return createTexture(size, rgba, size.width() * 4, PixelFormat::Rgba8888);
     }
 
-    // Optional offscreen composition, called only inside a frame. The resulting
-    // premultiplied texture owns its pixels independently of client resources.
+    // Only inside a frame; the texture owns its pixels independently of client
+    // resources.
     virtual bool renderToTexture(std::unique_ptr<Texture> &texture, const base::Rect &bounds,
                                  const std::function<void()> &paint)
     {
         return false;
     }
 
-    // Draws only `repaint` again, when `texture` holds the rest from an
-    // earlier pass over the same bounds at the same scale; an empty `repaint`
-    // or a texture of another size draws everything.
+    // An empty `repaint`, or a texture of another size or scale, draws
+    // everything.
     virtual bool renderToTexture(std::unique_ptr<Texture> &texture, const base::Rect &bounds,
                                  const base::Rect &repaint, const std::function<void()> &paint)
     {
         return renderToTexture(texture, bounds, paint);
     }
 
-    // A `size` pixel image of black `lobes` cast by what `paintCaster` draws in
-    // opaque black, with the caster's own coverage cut back out. The caster is
-    // painted with no clip, one logical unit to an image pixel. Only inside a
-    // frame; null where the renderer cannot draw one.
+    // The caster is painted with no clip, one logical unit to an image pixel;
+    // only inside a frame, null where unsupported.
     virtual std::unique_ptr<Texture> renderShadow(const base::Size &size,
                                                   const std::vector<ShadowLobe> &lobes,
                                                   const std::function<void()> &paintCaster)
@@ -356,31 +321,23 @@ public:
         return nullptr;
     }
 
-    // Samples a renderToTexture() result through mipmaps until the next
-    // renderToTexture() into it, for a snapshot drawn far below its size.
-    // cc's EffectNode::trilinear_filtering, a render pass with generate_mipmap.
+    // Until the next renderToTexture() into it.
     virtual void enableTrilinearFiltering(Texture *texture) { }
 
-    // Samples a mipmapped texture from `level` or a larger one, never a
-    // smaller; a negative level lifts the limit.
+    // A negative level lifts the limit.
     virtual void limitMipmapLevel(Texture *texture, int level) { }
 
     // Capture only inside a frame; the display render target remains untouched.
     virtual ui::Bitmap captureFrame(const std::function<void()> &paint) { return {}; }
 
-    // Capture of `paint` under `context` rather than the display's: a window
-    // is painted on its own by making its bounds the logical viewport. Only
-    // inside a frame; premultiplied ARGB32, rows top-down.
+    // Only inside a frame; premultiplied ARGB32, rows top-down.
     virtual ui::Bitmap captureImage(const OutputRenderContext &context, const base::Size &size,
                                     const std::function<void()> &paint)
     {
         return {};
     }
 
-    // captureFrame() and captureImage() without waiting for the GPU: the
-    // pixels are read into a buffer and collected later, as viz serves a copy
-    // request with an asynchronous readback. Null where only the waiting path
-    // exists.
+    // Null where only the waiting path exists.
     virtual std::shared_ptr<PendingImage> captureFrameLater(const std::function<void()> &paint)
     {
         return nullptr;
@@ -393,9 +350,8 @@ public:
         return nullptr;
     }
 
-    // The same capture, rendered on the GPU into a DMA-BUF the client owns.
-    // `attributes` must outlive the call. False when the buffer cannot be a
-    // render target here; captureDmaBufFormats() says what can.
+    // `attributes` must outlive the call; false when the buffer cannot be a
+    // render target here.
     virtual bool captureToDmaBuf(const OutputRenderContext &context, const base::Size &size,
                                  const DmaBufAttributes &attributes,
                                  const std::function<void()> &paint)
@@ -403,8 +359,7 @@ public:
         return false;
     }
 
-    // Formats and modifiers captureToDmaBuf() accepts, empty without support,
-    // and the render node clients should allocate such buffers on (0: unknown).
+    // Empty without support; the render node is 0 when unknown.
     virtual const DmaBufFormats &captureDmaBufFormats() const
     {
         static const DmaBufFormats none;
@@ -413,13 +368,11 @@ public:
 
     virtual dev_t captureDmaBufDevice() const { return 0; }
 
-    // Inside a capture of the output this frame draws: copies what the frame
-    // composited, `size` pixels, in place of painting it again, as viz serves
-    // a copy request from the root render pass. False when it cannot.
+    // False when it cannot.
     virtual bool copyOutputFrame(const base::Size &size) { return false; }
 
-    // Reads back what `paint` draws into a `size` pixel image whose logical
-    // coordinates are its pixels. Only inside a frame; premultiplied ARGB32.
+    // The image's logical coordinates are its pixels; only inside a frame,
+    // premultiplied ARGB32.
     virtual ui::Bitmap renderToImage(const base::Size &size, const std::function<void()> &paint)
     {
         return {};
@@ -427,8 +380,8 @@ public:
 
     virtual base::Size viewportSize() const = 0;
 
-    // Small immutable raster assets, owned by this renderer. Call only with its
-    // context current; returned references last until the next cache lookup.
+    // Call only with the context current; returned references last until the
+    // next cache lookup.
     using TextureSet = std::vector<std::unique_ptr<Texture>>;
     const TextureSet &cachedTextureSet(const std::string &key, const std::function<TextureSet()> &make);
 
@@ -457,9 +410,8 @@ private:
     uint64_t m_textureCacheMisses = 0;
 };
 
-// A pass into the target `scope` names whose blurs keep their results for
-// the next: those of `fresh` draw what they kept, redone where their backdrop
-// changed, and the others' results are dropped.
+// The blurs of `fresh` draw what they kept, redone where their backdrop
+// changed; the others' results are dropped.
 class BackdropPass
 {
 public:

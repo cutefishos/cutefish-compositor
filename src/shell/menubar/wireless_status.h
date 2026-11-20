@@ -19,8 +19,6 @@ class Handler;
 
 namespace cutefish::shell {
 
-// What the bar's Wi-Fi icon shows, from NetworkManager on the system bus:
-// the switches, a hotspot, and the Wi-Fi network this machine is on.
 class WirelessStatus
 {
 public:
@@ -30,7 +28,6 @@ public:
     WirelessStatus(const WirelessStatus &) = delete;
     WirelessStatus &operator=(const WirelessStatus &) = delete;
 
-    // For NetworkManager requests, which share its hotspot tracking.
     networkmanager::Handler &handler() const { return *m_handler; }
 
     MenuBarIndicators::Network network() const;

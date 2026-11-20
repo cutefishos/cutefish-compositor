@@ -31,18 +31,9 @@ class LaunchpadPageIndicator;
 class LaunchpadView;
 class LaunchpadWallpaper;
 
-// An open folder, over the whole launchpad in a layer of its own, above the
-// pages' layers: the launchpad's backdrop again, hiding the grid, the folder's
-// name, which can be edited, and below it a panel with its applications in
-// rows of the grid's cells. More applications than the panel's rows hold
-// go on pages that slide sideways, with dots below the panel, as the
-// grid's do. The panel grows out of the folder's icon as the backdrop
-// and the name fade in, and shrinks back into it as the folder closes. A
-// press outside the panel or Escape closes it.
 class LaunchpadFolderView final : public ui::View, private ui::Scroller::Target
 {
 public:
-    // The most columns a folder's panel has.
     static constexpr int kMaximumColumns = 4;
     static constexpr std::chrono::milliseconds kOpenDuration {280};
     static constexpr std::chrono::milliseconds kCloseDuration {220};
@@ -53,34 +44,29 @@ public:
 
     void setMetrics(const LaunchpadMetrics &metrics);
 
-    // `from` is the folder's icon in the view's coordinates, which the panel
-    // grows out of when `animate`; empty to grow in place.
+    // `from` is in the view's coordinates; empty grows in place.
     void open(const std::string &folder, bool animate, ui::RectF from = {});
-    // Writes the name being edited and closes at once.
     void close();
-    // Writes the name being edited and closes after shrinking back into the
-    // icon. It no longer counts as open meanwhile.
+    // No longer counts as open while it shrinks.
     void dismiss();
-    // Hides at once but keeps the cells until close(): a drag out of the
-    // panel started on one of them.
+    // Keeps the cells until close(): a drag out of the panel started on one of
+    // them.
     void detach();
     bool isOpen() const { return !m_folder.empty() && !m_detached && !m_closing; }
     bool isDetached() const { return m_detached; }
     const std::string &folder() const { return m_folder; }
 
-    // Follows the model; a folder that went closes.
     void sync();
-    // Selects the name for editing.
     void editName();
     ui::TextField *nameField() const;
 
     LaunchpadCell *cell(const std::string &id) const;
-    // The panel, in the view's coordinates.
+    // In the view's coordinates.
     ui::RectF panelRect() const;
-    // Where an application's cell rests, in the view's coordinates.
+    // In the view's coordinates.
     ui::RectF cellRect(int index) const;
-    // The index of the slot under a point in the view's coordinates; -1
-    // outside the folder's applications.
+    // `position` is in the view's coordinates; -1 outside the folder's
+    // applications.
     int indexAt(ui::PointF position) const;
     // -1 or 1 over the empty side of the panel a drag pages towards, 0
     // elsewhere or with no page that way.
@@ -89,7 +75,7 @@ public:
     int pageTotal() const;
     int currentPage() const { return m_currentPage; }
     void goToPage(int page);
-    // The dots' centres, in the view's coordinates.
+    // In the view's coordinates.
     std::vector<ui::PointF> indicatorDots() const;
 
 protected:
@@ -105,7 +91,6 @@ private:
     friend class NameField;
     friend class Panel;
 
-    // ui::Scroller::Target
     ui::Scroller::Axis horizontalAxis() const override;
     ui::Scroller::Axis verticalAxis() const override;
     ui::PointF position() const override;
@@ -115,22 +100,19 @@ private:
     int columns() const;
     int pageSize() const;
     double padding() const;
-    // From the name's baseline to the panel.
     double nameGap() const;
-    // From the panel to the dots' tops.
     double indicatorGap() const;
-    // The dots and the gap above them; none for one page.
+    // None for one page.
     double indicatorHeight() const;
     int nameFontSize() const;
     double nameHeight() const;
-    // The current page's grid of cells at rest, in the view's coordinates.
+    // In the view's coordinates.
     ui::RectF gridRect() const;
-    // 0 closed, 1 open: the backdrop's opacity and the panel's growth.
+    // 0 closed, 1 open.
     void setProgress(double progress);
     int visibleRows() const;
-    // From the name field's top to the panel.
     double titleHeight() const;
-    // Where the cell of an application rests, in the panel.
+    // In the panel's coordinates.
     ui::PointF slotPosition(int index) const;
     void placeCells();
     void setContentX(double x);
@@ -139,7 +121,6 @@ private:
     void resetPages();
     void handleWheel(const ui::ScrollEvent &event);
 
-    // Panel: the background's press and the flick it may become.
     void panelPressed(ui::PointF position);
     void panelMoved(ui::PointF position);
     void panelReleased(ui::PointF position);
@@ -154,13 +135,11 @@ private:
     std::string m_folder;
     bool m_detached = false;
     bool m_closing = false;
-    // Which dismissal a finished shrink belongs to.
     int m_closeSerial = 0;
     ui::RectF m_from;
     double m_progress = 1;
     Panel *m_panel = nullptr;
     NameField *m_name = nullptr;
-    // The cells, clipped to the panel.
     ui::View *m_grid = nullptr;
     LaunchpadPageIndicator *m_indicator = nullptr;
     std::map<std::string, LaunchpadCell *> m_cells;
@@ -168,7 +147,7 @@ private:
     LaunchpadTween m_fade;
 
     int m_currentPage = 0;
-    // How far the pages have slid, a panel's width per page.
+    // A panel's width per page.
     double m_contentX = 0;
     bool m_swiping = false;
     LaunchpadTween m_slide;

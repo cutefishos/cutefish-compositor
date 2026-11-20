@@ -64,7 +64,6 @@ TEST(ClipboardProtocol, RealBytesOpaqueFormatsRepeatedReceivesAndIdleProgress)
     EXPECT_EQ(12u, a.sends);
     EXPECT_EQ("", h.receive(b, b.selection, "unadvertised"));
     EXPECT_EQ(12u, a.sends);
-    // No renderer, output submit or frame callbacks exist in this harness.
 }
 
 TEST(ClipboardProtocol, FocusLateDevicesOrderingMultipleDevicesAndFocusReturn)
@@ -148,7 +147,6 @@ TEST(ClipboardProtocol, SerialPolicyDoesNotAuthorizeOtherClientsOrOldFocus)
     wl_data_device_set_selection(a.devices[0], source, b.serial);
     h.sync(a);
     EXPECT_FALSE(h.seat.selection()->source());
-    // A refused source is cancelled, so its client knows it holds nothing.
     EXPECT_EQ(1u, a.cancelled);
     h.focus(a);
     auto* retry = a.source({{"text/plain", "a"}});
@@ -220,7 +218,7 @@ TEST(ClipboardProtocol, SlowProducerAndBrokenPipeDoNotBlockServer)
         return a.sends == 1;
     }));
     h.sync(a);
-    h.sync(b); // Stalled peer cannot stall control messages.
+    h.sync(b);
     close(fds[0]);
     a.stall = false;
     ASSERT_TRUE(h.until([&] {
@@ -324,7 +322,7 @@ TEST(ClipboardProtocol, AnotherSeatCannotPublishOrReceiveThisSeatsSelection)
     input::Seat anotherSeat(&h.compositor);
     wayland::WaylandSeat anotherAdapter(&anotherSeat, h.server.serialTracker());
     wayland::createSeatGlobal(h.server.display(), &anotherAdapter);
-    auto& a = h.addClient(); // Registry binds the last seat, which belongs to another controller.
+    auto& a = h.addClient();
     h.focus(a);
     wl_data_device_set_selection(a.devices.front(), a.source({{"text/plain", "wrong seat"}}),
                                  a.serial);
@@ -364,8 +362,6 @@ TEST(ClipboardProtocol, RecipientDisconnectDuringForwardedTransferDoesNotRetainF
     EXPECT_EQ(before, openFdCount());
 }
 
-// Exo's DataDeviceTest.ClipboardFocusedSurfaceDestroyed: once the focused
-// surface is gone, selection changes no longer reach its client.
 TEST(ClipboardProtocol, SelectionChangesDoNotReachAClientWhoseFocusedSurfaceIsGone)
 {
     Harness h;
@@ -389,7 +385,6 @@ TEST(ClipboardProtocol, SelectionChangesDoNotReachAClientWhoseFocusedSurfaceIsGo
     EXPECT_FALSE(h.seat.selection()->source());
 }
 
-// A copy picked from a touch menu cites the tap's serial, as a click's would.
 TEST(ClipboardProtocol, ATouchSerialAuthorizesTheSelection)
 {
     Harness h;
@@ -411,9 +406,6 @@ TEST(ClipboardProtocol, ATouchSerialAuthorizesTheSelection)
     h.sync(a);
 }
 
-// Each selection refuses only serials older than the one that last set it, so
-// a toolkit that sets the primary selection from the press that started the
-// selected text can still do so after a later copy.
 TEST(ClipboardProtocol, PrimarySelectionSerialsAreOrderedApartFromTheClipboard)
 {
     Harness h;

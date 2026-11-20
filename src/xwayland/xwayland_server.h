@@ -63,15 +63,12 @@ public:
     bool start(const Options& options);
     void stop();
 
-    // The output scale Xwayland renders at. X11 clients get device-resolution
-    // coordinates and Xft.dpi, so they draw sharp instead of being upscaled.
+    // X11 clients get device-resolution coordinates and Xft.dpi, so they draw sharp.
     void setScale(double scale);
 
-    // The cursor theme and logical size X11 clients are told to use.
     void setCursorTheme(const std::string& theme, int size);
 
-    // Xwayland is running and managed. A lazy server has published its display
-    // before this.
+    // A lazy server has published its display before this.
     bool isReady() const { return m_ready; }
 
     std::string display() const { return m_displayName; }
@@ -100,7 +97,6 @@ private:
     // Once the current callback is done, as one crash reports itself through
     // several channels: the first report of an epoch counts.
     void deferFailure(const std::string& error);
-    // Starts Xwayland with the descriptors it inherits; false when it cannot.
     bool spawn(const std::vector<std::string>& arguments, const std::vector<int>& inherited,
                int waylandSocket);
     void reap();
@@ -134,7 +130,6 @@ private:
     std::string m_deferredError;
     Options m_options;
     std::deque<int64_t> m_restarts;
-    // A lazy server's listening sockets and the lock file that reserves them.
     std::vector<int> m_listenFds;
     std::vector<int> m_listenWatches;
     std::string m_lockFile, m_socketFile;

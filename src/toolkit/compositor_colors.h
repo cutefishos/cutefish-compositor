@@ -11,8 +11,6 @@
 
 namespace cutefish::toolkit {
 
-// The colours of the panels the compositor draws, after the toolkit's;
-// compositor_colors.cpp gives them for each theme.
 enum class CompositorColor : uint16_t {
     SwitcherName = uint16_t(ui::ColorId::ApplicationFirst),
 

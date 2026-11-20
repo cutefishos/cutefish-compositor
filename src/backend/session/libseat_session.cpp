@@ -37,7 +37,7 @@ void logHandler(libseat_log_level level, const char* format, va_list args)
         CF_DEBUG(cfSession).printf("libseat: %s", buffer);
 }
 
-// The signals main.cpp blocks for its signalfd, pending before it reads them.
+// The signals main.cpp blocks for its signalfd.
 bool stopPending()
 {
     sigset_t pending;
@@ -53,7 +53,6 @@ LibseatSession::~LibseatSession()
 {
     if (m_watch)
         core::mainLoop()->unwatch(m_watch);
-    // Owners close their devices first today; whatever is left goes with the seat.
     std::vector<int> ids;
     for (const auto &[id, fd] : m_deviceFds)
         ids.push_back(id);
@@ -70,8 +69,7 @@ std::unique_ptr<LibseatSession> LibseatSession::create()
 
     std::unique_ptr<LibseatSession> session(new LibseatSession());
 
-    // libseat keeps this pointer and calls through it for the seat's lifetime,
-    // so it cannot live on this stack frame.
+    // libseat keeps this pointer for the seat's lifetime.
     static const libseat_seat_listener listener = {
         .enable_seat = &LibseatSession::onEnableSeat,
         .disable_seat = &LibseatSession::onDisableSeat,
@@ -84,8 +82,8 @@ std::unique_ptr<LibseatSession> LibseatSession::create()
         return nullptr;
     }
 
-    // The seat is unusable until the first enable event, which never comes to a
-    // session nobody activates; a stop must still end the wait.
+    // The first enable event never comes to a session nobody activates, so a
+    // stop must still end the wait.
     while (!session->m_active) {
         if (stopPending()) {
             CF_INFO(cfSession) << "Stopped while waiting for the seat";
@@ -117,8 +115,8 @@ void LibseatSession::dispatch()
 {
     if (libseat_dispatch(m_seat, 0) >= 0 || errno == EINTR || errno == EAGAIN)
         return;
-    // The seat connection is gone and its fd stays readable: watching it
-    // further would only spin. Open devices keep working; switching does not.
+    // The fd stays readable after the seat connection is lost, so watching it
+    // would only spin.
     CF_CRITICAL(cfSession) << "Lost the seat connection:" << strerror(errno);
     core::mainLoop()->unwatch(std::exchange(m_watch, 0));
 }
@@ -143,8 +141,8 @@ void LibseatSession::closeDevice(int deviceId)
         return;
     if (libseat_close_device(m_seat, deviceId) < 0)
         CF_WARNING(cfSession) << "Failed to close device" << deviceId;
-    // Only afterwards: with logind the id is this descriptor, which
-    // libseat_close_device still stats to release the device.
+    // With logind the id is this descriptor, which libseat_close_device still
+    // stats.
     const auto entry = m_deviceFds.find(deviceId);
     if (entry != m_deviceFds.end()) {
         ::close(entry->second);

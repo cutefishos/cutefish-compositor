@@ -45,9 +45,7 @@
 
 namespace cutefish::testing {
 
-// Every interface a Cutefish client can meet in the registry. A global missing
-// here fails protocol_binding_test's AdvertisedGlobalsAreKnown, and the
-// protocol fuzzer cannot bind it.
+// A global missing here fails AdvertisedGlobalsAreKnown and cannot be fuzzed.
 inline const std::map<std::string, const wl_interface *> &knownInterfaces()
 {
     static const std::map<std::string, const wl_interface *> interfaces = [] {

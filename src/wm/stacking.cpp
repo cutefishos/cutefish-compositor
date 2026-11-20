@@ -51,8 +51,6 @@ StackingLayer layerFor(const Window *window)
         return StackingLayer::AboveDock;
     if (window->isAlwaysOnTop() && window->role() == WindowRole::Normal)
         return StackingLayer::AlwaysOnTop;
-    // A dialog stays with the window it belongs to, as transient children
-    // share their parent's container in ash.
     if (window->role() == WindowRole::Normal && window->transientParent()) {
         const StackingLayer parentLayer = layerFor(window->transientParent());
         if (parentLayer == StackingLayer::AlwaysOnTop || parentLayer == StackingLayer::AboveDock)

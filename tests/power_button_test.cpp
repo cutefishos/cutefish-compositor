@@ -90,7 +90,6 @@ TEST_F(PowerButtonTest, TheKeyPassesOnUntilLogindLetsGo)
 
 TEST_F(PowerButtonTest, KeysForTheLockScreenPassOn)
 {
-    // The accelerators behind it take the volume and brightness keys there.
     EXPECT_TRUE(button.onSecureKey(input::Timestamp {}, KEY_VOLUMEUP, true));
     EXPECT_TRUE(button.onSecureKey(input::Timestamp {}, KEY_VOLUMEUP, false));
     EXPECT_EQ(next.secureKeys, (std::vector<uint32_t> {KEY_VOLUMEUP}));

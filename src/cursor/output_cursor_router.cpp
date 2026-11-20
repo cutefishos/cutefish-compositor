@@ -5,9 +5,6 @@
 // Upstream: chromium/src/ash/display/extended_mouse_warp_controller.cc
 //           chromium/src/ash/display/root_window_transformers.cc
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: route cached cursor pixels to every matching physical
-// mirror sink and translate the global position for each destination.
 
 #include "cursor/output_cursor_router.h"
 
@@ -51,8 +48,7 @@ bool OutputCursorRouter::setCursorImage(const render::CursorImage& image)
     for (int index = 0; index < static_cast<int>(m_targets.size()); ++index)
         if (contains(m_targets[index].logicalBounds, m_position))
             targets.push_back(index);
-    // Between outputs moveCursor keeps the cursor where it is, so the new
-    // image goes there too, as Ozone's DrmCursor::SetCursor keeps its window.
+    // Between outputs moveCursor keeps the cursor where it is, so the new image goes there too.
     if (targets.empty())
         targets = m_activeTargets;
     if (targets.empty() && !m_targets.empty())

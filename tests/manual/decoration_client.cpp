@@ -2,16 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// A small xdg-decoration client, owned by the repository so that server-side
-// decoration can be demonstrated without depending on a toolkit's decoration
-// policy.
-//
-// It maps an xdg_toplevel, asks for server-side decoration, and paints only its
-// own client area - deliberately with no frame of its own, so that whatever
-// titlebar, border and caption buttons appear are the compositor's. The pattern
-// carries the configured size and the negotiated mode, so a screenshot shows
-// whether the geometry is right.
-//
 //   keys:  m  maximize / restore      f  fullscreen / leave
 //          n  minimize                s  ask for server-side decoration
 //          c  ask for client-side decoration
@@ -119,9 +109,6 @@ void destroyBuffer(Buffer* buffer)
     *buffer = Buffer();
 }
 
-// A flat fill with a one pixel outline and a corner marker at each corner: the
-// client area and nothing else, so the frame around it is entirely the
-// compositor's. The server-side case deliberately draws no titlebar.
 void paint(Client* client)
 {
     Buffer* buffer = &client->buffer;
@@ -166,8 +153,6 @@ void redraw(Client* client)
     paint(client);
     wl_surface_attach(client->surface, client->buffer.buffer, 0, 0);
     wl_surface_damage_buffer(client->surface, 0, 0, client->width, client->height);
-    // The window geometry is the whole buffer: this client has no shadow and
-    // no decoration of its own.
     xdg_surface_set_window_geometry(client->xdgSurface, 0, 0, client->width, client->height);
     wl_surface_commit(client->surface);
     ++client->frames;
@@ -307,9 +292,6 @@ const wl_keyboard_listener keyboardListener = {
     [](void*, wl_keyboard*, int32_t, int32_t) {},
 };
 
-// The client draws no frame of its own, so a press anywhere inside it is
-// content; everything that moves or resizes the window is the compositor's
-// decoration. The pointer is bound only so the seat has one.
 const wl_pointer_listener pointerListener = {
     [](void*, wl_pointer*, uint32_t, wl_surface*, wl_fixed_t, wl_fixed_t) {},
     [](void*, wl_pointer*, uint32_t, wl_surface*) {},

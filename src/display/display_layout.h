@@ -4,9 +4,6 @@
 //
 // Upstream: chromium/src/ui/display/display_layout.h
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: IDs and geometry are plain value types, and validation
-// returns a normalized immutable result rather than mutating display objects.
 
 #pragma once
 

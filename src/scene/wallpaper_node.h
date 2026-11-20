@@ -13,26 +13,19 @@
 
 namespace cutefish::scene {
 
-// One output's desktop background, at the bottom of the desktop layer: the
-// wallpaper decoded at the output's device size, or a plain colour, and on
-// the primary output the gradient that lifts the menu bar's contents.
-// Opaque, so the overview darkens it in place and a desk switch slides it
-// with the desk's windows.
 class WallpaperNode final : public Node
 {
 public:
     WallpaperNode();
     ~WallpaperNode() override;
 
-    // The picture, premultiplied 0xAARRGGBB covering the node; null shows the
-    // colour instead.
+    // Premultiplied 0xAARRGGBB covering the node; null shows the colour instead.
     void setPicture(const ui::Bitmap &picture);
     const ui::Bitmap &picture() const { return m_picture; }
     void setColor(const render::Color &color);
     render::Color color() const { return m_color; }
 
-    // The gradient under the menu bar, `height` logical pixels from the
-    // top, `color` fading out along BarBackdrop's stops; none when unset.
+    // `height` is in logical pixels.
     struct Gradient {
         ui::Color color;
         int height = 0;
@@ -42,8 +35,6 @@ public:
     void setGradient(std::optional<Gradient> gradient);
     const std::optional<Gradient> &gradient() const { return m_gradient; }
 
-    // Drawn into `target` rather than its own geometry, as the overview's
-    // desk previews draw it.
     void renderMapped(render::Renderer &renderer, const base::RectF &target) const;
 
     Content content() const override { return Content::Opaque; }

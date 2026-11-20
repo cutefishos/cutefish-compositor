@@ -114,8 +114,7 @@ class XwaylandTest : public testing::Test
 protected:
     void SetUp() override
     {
-        // As the compositor's main(): the XWM's setup thread writes to an X
-        // server that may already have died.
+        // The XWM's setup thread may write to an X server that has already died.
         signal(SIGPIPE, SIG_IGN);
         setenv("XDG_RUNTIME_DIR", runtime.path().c_str(), 1);
         server = std::make_unique<wayland::Server>();
@@ -206,7 +205,6 @@ TEST(SurfaceAssociation, WordsOrdersAndRetirement)
     EXPECT_EQ(matched, 42u);
     EXPECT_FALSE(association.addWindow(serial, 99));
     EXPECT_FALSE(association.claimSurfaceSerial(serial));
-    // Serials only increase on each side.
     EXPECT_FALSE(association.addWindow(2, 43));
     EXPECT_FALSE(association.claimSurfaceSerial(2));
     EXPECT_TRUE(association.claimSurfaceSerial(serial + 1));
@@ -245,8 +243,6 @@ TEST(SurfaceAssociation, DestructionRemapAndNewGeneration)
     EXPECT_TRUE(next.addWindow(10, 42));
 }
 
-// Xwayland takes a new serial for every map, so a long session keeps going
-// past any count of them.
 TEST(SurfaceAssociation, SerialsDoNotRunOutInALongSession)
 {
     compositor::Compositor compositor(nullptr);
@@ -319,8 +315,6 @@ TEST_F(XwaylandTest, RealStartupRepeatedAndCrash)
         EXPECT_TRUE(std::filesystem::exists(runtime.path() + "/ready.json"));
         EXPECT_FALSE(privileged->isTrusted(privileged->shellClient()));
         if (i == 1) {
-            // A crash restarts on the same display with the same Xauthority, so
-            // the environment the session exported stays valid.
             const auto display = xwayland->display();
             const auto authority = xwayland->authority();
             const auto pid = xwayland->processId();
@@ -371,7 +365,6 @@ TEST_F(XwaylandTest, RepeatedCrashesGiveUpAndWithdrawTheDisplay)
         return xwayland->isReady() && xwayland->processId() != pid;
     }));
     EXPECT_TRUE(failure.empty());
-    // The one restart a minute is used up, so the next crash is final.
     kill(xwayland->processId(), SIGKILL);
     ASSERT_TRUE(until([&] {
         return !xwayland->error().empty();
@@ -382,8 +375,6 @@ TEST_F(XwaylandTest, RepeatedCrashesGiveUpAndWithdrawTheDisplay)
     EXPECT_FALSE(std::filesystem::exists(runtime.path() + "/ready.json"));
 }
 
-// A client holding the most windows is disconnected at the limit; the other
-// clients, and Xwayland itself, carry on.
 TEST_F(XwaylandTest, WindowLimitDisconnectsOnlyTheGreediestClient)
 {
     windowLimit = 16;
@@ -432,8 +423,6 @@ TEST_F(XwaylandTest, WindowLimitDisconnectsOnlyTheGreediestClient)
     EXPECT_EQ(pid, xwayland->processId());
 }
 
-// A window moved into another is forgotten, since its DestroyNotify goes to the
-// new parent, and never counts against the limit; moved back, it is followed again.
 TEST_F(XwaylandTest, AWindowMovedOffTheRootIsForgottenAndAdoptedWhenItReturns)
 {
     windowLimit = 8;
@@ -465,7 +454,6 @@ TEST_F(XwaylandTest, AWindowMovedOffTheRootIsForgottenAndAdoptedWhenItReturns)
     const auto returning = create();
     xcb_reparent_window(c, returning, embedder, 0, 0);
     xcb_reparent_window(c, returning, screen->root, 30, 40);
-    // A restack and a move before its size is read keep the window's own size.
     const uint32_t above[] = {XCB_STACK_MODE_ABOVE};
     xcb_configure_window(c, returning, XCB_CONFIG_WINDOW_STACK_MODE, above);
     const uint32_t position[] = {50, 60};
@@ -491,8 +479,6 @@ TEST_F(XwaylandTest, AWindowMovedOffTheRootIsForgottenAndAdoptedWhenItReturns)
     EXPECT_EQ(pid, xwayland->processId());
 }
 
-// Serials only increase, so a client sending a WL_SURFACE_SERIAL far ahead of
-// Xwayland's would leave every later window unmatched but for the SendEvent check.
 TEST_F(XwaylandTest, ASurfaceSerialSentByAClientIsIgnored)
 {
     ASSERT_TRUE(start()) << xwayland->error();
@@ -526,8 +512,6 @@ TEST_F(XwaylandTest, ASurfaceSerialSentByAClientIsIgnored)
     }));
 }
 
-// Xwayland is fully dead before the event loop runs again, so its exit and both
-// lost connections are all reported in one iteration: one crash, one restart.
 TEST_F(XwaylandTest, ACrashReportedOnEveryChannelAtOnceCountsOnce)
 {
     ASSERT_TRUE(start(1)) << xwayland->error();
@@ -554,8 +538,7 @@ TEST_F(XwaylandTest, ACrashReportedOnEveryChannelAtOnceCountsOnce)
 
 TEST_F(XwaylandTest, ScaledX11ClientsDrawAtDeviceResolution)
 {
-    // Scale 2: the X11 screen, windows and pointer are in device pixels, and
-    // the logical window is half as large.
+    // At scale 2 the X11 screen, windows and pointer are in device pixels.
     xwayland->setScale(2);
     ASSERT_TRUE(start()) << xwayland->error();
     setenv("XAUTHORITY", xwayland->authority().c_str(), 1);
@@ -643,7 +626,6 @@ TEST_F(XwaylandTest, ScaledX11ClientsDrawAtDeviceResolution)
     EXPECT_EQ(setting(xsettings(), "Gdk/WindowScalingFactor"), 2);
     EXPECT_EQ(setting(xsettings(), "Xft/DPI"), 192 * 1024);
 
-    // The cursor's logical size reaches X11 clients in X11 pixels.
     xwayland->setCursorTheme("Adwaita", 24);
     EXPECT_TRUE(until([&] {
         const std::string value = resources();
@@ -669,7 +651,6 @@ TEST_F(XwaylandTest, ScaledX11ClientsDrawAtDeviceResolution)
     EXPECT_EQ(window->contentBounds().size(), base::Size(300, 200));
     EXPECT_EQ(window->rootSurface()->bufferSize(), base::Size(600, 400));
 
-    // A logical point lands on the X11 pixel under it.
     const base::Point inside = window->contentBounds().topLeft() + base::Point(100, 50);
     seat->onPointerMotion(std::chrono::steady_clock::now(), base::PointF(inside));
     seat->onPointerButton(std::chrono::steady_clock::now(), base::PointF(inside), BTN_LEFT, true);
@@ -687,7 +668,6 @@ TEST_F(XwaylandTest, ScaledX11ClientsDrawAtDeviceResolution)
     }));
     EXPECT_EQ(pressed, base::Point(200, 100));
 
-    // Back to scale 1 at run time: the screen, the window and Xft.dpi follow.
     xwayland->setScale(1);
     wayland::updateOutputGlobal(outputGlobal, &output);
     ASSERT_TRUE(until([&] {
@@ -714,8 +694,6 @@ TEST_F(XwaylandTest, ScaledX11ClientsDrawAtDeviceResolution)
 TEST_F(XwaylandTest, WindowProcessIsTheLocalClientBehindTheConnection)
 {
     ASSERT_TRUE(start()) << xwayland->error();
-    // A forwarded client, as with ssh -X, names the machine it runs on and
-    // reaches the server through a local proxy, whose pid is not the client's.
     for (const bool forwarded : {false, true}) {
         test::ChildProcess client;
         client.start(X11_TEST_CLIENT, {forwarded ? std::string("elsewhere.invalid") : hostName()},
@@ -785,7 +763,6 @@ TEST_F(XwaylandTest, UnansweredNetWmPingMarksTheWindowAndCloseKillsTheClient)
         xcb_flush(c);
     };
 
-    // An answered ping keeps the window responsive past the timeout.
     window->ping();
     ASSERT_TRUE(until([&] {
         poll();
@@ -797,7 +774,6 @@ TEST_F(XwaylandTest, UnansweredNetWmPingMarksTheWindowAndCloseKillsTheClient)
     test::runFor(std::chrono::milliseconds(300));
     EXPECT_TRUE(window->isResponsive());
 
-    // An unanswered one turns it unresponsive; a late answer still counts.
     window->ping();
     ASSERT_TRUE(until([&] {
         poll();
@@ -808,7 +784,6 @@ TEST_F(XwaylandTest, UnansweredNetWmPingMarksTheWindowAndCloseKillsTheClient)
         return window->isResponsive();
     }));
 
-    // A close then kills the client instead of asking it.
     window->ping();
     ASSERT_TRUE(until([&] {
         poll();
@@ -1062,7 +1037,6 @@ TEST_F(XwaylandTest, NetWmWindowOpacityFadesTheWholeWindow)
     xcb_create_window(c, XCB_COPY_FROM_PARENT, id, screen->root, 0, 0, 200, 100, 0,
                       XCB_WINDOW_CLASS_INPUT_OUTPUT, screen->root_visual, XCB_CW_BACK_PIXEL,
                       values);
-    // Xwayland Video Bridge maps a window this way to stay unseen.
     const xcb_atom_t opacity = intern(c, "_NET_WM_WINDOW_OPACITY");
     const uint32_t transparent = 0;
     xcb_change_property(c, XCB_PROP_MODE_REPLACE, id, opacity, XCB_ATOM_CARDINAL, 32, 1,
@@ -1143,7 +1117,6 @@ TEST_F(XwaylandTest, OnlyAChangedFollowedPropertyIsReadAndNothingIsWrittenTwice)
     }, 300);
     configures = writes = 0;
 
-    // Key presses in GTK set the user time; the title is what a taskbar shows.
     for (uint32_t time = 1; time <= 5; ++time) {
         xcb_change_property(c, XCB_PROP_MODE_REPLACE, id, userTime, XCB_ATOM_CARDINAL, 32, 1,
                             &time);
@@ -1160,7 +1133,6 @@ TEST_F(XwaylandTest, OnlyAChangedFollowedPropertyIsReadAndNothingIsWrittenTwice)
     EXPECT_EQ(configures, 0);
     EXPECT_EQ(writes, 0);
 
-    // A move tells the client where it is, without rewriting its state.
     const base::Rect bounds = window->bounds();
     window->setBounds(bounds.translated(10, 0));
     ASSERT_TRUE(until([&] {
@@ -1189,7 +1161,6 @@ TEST_F(XwaylandTest, OnDemandServerStartsForTheFirstClient)
         ++started;
     };
     ASSERT_TRUE(xwayland->start(options)) << xwayland->error();
-    // The display is the session's at once, with nothing running behind it.
     const std::string display = xwayland->display();
     ASSERT_FALSE(display.empty());
     EXPECT_TRUE(std::filesystem::exists(runtime.path() + "/ready.json"));
@@ -1202,7 +1173,6 @@ TEST_F(XwaylandTest, OnDemandServerStartsForTheFirstClient)
     EXPECT_EQ(xwayland->processId(), 0);
     EXPECT_EQ(started, 0);
 
-    // The first client's connection is the one Xwayland accepts.
     setenv("XAUTHORITY", xwayland->authority().c_str(), 1);
     for (int round = 0; round < 2; ++round) {
         SCOPED_TRACE(round);
@@ -1213,8 +1183,7 @@ TEST_F(XwaylandTest, OnDemandServerStartsForTheFirstClient)
         EXPECT_TRUE(xwayland->isReady());
         EXPECT_EQ(started, round + 1);
         auto *screen = xcb_setup_roots_iterator(xcb_get_setup(c)).data;
-        // The client that started the server sees the scale and cursor size
-        // in its first requests, as libXcursor reads them only once.
+        // libXcursor reads the scale and cursor size only once, in the client's first requests.
         auto *resources = xcb_get_property_reply(
                 c,
                 xcb_get_property(c, 0, screen->root, XCB_ATOM_RESOURCE_MANAGER, XCB_ATOM_STRING, 0,
@@ -1253,7 +1222,6 @@ TEST_F(XwaylandTest, OnDemandServerStartsForTheFirstClient)
             return manager->windows().empty();
         }));
         if (round == 0) {
-            // A crash goes back to waiting for a client on the same display.
             kill(xwayland->processId(), SIGKILL);
             ASSERT_TRUE(until([&] {
                 return !xwayland->isReady() && xwayland->processId() == 0;
@@ -1303,7 +1271,6 @@ TEST_F(XwaylandTest, NetWmSyncRequestHoldsResizesForTheClientCounter)
         return manager->windows().size() == 1;
     }));
     auto *window = manager->windows()[0];
-    // The window manager starts the count from zero.
     ASSERT_TRUE(until([&] {
         auto *r = xcbReply([&] {
             return xcb_sync_query_counter_reply(c, xcb_sync_query_counter(c, counter), nullptr);
@@ -1349,7 +1316,6 @@ TEST_F(XwaylandTest, NetWmSyncRequestHoldsResizesForTheClientCounter)
     settle(100);
     configures.clear();
 
-    // A request precedes the new size.
     resize(base::Size(240, 120));
     ASSERT_TRUE(until([&] {
         poll();
@@ -1358,7 +1324,6 @@ TEST_F(XwaylandTest, NetWmSyncRequestHoldsResizesForTheClientCounter)
     ASSERT_EQ(requests.size(), 1u);
     EXPECT_EQ(requests[0], 1u);
 
-    // Until the counter reaches it, further sizes wait, and only the last goes.
     resize(base::Size(260, 130));
     resize(base::Size(280, 140));
     settle(200);
@@ -1372,7 +1337,6 @@ TEST_F(XwaylandTest, NetWmSyncRequestHoldsResizesForTheClientCounter)
     }));
     EXPECT_EQ(requests.size(), 2u);
 
-    // A client that never answers holds a resize back for a second at most.
     resize(base::Size(300, 150));
     settle(300);
     EXPECT_EQ(configures.back(), base::Size(280, 140));
@@ -1381,8 +1345,6 @@ TEST_F(XwaylandTest, NetWmSyncRequestHoldsResizesForTheClientCounter)
         return configures.back() == base::Size(300, 150);
     }));
 
-    // A maximize cross-fades from the old picture until the client has
-    // painted at the new size: past its counter, then committed.
     auto *animation = dynamic_cast<scene::WindowAnimation *>(window->node());
     ASSERT_TRUE(animation);
     xcb_sync_set_counter(c, counter, {0, requests.back()});
@@ -1404,9 +1366,6 @@ TEST_F(XwaylandTest, NetWmSyncRequestHoldsResizesForTheClientCounter)
     }));
 }
 
-// An X11 cursor image comes at the theme size Xcursor.size names and shows at
-// the compositor's own cursor size: at 1.75, Adwaita's 48 pixels make 24
-// logical ones, not 27.
 TEST_F(XwaylandTest, X11CursorImagesShowAtTheCompositorCursorSize)
 {
     std::string theme = "Adwaita";
@@ -1415,8 +1374,7 @@ TEST_F(XwaylandTest, X11CursorImagesShowAtTheCompositorCursorSize)
         GTEST_SKIP() << "no Adwaita cursor size that differs from the scale";
     xwayland->setScale(1.75);
     xwayland->setCursorTheme("Adwaita", 24);
-    // The scene owns the cursor surface's node from here on, and outlives
-    // the server.
+    // The scene owns the cursor surface's node from here on and outlives the server.
     auto *cursors = scene.root()->addChild(std::make_unique<scene::Node>("cursors"));
     seat->setCursorContainer(cursors);
     ASSERT_TRUE(start()) << xwayland->error();
@@ -1464,9 +1422,6 @@ TEST_F(XwaylandTest, X11CursorImagesShowAtTheCompositorCursorSize)
                          base::roundToInt(buffer.height() / cursorScale)));
 }
 
-// Xwayland confines the pointer for a grab with confine_to, emulates
-// XWarpPointer with a lock and relative motion, and turns a keyboard grab into
-// a shortcuts inhibitor. At scale 2, X11 units are half the logical ones.
 TEST_F(XwaylandTest, X11PointerGrabsWarpsAndKeyboardGrabsUseTheWaylandProtocols)
 {
     xwayland->setScale(2);
@@ -1480,8 +1435,6 @@ TEST_F(XwaylandTest, X11PointerGrabsWarpsAndKeyboardGrabsUseTheWaylandProtocols)
         xcb_disconnect(c);
     });
     auto *screen = xcb_setup_roots_iterator(xcb_get_setup(c)).data;
-    // Without a visible cursor Xwayland locks rather than confines: that is how
-    // it serves hidden-cursor panning.
     const auto font = xcb_generate_id(c);
     xcb_open_font(c, font, 6, "cursor");
     const auto cursor = xcb_generate_id(c);
@@ -1509,8 +1462,7 @@ TEST_F(XwaylandTest, X11PointerGrabsWarpsAndKeyboardGrabsUseTheWaylandProtocols)
         free(r);
         return position;
     };
-    // The window manager places the window after it maps; entering before X11
-    // has the final position would report a stale one.
+    // The window manager places the window after it maps; entering earlier would report a stale position.
     ASSERT_TRUE(until([&] {
         auto *r = xcbReply([&] {
             return xcb_translate_coordinates_reply(
@@ -1578,7 +1530,6 @@ TEST_F(XwaylandTest, X11PointerGrabsWarpsAndKeyboardGrabsUseTheWaylandProtocols)
     ASSERT_TRUE(until([&] {
         return !constraints->isLocked();
     }));
-    // The lock's cursor hint puts the pointer where X11 had it.
     EXPECT_EQ(base::PointF(origin) + base::PointF(35, 35), input.pointerPosition());
 
     auto *keyboardGrab = xcbReply([&] {
@@ -1624,7 +1575,6 @@ TEST_F(XwaylandTest, AuthenticationRequired)
     EXPECT_TRUE(xwayland->isReady());
 }
 
-// Transfer scenarios follow Sommelier's selection handlers using real protocol peers.
 TEST_F(XwaylandTest, ClipboardBothDirectionsAndIncrementalTransfers)
 {
     ASSERT_TRUE(start());
@@ -1937,8 +1887,6 @@ TEST_F(XwaylandTest, AStalledTransferIsNoLongerWatchedOnceItEnds)
         return native.selection != nullptr;
     }));
 
-    // The receiver holds on to its own copy of the write end, as a process
-    // that forked or handed it on does, and reads nothing.
     int fds[2];
     ASSERT_EQ(pipe2(fds, O_CLOEXEC | O_NONBLOCK), 0);
     base::ScopeGuard closePipe([&] {
@@ -2103,7 +2051,6 @@ TEST_F(XwaylandTest, RealWindowMetadataConfigureAndClose)
     const xcb_atom_t supportedProtocols[] = {deleteWindow, takeFocus};
     xcb_change_property(c, XCB_PROP_MODE_REPLACE, id, protocols, XCB_ATOM_ATOM, 32, 2,
                         supportedProtocols);
-    // A client can name any process here; the reported pid never comes from it.
     const uint32_t claimedPid = 1;
     xcb_change_property(c, XCB_PROP_MODE_REPLACE, id, intern(c, "_NET_WM_PID"),
                         XCB_ATOM_CARDINAL, 32, 1, &claimedPid);
@@ -2115,7 +2062,6 @@ TEST_F(XwaylandTest, RealWindowMetadataConfigureAndClose)
     auto *window = manager->windows()[0];
     EXPECT_EQ(window->title(), title);
     EXPECT_EQ(window->applicationId(), "cutefishtest");
-    // This client shares the compositor's process, which is never reported.
     EXPECT_EQ(window->processId(), 0);
     EXPECT_TRUE(window->rootSurface()->hasContents());
     EXPECT_TRUE(window->isDecorated());
@@ -2290,7 +2236,6 @@ TEST_F(XwaylandTest, RealWindowMetadataConfigureAndClose)
     ASSERT_TRUE(until([&] {
         return manager->windows().size() == 1;
     }));
-    // What the dock does to the remapped window: minimize, restore, close.
     window = manager->windows()[0];
     EXPECT_EQ(window->transientParent(), nullptr);
     EXPECT_EQ(window->title(), "Changed");
@@ -2423,8 +2368,7 @@ TEST_F(XwaylandTest, ATransientMappedModalIsModalBeforeItIsActivated)
     wm::Window *parentWindow = manager->windows().front();
 
     std::optional<bool> modalWhenActivated;
-    // The captures are locals: the connection must go with this scope, not
-    // with the manager, which outlives the test body.
+    // The captures are locals, so the connection must go with this scope, not with the manager.
     const base::Subscription scope =
             manager->activeWindowChanged.connect([&](wm::Window *window) {
                 if (window && window != parentWindow && !modalWhenActivated)
@@ -2455,10 +2399,6 @@ TEST_F(XwaylandTest, ATransientMappedModalIsModalBeforeItIsActivated)
     EXPECT_EQ(dialogWindow, manager->activation()->activeWindow());
 }
 
-// The window manager read the dialog's properties when WM_TRANSIENT_FOR was
-// set; the modal state comes after, just before mapping. The dialog's surface
-// is made to arrive before the map-time read does, and the window must still
-// wait for that read.
 TEST_F(XwaylandTest, StateSetJustBeforeMappingIsNotLostToAnEarlySurface)
 {
     ASSERT_TRUE(start());
@@ -2497,10 +2437,8 @@ TEST_F(XwaylandTest, StateSetJustBeforeMappingIsNotLostToAnEarlySurface)
                         &modalAtom);
     xcb_map_window(c, dialog);
     xcb_flush(c);
-    // One iteration: the window manager takes the map request and nothing after.
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     test::processPendingEvents();
-    // Only the Wayland side runs while Xwayland maps and draws the dialog.
     auto dialogSurface = [&]() -> compositor::Surface * {
         for (auto *surface : compositor->surfaces()) {
             if (surface != parentWindow->rootSurface() && surface->hasContents())
@@ -2524,9 +2462,6 @@ TEST_F(XwaylandTest, StateSetJustBeforeMappingIsNotLostToAnEarlySurface)
     EXPECT_EQ(parentWindow, dialogWindow->transientParent());
 }
 
-// SDL and GTK ask for fullscreen as soon as they see themselves mapped, while
-// the window manager still waits for Xwayland's surface to have content. A
-// window with no background has none until it draws, which holds that gap open.
 TEST_F(XwaylandTest, StateRequestedBeforeTheWindowIsManagedIsKept)
 {
     ASSERT_TRUE(start());
@@ -2743,8 +2678,6 @@ TEST_F(XwaylandTest, RealSoftwareRenderingAndInput)
     }
 }
 
-// A bare XDND peer on its own X11 connection. It records the Xdnd messages it
-// receives, serves XdndSelection as text/plain and reads back a conversion.
 struct XdndPeer {
     xcb_connection_t *c = nullptr;
     xcb_window_t root = 0;
@@ -2848,7 +2781,6 @@ struct XdndPeer {
     }
 };
 
-// A mapped native Wayland surface for the other end of a drag.
 compositor::Surface *mapNativeSurface(clipboard_test::Client &native, scene::Node *container,
                                       const base::Point &position)
 {
@@ -2941,7 +2873,7 @@ TEST_F(XwaylandTest, WaylandDragDropsOnAnX11Window)
     }));
     EXPECT_EQ(native.performed, 1u);
 
-    // Converted at the drop's timestamp, as XDND says; it must be a real one.
+    // Converted at the drop's timestamp, as XDND requires.
     const xcb_timestamp_t dropTime = x.last("XdndDrop")->data.data32[2];
     EXPECT_NE(dropTime, xcb_timestamp_t(XCB_CURRENT_TIME));
     EXPECT_EQ(position.data.data32[3], dropTime);
@@ -3006,7 +2938,6 @@ TEST_F(XwaylandTest, X11DragDropsOnAWaylandSurface)
     const base::Point target(550, 50);
     seat->onPointerMotion(std::chrono::steady_clock::now(), base::PointF(target));
 
-    // Off every X11 window, the proxy is what the X11 source finds under the pointer.
     xcb_window_t proxy = 0;
     ASSERT_TRUE(until([&] {
         x.poll();
@@ -3152,7 +3083,6 @@ TEST_F(XwaylandTest, X11DragWithATypeListCanLeaveAndBeRefused)
     EXPECT_NE(std::find(offered.begin(), offered.end(), "text/uri-list"), offered.end());
     EXPECT_NE(std::find(offered.begin(), offered.end(), "application/x-test"), offered.end());
 
-    // XdndLeave ends the Wayland drag the enter started.
     x.send(proxy, "XdndLeave", {x.window, 0, 0, 0, 0});
     ASSERT_TRUE(until([&] {
         native.pump();
@@ -3161,7 +3091,6 @@ TEST_F(XwaylandTest, X11DragWithATypeListCanLeaveAndBeRefused)
                 && std::count(native.events.begin(), native.events.end(), "drag-leave") == 1;
     }));
 
-    // A drop nothing accepted is finished as refused.
     native.dragOffer = nullptr;
     enter();
     ASSERT_TRUE(until([&] {
@@ -3179,7 +3108,6 @@ TEST_F(XwaylandTest, X11DragWithATypeListCanLeaveAndBeRefused)
     EXPECT_EQ(x.last("XdndFinished")->data.data32[1] & 1, 0u);
     EXPECT_EQ(native.drops, 0u);
     EXPECT_FALSE(seat->drag()->active());
-    // With the button up the proxy is gone, so X11 windows find each other again.
     ASSERT_TRUE(until([&] {
         auto *r = xcb_translate_coordinates_reply(
                 x.c, xcb_translate_coordinates(x.c, x.root, x.root, target.x(), target.y()),
@@ -3188,7 +3116,6 @@ TEST_F(XwaylandTest, X11DragWithATypeListCanLeaveAndBeRefused)
         free(r);
         return gone;
     }));
-    // Naming the proxy in a message is not a drag without the pointer making one.
     const auto statuses = std::count_if(x.messages.begin(), x.messages.end(), [&](const auto &m) {
         return m.type == x["XdndStatus"];
     });
@@ -3234,7 +3161,6 @@ TEST_F(XwaylandTest, WaylandDragFollowsXdndProxyAndCancelsWhenRefused)
         xcb_disconnect(x.c);
         xcb_disconnect(proxyPeer.c);
     });
-    // The proxy is another client's unmapped window that names itself.
     proxyPeer.root = xcb_setup_roots_iterator(xcb_get_setup(proxyPeer.c)).data->root;
     proxyPeer.window = xcb_generate_id(proxyPeer.c);
     xcb_create_window(proxyPeer.c, 0, proxyPeer.window, proxyPeer.root, 0, 0, 1, 1, 0,
@@ -3247,8 +3173,7 @@ TEST_F(XwaylandTest, WaylandDragFollowsXdndProxyAndCancelsWhenRefused)
     x.create(base::Rect(0, 0, 300, 200));
     xcb_change_property(x.c, XCB_PROP_MODE_REPLACE, x.window, x["XdndProxy"], XCB_ATOM_WINDOW, 32,
                         1, &proxyPeer.window);
-    // Answered once the server has the properties, which it may otherwise
-    // take after the bridge has already read them.
+    // Answered once the server has the properties, which it might otherwise get after the bridge read them.
     for (auto *peer : {&proxyPeer, &x}) {
         free(xcbReply([&] {
             return xcb_get_input_focus_reply(peer->c, xcb_get_input_focus(peer->c), nullptr);
@@ -3281,7 +3206,6 @@ TEST_F(XwaylandTest, WaylandDragFollowsXdndProxyAndCancelsWhenRefused)
         return proxyPeer.last("XdndPosition") != nullptr;
     }));
     EXPECT_TRUE(x.messages.empty());
-    // Sent to the proxy, the messages still name the window under the drag.
     EXPECT_EQ(proxyPeer.last("XdndEnter")->window, x.window);
     const xcb_window_t dragSource = proxyPeer.last("XdndEnter")->data.data32[0];
 
@@ -3297,7 +3221,6 @@ TEST_F(XwaylandTest, WaylandDragFollowsXdndProxyAndCancelsWhenRefused)
     EXPECT_FALSE(seat->drag()->active());
 }
 
-// The Wayland drag-and-drop toolkit clients, with one side on X11.
 class XwaylandDndToolkitTest : public XwaylandTest
 {
 protected:
@@ -3313,7 +3236,6 @@ protected:
         frames.start(std::chrono::milliseconds(5));
     }
 
-    // A client of the X11 side at the Xwayland scale, as the toolkit tests run it.
     std::vector<std::string> scaledClientEnvironment() const
     {
         return test::environmentWith(
@@ -3399,7 +3321,6 @@ protected:
         input::InputManager input(seat.get());
         input.setEventSink(manager.get());
         input.setBounds({800, 600});
-        // Below a GTK header bar, inside the widget that takes part in the drag.
         const base::PointF startPosition =
                 sourceWindow->surfaceNode()->absolutePosition() + base::Point(60, 85);
         const base::PointF endPosition =
@@ -3408,7 +3329,6 @@ protected:
         settle(100);
         input.onPointerButton({}, BTN_LEFT, true);
         settle(100);
-        // Toolkits start a drag past a threshold, in steps.
         for (int i = 1; i <= 5; ++i) {
             input.onPointerMotionAbsolute({}, startPosition + base::Point(6 * i, 4 * i));
             settle(30);
@@ -3437,8 +3357,6 @@ protected:
     }
 };
 
-// GTK picks the scale up from Xft.dpi and XSETTINGS and draws at device
-// resolution: the X11 window is twice its logical size.
 TEST_F(XwaylandDndToolkitTest, ToolkitsDrawAtTheXwaylandScale)
 {
     xwayland->setScale(2);
@@ -3458,13 +3376,10 @@ TEST_F(XwaylandDndToolkitTest, ToolkitsDrawAtTheXwaylandScale)
     const base::Size content = window->rootSurface()->contentSize();
     EXPECT_EQ(content, base::Size(base::roundToInt(buffer.width() / 2.0),
                               base::roundToInt(buffer.height() / 2.0)));
-    // The client area and GTK's own decoration around it.
     EXPECT_GE(buffer.width(), 360);
     EXPECT_GE(buffer.height(), 240);
 }
 
-// A scale change reaches a running GTK client through XSETTINGS: it redraws at
-// the new scale into the window the XWM has already resized.
 TEST_F(XwaylandDndToolkitTest, RunningToolkitsFollowAScaleChange)
 {
     ASSERT_TRUE(start()) << xwayland->error();
@@ -3488,7 +3403,6 @@ TEST_F(XwaylandDndToolkitTest, RunningToolkitsFollowAScaleChange)
 
     xwayland->setScale(2);
     wayland::updateOutputGlobal(outputGlobal, &output);
-    // Same logical size, twice the pixels, without restarting the client.
     EXPECT_TRUE(until([&] {
         return window->rootSurface()->bufferSize() == base::Size(logical.width() * 2, logical.height() * 2)
                 && window->rootSurface()->contentSize() == logical;
@@ -3772,8 +3686,6 @@ TEST_F(XwaylandProtocolTest, RepeatedCommitRejected)
     wl_proxy_destroy(reinterpret_cast<wl_proxy *>(surface));
 }
 
-// set_serial carries Xwayland's serials in order, but the surfaces may commit
-// them in any order; a serial that does not increase is refused.
 TEST_F(XwaylandProtocolTest, SerialsIncreaseButCommitInAnyOrder)
 {
     std::vector<wl_proxy *> proxies;

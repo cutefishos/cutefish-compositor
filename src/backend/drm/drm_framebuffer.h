@@ -4,10 +4,6 @@
 //
 // Upstream: chromium/src/ui/ozone/platform/drm/gpu/drm_framebuffer.h
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: no opaque-format alias framebuffer and no modeset
-// sequence tracking, and the client DMA-BUF import upstream gets from
-// GbmPixmap is done here.
 
 #ifndef CUTEFISH_BACKEND_DRM_DRM_FRAMEBUFFER_H_
 #define CUTEFISH_BACKEND_DRM_DRM_FRAMEBUFFER_H_
@@ -26,15 +22,8 @@ namespace cutefish::backend {
 
 class DrmDeviceApi;
 
-// A DRM framebuffer, either wrapping a GBM buffer object the compositor
-// rendered into or importing a client DMA-BUF for direct scanout.
-//
-// For a GBM bo the framebuffer is stored as user data on the bo, so the same bo
-// coming back out of the gbm_surface queue reuses its framebuffer and both die
-// together, whether the bo's own device scans it out, another device imports
-// it or another device shows a copy of it. For a client DMA-BUF it is cached
-// on the ScanoutBuffer instead, which gives it the same one-import-per-buffer
-// lifetime.
+// For a GBM bo the framebuffer is the bo's user data and dies with it; for a
+// client DMA-BUF it is cached on the ScanoutBuffer.
 class DrmFramebuffer : public render::ScanoutBuffer::Import
 {
 public:
@@ -42,26 +31,18 @@ public:
     DrmFramebuffer &operator=(const DrmFramebuffer &) = delete;
     ~DrmFramebuffer() override;
 
-    // Returns the framebuffer for `bo`, creating it on first use. Ownership
-    // stays with the bo. Returns nullptr if the framebuffer cannot be created.
+    // Ownership stays with the bo; null if the framebuffer cannot be created.
     static DrmFramebuffer *forBuffer(DrmDeviceApi *device, gbm_bo *bo);
 
-    // The same for a `bo` another GPU rendered, imported into `device`
-    // through DMA-BUF on first use, so a surface's two or three buffers are
-    // each imported once rather than on every frame.
     static DrmFramebuffer *importForBuffer(DrmDeviceApi *device, gbm_bo *bo);
 
-    // A dumb framebuffer on `device` kept on `bo`, and filled with `pixels`,
-    // the bo's contents, each time: a device that cannot import the bo shows
-    // a copy of it. The bo comes back only once its last frame retired, so the
-    // copy is never rewritten while on screen.
+    // A dumb framebuffer filled with a copy of `pixels`, for a device that
+    // cannot import `bo`.
     static DrmFramebuffer *copyForBuffer(DrmDeviceApi *device, gbm_bo *bo,
                                          const uint8_t *pixels, uint32_t stride);
 
-    // Imports the client's DMA-BUF planes into a framebuffer, preserving the
-    // fourcc and the modifier the client allocated with. Returns nullptr when
-    // the device cannot scan the buffer out, which is a fallback to
-    // composition and never an error.
+    // Null when the device cannot scan the buffer out, which falls back to
+    // composition.
     static std::unique_ptr<DrmFramebuffer> fromDmaBuf(DrmDeviceApi *device,
                                                       const render::DmaBufAttributes &attributes);
 
@@ -81,7 +62,6 @@ private:
                    uint64_t modifier, std::vector<uint32_t> ownedHandles);
 
     static void destroyCallback(gbm_bo *bo, void *data);
-    // Hands `framebuffer` to `bo`, retiring one of another kind it held.
     static DrmFramebuffer *keep(gbm_bo *bo, std::unique_ptr<DrmFramebuffer> framebuffer);
     bool fill(const uint8_t *pixels, uint32_t stride);
 
@@ -90,11 +70,9 @@ private:
     base::Size m_size;
     uint32_t m_format = 0;
     uint64_t m_modifier = 0;
-    // GEM handles this framebuffer imported and must close. Empty for a GBM bo,
-    // whose handles belong to GBM.
+    // Empty for a GBM bo, whose handles belong to GBM.
     std::vector<uint32_t> m_ownedHandles;
-    // A client DMA-BUF imported through the device's GBM device, which owns
-    // its handles and counts them with the renderer's import of the buffer.
+    // Its handles are owned by the device's GBM device.
     gbm_bo *m_importedBo = nullptr;
     uint32_t m_dumbHandle = 0;
     uint32_t m_dumbStride = 0;

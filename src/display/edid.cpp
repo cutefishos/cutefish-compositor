@@ -57,7 +57,6 @@ EdidInfo parseEdid(std::string_view edid)
     for (size_t offset = 54; offset + 18 <= 126; offset += 18) {
         if (edid.substr(offset, 4) == std::string_view("\x00\x00\x00\xff", 4))
             key += trimmedAscii(edid.substr(offset + 5, 13));
-        // Monitor name, read as ui/display/util/edid_parser.cc does.
         if (edid.substr(offset, 5) == std::string_view("\x00\x00\x00\xfc\x00", 5))
             info.model = base::strings::latin1ToUtf8(trimmedLatin1(edid.substr(offset + 5, 13)));
     }

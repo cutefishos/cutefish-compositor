@@ -16,13 +16,8 @@ namespace cutefish::wm {
 
 namespace {
 
-// How long the pointer has to stay against the top edge before the drag turns
-// into a maximize. Half of upstream's kDwellTime, so the top answers sooner.
 constexpr int kDwellMs = 200;
 
-// Moving this far restarts the countdown, so a window dragged across the top
-// of the screen does not maximize on the way past. Twice upstream's
-// kSnapDragDwellTimeResetThreshold, so a hand's jitter does not restart it.
 constexpr int kDwellResetThreshold = 16;
 
 } // namespace
@@ -106,8 +101,6 @@ void SnapDragController::update(const base::PointF &location)
     const SnapType type = constrained(snapTypeAt(location, m_manager->workAreaFor(m_window),
                                                  m_manager->outputBoundsFor(m_window)));
 
-    // Only the top edge dwells. The sides snap as soon as the pointer reaches
-    // them, which is what makes a deliberate throw to the side feel immediate.
     if (type == SnapType::Maximize) {
         if (m_canSnapToMaximize) {
             const bool movedAway = m_dwellLocation

@@ -23,7 +23,6 @@ using shell::DockModel;
 
 namespace {
 
-// The session's AppRuntime, as far as starting applications goes.
 class FakeAppRuntime
 {
 public:
@@ -56,8 +55,6 @@ public:
     std::vector<std::string> quit;
 };
 
-// An application that keeps running without a window, on a connection of
-// its own.
 class WindowlessApplication
 {
 public:
@@ -156,7 +153,6 @@ TEST_F(DockTest, LoadsThePinsAndForgetsUninstalledOnes)
     EXPECT_EQ(model().pinnedCount(), 3);
     EXPECT_EQ(savedPins(), (std::vector<std::string>{"terminal", "files"}));
 
-    // Missing keys were written with their defaults.
     base::Settings settings(directory.filePath("shell.conf"));
     EXPECT_EQ(settings.intValue("Dock/IconSize"), 54);
     EXPECT_EQ(settings.intValue("Dock/Direction"), 1);
@@ -179,7 +175,6 @@ TEST_F(DockTest, KeepsAPinnedBundleWhileItIsGone)
     EXPECT_FALSE(model().at(1).uninstalled);
     EXPECT_EQ(model().at(1).iconName, icon);
 
-    // Ejected: it stays pinned, and shows that it cannot be found.
     applications.remove(bundle);
     applications.scan();
     ASSERT_TRUE(test::runUntil([this] { return model().at(1).missing; }));
@@ -187,14 +182,12 @@ TEST_F(DockTest, KeepsAPinnedBundleWhileItIsGone)
     EXPECT_EQ(model().at(1).iconName, icon);
     EXPECT_EQ(savedPins(), (std::vector<std::string>{bundle, "files"}));
 
-    // A click asks the runtime to look for it, and the dock hears of the launch.
     std::vector<std::string> launched;
     model().launched = [&launched](const std::string &id) { launched.push_back(id); };
     model().clicked(bundle);
     ASSERT_TRUE(test::runUntil([&] { return !runtime.launched.empty(); }));
     EXPECT_EQ(runtime.launched.front(), bundle);
     EXPECT_EQ(launched, (std::vector<std::string>{bundle}));
-    // The launchpad button is no application.
     model().clicked(DockModel::kLaunchpadId);
     EXPECT_EQ(launched.size(), 1u);
 }
@@ -205,7 +198,6 @@ TEST_F(DockTest, StartsFromTheDefaultPinsWithoutAList)
     applications.scan();
     start();
     EXPECT_EQ(ids(), (std::vector<std::string>{DockModel::kLaunchpadId, "cutefish-terminal"}));
-    // Nothing is written until the user changes the pins.
     shell::waitForFileThread();
     EXPECT_FALSE(base::Settings(directory.filePath("shell.conf")).contains("Dock/Pinned"));
 }
@@ -225,20 +217,17 @@ TEST_F(DockTest, FollowsRunningApplications)
     windows.setActive(second);
     EXPECT_TRUE(model().at(1).isActive);
 
-    // Clicks cycle through the windows.
     windows.requests.clear();
     model().clicked("files");
     model().clicked("files");
     EXPECT_EQ(windows.requests,
               (std::vector<std::string>{"activate " + std::to_string(first), "activate " + std::to_string(second)}));
 
-    // A hidden application comes back whole.
     windows.change(first, [](shell::TaskWindow &w) { w.hidden = true; }, shell::kStateChange);
     windows.requests.clear();
     model().clicked("files");
     EXPECT_EQ(windows.requests.front(), "unhide " + std::to_string(first));
 
-    // Unpinned applications go with their last window; pinned ones stay.
     windows.remove(loose);
     windows.remove(first);
     windows.remove(second);
@@ -256,15 +245,12 @@ TEST_F(DockTest, KeepsApplicationsThatRunWithoutWindows)
     EXPECT_TRUE(item().windows.empty());
     EXPECT_EQ(item().visibleName, "Editor");
 
-    // Its last window going leaves it running.
     const uint64_t window = open("editor");
     ASSERT_TRUE(test::runUntil([&] { return item().windows.size() == 1; }));
     windows.remove(window);
     ASSERT_TRUE(test::runUntil([&] { return item().windows.empty(); }));
     EXPECT_TRUE(item().running);
 
-    // A click opens it again through the runtime without launch feedback,
-    // since it is already running; Quit goes to it.
     std::vector<std::string> launched;
     model().launched = [&launched](const std::string &id) { launched.push_back(id); };
     model().clicked("editor");
@@ -273,18 +259,15 @@ TEST_F(DockTest, KeepsApplicationsThatRunWithoutWindows)
     EXPECT_TRUE(launched.empty());
     model().quit("editor");
     ASSERT_TRUE(test::runUntil([&] { return editor->quits == 1; }));
-    // Quit asks only the application it names.
     EXPECT_FALSE(dock->running().quit("terminal"));
     test::processPendingEvents();
     EXPECT_EQ(editor->quits, 1);
 
-    // Unpinned, it stays while it runs.
     model().pin("editor");
     EXPECT_TRUE(item().isPinned);
     model().unPin("editor");
     EXPECT_GE(model().indexOf("editor"), 0);
 
-    // An application kept out of the dock does not show; ending, it leaves.
     editor->setShowsInDock(false);
     ASSERT_TRUE(test::runUntil([&] { return model().indexOf("editor") < 0; }));
     editor->setShowsInDock(true);
@@ -306,7 +289,6 @@ TEST_F(DockTest, LaunchesAndQuitsThroughTheRuntime)
     ASSERT_TRUE(test::runUntil([&] { return !runtime.launched.empty(); }));
     EXPECT_EQ(runtime.launched.front(), "editor");
     EXPECT_EQ(launched, std::vector<std::string>{"editor"});
-    // The application, or its instance already running, comes forward with it.
     EXPECT_EQ(runtime.tokens.front(), "launch-token");
 
     bool toggled = false;
@@ -318,7 +300,6 @@ TEST_F(DockTest, LaunchesAndQuitsThroughTheRuntime)
     model().quit("editor");
     EXPECT_EQ(windows.requests.back(), "quit " + std::to_string(window));
 
-    // An entry without launch feedback starts as quietly as it asks.
     model().clicked("capture");
     ASSERT_TRUE(test::runUntil([&] { return runtime.launched.size() == 2; }));
     EXPECT_EQ(runtime.launched.back(), "capture");
@@ -336,26 +317,21 @@ TEST_F(DockTest, PinsMovesAndDrops)
     EXPECT_EQ(ids(), (std::vector<std::string>{DockModel::kLaunchpadId, "files", "editor", "terminal"}));
     EXPECT_EQ(savedPins(), (std::vector<std::string>{"files", "editor"}));
 
-    // Within the pinned section; nothing goes before the launchpad.
     model().move(2, 1);
     EXPECT_EQ(ids(), (std::vector<std::string>{DockModel::kLaunchpadId, "editor", "files", "terminal"}));
     model().move(1, 0);
     EXPECT_EQ(ids()[0], DockModel::kLaunchpadId);
-    // A pinned item does not cross the divider.
     model().move(1, 3, true);
     EXPECT_EQ(ids(), (std::vector<std::string>{DockModel::kLaunchpadId, "editor", "files", "terminal"}));
 
-    // An unpinned one dropped among the pins is pinned there.
     EXPECT_TRUE(model().dropApplication("terminal", 1, true));
     EXPECT_EQ(ids(), (std::vector<std::string>{DockModel::kLaunchpadId, "terminal", "editor", "files"}));
     EXPECT_EQ(savedPins(), (std::vector<std::string>{"terminal", "editor", "files"}));
 
-    // Unpinning a running application moves it among the running ones.
     model().unPin("terminal");
     EXPECT_EQ(ids(), (std::vector<std::string>{DockModel::kLaunchpadId, "editor", "files", "terminal"}));
     EXPECT_FALSE(model().at(3).isPinned);
 
-    // A desktop file inserted where a drag left a gap.
     EXPECT_TRUE(model().insert("/usr/share/applications/terminal.desktop", 1));
     EXPECT_EQ(ids(), (std::vector<std::string>{DockModel::kLaunchpadId, "terminal", "editor", "files"}));
 }
@@ -396,12 +372,10 @@ TEST_F(DockTest, MagnificationIsOnWithASizeAndItIsSaved)
     EXPECT_EQ(110, dock->settings().magnifiedIconSize());
     EXPECT_TRUE(dock->settings().magnification());
     EXPECT_EQ(1, changes);
-    // On whatever the icon size: icons as large are only not magnified.
     dock->settings().setIconSize(110);
     EXPECT_TRUE(dock->settings().magnification());
     dock->settings().setIconSize(54);
 
-    // The size is written once it stops changing, as the icon size is.
     test::runFor(std::chrono::milliseconds(400));
     shell::waitForFileThread();
     EXPECT_EQ(110, base::Settings(directory.filePath("shell.conf")).intValue("Dock/MagnifiedIconSize"));
@@ -433,7 +407,6 @@ TEST_F(DockTest, KeepsMinimizedWindowsBesideTheTrash)
     windows.change(window, [](shell::TaskWindow &w) { w.minimized = false; }, shell::kStateChange);
     EXPECT_EQ(minimized.count(), 0);
 
-    // One that never lands still shows its thumbnail after a moment.
     windows.change(window, [](shell::TaskWindow &w) { w.minimized = true; }, shell::kStateChange);
     EXPECT_TRUE(test::runUntil([&] { return minimized.entries()[0].landed; }));
 
@@ -476,8 +449,6 @@ TEST_F(DockTest, LeavesVolumesTheUserCannotRead)
     if (getuid() == 0)
         GTEST_SKIP() << "permissions do not apply to root";
 
-    // A service's credentials, which only root may enter, and a volume the
-    // user may enter but not list, with their trash already on it.
     const std::string uid = std::to_string(getuid());
     const std::string locked = directory.filePath("credentials");
     const std::string hidden = directory.filePath("hidden");

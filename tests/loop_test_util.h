@@ -13,15 +13,12 @@
 #include "base/timer.h"
 #include "core/main_loop.h"
 
-// Waiting in tests on gtest_toolkit_main.cpp: the main loop runs while they
-// wait.
 namespace cutefish::test {
 
 // Runs the main loop until done() holds or the timeout passes; returns done().
 bool runUntil(const std::function<bool()>& done,
               std::chrono::milliseconds timeout = std::chrono::seconds(5));
 
-// Runs the main loop for the given time.
 void runFor(std::chrono::milliseconds duration);
 
 // Runs whatever is ready on the main loop once, without waiting.

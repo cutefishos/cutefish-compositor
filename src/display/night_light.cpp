@@ -16,7 +16,6 @@ namespace cutefish::display {
 
 namespace {
 
-// kNightLightAnimationFrameRate: a slow tint needs no more steps than this.
 constexpr int kAnimationFrameRate = 15;
 
 } // namespace
@@ -47,7 +46,6 @@ void NightLight::animateTo(double strength, std::chrono::milliseconds duration)
 
 render::ColorTransform NightLight::transformFor(double strength)
 {
-    // GreenColorScaleFromTemperature() and BlueColorScaleFromTemperature().
     return {1.0f, float(1.0 - 0.5 * strength), float(1.0 - strength)};
 }
 

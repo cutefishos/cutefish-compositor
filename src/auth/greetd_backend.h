@@ -19,7 +19,6 @@ public:
     GreetdBackend();
     ~GreetdBackend() override;
 
-    // Whoever logged in last, as cutefish-dm records it.
     std::string defaultUserName() const override { return lastLoginUser(); }
 
     void start() override;

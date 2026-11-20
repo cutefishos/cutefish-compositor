@@ -22,11 +22,9 @@ namespace dbus = base::dbus;
 static const char kService[] = "org.freedesktop.Notifications";
 static const char kPath[] = "/org/freedesktop/Notifications";
 static const char kShowInFolder[] = "show-in-folder";
-// The notification centre keeps a 132 px square cut from the middle; the
-// picture only needs to cover it.
+// The notification centre keeps a 132 px square cut from the middle.
 static constexpr int kThumbnailSize = 132;
-// The freedesktop sound theme, which libcanberra plays from without a theme
-// set; the variant directories it looks in, best first.
+// libcanberra plays from it without a theme set; the variant directories, best first.
 static const char kSoundTheme[] = "freedesktop";
 
 using ImageData = std::tuple<int32_t, int32_t, int32_t, bool, int32_t, int32_t, std::vector<uint8_t>>;
@@ -101,7 +99,6 @@ ui::Bitmap CaptureNotifier::thumbnail(const ui::Bitmap &image)
 {
     if (image.width() <= kThumbnailSize || image.height() <= kThumbnailSize)
         return image;
-    // The smallest size of the same aspect ratio that covers the box.
     const int64_t width = image.width();
     const int64_t height = image.height();
     const int64_t scaledWidth = int64_t(kThumbnailSize) * width / height;
@@ -143,7 +140,6 @@ void CaptureNotifier::notify(const std::string &summary, const std::string &body
         return;
     dbus::VariantMap hints;
     hints["urgency"] = dbus::Variant(uint8_t(1));
-    // Under the Screenshot entry in the launchpad, for its name, icon and settings.
     hints["desktop-entry"] = dbus::Variant(std::string("cutefish-screenshot"));
     if (!image.empty())
         hints["image-path"] = dbus::Variant(image);

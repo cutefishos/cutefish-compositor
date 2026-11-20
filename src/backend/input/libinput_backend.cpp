@@ -75,9 +75,7 @@ bool kernelSwapsAppleModifiers()
     return contents && base::strings::trimmed(*contents) != "0";
 }
 
-// KeyboardCapability's rule takes a device named "Apple ... Keyboard" for an
-// Apple keyboard; the vendor ids also catch the Magic Keyboard, whose name
-// does not say Apple.
+// The vendor ids also catch the Magic Keyboard, whose name does not say Apple.
 input::KeyboardModifierLayout modifierLayout(libinput_device *device)
 {
     constexpr unsigned kAppleUsbVendor = 0x05ac;
@@ -114,8 +112,8 @@ LibinputBackend::LibinputBackend(Session *session, input::InputManager *inputMan
         for (auto *device : m_mice)
             applyMouseSettings(device);
     }));
-    // Disabling a device queues the release of whatever it held without
-    // waking libinput's fd, so the queue is drained here.
+    // Disabling a device queues its releases without waking libinput's fd, so
+    // the queue is drained here.
     m_settingsSubscriptions.push_back(m_touchpadSettings.settingsChanged.connect([this] {
         for (auto *device : m_touchpads)
             applyTouchpadSettings(device);
@@ -140,8 +138,7 @@ LibinputBackend::~LibinputBackend()
         libinput_device_unref(device);
     for (auto *device : m_touchscreens)
         libinput_device_unref(device);
-    // Destroying the context runs close_restricted for every open device, so
-    // the session handles are released here rather than by hand.
+    // Destroying the context runs close_restricted for every open device.
     if (m_libinput)
         libinput_unref(m_libinput);
     if (m_udev)
@@ -168,8 +165,8 @@ int LibinputBackend::openRestricted(const char *path, int flags, void *userData)
     if (fd < 0)
         return errno ? -errno : -1;
 
-    // libseat hands back a descriptor it opened itself, so the flags libinput
-    // asked for have to be applied afterwards.
+    // libseat opens the descriptor itself, so the flags libinput asked for are
+    // applied afterwards.
     const int current = fcntl(fd, F_GETFL);
     if (current >= 0)
         fcntl(fd, F_SETFL, (current & ~O_ACCMODE) | (flags & O_ACCMODE) | (flags & O_NONBLOCK));
@@ -221,8 +218,7 @@ bool LibinputBackend::open()
     m_watch = core::mainLoop()->watch(libinput_get_fd(m_libinput), EPOLLIN,
                                       [this](uint32_t) { dispatch(); });
 
-    // The seat's devices are announced immediately; drain them so the initial
-    // device set is known before the first frame.
+    // Drained so the initial device set is known before the first frame.
     dispatch();
 
     CF_INFO(cfInput) << "libinput opened on seat" << m_session->seatName();
@@ -251,8 +247,8 @@ void LibinputBackend::setActive(bool active)
         dispatch();
     } else {
         libinput_suspend(m_libinput);
-        // Suspending queues the releases of whatever the devices still hold;
-        // left queued, clients repeat a held key until the session returns.
+        // Left queued, the releases make clients repeat a held key until the
+        // session returns.
         dispatch();
     }
 }
@@ -264,7 +260,6 @@ void LibinputBackend::dispatch()
         return;
     }
 
-    // Fingers are stamped as they arrive, ahead of the clicks that follow.
     const auto now = std::chrono::steady_clock::now();
     for (const auto &[device, contacts] : m_touchpadContacts)
         contacts->update(now);
@@ -350,8 +345,7 @@ void LibinputBackend::applyMouseSettings(libinput_device *device)
         return;
     const uint32_t profiles = libinput_device_config_accel_get_profiles(device);
     if (m_mouseSettings.acceleration() && (profiles & LIBINPUT_CONFIG_ACCEL_PROFILE_CUSTOM)) {
-        // The custom curve takes the pointer speed itself; libinput's speed
-        // setting does not apply to it.
+        // libinput's speed setting does not apply to the custom curve.
         int dpi = 0;
         if (auto *udevDevice = libinput_device_get_udev_device(device)) {
             dpi = input::mouseDpi(udev_device_get_property_value(udevDevice, "MOUSE_DPI"));
@@ -415,7 +409,7 @@ void LibinputBackend::applyTouchpadSettings(libinput_device *device)
               "tap-and-drag");
     }
     // libinput defaults most clickpads to bottom-edge button areas, where a
-    // two-finger press is still a left click.
+    // two-finger press is a left click.
     const auto clickMethod = m_touchpadSettings.twoFingerSecondaryClick()
             ? LIBINPUT_CONFIG_CLICK_METHOD_CLICKFINGER
             : LIBINPUT_CONFIG_CLICK_METHOD_BUTTON_AREAS;
@@ -425,8 +419,6 @@ void LibinputBackend::applyTouchpadSettings(libinput_device *device)
         check(libinput_device_config_scroll_set_natural_scroll_enabled(
                       device, m_touchpadSettings.naturalScroll()),
               "natural scrolling");
-    // Touchpads keep libinput's own adaptive profile, which is built for
-    // fingers on a pad; the mouse curve is not.
     if (libinput_device_config_accel_is_available(device))
         check(libinput_device_config_accel_set_speed(device,
                                                      m_touchpadSettings.pointerAcceleration()),
@@ -519,8 +511,6 @@ void LibinputBackend::processEvent(libinput_event *event)
                                            LIBINPUT_DEVICE_CAP_KEYBOARD)) {
             m_keyboardLayouts[libinput_event_get_device(event)] =
                     modifierLayout(libinput_event_get_device(event));
-            // A keyboard plugged in, or reopened after a VT switch, shows the
-            // locks as they are, not as its firmware left them.
             libinput_device_led_update(libinput_event_get_device(event),
                                        static_cast<libinput_led>(m_leds));
         }
@@ -638,8 +628,6 @@ void LibinputBackend::processEvent(libinput_event *event)
     case LIBINPUT_EVENT_POINTER_SCROLL_FINGER:
     case LIBINPUT_EVENT_POINTER_SCROLL_CONTINUOUS: {
         libinput_event_pointer *scroll = libinput_event_get_pointer_event(event);
-        // Fingers on a touchpad scroll at the user's speed; a trackball or
-        // button scrolling keeps libinput's.
         const double factor = type == LIBINPUT_EVENT_POINTER_SCROLL_FINGER
                         && m_touchpads.contains(libinput_event_get_device(event))
                 ? m_touchpadSettings.scrollSpeed()
@@ -653,8 +641,8 @@ void LibinputBackend::processEvent(libinput_event *event)
                              value(LIBINPUT_POINTER_AXIS_SCROLL_VERTICAL));
         const input::Timestamp timestamp =
                 timestampFromUsec(libinput_event_pointer_get_time_usec(scroll));
-        // A finger scroll of zero is libinput's way of saying the fingers were
-        // lifted, which is wl_pointer.axis_stop.
+        // A finger scroll of zero means the fingers lifted:
+        // wl_pointer.axis_stop.
         if (offset.isOrigin())
             m_inputManager->onPointerAxisStop(timestamp);
         else

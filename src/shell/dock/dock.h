@@ -20,13 +20,12 @@
 
 namespace cutefish::shell {
 
-// The dock as the rest of the session sees it, without its view: its
-// applications, minimized windows, trash, settings, and org.cutefish.Dock at
-// /Dock, through which Settings changes the dock's settings.
+// Exports org.cutefish.Dock at /Dock, through which Settings changes the dock's
+// settings.
 class Dock
 {
 public:
-    // `settingsPath` is shell.conf. Everything must outlive the dock.
+    // Everything must outlive the dock.
     Dock(base::dbus::Connection *bus, TaskManager &tasks, ApplicationLauncher &launcher, std::string settingsPath,
          std::unique_ptr<TrashMonitor> trash = {});
     ~Dock();
@@ -42,12 +41,9 @@ public:
     MinimizedWindows &minimizedWindows() { return m_minimizedWindows; }
     TrashMonitor &trash() { return *m_trash; }
 
-    // The view's frame on the primary output, for the primaryGeometry
-    // property; empty without a view.
+    // Empty without a view.
     std::function<base::Rect()> primaryGeometry;
-    // The view moved or resized.
     void notifyPrimaryGeometryChanged();
-    // For the launchpad, which leaves the dock its room.
     base::Signal<> primaryGeometryChanged;
 
 private:

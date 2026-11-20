@@ -4,9 +4,6 @@
 //
 // Upstream: chromium/src/ash/accelerators/accelerator_history_impl.cc
 // Revision: 8abbac30b9cf2fe976422c58c000c94685648b65
-//
-// Adapted for Cutefish: integrates the upstream behavior with native
-// compositor types and ownership.
 
 #include "accelerators/accelerator_history.h"
 
@@ -18,9 +15,7 @@ AcceleratorHistory::~AcceleratorHistory() = default;
 
 void AcceleratorHistory::storeCurrentAccelerator(const Accelerator &accelerator)
 {
-    // Track the pressed keys so that a key still held after another key was
-    // released is not stored as a fresh press: holding Alt+Meta, releasing Alt
-    // and keeping Meta down must not record a new Meta press. crbug.com/704280.
+    // A key still held after another was released is not stored as a fresh press.
     if (accelerator.keyState() == Accelerator::KeyState::Pressed) {
         if (!m_currentlyPressedKeys.emplace(accelerator.keysym()).second)
             return;

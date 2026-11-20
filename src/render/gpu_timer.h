@@ -13,16 +13,14 @@ namespace cutefish::render {
 
 class EglContext;
 
-// When the GPU reached a point in the command stream, from a timestamp query
-// read back once it is available, as ui/gl/gpu_timing.cc does. Unlike a native
-// fence, neither the query nor its result makes the driver submit at once.
+// Unlike a native fence, a timestamp query does not make the driver submit at
+// once.
 class GpuTimer
 {
 public:
     using Time = std::chrono::steady_clock::time_point;
 
-    // A query issued into the command stream; its name goes back to the pool
-    // when the mark is dropped, read or not.
+    // Its name goes back to the pool when the mark is dropped, read or not.
     class Mark
     {
     public:
@@ -42,14 +40,13 @@ public:
 
     explicit GpuTimer(EglContext &context);
 
-    // Whether the GL has GL_EXT_disjoint_timer_query and GLES 3's GL_TIMESTAMP read.
     bool available() const { return m_queryCounter != nullptr; }
 
-    // Marks everything issued so far. The context must be current.
+    // The context must be current.
     Mark mark();
 
-    // When the GPU passed `mark`, on the steady clock; empty until it has, and
-    // when the GPU's clock jumped meanwhile. The context must be current.
+    // On the steady clock; empty until it has, or when the GPU's clock jumped.
+    // The context must be current.
     std::optional<Time> reached(const Mark &mark);
 
 private:

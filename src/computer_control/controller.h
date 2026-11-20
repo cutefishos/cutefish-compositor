@@ -2,9 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Lets an agent drive the primary seat once the user allows it: consent, the
-// single current control, pausing on real input and protected targets. The
-// pause follows remoting/host/remote_input_filter.cc at Chromium revision
+// The pause follows remoting/host/remote_input_filter.cc at Chromium revision
 // 8abbac30b9cf2fe976422c58c000c94685648b65.
 
 #ifndef CUTEFISH_COMPUTER_CONTROL_CONTROLLER_H_
@@ -49,7 +47,6 @@ enum class Rejection : uint32_t {
     NoWindow = 4,
 };
 
-// An application window as the agent sees it.
 struct WindowInfo {
     // The value is cutefish_computer_control_v1's window_state.
     enum Flag : uint32_t {
@@ -72,7 +69,6 @@ enum class ConsentResult {
     Unavailable,
 };
 
-// The protocol side of one control.
 class ControlClient
 {
 public:
@@ -86,11 +82,9 @@ public:
     virtual void pointer(const base::PointF &position) = 0;
 };
 
-// What the controller asks of the rest of the compositor.
 struct Environment {
-    // Asks the user whether `agentName`, whose server is process `pid` (0 when
-    // unknown), may take control. `answer` runs once, at once or later; the
-    // returned function withdraws the question before then.
+    // `pid` is 0 when unknown. `answer` runs once, at once or later; the returned
+    // function withdraws the question before then.
     std::function<std::function<void()>(const std::string &agentName, int64_t pid,
                                         std::function<void(ConsentResult)> answer)>
             askConsent;
@@ -126,8 +120,7 @@ class Control;
 class Controller
 {
 public:
-    // Real input blocks injection this long, as RemoteInputFilter's
-    // kRemoteBlockTimeout.
+    // Real input blocks injection this long.
     static constexpr std::chrono::milliseconds kPauseAfterInput {2000};
     // How long the screen and the focused clients stay quiet before a settle
     // is answered, and the longest a settle waits.
@@ -139,13 +132,11 @@ public:
     Controller &operator=(const Controller &) = delete;
     ~Controller();
 
-    // A new control for `client`, which `owner` (its wl_client) holds. Only
-    // one control is pending or granted at a time; a second one is revoked at
-    // once with Busy. The control ends when the returned handle is destroyed.
+    // `owner` is its wl_client. A second pending or granted control is revoked at once
+    // with Busy. The control ends when the returned handle is destroyed.
     std::unique_ptr<Control> request(ControlClient *client, const void *owner,
                                      const std::string &agentName, int64_t pid = 0);
 
-    // A control is granted.
     bool isActive() const;
 
     // `owner` holds the granted control, so it may read the screen.
@@ -157,10 +148,8 @@ public:
     // Ends it with Locked; call when the session becomes blocked.
     void sessionBlocked();
 
-    // An output drew a frame.
     void drawn();
-    // Answers the settles that are due; a timer calls it every frame while
-    // one waits.
+    // A timer calls it every frame while a settle waits.
     void checkSettles();
 
     base::Signal<bool> activeChanged;
@@ -171,9 +160,7 @@ private:
     input::Timestamp now() const;
     bool paused(const Control *control) const;
 
-    // Whether `control` is granted, telling its client otherwise.
     bool granted(Control *control);
-    // Whether `control` may inject now, telling its client why not otherwise.
     // `protectedTarget` is asked last, once nothing else refuses.
     bool admits(Control *control, const std::function<bool()> &protectedTarget = {});
     void answer(Control *control, uint64_t serial, ConsentResult result);
@@ -197,7 +184,6 @@ private:
     struct Settle {
         const Control *control;
         input::Timestamp deadline;
-        // Since when the focused clients have read their input.
         input::Timestamp readSince;
         std::function<void(bool settled)> done;
     };
@@ -206,8 +192,7 @@ private:
     base::Timer m_settleTimer;
 };
 
-// One control, as cutefish_computer_control_v1 describes it. Input requests
-// answer a refusal through ControlClient::rejected.
+// Input requests answer a refusal through ControlClient::rejected.
 class Control
 {
 public:
@@ -229,9 +214,8 @@ public:
     void setWindowFrame(uint32_t handle, const base::Rect &frame);
     void setClipboard(const std::string &text);
     void queryPointer();
-    // `done` runs once the screen and the focused clients are quiet, with
-    // false when `timeout` passes first. Modelled on the NotifyWhenDone calls
-    // of chromium/src/ui/base/test/ui_controls.h at the revision above.
+    // `done` runs once the screen and the focused clients are quiet, with false when
+    // `timeout` passes first.
     void settle(std::chrono::milliseconds timeout, std::function<void(bool settled)> done);
 
 private:
@@ -259,7 +243,6 @@ private:
     std::set<uint32_t> m_keys;
     // The key each keysym press pressed, for its release after a layout change.
     std::map<uint32_t, uint32_t> m_keysymKeys;
-    // The handle of each window listed so far, and back.
     std::map<uint64_t, uint32_t> m_windowHandles;
     std::map<uint32_t, uint64_t> m_handleWindows;
 };

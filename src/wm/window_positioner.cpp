@@ -20,9 +20,7 @@ namespace {
 
 constexpr int kWindowOffset = 32;
 
-// The most recent shown top-level window of `applicationId` on `output`.
-// Activation raises, so topmost first is most recently used first - but only
-// within one stacking layer: an always-on-top window stays topmost regardless.
+// Topmost first is most recently used first only within one stacking layer.
 const Window *referenceWindow(WindowManager *manager, const base::Rect &output,
                               const std::string &applicationId, bool alwaysOnTop,
                               const Window *exclude)

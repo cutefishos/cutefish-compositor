@@ -33,11 +33,6 @@ scene::WindowAnimation *animationFor(Window *window)
     return dynamic_cast<scene::WindowAnimation *>(window->node());
 }
 
-// The cross-fade a drag leaves behind when it changes the window's bounds in
-// one step: the old appearance dissolves into the new one instead of being
-// replaced between two frames.
-// Upstream: the CrossFadeAnimation calls in
-// ash/wm/workspace/workspace_window_resizer.cc.
 void crossFade(Window *window, const base::Rect &from, scene::WindowAnimation::Type type)
 {
     scene::WindowAnimation *animation = animationFor(window);
@@ -90,14 +85,10 @@ bool ToplevelEventHandler::beginDrag(Window *window, ResizeEdge edge,
     if (!window || window->isPopup() || m_resizer)
         return false;
 
-    // A fullscreen window's bounds belong to the output, and a minimized one
-    // has nothing on screen to grab.
     WindowState *state = window->state();
     if (state->isMinimized() || state->isFullscreen())
         return false;
 
-    // Moving a tiled window pulls it back to the size it will restore to, from
-    // the first motion past the threshold onwards.
     base::Rect restoreBounds;
     if (edge == ResizeEdge::None && !state->isNormal())
         restoreBounds = state->restoreBounds();
@@ -119,8 +110,7 @@ bool ToplevelEventHandler::beginDrag(Window *window, ResizeEdge edge,
                           << window->bounds();
     if (auto *seat = m_manager->seat()) {
         if (touchId) {
-            // The client asked to be moved by this point; the rest of it
-            // belongs to the drag, as ash transfers the touch sequence.
+            // The client asked to be moved by this point; the rest of the sequence belongs to the drag.
             seat->takeTouchPoint(*touchId);
         } else {
             seat->setCursorOverride(edge == ResizeEdge::None ? input::CursorShape::Grabbing
@@ -187,7 +177,6 @@ void ToplevelEventHandler::drag(const base::PointF &location)
 void ToplevelEventHandler::holdResize()
 {
     m_holdingResize = true;
-    // A backend without frames of its own, headless for one, still resizes.
     m_manager->runLater(std::chrono::milliseconds(kHeldResizeTimeoutMs), [this] {
         releaseHeldResize();
     });
@@ -209,40 +198,28 @@ void ToplevelEventHandler::applyMotion(const base::PointF &location)
     Window *window = m_resizer->window();
     const base::Rect previousBounds = window->bounds();
     if (!m_resizer->isResize()) {
-        // A move is bounded by the display under the pointer, so a window can
-        // be dragged onto another display.
         const base::Rect pointer(int(std::floor(location.x())), int(std::floor(location.y())),
                                  1, 1);
         m_resizer->setAreas(m_manager->workAreaFor(window, pointer),
                             m_manager->visibleAreaFor(window, pointer));
     }
     m_resizer->drag(location);
-    // New bounds reach the client, and a client-facing callback can end the
-    // drag or destroy the window from inside that call.
+    // A client-facing callback can end the drag or destroy the window from inside that call.
     if (!m_resizer)
         return;
 
-    // Crossing the threshold is what actually takes the window out of its
-    // tiled state, as far as everything the user can see is concerned: the
-    // state machine only follows at the end of the drag.
     if (!hadMoved && m_resizer->hasMovedOrResized() && !m_resizer->restoreBounds().isEmpty()) {
         window->state()->clearRestoreBounds();
-        // The one step that is not the pointer's doing: the jump from the tiled
-        // bounds to the restored size under the cursor. It has to be armed
-        // before the restored look is announced, because that is what tells the
-        // shell surface to hold the cross-fade until the client has redrawn.
+        // Before the restored look is announced, which makes the shell surface hold the cross-fade.
         crossFade(window, previousBounds, scene::WindowAnimation::Type::DragBounds);
         window->setRestoringFromDragInternal(true);
         if (!m_resizer)
             return;
     } else if (auto *animation = animationFor(window)) {
-        // The rest of the drag keeps re-aiming it, so it dissolves onto a
-        // window that is still moving.
         animation->setDragTarget(window->bounds());
     }
 
-    // A maximized window resized by an edge is a normal one from the first
-    // motion: a maximized client has to keep the size it is given.
+    // A maximized client has to keep the size it is given, so a resize makes it normal at once.
     if (!hadMoved && m_resizer->hasMovedOrResized() && m_resizer->isResize()
         && window->state()->isMaximized()) {
         window->state()->clearRestoreBounds();
@@ -277,24 +254,16 @@ bool ToplevelEventHandler::onKeyPressed(uint32_t evdevCode)
 void ToplevelEventHandler::settleDrag(WindowResizer *resizer, SnapType snapped,
                                       const base::Rect &initialRestoreBounds)
 {
-    // A drag that never passed its threshold changed nothing, and settles
-    // nothing either.
     if (!resizer->hasMovedOrResized())
         return;
 
     Window *window = resizer->window();
     WindowState *state = window->state();
 
-    // A keyboard shortcut may have maximized or minimized the window while it
-    // was being dragged. That state is the newer request; the drag does not
-    // get to overrule it.
     if (state->stateType() != m_initialStateType)
         return;
 
     if (snapped != SnapType::None) {
-        // Where it came from is where it goes back to. Entering a state from
-        // Normal saves the current bounds itself; a window that was already
-        // tiled keeps what it had before the drag consumed it.
         if (!state->hasRestoreBounds()) {
             state->setRestoreBounds(initialRestoreBounds.isEmpty() ? resizer->initialBounds()
                                                                    : initialRestoreBounds);
@@ -312,9 +281,6 @@ void ToplevelEventHandler::settleDrag(WindowResizer *resizer, SnapType snapped,
         case SnapType::None:
             break;
         }
-        // Dropping a window back on the edge it already belongs to is not a
-        // state change, so nothing has put it back where that state says it
-        // goes; the drag left it under the pointer.
         if (state->stateType() == snapStateType(snapped)) {
             const base::Rect dragged = window->bounds();
             state->onEvent(WMEvent(WMEventType::WorkAreaChanged));
@@ -324,15 +290,10 @@ void ToplevelEventHandler::settleDrag(WindowResizer *resizer, SnapType snapped,
     }
 
     if (state->isNormal()) {
-        // The window was moved or resized by hand and stays where the user put
-        // it; there is nothing left to restore to.
         state->clearRestoreBounds();
         return;
     }
 
-    // Dragged out of a tiled state and released in the middle of the screen:
-    // the state machine catches up with what is already on screen. A resize
-    // that kept snapped bounds - the shared edge was pulled - stays snapped.
     if (state->isSnapped() && resizer->isResize()
         && areBoundsValidSnappedBounds(state->stateType(), window->bounds(),
                                        m_manager->workAreaFor(window))) {
@@ -344,7 +305,6 @@ void ToplevelEventHandler::settleDrag(WindowResizer *resizer, SnapType snapped,
 
 void ToplevelEventHandler::completeDrag(DragResult result)
 {
-    // The drag ends where the pointer last was; a reverted one does not care.
     if (result == DragResult::Success)
         releaseHeldResize();
     m_heldResize.reset();
@@ -358,9 +318,7 @@ void ToplevelEventHandler::completeDrag(DragResult result)
                                             ? "escape/explicit-revert"
                                             : "window-destroyed");
 
-    // Out of the member before anything below can call back into here: the
-    // state changes at the end of a drag reach the client, and a client-facing
-    // callback may start another drag or destroy the window.
+    // Out of the member first: callbacks below may start another drag or destroy the window.
     std::unique_ptr<WindowResizer> resizer = std::move(m_resizer);
     m_touchId.reset();
     const base::Rect initialRestoreBounds = std::exchange(m_initialRestoreBounds, base::Rect());
@@ -373,23 +331,19 @@ void ToplevelEventHandler::completeDrag(DragResult result)
             resizer->revertDrag();
             if (auto *animation = animationFor(window))
                 animation->setDragTarget(window->bounds());
-            // Everything the drag took away comes back: the restore bounds it
-            // cleared, and the tiled look it replaced.
             if (!initialRestoreBounds.isEmpty())
                 window->state()->setRestoreBounds(initialRestoreBounds);
         } else {
             resizer->completeDrag();
             settleDrag(resizer.get(), snapped, initialRestoreBounds);
         }
-        // Cleared after the state change, so the window is never drawn tiled
-        // at the bounds the pointer left it at.
+        // After the state change, so the window is never drawn tiled at the drag's bounds.
         window->setRestoringFromDragInternal(false);
         window->setResizingInternal(false);
         window->setDraggedInternal(false);
     }
 
-    // Completion callbacks may already have started another drag. Preserve
-    // its override, and notify only after this drag is no longer used.
+    // Completion callbacks may already have started another drag.
     if (!m_resizer) {
         if (auto *seat = m_manager->seat())
             seat->setCursorOverride(std::nullopt);

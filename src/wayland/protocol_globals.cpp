@@ -179,11 +179,7 @@ bool ProtocolGlobals::registerClipboard()
 
 bool ProtocolGlobals::registerCapture()
 {
-    // The shell takes screenshots itself; recordings run in a helper it starts on
-    // a capture connection.
-    // The computer-use service reads the screen only while the user lets it
-    // control the computer, but binds the output managers beforehand: it cannot
-    // bind once it has dropped its /proc identity. It never sees window lists.
+    // The computer-use service binds the output managers early: it cannot bind once it has dropped its /proc identity.
     const auto authorize = [security = m_deps.security, privileged = m_privileged.get(),
                             control = m_deps.computerControl](const wl_client *client) {
         return privileged->isTrusted(client) || privileged->isCaptureConnection(client)
@@ -213,12 +209,7 @@ bool ProtocolGlobals::registerCapture()
     m_imageCapture->setToplevelSourceResolver([list = m_toplevelList.get()](wl_resource *handle) {
         return list->sourceFor(handle);
     });
-    // The margins are fixed per shadow role, so a shadow not yet moved to the
-    // window's new bounds still gives the right ones.
-    // What the shadow paints, placed from the current bounds: the shadow
-    // follows a move through an observer of its own, in no fixed order with
-    // the list's. A dock's shadow hugs its rounded body, so the room of the
-    // surface around that body stays out of the picture.
+    // The margins are fixed per shadow role, so a shadow not yet moved to the new bounds still gives the right ones.
     m_toplevelList->setShadowBounds([shadows = m_deps.shadowController](const wm::Window *window) {
         const base::Rect bounds = window->bounds();
         const wm::WindowShadow *shadow = shadows ? shadows->shadowForWindow(window) : nullptr;
@@ -262,8 +253,6 @@ bool ProtocolGlobals::registerWindowPlacement()
 
 bool ProtocolGlobals::registerPrivateShell()
 {
-    // Registered with the privileged filter, so an ordinary client never sees
-    // it in its registry.
     m_cutefishShell =
             std::make_unique<WaylandCutefishShell>(m_deps.windowManager, m_privileged.get());
     if (!createCutefishShellGlobal(m_deps.server->display(), m_cutefishShell.get())) {

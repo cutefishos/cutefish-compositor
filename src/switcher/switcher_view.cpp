@@ -46,9 +46,6 @@ void preloadApplicationIcon(const std::string &name, int pixels)
         ui::IconImage::preload(kFallbackIcon, pixels);
 }
 
-// Frosted enough that a busy wallpaper under the icons and the name calms to
-// soft patches, and tinted enough to stand off a flat colour of any shade;
-// the rim still bends what is behind it.
 render::GlassParams panelGlass(bool darkMode)
 {
     render::GlassParams glass;
@@ -64,8 +61,6 @@ render::GlassParams panelGlass(bool darkMode)
     return glass;
 }
 
-// The selection: a smaller, frosted piece of glass that darkens what it
-// covers in the light and lifts it in the dark.
 render::GlassParams selectionGlass(bool darkMode)
 {
     render::GlassParams glass;
@@ -130,7 +125,6 @@ protected:
         renderer.drawTextureMapped(texture, bounds, 1.0f, base::AffineTransform());
         if (!theme)
             return;
-        // The same edge the shell's glass surfaces get.
         const decoration::WindowVisualStyle style = theme->visualStyle();
         scene::WindowVisualState state;
         state.shape = {base::RectF(bounds), double(SwitcherView::kRadius)};
@@ -147,8 +141,6 @@ private:
 
 } // namespace
 
-// An application's icon, made at the size a full cell shows it and scaled
-// smoothly into the cell it is in.
 class ApplicationIcon final : public ui::IconImage
 {
 public:
@@ -161,10 +153,6 @@ public:
     }
 };
 
-// The row of applications being switched through, most recently used first,
-// with the selected one's name under its icon. The compositor draws the
-// glass, the selection's included, and the edge; this is only what goes on
-// them.
 class SwitcherContent final : public ui::View
 {
 public:
@@ -223,7 +211,6 @@ protected:
     void layout() override
     {
         const double width = geometry().width;
-        // Centred, whatever snapping did to the panel's height.
         const double rowY = (geometry().height - m_cellSize) / 2;
         for (size_t i = 0; i < m_icons.size(); ++i) {
             m_icons[i]->setGeometry({m_rowX + double(i) * m_cellSize + (m_cellSize - m_iconSize) / 2,
@@ -231,14 +218,11 @@ protected:
         }
         if (!m_name->isVisible())
             return;
-        // Centred under its icon, kept inside the panel at the ends of the row.
         const ui::SizeF hint = m_name->sizeHint();
         const double nameWidth = std::min(hint.width, width - 2 * m_padding);
         const double centre = m_rowX + (m_selected + 0.5) * m_cellSize;
         const double x = std::max(m_padding,
                                  std::min(centre - nameWidth / 2, width - m_padding - nameWidth));
-        // Its middle a little under half way down from the selection to the
-        // panel's edge, scaled with the cells.
         const double y = rowY + (m_cellSize + m_iconSize) / 2 + m_cellSize * 10.5 / 108
                 - hint.height / 2;
         m_name->setGeometry({x, y, nameWidth, hint.height});
@@ -248,7 +232,6 @@ private:
     void updateName()
     {
         const bool shown = m_selected >= 0 && m_selected < int(m_names.size());
-        // Only the selected application's name is shown, so only it is laid out.
         m_name->setText(shown ? m_names[size_t(m_selected)] : std::string());
         m_name->setVisible(shown);
     }
@@ -322,8 +305,7 @@ void SwitcherView::markDirty()
 void SwitcherView::preload()
 {
     ensureWindow();
-    // Drawing a name and an icon once loads the fonts and the icon theme, which
-    // cost far more than the views on the first switch.
+    // Drawing once loads the fonts and the icon theme, which cost far more than the views.
     const auto [area, scale] = outputFor({});
     layout({{"Aa", kFallbackIcon}}, 0, area, scale);
     m_panelTexture->renderImage();
@@ -400,9 +382,7 @@ void SwitcherView::showWindowCycle(const std::vector<wm::Window *> &entries, int
     m_panel->setGeometry(m_bounds);
     m_panel->setVisible(true);
     if (m_shadow) {
-        // Lifted like a window: on a flat colour as light as the glass, the
-        // shadow is all that draws the panel's edge. Its corner has to be the
-        // glass's, or the shadow's tighter one shows past it.
+        // Its corner has to be the glass's, or the shadow's tighter one shows past it.
         static_assert(kRadius <= decoration::ShadowGeometry::kMaxRadius);
         m_shadow->update(m_bounds, wm::ShadowElevation::Active, decoration::Corners(), kRadius);
         m_shadow->setVisible(true);
@@ -413,7 +393,6 @@ void SwitcherView::showWindowCycle(const std::vector<wm::Window *> &entries, int
 void SwitcherView::layout(const std::vector<ApplicationInfo> &entries, int selected,
                           const base::Rect &area, double scale)
 {
-    // Following the session's icon theme, which may have changed since.
     followIconTheme();
 
     m_count = static_cast<int>(entries.size());

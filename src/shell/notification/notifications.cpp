@@ -40,7 +40,6 @@ Notifications::~Notifications()
 {
     if (m_object && m_bus)
         m_bus->releaseName("org.cutefish.Notification");
-    // The last history and settings writes reach the disk.
     waitForFileThread();
 }
 

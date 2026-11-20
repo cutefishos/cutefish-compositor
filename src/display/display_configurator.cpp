@@ -4,9 +4,6 @@
 //
 // Upstream: chromium/src/ui/display/manager/display_configurator.cc
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: validation and test-only modesetting precede a single
-// asynchronous native commit without Ash policy or Chromium task objects.
 
 #include "display/display_configurator.h"
 

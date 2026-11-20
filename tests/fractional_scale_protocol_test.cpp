@@ -395,8 +395,6 @@ TEST_F(FractionalScaleProtocolTest, OutputMetricsVersionsAndMultipleExtensions)
     }
 }
 
-// Exo's DuplicateGetXdgOutputDoesNotUAF: a client dying with two xdg_outputs
-// on one wl_output tears them down after the wl_output (lower object id).
 TEST_F(FractionalScaleProtocolTest, DisconnectingWithDuplicateXdgOutputsIsSafe)
 {
     for (bool withdrawFirst : {false, true}) {
@@ -465,7 +463,6 @@ TEST_F(FractionalScaleProtocolTest, DisconnectingWithDuplicateXdgOutputsIsSafe)
 
         if (replacement)
             outputGlobal = replacement;
-        // The output and its other bindings carry on.
         wayland::updateOutputGlobal(outputGlobal, &output);
         ASSERT_GE(roundtrip(), 0);
     }
@@ -546,7 +543,6 @@ TEST_F(FractionalScaleProtocolTest, EnterAndLeaveFollowTheSurfacesThatMoved)
     wayland::updateOutputMembership(outputGlobal, moved);
     ASSERT_GE(roundtrip(), 0);
     EXPECT_EQ(enters, 2);
-    // A full pass finds nothing left to announce.
     wayland::updateOutputMembership(outputGlobal);
     ASSERT_GE(roundtrip(), 0);
     EXPECT_EQ(enters, 2);

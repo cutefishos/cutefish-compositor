@@ -19,9 +19,6 @@ class WindowManager;
 
 namespace cutefish::wayland {
 
-// cutefish_window_placement_v1: windows a client places itself and whose
-// positions it hears. Upstream: exo's zaura_toplevel set_window_bounds and
-// origin_change, which its SecurityDelegate::CanSetBounds gates per client.
 class WaylandWindowPlacement
 {
 public:

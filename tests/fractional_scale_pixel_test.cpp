@@ -135,8 +135,7 @@ TEST_F(FractionalScalePixelTest, NativeDensityPixelsStaySharpAtFractionalOrigins
     }
 }
 
-// Xwayland sizes popups in device pixels. 22 pixels at 1.25 are 17.6 logical
-// units, drawn as 18 (22.5 pixels): every texel must still land on a pixel.
+// Xwayland sizes popups in device pixels.
 TEST_F(FractionalScalePixelTest, ClientScaledBuffersAPixelOffStaySharp)
 {
     const struct {

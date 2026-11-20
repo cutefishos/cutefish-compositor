@@ -32,28 +32,19 @@ namespace cutefish::backend {
 class Session;
 class TouchpadContacts;
 
-// Opens the seat's input devices through libinput and pumps them from the main
-// loop, feeding an input::InputManager.
-//
-// Devices are opened through the Session, so the compositor never needs
-// permission to /dev/input itself and the seat manager can revoke access across
-// VT switches.
 class LibinputBackend : public input::SeatObserver
 {
 public:
     ~LibinputBackend() override;
 
-    // Creates a udev-backed context assigned to the session's seat. Returns
-    // nullptr if the context or the seat could not be acquired.
+    // Null if the context or the seat could not be acquired.
     static std::unique_ptr<LibinputBackend>
     create(Session *session, input::InputManager *inputManager);
 
-    // Devices are suspended while another session owns the seat; libinput is
-    // told so that it re-reads device state on resume.
+    // libinput is told so that it re-reads device state on resume.
     void setActive(bool active);
 
     void onSurfaceFocused(compositor::Surface *, compositor::Surface *) override { }
-    // Every keyboard's lock lights follow the lock state the clients see.
     void onKeyboardModifierUpdated() override;
     void onKeyboardLayoutUpdated() override { onKeyboardModifierUpdated(); }
 
@@ -63,14 +54,12 @@ private:
     bool open();
     void dispatch();
     void processEvent(libinput_event *event);
-    // Sorts a new device into the mice or the touchpads, by udev's
-    // classification, and applies their preferences.
     void addPointingDevice(libinput_device *device);
     void removePointingDevice(libinput_device *device);
     void applyMouseSettings(libinput_device *device);
     void applyTouchpadSettings(libinput_device *device);
-    // The button a touchpad's press or release is sent as: a press libinput's
-    // clickfinger counted as one finger may be two by isTwoFingerClick.
+    // A press libinput's clickfinger counted as one finger may be two by
+    // isTwoFingerClick.
     uint32_t touchpadButton(libinput_device *device, uint32_t button, bool pressed,
                             input::Timestamp time);
     void addTouchscreen(libinput_device *device);

@@ -5,10 +5,6 @@
 // Upstream: chromium/src/components/exo/wayland/zwp_text_input_manager.cc
 //           chromium/src/components/exo/text_input.cc
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: the text input is relayed to an input-method-v2 client
-// instead of ui::InputMethod. zcr_extended_text_input_v1 and
-// zcr_text_input_extension_v1 are ChromeOS extensions and are not ported.
 
 #include <cstring>
 #include <memory>
@@ -25,8 +21,7 @@
 namespace cutefish::wayland {
 namespace {
 
-// The list of modifiers that this supports.
-// This is consistent with X.h.
+// Consistent with X.h.
 constexpr const char *kModifierNames[] = {
         XKB_MOD_NAME_SHIFT, XKB_MOD_NAME_CAPS,
         XKB_MOD_NAME_CTRL,  XKB_MOD_NAME_ALT,
@@ -79,9 +74,6 @@ uint32_t contentPurpose(uint32_t purpose)
         return ZWP_TEXT_INPUT_V3_CONTENT_PURPOSE_NORMAL;
     }
 }
-
-////////////////////////////////////////////////////////////////////////////////
-// text_input_v1 interface:
 
 class TextInputV1 final : public TextInput, public compositor::SurfaceObserver
 {
@@ -160,8 +152,7 @@ public:
     void sendEdit(const TextInputEdit &edit) override
     {
         if (edit.deletion) {
-            // Index is the byte offset of the deletion in the surrounding text,
-            // matching exo and Chromium's v1 client rather than the cursor-relative spec.
+            // The byte offset in the surrounding text, as v1 clients use it, not cursor-relative as specified.
             zwp_text_input_v1_send_delete_surrounding_text(
                     m_resource, m_state.cursor - int32_t(edit.deletion->first),
                     edit.deletion->first + edit.deletion->second);
@@ -215,7 +206,6 @@ private:
             return;
         t->activate(surface);
 
-        // Sending modifiers.
         wl_array modifiers;
         wl_array_init(&modifiers);
         for (const char *modifier : kModifierNames) {
@@ -278,7 +268,6 @@ private:
 
     static void textInputSetPreferredLanguage(wl_client *, wl_resource *, const char *)
     {
-        // Nothing needs to be done.
     }
 
     static void textInputCommitState(wl_client *, wl_resource *resource, uint32_t serial)
@@ -311,9 +300,6 @@ private:
     bool m_attached = false;
     uint32_t m_serial = 0;
 };
-
-////////////////////////////////////////////////////////////////////////////////
-// text_input_manager_v1 interface:
 
 void textInputManagerCreateTextInput(wl_client *client, wl_resource *resource, uint32_t id)
 {

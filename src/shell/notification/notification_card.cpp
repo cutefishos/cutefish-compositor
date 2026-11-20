@@ -47,7 +47,7 @@ static void appendUtf8(std::string &out, uint32_t code)
     }
 }
 
-// The value of `name="..."` (or '...') in a tag's text; empty when absent.
+// Empty when absent.
 static std::string attribute(const std::string &tag, const std::string &name)
 {
     std::string lower = tag;
@@ -81,7 +81,6 @@ std::vector<ui::Label::Span> styledTextSpans(const std::string &markup, ui::Colo
     int bold = 0;
     int italic = 0;
     int underline = 0;
-    // The open links' targets, innermost last.
     std::vector<std::string> links;
     std::string text;
     const auto flush = [&] {
@@ -332,7 +331,6 @@ void NotificationCard::setNotification(const Notification &notification)
         m_thumbnail->setSource(notification.image);
     }
 
-    // A replacement glides the bar from where it was.
     const double fraction = std::clamp(notification.value, 0, 100) / 100.0;
     m_progress->setTarget(fraction, previous.value >= 0 && notification.value >= 0 && m_progress->window());
 
@@ -348,7 +346,6 @@ void NotificationCard::setNotification(const Notification &notification)
     m_actions.clear();
     for (auto &[key, label] : wanted)
         m_actions.push_back(addChild<ActionButton>(this, key, label));
-    // Above the card's own press area, below nothing.
     raiseChild(m_close);
 
     requestLayout();
@@ -440,7 +437,6 @@ NotificationCard::Geometry NotificationCard::computeGeometry(double width) const
     g.thumbnailX = width - kPadding - kThumbnailSize;
     g.contentWidth = (thumbnail ? g.thumbnailX - theme.largeSpacing : width - kPadding) - kPadding;
 
-    // The Column: visible children, 2 apart.
     const double top = kPadding + kHeaderHeight + theme.smallSpacing;
     double y = top;
     bool first = true;
@@ -480,14 +476,12 @@ double NotificationCard::implicitHeight(double width) const
 
 void NotificationCard::updateBody()
 {
-    // The link colour follows the accent.
     const uint64_t generation = ui::Theme::generation();
     if (m_bodyText == m_notification.body && m_bodyTheme == generation)
         return;
     m_bodyText = m_notification.body;
     m_bodyTheme = generation;
     std::vector<ui::Label::Span> spans = styledTextSpans(m_bodyText, ui::Theme::current().highlight);
-    // Plain text needs no runs.
     if (spans.size() == 1 && !spans.front().weight && !spans.front().color && !spans.front().italic
         && !spans.front().underline)
         m_body->setText(spans.front().text);
@@ -527,7 +521,6 @@ void NotificationCard::pointerRelease(const ui::PointerEvent &event)
     m_pressed = false;
     if (!localRect().contains(event.position))
         return;
-    // A link in the body opens, as Text.onLinkActivated; the card takes the rest.
     if (m_body->isVisible()) {
         const ui::RectF body = m_body->geometry();
         const std::string link = m_body->linkAt({event.position.x - body.x, event.position.y - body.y});
@@ -558,11 +551,9 @@ void NotificationCard::layout()
 
     m_close->setGeometry({g.closeX, g.closeY, m_close->currentWidth(), m_close->buttonHeight()});
 
-    // The caption, vertically centred in the header.
     const double iconY = kPadding + (kHeaderHeight - kIconSize) / 2;
     m_themeIcon->setGeometry({kPadding, iconY, kIconSize, kIconSize});
     m_fileIcon->setGeometry({kPadding, iconY, kIconSize, kIconSize});
-    // Its width counts even with no time shown.
     m_when->setText((m_notification.appName.empty() ? "" : "  ·  ") + m_timeText);
     const ui::SizeF when = m_when->sizeHint();
     const ui::SizeF name = m_appName->sizeHint();
@@ -606,7 +597,6 @@ void NotificationCard::paint(ui::Painter &painter)
 {
     const Geometry g = computeGeometry(geometry().width);
 
-    // Where the thumbnail goes, while it loads.
     if (showsThumbnail() && !m_thumbnailReady) {
         painter.drawRoundedRect({g.thumbnailX, g.thumbnailY, kThumbnailSize, kThumbnailSize},
                                 {ui::Theme::current().smallRadius, 0, ui::Corners::Circular}, controlTint(0));

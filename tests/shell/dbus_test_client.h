@@ -18,9 +18,6 @@
 
 namespace cutefish::test {
 
-// Another process on the private session bus, as an application or Settings
-// would be: its own connection, calls that wait on the main loop, and the
-// signals it saw.
 class DBusTestClient
 {
 public:
@@ -52,7 +49,6 @@ public:
                 .value_or(std::string());
     }
 
-    // Records every signal of the interface.
     void listen(const std::string &interface)
     {
         base::dbus::MatchRule rule;
@@ -64,8 +60,7 @@ public:
 
     std::vector<base::dbus::Message> signalsSeen;
 
-    // com.canonical.Unity.LauncherEntry's Update, as an application putting
-    // a count on its icon sends it.
+    // com.canonical.Unity.LauncherEntry's Update.
     void sendLauncherEntry(const std::string &uri, const base::dbus::VariantMap &properties)
     {
         EXPECT_TRUE(connection->emitSignal("/com/canonical/unity/launcherentry/1",

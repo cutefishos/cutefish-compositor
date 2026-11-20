@@ -179,7 +179,6 @@ double ControlCenterView::layoutHeight() const
 
 double ControlCenterView::windowHeight(double scale) const
 {
-    // Whole device pixels: the tiles' edges stay on the pixel grid.
     double size = std::ceil(layoutHeight() + kGap * 2);
     for (int i = 0; i < 120 && std::abs(size * scale - std::round(size * scale)) > 0.001; ++i)
         ++size;
@@ -188,7 +187,6 @@ double ControlCenterView::windowHeight(double scale) const
 
 void ControlCenterView::layout()
 {
-    // A theme change relays the view out: the dark mode card follows it.
     if (m_darkModeShown != ui::Theme::current().darkMode) {
         m_darkModeShown = ui::Theme::current().darkMode;
         m_darkMode->setChecked(m_darkModeShown);
@@ -263,8 +261,6 @@ void ControlCenterPager::showDetail(std::unique_ptr<StatusPanelView> page)
         sizeChanged();
     };
     m_detail->setGeometry({0, 0, status_panel::kWidth, m_detail->contentHeight()});
-    // Measured in the window now: the page starts at its height rather than
-    // growing into it.
     m_detail->setShown(false);
     m_detail->setShown(true);
     slideTo(1);
@@ -295,9 +291,6 @@ void ControlCenterPager::slideTo(double target)
     }
     m_tween->stop();
     m_from = m_progress;
-    // Layered, the pages move and fade without being painted again, each
-    // fading as one; the clip keeps the taller one inside the window's
-    // corners as the window's height glides.
     m_main->setVisible(true);
     m_main->setLayered(true);
     m_detail->setLayered(true);
@@ -360,7 +353,6 @@ double ControlCenterPager::windowHeight(double scale) const
 void ControlCenterPager::layout()
 {
     const double scale = windowScale(this);
-    // Whole device pixels, so the pages' text stays sharp on the way.
     const auto snapped = [scale](double x) { return std::round(x * scale) / scale; };
     m_main->setGeometry({0, 0, ControlCenterView::kWidth, m_main->windowHeight(scale)});
     m_main->setOpacity(1 - m_progress);

@@ -16,9 +16,6 @@
 
 namespace cutefish::shell {
 
-// org.kde.StatusNotifierWatcher at /StatusNotifierWatcher: the tray items
-// applications register, each "service/path", dropped when its service
-// leaves the bus. The menu bar's tray is its host in this process.
 class StatusNotifierWatcher
 {
 public:
@@ -28,12 +25,10 @@ public:
     StatusNotifierWatcher(const StatusNotifierWatcher &) = delete;
     StatusNotifierWatcher &operator=(const StatusNotifierWatcher &) = delete;
 
-    // Exports the object and takes the name; the tray in this process then
-    // counts as a host, and also takes org.kde.StatusNotifierHost-<pid>, the
-    // name the specification gives a host.
+    // Also takes org.kde.StatusNotifierHost-<pid>, the name the specification
+    // gives a host.
     bool registerService();
 
-    // In the order they came.
     const std::vector<std::string> &items() const { return m_items; }
     bool isHostRegistered() const { return m_internalHost || !m_hosts.empty(); }
 
@@ -52,12 +47,10 @@ private:
     std::string m_hostName;
     bool m_internalHost = false;
     std::vector<std::string> m_items;
-    // Asked for, waiting to hear whether their service is on the bus.
     std::map<std::string, std::vector<std::string>> m_waitingItems;
     std::set<std::string> m_waitingHosts;
     std::set<std::string> m_hosts;
     std::map<std::string, base::dbus::NameWatch> m_watches;
-    // Services whose owner has been heard once.
     std::set<std::string> m_known;
 };
 

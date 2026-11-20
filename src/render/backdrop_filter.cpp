@@ -149,8 +149,8 @@ BackdropFilter::Scratch &BackdropFilter::scratch(const User &user, const base::S
     auto found = std::find_if(m_scratch.begin(), m_scratch.end(), [&](const Scratch &entry) {
         return entry.coverage == coverage && entry.size == size;
     });
-    // A plain blur takes the smallest set it fits in, so the windows of the
-    // overview share a few sets rather than each keeping its own.
+    // A plain blur takes the smallest set it fits in, so overview windows share
+    // a few sets.
     if (coverage.isEmpty() && !exact) {
         for (auto entry = m_scratch.begin(); entry != m_scratch.end(); ++entry) {
             if (!entry->coverage.isEmpty() || entry->size.width() < size.width()
@@ -212,7 +212,7 @@ void BackdropFilter::applyGlassMaterial(const GlProgram &program, const GlassPar
     glUniform1f(uniform("uDisplacement"), glass.displacement * scale);
     glUniform1f(uniform("uChroma"), std::clamp(glass.chroma, 0.0f, 1.0f));
     // Surface-local y grows downwards; the z term places the light above the
-    // glass rather than edge-on to it.
+    // glass.
     const float angle = float(glass.lightAngle * M_PI / 180.0);
     const float light[3] = {std::cos(angle), std::sin(angle), 0.38f};
     const float length = std::sqrt(light[0] * light[0] + light[1] * light[1] + light[2] * light[2]);
@@ -242,8 +242,7 @@ bool BackdropFilter::blitReduced(const std::vector<BackdropSource> &sources, con
     if (viewport[2] < reduced.width() || viewport[3] < reduced.height())
         return false;
     const base::Rect physical = source.framebufferRect(coverage);
-    // Both are bottom-up, as the capture and the draw of it would leave them;
-    // the pass's top left is the top of its rows.
+    // Both are bottom-up; the pass's top left is the top of its rows.
     const int top = viewport[1] + viewport[3];
     glBindFramebuffer(GL_READ_FRAMEBUFFER, source.framebuffer);
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, destination);
@@ -261,8 +260,7 @@ bool BackdropFilter::captureBackdrop(Renderer &renderer, Scratch &textures,
                                      const base::Rect &allocatedBounds, const base::Rect &texels)
 {
     const base::Rect reducedBounds(base::Point(), reduced);
-    // The pixels of `coverage` the texels sample, a pixel more each way for
-    // the linear filter.
+    // A pixel more each way for the linear filter.
     base::Rect copied = coverage;
     if (!texels.isEmpty()) {
         const double sx = double(coverage.width()) / reduced.width();
@@ -355,7 +353,6 @@ bool BackdropFilter::captureBackdrop(Renderer &renderer, Scratch &textures,
                         base::RectF lying(base::PointF(), source.transform % 2 ? upright.size().transposed()
                                                                      : upright.size());
                         lying.moveCenter(upright.center());
-                        // Undoes the output's turn, as ScreenTransitionNode does.
                         base::AffineTransform turn;
                         turn.translate(upright.center().x(), upright.center().y());
                         turn.rotate(source.transform == 1 ? 90 : source.transform == 2 ? 180 : -90);
@@ -394,12 +391,8 @@ void BackdropFilter::draw(Renderer &renderer, const base::RectF &exactLens, int 
     const base::Rect visibleBounds = bounds.intersected(clip).intersected(output);
     if (visibleBounds.isEmpty())
         return;
-    // Rounded outward, the lens is a pixel wider or taller depending on where
-    // its fractional origin falls, and so is a shape's outline. The capture is
-    // sized for the widest they can round out to, so a lens moving at a
-    // fractional scale keeps one set of scratch textures instead of cycling
-    // through four and reallocating, however the clip or the output cut it.
-    // cc's ResourcePool hands out its unused resources by exact size the same way.
+    // Sized for the widest rounding of a fractional origin, so a moving lens
+    // keeps one set of scratch textures.
     base::Size captured = visibleBounds.size();
     if (scale != std::floor(scale)) {
         base::RectF exact = exactLens;
@@ -413,11 +406,8 @@ void BackdropFilter::draw(Renderer &renderer, const base::RectF &exactLens, int 
             ? float(kBackdropBlurSupport)
             : std::min(3 * glass.plainSigma, float(kBackdropBlurSupport));
     const int halo = base::ceilToInt(support * scale);
-    // Moved inside the output rather than cut by its edge, so the size stays
-    // the same as the lens nears the edge: cut, it keyed a new set of scratch
-    // textures on every frame of a move along it. Only a lens the output
-    // cannot hold with its halo is cut. Skia sizes such scratch textures
-    // loosely for the same reason (SkBackingFit::kApprox).
+    // Moved inside the output rather than cut by its edge, so its size and
+    // scratch textures stay the same near the edge.
     base::Rect coverage(visibleBounds.topLeft() - base::Point(halo, halo),
                    captured + base::Size(2 * halo, 2 * halo));
     coverage.moveLeft(std::clamp(coverage.left(), output.left(),
@@ -469,9 +459,8 @@ void BackdropFilter::draw(Renderer &renderer, const base::RectF &exactLens, int 
     }
     const bool reused = kept && kept->result && kept->coverage == coverage
             && kept->reduced == reduced && kept->sigma == sigma;
-    // The texels of a kept result that read what changed of the backdrop,
-    // rows top-down: past the kernel's taps, a texel each for the capture's
-    // linear sampling and the rounding out.
+    // Rows top-down: past the kernel's taps, a texel each for linear sampling
+    // and rounding out.
     base::Rect redo;
     if (reused && !kept->changed.isEmpty()) {
         const base::RectF changed(base::PointF(kept->changed.topLeft()) * scale,
@@ -486,10 +475,8 @@ void BackdropFilter::draw(Renderer &renderer, const base::RectF &exactLens, int 
                        .intersected(reducedBounds);
     }
     const bool redoing = !redo.isEmpty();
-    // A plain blur shrinks with its window on every frame of the overview.
-    // Sized up to a step, or in a larger set, its textures last the whole
-    // move; the passes use their top left and clamp their samples to it.
-    // Glass keeps exact sizes.
+    // Sized up to a step so a shrinking plain blur's textures last a whole
+    // move; glass keeps exact sizes.
     const auto stepUp = [](int value) {
         return (value + kScratchStep - 1) / kScratchStep * kScratchStep;
     };
@@ -503,7 +490,7 @@ void BackdropFilter::draw(Renderer &renderer, const base::RectF &exactLens, int 
                 : &scratch(user, base::Size(), base::Size(stepUp(reduced.width()), stepUp(reduced.height())));
     const base::Size allocated = reused ? kept->allocated : textures ? textures->size : reduced;
     const base::Rect allocatedBounds(base::Point(), allocated);
-    // The used texels, rows bottom-up, and their share of the texture.
+    // Rows bottom-up.
     const base::Rect texels(0, allocated.height() - reduced.height(), reduced.width(),
                        reduced.height());
     const base::SizeF used(double(reduced.width()) / allocated.width(),

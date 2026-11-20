@@ -4,9 +4,6 @@
 //
 // Upstream: chromium/src/components/exo/pointer.cc (pointer constraints)
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: integrates the upstream behavior with native
-// compositor types and ownership.
 
 #include "input/pointer_constraints.h"
 
@@ -73,7 +70,6 @@ bool PointerConstraints::add(PointerConstraintDelegate *delegate)
         return false;
     }
 
-    // Can only have one constraint request per surface.
     const auto [it, inserted] = m_constraints.try_emplace(surface, delegate);
     if (!inserted) {
         CF_DEBUG(cfInput) << "Pointer constraint not granted; one already exists.";
@@ -149,8 +145,7 @@ bool PointerConstraints::canActivate(PointerConstraintDelegate *delegate) const
         || m_seat->pointerFocus() != surface)
         return false;
 
-    // As in Exo, only the active window may capture the pointer; the keyboard
-    // focus is how the seat knows which window that is.
+    // Only the active window may capture the pointer; keyboard focus says which window that is.
     const compositor::Surface *focus = m_seat->focusedSurface();
     if (!focus || rootSurface(focus) != rootSurface(surface))
         return false;
@@ -225,9 +220,7 @@ base::PointF PointerConstraints::confine(const base::PointF &from, const base::P
 
 bool PointerConstraints::breakByUserAction()
 {
-    // Prevent pointer capture until the next user action that permits it, even
-    // if a constraint is not active now, so an application cannot evade this
-    // by rapidly toggling capture.
+    // Refuse capture until the next permitting user action, so an application cannot evade this by toggling capture.
     m_capturePermitted = false;
     if (!m_active)
         return false;
@@ -238,7 +231,6 @@ bool PointerConstraints::breakByUserAction()
 
 void PointerConstraints::onPointerPressed(compositor::Surface *surface)
 {
-    // Clicking any surface with a constraint permits capture.
     if (m_capturePermitted || !m_constraints.contains(surface))
         return;
     m_capturePermitted = true;

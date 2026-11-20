@@ -4,9 +4,6 @@
 //
 // Upstream: chromium/src/components/exo/wayland/serial_tracker.h
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: integrates the upstream behavior with native
-// compositor types and ownership.
 
 #ifndef CUTEFISH_WAYLAND_SERIAL_TRACKER_H_
 #define CUTEFISH_WAYLAND_SERIAL_TRACKER_H_
@@ -57,16 +54,11 @@ public:
 
     uint32_t nextSerial(EventType type);
 
-    // If there exists a serial for key already, returns it. Or, it creates
-    // a new serial, and returns it.
     uint32_t maybeNextKeySerial();
 
-    // Resets the stored key serial, so that the next maybeNextKeySerial() call
-    // will generate a new serial.
     void resetKeySerial();
 
-    // Get the EventType for a serial number, or nullopt if the serial number
-    // was never sent or is too old.
+    // Nullopt if the serial number was never sent or is too old.
     std::optional<EventType> eventType(uint32_t serial) const;
 
     std::string toString() const;
@@ -84,13 +76,10 @@ private:
     std::array<ActivationSerial, 1024> m_activationSerials;
     wl_display *m_display;
 
-    // EventTypes are stored in a circular buffer, because serial numbers are
-    // issued sequentially and we only want to store the most recent events.
+    // A circular buffer of the most recent events.
     std::vector<EventType> m_events;
 
-    // [m_minEvent, m_maxEvent) is a half-open interval containing the range of
-    // valid serial numbers. Note that as serial numbers are allowed to wrap
-    // around the 32 bit space, we cannot assume that m_maxEvent >= m_minEvent.
+    // [m_minEvent, m_maxEvent) is the valid range; serials wrap, so m_maxEvent may be below m_minEvent.
     uint32_t m_minEvent = 1;
     uint32_t m_maxEvent = 1;
 

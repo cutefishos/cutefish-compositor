@@ -46,7 +46,6 @@ void Preferences::reload()
 {
     m_settings.reload();
     const auto theme = m_settings.stringValue("Appearance/CursorTheme", "default");
-    // A stored size that is not a number counts as 0.
     constexpr auto sizeKey = "Appearance/CursorSize";
     const int64_t size =
             m_settings.contains(sizeKey) ? m_settings.intValue(sizeKey, 0) : defaultSize();

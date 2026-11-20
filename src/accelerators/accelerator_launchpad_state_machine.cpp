@@ -4,9 +4,6 @@
 //
 // Upstream: chromium/src/ash/accelerators/accelerator_launcher_state_machine.cc
 // Revision: 8abbac30b9cf2fe976422c58c000c94685648b65
-//
-// Adapted for Cutefish: integrates the upstream behavior with native
-// compositor types and ownership.
 
 #include "accelerators/accelerator_launchpad_state_machine.h"
 
@@ -52,7 +49,6 @@ void AcceleratorLaunchpadStateMachine::onKey(uint32_t keysym, bool pressed)
         m_state = isMetaKey(keysym) ? LaunchpadState::Primed : LaunchpadState::Suppress;
         break;
 
-    // Anything but Meta moves to Suppress; Meta released moves to Trigger.
     case LaunchpadState::Primed:
         if (!isMetaKey(keysym)) {
             m_state = LaunchpadState::Suppress;
@@ -62,7 +58,6 @@ void AcceleratorLaunchpadStateMachine::onKey(uint32_t keysym, bool pressed)
             m_state = LaunchpadState::Trigger;
         break;
 
-    // Back to Start once no key is held any more.
     case LaunchpadState::Suppress:
         if (!m_anyKeysPressed())
             m_state = LaunchpadState::Start;

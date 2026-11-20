@@ -5,9 +5,6 @@
 // Upstream: chromium/src/ash/display/extended_mouse_warp_controller.cc
 //           chromium/src/ash/display/root_window_transformers.cc
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: one logical cursor selects output-local KMS sinks,
-// including every overlapping physical destination of a mirror group.
 
 #pragma once
 

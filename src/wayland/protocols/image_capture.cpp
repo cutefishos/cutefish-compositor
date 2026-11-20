@@ -75,7 +75,6 @@ struct Session {
     // A session's first frame is composed on demand; after that a capture
     // waits for the next composition, so a static screen costs nothing.
     bool delivered = false;
-    // What changed since this session's last frame, for the damage events.
     // Its history starts empty, so the first frame reports everything.
     scene::DamageTracker tracker;
     base::Rect lastCursor;
@@ -434,10 +433,7 @@ void bind(wl_client *client, void *data, uint32_t, uint32_t id, const wl_interfa
             });
 }
 
-// Maps damage from global logical coordinates into a frame buffer whose
-// content sits at `content` (native pixels) and covers `viewport` at `scale`.
-// A rotated output reports its whole buffer: the mapping through the
-// transform is not worth a second code path for the rare rotated share.
+// `content` is in native pixels. A rotated output reports its whole buffer.
 std::vector<base::Rect> bufferDamage(const base::Region &logical, const base::Rect &viewport,
                                      double scale, uint32_t transform, const base::Rect &content,
                                      const base::Size &size)
@@ -684,8 +680,6 @@ void ImageCaptureManager::renderPending(render::Renderer &renderer, const Painte
         if (window && !source->node->isVisible())
             continue;
 
-        // The frame's own context: the display's for an output, the window's
-        // bounds at its own scale for a window.
         render::OutputRenderContext context = outputContext;
         base::Rect viewport = outputContext.logicalViewport;
         base::Rect content = outputContext.nativeContentRect.isEmpty()

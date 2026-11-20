@@ -82,7 +82,6 @@ TEST_F(TaskManagerTest, AnnouncesApplicationsOnlyOnceTheFirstScanIsIn)
     applications.scan();
     EXPECT_TRUE(ready);
     EXPECT_TRUE(added.empty());
-    // Matched by StartupWMClass, so grouped under the desktop id.
     EXPECT_EQ(tasks->applications(), (std::vector<std::string>{"org.example.Editor"}));
 
     windows.add(window("org.example.Viewer", "Picture"));
@@ -106,19 +105,16 @@ TEST_F(TaskManagerTest, GroupsWindowsAndFollowsChanges)
     EXPECT_EQ(tasks->applicationOf(loose), "unknown-app");
 
     events.clear();
-    // A title stands for an application only without an entry.
     windows.change(first, [](shell::TaskWindow &w) { w.title = "One!"; }, shell::kTitleChange);
     windows.change(loose, [](shell::TaskWindow &w) { w.title = "Loose!"; }, shell::kTitleChange);
     EXPECT_EQ(events, (std::vector<std::string>{"~unknown-app"}));
 
     events.clear();
-    // Leaving the task list leaves the application.
     windows.change(loose, [](shell::TaskWindow &w) { w.skipTaskbar = true; }, shell::kSkipTaskbarChange);
     EXPECT_EQ(events, (std::vector<std::string>{"-unknown-app"}));
     EXPECT_EQ(tasks->applicationOf(loose), "");
 
     events.clear();
-    // A new app id moves the window to the application it names.
     windows.change(second, [](shell::TaskWindow &w) { w.appId = "org.example.Viewer"; }, shell::kAppIdChange);
     EXPECT_EQ(events, (std::vector<std::string>{"~org.example.Editor", "+org.example.Viewer"}));
 
@@ -136,12 +132,10 @@ TEST_F(TaskManagerTest, KeepsAWindowWithItsEntryThroughARescan)
     std::vector<std::string> events;
     auto changed = tasks->applicationChanged.connect([&](const std::string &a) { events.push_back(a); });
 
-    // The same entry read again is no change.
     applications.addSimple("org.example.Editor", "Editor", "editor", "StartupWMClass=editor-window\n");
     applications.scan();
     EXPECT_TRUE(events.empty());
 
-    // A new name is.
     applications.addSimple("org.example.Editor", "Better Editor", "editor");
     applications.scan();
     EXPECT_EQ(events, (std::vector<std::string>{"org.example.Editor"}));
@@ -161,7 +155,6 @@ TEST_F(TaskManagerTest, FindsTheEntryOfAProcessThroughItsAncestors)
     EXPECT_EQ(tasks->entryForProcess(105)->id, "org.example.Editor");
     tasks->releaseProcess(101);
 
-    // The program names it when nothing else does.
     commands[200] = {"/usr/bin/org.example.Editor", "org.example.Editor"};
     EXPECT_EQ(tasks->resolveProcess({}, 200, {})->id, "org.example.Editor");
     EXPECT_EQ(tasks->entryForProcess(300), nullptr);
@@ -200,11 +193,9 @@ TEST(ApplicationBadgesTest, FollowsTheCountsApplicationsSend)
                                                 {"count-visible", dbus::Variant(true)}});
     ASSERT_TRUE(test::runUntil([&] { return badges.count("org.example.Chat") == 7; }));
     EXPECT_EQ(changes, 1);
-    // Desktop ids match ignoring case.
     EXPECT_EQ(badges.count("org.example.chat"), 7);
     EXPECT_EQ(badges.count("org.example.Other"), 0);
 
-    // Each update carries only what changed.
     client->sendLauncherEntry("application://org.example.Chat.desktop",
                               dbus::VariantMap {{"count", dbus::Variant(int64_t(120))}});
     ASSERT_TRUE(test::runUntil([&] { return badges.count("org.example.Chat") == 120; }));
@@ -214,7 +205,6 @@ TEST(ApplicationBadgesTest, FollowsTheCountsApplicationsSend)
     client->sendLauncherEntry("application://org.example.Chat.desktop",
                               dbus::VariantMap {{"count-visible", dbus::Variant(true)}});
     ASSERT_TRUE(test::runUntil([&] { return badges.count("org.example.Chat") == 120; }));
-    // A count of zero shows nothing.
     client->sendLauncherEntry("application://org.example.Chat.desktop",
                               dbus::VariantMap {{"count", dbus::Variant(int64_t(0))}});
     ASSERT_TRUE(test::runUntil([&] { return badges.count("org.example.Chat") == 0; }));
@@ -223,7 +213,6 @@ TEST(ApplicationBadgesTest, FollowsTheCountsApplicationsSend)
     ASSERT_TRUE(test::runUntil([&] { return badges.count("org.example.Chat") == 3; }));
     changes = 0;
 
-    // The count goes with the application.
     client.reset();
     ASSERT_TRUE(test::runUntil([&] { return badges.count("org.example.Chat") == 0; }));
     EXPECT_EQ(changes, 1);

@@ -20,9 +20,7 @@
 
 namespace cutefish::scene {
 
-// The renderable content of one compositor::Surface. Unlike TextureNode it owns
-// its texture, which the compositor produces from the surface's committed
-// buffer.
+// Unlike TextureNode it owns its texture.
 class SurfaceNode : public Node
 {
 public:
@@ -51,8 +49,7 @@ public:
 
     render::Texture *texture() const { return m_texture.get(); }
 
-    // Shared rather than unique because a DMA-BUF texture is imported once and
-    // owned by the wl_buffer, which may outlive any one commit.
+    // Shared: a DMA-BUF texture is owned by the wl_buffer, which may outlive a commit.
     void setTexture(std::shared_ptr<render::Texture> texture);
     std::shared_ptr<render::Texture> takeTexture();
 
@@ -66,9 +63,7 @@ public:
     const render::GlassParams &glass() const { return m_glass; }
     const ui::Path &backgroundBlurShape() const { return m_blurShape; }
 
-    // Surface-local; blurs the subsurfaces placed below this one with what is
-    // behind them, before this surface's own content. Its kept result goes by
-    // subsurfaceBlurId().
+    // Surface-local; drawn before this surface's own content.
     void setSubsurfaceBlur(const base::Rect &rect, int radius, const ui::Path &shape = {},
                            const render::GlassParams &fill = {});
     bool hasSubsurfaceBlur() const { return !m_subsurfaceBlurRect.isEmpty(); }
@@ -78,8 +73,6 @@ public:
     // Several areas in the rect, or empty for its rounded rect alone.
     const ui::Path &subsurfaceBlurShape() const { return m_subsurfaceBlurShape; }
 
-    // Mapped, but hidden with its window: drawn anyway where the renderer
-    // reveals hidden surfaces.
     void setHiddenWithWindow(bool hidden) { m_hiddenWithWindow = hidden; }
     bool isHiddenWithWindow() const { return m_hiddenWithWindow; }
 
@@ -93,15 +86,11 @@ public:
         }
     }
 
-    // The client storage behind the texture, when the display controller may be
-    // able to scan it out instead of compositing it. Null for shm content and
-    // for anything the compositor drew itself.
+    // Null for shm content and for anything the compositor drew.
     const std::shared_ptr<render::ScanoutBuffer> &scanoutBuffer() const { return m_scanoutBuffer; }
 
     void setScanoutBuffer(std::shared_ptr<render::ScanoutBuffer> buffer);
 
-    // Whether the content is known to be fully opaque over its whole geometry,
-    // which is what lets it take the primary plane or an opaque overlay.
     bool isOpaque() const { return m_opaque && !m_contentShape; }
 
     void setContentShape(std::optional<base::Region> shape)
@@ -116,8 +105,7 @@ public:
 
     void setOpaque(bool opaque);
 
-    // Signalled when the client has finished writing the current buffer. Every
-    // reader - the GPU for composition, KMS for scanout - waits on it first.
+    // Every reader waits on it first.
     const render::SyncFence &acquireFence() const { return m_acquireFence; }
 
     void setAcquireFence(render::SyncFence fence) { m_acquireFence = std::move(fence); }

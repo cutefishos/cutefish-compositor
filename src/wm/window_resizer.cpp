@@ -14,10 +14,6 @@ namespace cutefish::wm {
 
 namespace {
 
-// A tiled window must be dragged this far before it leaves its state, so that a
-// click that wobbles does not unmaximize it.
-// Upstream: ash/wm/workspace/workspace_window_resizer.cc
-// kResizeRestoreDragThresholdDp.
 constexpr int kRestoreDragThreshold = 5;
 
 } // namespace
@@ -47,21 +43,17 @@ int WindowResizer::widthForDrag(int *deltaX) const
     if (!changesWidth(m_edge))
         return width;
 
-    // Along the right edge a positive delta grows the window.
     const int multiplier = isRightEdge(m_edge) ? 1 : -1;
     width += multiplier * (*deltaX);
 
     const int minWidth = std::max(1, m_window->minimumOuterSize().width());
     if (width < minWidth) {
         width = minWidth;
-        // Clamping the delta too is what keeps the opposite edge fixed once
-        // the limit is hit; the origin is computed from this same delta.
+        // Clamping the delta too keeps the opposite edge fixed once the limit is hit.
         *deltaX = -multiplier * (m_initialBounds.width() - minWidth);
     }
 
     int maxWidth = m_workArea.isEmpty() ? width : m_workArea.width();
-    // A dragged edge that starts inside the work area stops at its side, as
-    // a pulled edge stops at the dock instead of sliding under it.
     if (!m_workArea.isEmpty()) {
         const int left = m_initialBounds.x();
         const int right = left + m_initialBounds.width();
@@ -130,22 +122,16 @@ base::Rect WindowResizer::calculateBoundsForDrag(const base::PointF &location) c
 
     base::Point origin = m_initialBounds.topLeft();
     if (!isResize()) {
-        // Unlike ash, a move leaves the size alone: a client may resize while
-        // it is dragged.
+        // A move leaves the size alone: a client may resize while it is dragged.
         size = m_window->bounds().size();
         origin += base::Point(deltaX, deltaY);
         if (!m_restoreBounds.isEmpty() && !m_initialBounds.isEmpty()) {
-            // The window shrinks back to its restored size under the pointer.
-            // Keeping the grab at the same fraction of the title bar is what
-            // stops it jumping out from under the cursor.
             size = m_restoreBounds.size();
             const double ratio = (m_initialLocation.x() - m_initialBounds.x())
                     / static_cast<double>(m_initialBounds.width());
             origin.setX(static_cast<int>(std::lround(location.x() - ratio * size.width())));
         }
     } else {
-        // Only the edges that move the origin consume the (possibly clamped)
-        // delta; the opposite edges stay where they were.
         if (isLeftEdge(m_edge))
             origin.setX(origin.x() + deltaX);
         if (isTopEdge(m_edge))

@@ -25,10 +25,6 @@ namespace cutefish::shell {
 class ClearButton;
 class Tween;
 
-// The body of one notification, shared by the banners and the centre: a caption
-// of the application's icon, name and time with the close button at its end,
-// the title and body, a thumbnail of the picture, a progress bar, a secondary
-// line, and up to three action buttons.
 class NotificationCard : public ui::View
 {
 public:
@@ -42,27 +38,21 @@ public:
     explicit NotificationCard(ui::Window *window);
     ~NotificationCard() override;
 
-    // Its icon, names, text, picture, progress and actions.
     void setNotification(const Notification &notification);
     const Notification &notification() const { return m_notification; }
-    // The history's relative time; empty shows none.
+    // Empty shows none.
     void setTimeText(const std::string &text);
-    // A secondary line under the body: how many more are stacked behind.
     void setMoreText(const std::string &text);
-    // The full body rather than its first four lines.
     void setDetailed(bool detailed);
     bool isDetailed() const { return m_detailed; }
-    // Closing asks first, for a card standing for a whole stack.
     void setConfirmClose(bool confirm);
-    // What the card is drawn on; its buttons take the ink that reads on it.
     void setSurfaceColor(ui::Color color);
 
     // Button fill for rest (0), hover (1) and press (2).
     ui::Color controlTint(int state) const;
-    // Backs an armed close button out unless the window point is on it.
     void disarmUnless(ui::PointF windowPoint);
     ClearButton *closeButton() const { return m_close; }
-    // The action buttons, in the card's coordinates.
+    // In the card's coordinates.
     std::vector<ui::RectF> actionRects() const;
 
     double implicitHeight(double width) const;
@@ -73,7 +63,6 @@ public:
     std::function<void()> onCloseClicked;
     std::function<void(const std::string &key)> onActionClicked;
     std::function<void()> onHoveredChanged;
-    // The height it asks for changed: text, picture, actions or a button.
     std::function<void()> onImplicitHeightChanged;
 
     bool acceptsPointer() const override { return true; }
@@ -136,9 +125,8 @@ private:
     uint64_t m_bodyTheme = 0;
 };
 
-// The notification body markup subset: <b>, <strong>, <i>, <em>,
-// <u>, <a href>, <br>, <p> and the character references, other tags
-// dropped. Bold runs take weight 700, links the colour given and their href.
+// The body markup subset: <b>, <strong>, <i>, <em>, <u>, <a href>, <br>, <p>
+// and character references; other tags are dropped.
 std::vector<ui::Label::Span> styledTextSpans(const std::string &markup, ui::Color linkColor);
 
 } // namespace cutefish::shell

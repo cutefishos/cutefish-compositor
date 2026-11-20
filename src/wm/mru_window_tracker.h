@@ -4,10 +4,6 @@
 //
 // Upstream: chromium/src/ash/wm/mru_window_tracker.h
 // Revision: 8abbac30b9cf2fe976422c58c000c94685648b65
-//
-// Adapted for Cutefish: one desk, one switchable container. The tracked list
-// is ordered by activation; windows never activated fall back to stacking
-// order, topmost first, as Ash's container walk does.
 
 #ifndef CUTEFISH_WM_MRU_WINDOW_TRACKER_H_
 #define CUTEFISH_WM_MRU_WINDOW_TRACKER_H_
@@ -22,9 +18,6 @@ namespace cutefish::wm {
 class Window;
 class WindowManager;
 
-// Whether `window` is the kind of window that appears in the cycle list: an
-// application toplevel, not a popup, not a shell panel, not a hidden window
-// and not a transient child, which cycles with its parent.
 bool canIncludeWindowInMruList(const Window *window);
 
 class MruWindowTracker : public ActivationObserver
@@ -40,17 +33,12 @@ public:
     // Most recently used first, minimized windows included.
     WindowList buildMruWindowList() const;
 
-    // The list alt-tab steps through: as above, minus the windows that cannot
-    // be cycled to.
     WindowList buildWindowListForCycling() const;
 
-    // ActivationObserver:
     void onWindowActivated(Window *gainedActive, Window *lostActive) override;
 
     void onWindowRemoved(Window *window);
 
-    // The window's desk is being removed: it becomes the least recently used,
-    // as the user is done with that desk.
     void onWindowMovedOutFromRemovingDesk(Window *window);
 
 private:

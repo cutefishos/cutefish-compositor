@@ -26,8 +26,6 @@ scene::WindowAnimation *animationFor(Window *window)
     return dynamic_cast<scene::WindowAnimation *>(window->node());
 }
 
-// The pointer in `window`'s bounds, which the preview shrinks towards and
-// grows back from.
 base::PointF grabPoint(WindowManager *manager, Window *window)
 {
     input::Seat *seat = manager->seat();
@@ -68,8 +66,6 @@ ToplevelDrag::ToplevelDrag(WindowManager *manager, std::shared_ptr<clipboard::Da
 
 ToplevelDrag::~ToplevelDrag()
 {
-    // Only a client going away mid-drag gets here with the drag running; the
-    // drag carries on without its window.
     if (input::Seat *seat = m_manager->seat()) {
         if (seat->drag()->windowDelegate() == this)
             seat->drag()->setWindowDelegate(nullptr);
@@ -85,7 +81,6 @@ void ToplevelDrag::attach(compositor::Surface *surface, const base::Point &offse
     m_surface = surface;
     m_offset = offset;
     m_surface->addSurfaceObserver(this);
-    // An existing window moves from where it is, as a caption drag would.
     if (Window *window = windowForSurface(); window && m_dragging)
         startMove(window);
 }
@@ -107,8 +102,6 @@ void ToplevelDrag::onWindowAdded(Window *window)
 {
     if (!m_surface || window->rootSurface() != m_surface)
         return;
-    // Mapping it is the moment it appears under the pointer: with no open
-    // animation, at the offset the client asked for.
     if (auto *animation = animationFor(window)) {
         m_animationStyle = animation->style();
         animation->setStyle(scene::WindowAnimation::Style::None);
@@ -221,8 +214,6 @@ void ToplevelDrag::dragTargetChanged(compositor::Surface *target, bool accepted)
 
 void ToplevelDrag::onSurfaceCommit(compositor::Surface *surface)
 {
-    // A client that drew the state it mapped without at first resizes now;
-    // the thumbnail keeps its width.
     if (Window *preview = m_manager->windowById(m_preview);
         preview && surface == m_surface && m_dragging
         && preview->bounds().width() != m_previewWidth) {
@@ -247,9 +238,7 @@ void ToplevelDrag::dragEnded(bool released)
 {
     m_dragging = false;
     unwatchDockTarget();
-    // Let go where nothing takes it, the preview is the new window at once.
-    // Otherwise its client takes it back: hidden until it has, and shown only
-    // if it keeps it after all. The drag object may be gone by then.
+    // The drag object may be gone by then.
     const bool docked = std::exchange(m_docked, 0) != 0;
     if (Window *preview = m_manager->windowById(std::exchange(m_preview, 0))) {
         if (released && !docked) {

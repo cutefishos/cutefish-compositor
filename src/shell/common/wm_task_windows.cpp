@@ -71,9 +71,7 @@ wm::Window *WmTaskWindows::resolve(uint64_t id) const
 
 void WmTaskWindows::activate(uint64_t id)
 {
-    // As the protocol's activate: a hidden application comes back whole, and
-    // a minimized window is restored before it takes the keyboard. Each step
-    // may close the window, so it is looked up again after each one.
+    // Each step may close the window, so it is looked up again after each one.
     wm::Window *window = resolve(id);
     if (!window)
         return;
@@ -228,7 +226,6 @@ void WmTaskWindows::refresh(wm::Window *window)
 void WmTaskWindows::updateActiveWindow()
 {
     wm::Window *window = m_manager.activation()->activeWindow();
-    // A sheet speaks for the window it hangs from.
     if (window && window->role() == wm::WindowRole::Sheet && window->transientParent())
         window = window->transientParent();
     std::erase_if(m_history, [this](uint64_t id) {
@@ -238,8 +235,6 @@ void WmTaskWindows::updateActiveWindow()
     if (!window || window->isShellWindow() || window->isPopup()) {
         m_history.clear();
     } else if (!window->skipTaskbar() && m_windows.count(window->id())) {
-        // A window off the task list, such as a dialog of the shell's, leaves
-        // the bar and the dock with the application it is in front of.
         std::erase(m_history, window->id());
         m_history.insert(m_history.begin(), window->id());
     }
@@ -305,8 +300,7 @@ void WmTaskWindows::onWindowMinimizeLanded(wm::Window *window)
 
 void WmTaskWindows::onWindowDestroying(wm::Window *window)
 {
-    // Normally windowRemoved came first; this catches a window torn down
-    // without the window manager.
+    // Catches a window torn down without the window manager.
     forget(window);
 }
 

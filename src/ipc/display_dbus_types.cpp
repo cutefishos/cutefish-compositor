@@ -4,9 +4,6 @@
 //
 // Upstream: chromium/src/ash/display/cros_display_config.cc
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: serialize the native display contract through fixed
-// session D-Bus structures without Ash or Mojo dependencies.
 
 #include "ipc/display_dbus_types.h"
 

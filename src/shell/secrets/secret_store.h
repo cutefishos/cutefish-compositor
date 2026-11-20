@@ -16,11 +16,8 @@
 
 namespace cutefish::shell {
 
-// Connection secrets kept in the user's keyring through the freedesktop
-// Secret Service (gnome-keyring here). Items carry nm-applet's attributes
-// (connection-uuid, setting-name, setting-key), so secrets stored by either
-// agent are found by the other. Every call is asynchronous; callbacks never
-// run once the store is gone. Port of cutefish-framework's SecretStore.
+// Items carry connection-uuid, setting-name and setting-key, the attributes other
+// NetworkManager agents use. Callbacks never run once the store is gone.
 class SecretStore
 {
 public:
@@ -39,7 +36,7 @@ public:
     SecretStore(const SecretStore &) = delete;
     SecretStore &operator=(const SecretStore &) = delete;
 
-    // Key to value for one setting of a connection; empty when none are stored.
+    // Empty when none are stored.
     void load(const std::string &uuid, const std::string &settingName, std::function<void(const Secrets &)> done);
     void save(const std::string &uuid, const std::string &connectionName, const std::string &settingName,
               const std::string &key, const std::string &value, std::function<void()> done = {});

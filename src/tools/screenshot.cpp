@@ -50,7 +50,6 @@ const wl_registry_listener registryListener = {
         },
         [](void *, wl_registry *, uint32_t) {}};
 
-// The output names, from the wl_output globals every client sees.
 bool listOutputs()
 {
     wl_display *display = wl_display_connect(nullptr);
@@ -71,8 +70,7 @@ bool listOutputs()
 
 } // namespace
 
-// The picture itself is the shell's to take: the compositor lets no program
-// read the screen merely for running this one.
+// The shell takes the picture: the compositor lets no program read the screen.
 int main(int argc, char **argv)
 {
     base::CommandLineParser parser;

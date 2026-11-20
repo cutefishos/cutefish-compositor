@@ -26,28 +26,18 @@ Activation::~Activation() = default;
 bool Activation::canActivate(const Window *window) const
 {
     if (!window)
-        return true; // Clearing activation is always allowed.
-    // A blocked session refuses every window, because no window is ever inside
-    // the secure container. Ash's GetBlockingContainersForRoot does the same by
-    // raising the minimum container the activation client will look below.
+        return true;
     if (!m_manager->allowsActivation())
         return false;
-    // A panel or dock still gets pointer input; it just never takes the
-    // keyboard away from the application behind it.
     if (window->isPopup() || window->focusPolicy() == FocusPolicy::NoFocus)
         return false;
-    // Shown by a key the focused window has to keep hearing the rest of.
     if (window->role() == WindowRole::Osd)
         return false;
-    // The capture interface and pickers only borrow the keyboard: see
-    // WindowManager::setKeyboardGrab().
     if (window->role() == WindowRole::Capture || window->role() == WindowRole::Picker)
         return false;
-    // The window it was pulled out of keeps the keyboard until the drop.
     if (window->isDragPreview())
         return false;
-    // As in AshFocusRules, a window on an inactive desk counts as visible:
-    // activating it is what switches to its desk.
+    // A window on an inactive desk counts as visible: activating it switches to its desk.
     if (!window->targetVisibility() || window->state()->isMinimized())
         return false;
     return !modalTransient(window);
@@ -58,13 +48,11 @@ Window *Activation::activatableFor(Window *window) const
     if (!window || canActivate(window))
         return window;
 
-    // The modal may itself be blocked by a modal transient.
     if (Window *modal = modalTransient(window))
         return activatableFor(modal);
 
     if (Window *parent = window->transientParent()) {
-        // Upstream returns `window` here, activating a modal that cannot be
-        // activated; that would get past a locked session.
+        // Upstream returns `window` here, which would get past a locked session.
         if (modalTransient(parent) == window)
             return nullptr;
         return activatableFor(parent);
@@ -100,12 +88,10 @@ void Activation::onWindowRemoving(Window *window)
 
 Window *Activation::nextActivatableWindow(Window *ignore) const
 {
-    // Topmost first, as in BaseFocusRules::GetNextActivatableWindow.
     const std::vector<Window *> &windows = m_manager->windows();
     for (auto it = windows.rbegin(); it != windows.rend(); ++it) {
         if (*it == ignore)
             continue;
-        // Only the active desk's windows; upstream walks the active desk's MRU list.
         if ((*it)->isVisible() && canActivate(*it))
             return *it;
     }

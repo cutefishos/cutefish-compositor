@@ -243,7 +243,6 @@ struct Client {
         return item;
     }
 
-    // Answers the last configure with a buffer `width` wide.
     void draw(Item *item, int width)
     {
         const Item::Configure configure = item->configures.back();
@@ -257,7 +256,6 @@ struct Client {
         sync();
     }
 
-    // A popup of `size` hung from the item, centred under it.
     Popup *openPopup(Item *item, const base::Size &itemSize, const base::Size &size, bool grab)
     {
         popups.push_back(std::make_unique<Popup>());
@@ -318,7 +316,6 @@ protected:
     testsupport::FakeRenderer renderer;
     std::shared_ptr<compositor::ShmPool> pool = testsupport::makePool(1 << 20);
 
-    // The bar: a panel across the top, as the shell's.
     std::unique_ptr<compositor::Surface> barSurface;
     std::unique_ptr<wm::ShellSurface> barShell;
 
@@ -344,7 +341,6 @@ protected:
         barSurface.reset();
     }
 
-    // Maps the bar and hands it to the status items.
     void showBar()
     {
         barSurface = compositor.createSurface();
@@ -363,7 +359,6 @@ protected:
         items()->setBar(barSurface.get(), barShell.get());
     }
 
-    // What the bar's frames do: its commit applies where its items are.
     void commitBar()
     {
         barSurface->attach(pool->createBuffer({kOutput.width(), kBarHeight}, 0, kOutput.width() * 4,
@@ -488,7 +483,6 @@ TEST_F(StatusItemProtocolTest, AnItemIsConfiguredOnceThereIsABarAndPlacedOnceItD
         ASSERT_FALSE(item->places.empty());
         EXPECT_EQ(base::Rect(657, 0, 40, kBarHeight), item->places.back());
 
-        // The look and the height follow the bar's.
         check([&] {
             items()->setAppearance(false, 0xd9000000);
             items()->setLimits(28, 300);
@@ -563,7 +557,6 @@ TEST_F(StatusItemProtocolTest, APopupHangsCentredUnderTheItemAndHighlightsIt)
         c.sync();
 
         Popup *popup = c.openPopup(item, {40, kBarHeight}, {100, 60}, true);
-        // Relative to the bar: the item's centre, 677, less half the popup.
         ASSERT_EQ(1u, popup->configures.size());
         EXPECT_EQ(base::Rect(627, kBarHeight, 100, 60), popup->configures.back());
         check([&] {
@@ -573,14 +566,12 @@ TEST_F(StatusItemProtocolTest, APopupHangsCentredUnderTheItemAndHighlightsIt)
             ASSERT_TRUE(grab->window());
             EXPECT_EQ(base::Rect(627, kBarHeight, 100, 60), grab->window()->bounds());
             EXPECT_TRUE(items()->items().front()->isHighlighted());
-            // The popup's keys go to the item's client.
             EXPECT_EQ(items()->items().front()->surface(), seat.focusedSurface());
         });
         c.sync();
         EXPECT_EQ(1u, item->highlights.back());
         EXPECT_EQ(item->surface, c.keyboardFocus);
 
-        // A press on the item reaches it and keeps the popup.
         check([&] {
             manager.onPointerMotionAbsolute(at(4), base::PointF(680, 12));
             manager.onPointerButton(at(5), BTN_LEFT, true);
@@ -590,7 +581,6 @@ TEST_F(StatusItemProtocolTest, APopupHangsCentredUnderTheItemAndHighlightsIt)
         EXPECT_EQ(2, c.buttonPresses);
         EXPECT_EQ(0, popup->dones);
 
-        // A press on the bar beside it dismisses the popup.
         check([&] {
             manager.onPointerMotionAbsolute(at(7), base::PointF(100, 12));
             manager.onPointerButton(at(8), BTN_LEFT, true);
@@ -709,7 +699,6 @@ TEST_F(StatusItemProtocolTest, NewItemsStandLeftmostAndComeBackToTheirPlaceByIde
         c.draw(third, 30);
         EXPECT_EQ((std::vector<int> {30, 20, 10}), order());
 
-        // The middle one goes and comes back between the other two.
         cutefish_status_item_v1_destroy(second->item);
         second->item = nullptr;
         c.sync();

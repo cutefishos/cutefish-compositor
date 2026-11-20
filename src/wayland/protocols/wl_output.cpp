@@ -6,11 +6,6 @@
 //           wayland_display_observer.cc (SendDisplayMetrics/SendDisplayMetricsChanges)
 //           output_metrics.cc, wayland_display_output.cc
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: integrates the upstream behavior with native
-// compositor types and ownership.
-// Adaptation: each protocol state owns its metrics and retained resources
-// become inert after explicit global removal.
 
 #include "wayland/protocols/wl_output.h"
 
@@ -35,7 +30,6 @@ namespace {
 
 struct Binding;
 
-// Exo's WaylandDisplayOutput::kDeleteTaskDelay.
 constexpr std::chrono::seconds kRemovedOutputLifetime(3);
 
 struct OutputState {
@@ -46,9 +40,7 @@ struct OutputState {
     std::vector<Binding *> bindings;
     std::shared_ptr<compositor::CaptureSource> capture =
             std::make_shared<compositor::CaptureSource>();
-    // The loop's timer for the delayed destruction, which dies with the
-    // display. The loop keeps its task alive while it runs, so the task may
-    // delete this state.
+    // The loop keeps its task alive while it runs, so the task may delete this state.
     int removal = 0;
 };
 
@@ -444,10 +436,7 @@ void removeOutputGlobal(wl_global *global)
         }
         binding->members.clear();
     }
-    // Exo's WaylandDisplayOutput::OnDisplayRemoved: withdraw the global and
-    // destroy it later. A client can still be binding it from an announcement
-    // it has not seen withdrawn, and binding a destroyed global is a protocol
-    // error that disconnects it. Such late bindings get no events, as upstream.
+    // Withdraw the global and destroy it later: a client binding a destroyed global is disconnected.
     wl_global_remove(global);
     state->removal = core::mainLoop()->startTimer(kRemovedOutputLifetime, false, [state] {
         state->removal = 0;

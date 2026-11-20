@@ -1,5 +1,3 @@
-# What the shell's components share: the application windows and the task
-# list, the installed applications, application starts and the file thread.
 add_library(cutefish-shell-common STATIC
     app_launcher.cpp
     app_launcher.h

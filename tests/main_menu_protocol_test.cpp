@@ -38,7 +38,6 @@ using namespace cutefish;
 
 namespace {
 
-// What the client heard of one menu or item.
 struct Menu {
     cutefish_menu_v1 *menu = nullptr;
     uint32_t count = 0;
@@ -141,7 +140,6 @@ struct Client {
         return item;
     }
 
-    // An item in `menu` at the end.
     Item *append(Menu *menu, const char *title)
     {
         Item *item = makeItem(title);
@@ -174,7 +172,6 @@ protected:
     std::mutex mutex;
     std::function<void()> pendingCheck;
 
-    // The window's main menu, as the menu bar finds it.
     std::shared_ptr<compositor::MenuModel> dockMenu() const
     {
         for (compositor::Surface *surface : compositor.surfaces()) {
@@ -193,7 +190,6 @@ protected:
         return nullptr;
     }
 
-    // The labels under `id`, as the model has them.
     std::vector<std::string> labels(compositor::MenuModel &model, int32_t id) const
     {
         std::vector<std::string> found;
@@ -286,7 +282,6 @@ TEST_F(MainMenuProtocolTest, AWindowsMainMenuIsItsSurfacesModel)
         check([&] {
             const std::shared_ptr<compositor::MenuModel> model = mainMenu();
             ASSERT_TRUE(model);
-            // Underscores stay underscores: the model marks mnemonics.
             EXPECT_EQ((std::vector<std::string> {"Archiver", "File__Edit"}), labels(*model, 0));
             applicationId = model->root().children[0];
             const compositor::MenuItem *item = model->item(applicationId);
@@ -300,8 +295,6 @@ TEST_F(MainMenuProtocolTest, AWindowsMainMenuIsItsSurfacesModel)
             EXPECT_FALSE(opened->enabled);
             EXPECT_EQ(1, opened->toggleState);
 
-            // Before it opens the application hears will_open; a choice
-            // reaches the item.
             model->prepare(applicationId);
             model->activate(quitId);
             model->closed(applicationId);
@@ -312,7 +305,6 @@ TEST_F(MainMenuProtocolTest, AWindowsMainMenuIsItsSurfacesModel)
         EXPECT_NE(0u, quit->serial);
         EXPECT_EQ(1, applicationMenu->closed);
 
-        // The answer and later changes reach the model.
         std::vector<int32_t> updated;
         std::vector<int32_t> changed;
         std::vector<base::Subscription> subscriptions;
@@ -332,8 +324,6 @@ TEST_F(MainMenuProtocolTest, AWindowsMainMenuIsItsSurfacesModel)
             subscriptions.clear();
         });
 
-        // Destroying the menu takes it from the window; a bar still showing
-        // it hears that it has no entries left.
         std::shared_ptr<compositor::MenuModel> shown;
         check([&] {
             shown = mainMenu();
@@ -367,7 +357,6 @@ TEST_F(MainMenuProtocolTest, AWindowsDockMenuIsItsOwnModel)
             ASSERT_TRUE(model);
             EXPECT_FALSE(mainMenu());
             EXPECT_EQ((std::vector<std::string> {"New Window", "New Private Window"}), labels(*model, 0));
-            // The dock asks for the entries before it shows them.
             model->prepare(0);
             model->activate(model->root().children[0]);
         });

@@ -4,9 +4,6 @@
 //
 // Upstream: chromium/src/components/exo/wayland/wayland_dmabuf_feedback_manager.cc
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: integrates the upstream behavior with native
-// compositor types and ownership.
 
 #include "wayland/protocols/dmabuf_feedback_manager.h"
 
@@ -51,10 +48,7 @@ const struct zwp_linux_dmabuf_feedback_v1_interface feedback_implementation = {
     feedback_destroy,
 };
 
-// Intel CCS modifiers leak memory on gbm to gl buffer import. Block these
-// modifiers for now. See crbug.com/1445252, crbug.com/1458575.
-// Also blocking |DRM_FORMAT_YVU420| for a specific modifier based on a test
-// failing in minigbm. See b/289714323.
+// Intel CCS modifiers leak memory on GBM to GL import, and one YVU420 modifier fails in minigbm.
 const std::set<std::pair<uint64_t, uint64_t>>& modifierBlockList()
 {
     static const std::set<std::pair<uint64_t, uint64_t>> list = {
@@ -111,12 +105,6 @@ ScopedFd createFormatTable(const std::vector<DmaBufFeedbackFormat>& table)
 
 } // namespace
 
-// A tranche links to a subset of formats and modifiers which are supported on a
-// specific device for a specific task. The most common use cases are the
-// "default" tranche (targeting the main device, advertising all formats and
-// modifiers supported by the compositor, for non-scanout cases) and "scanout"
-// tranches (advertising the formats and modifiers on a specific device that,
-// if used, allow the compositor to put the buffer straight on a plane).
 class DmaBufFeedbackTranche
 {
 public:
@@ -146,10 +134,7 @@ private:
     const IndexedDrmFormatsAndModifiers m_formatsAndModifiers;
 };
 
-// A feedback is the set of information sent to a client: a main device (the
-// device the compositor renders on), a format table shared through an fd, and
-// one or more tranches, of which the default one must always be present. A
-// scanout tranche, when present, goes first: clients prefer earlier tranches.
+// The default tranche must always be present; a scanout tranche goes first, since clients prefer earlier tranches.
 class DmaBufFeedback
 {
 public:
@@ -182,7 +167,6 @@ private:
     std::unique_ptr<DmaBufFeedbackTranche> m_scanoutTranche;
 };
 
-// One zwp_linux_dmabuf_feedback_v1 resource of a surface feedback.
 class DmaBufSurfaceFeedbackRef
 {
 public:
@@ -199,9 +183,7 @@ private:
     wl_resource* const m_resource;
 };
 
-// A client may request the feedback of one surface several times (Mesa does
-// implicitly, the application may explicitly), so one surface feedback serves
-// any number of resources. It goes with its last resource or with the surface.
+// A client may request one surface's feedback several times, so one surface feedback serves any number of resources.
 class DmaBufSurfaceFeedback : public compositor::SurfaceObserver
 {
 public:
@@ -278,7 +260,6 @@ DmaBufFeedbackManager::DmaBufFeedbackManager(compositor::Compositor* compositor,
         for (uint64_t modifier : modifiers) {
             if (modifier == DRM_FORMAT_MOD_INVALID)
                 continue;
-            // Check for generic blocking first then format specific blocking.
             if (modifierBlockList().contains({ DRM_FORMAT_INVALID, modifier })
                 || modifierBlockList().contains({ drmFormat, modifier })) {
                 continue;

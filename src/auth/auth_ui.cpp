@@ -43,8 +43,6 @@ public:
 protected:
     void paint(render::Renderer &renderer, const base::Rect &geometry) const override
     {
-        // The lock transition draws every frame; the panel is rendered only
-        // when it changed.
         render::Texture *texture = m_ui->panelTexture(renderer);
         if (!texture)
             return;
@@ -56,11 +54,9 @@ protected:
         transform.translate(center.x(), center.y());
         transform.scale(sample.panelScale, sample.panelScale);
         transform.translate(-center.x(), -center.y());
-        // The blur behind the password field fades and scales with the panel.
         if (const base::RectF field = m_ui->fieldBounds(); !field.isEmpty()) {
             render::GlassParams fade;
             fade.opacity = sample.panelOpacity * m_ui->fieldOpacity();
-            // The lock screen looks the same under Reduce Transparency.
             fade.ignoresOpaqueBackdrop = true;
             const base::RectF blurred =
                     transform.mapRect(field.translated(base::PointF(geometry.origin())));
@@ -80,8 +76,6 @@ private:
     const session::SecureContainer *m_secure;
 };
 
-// The Wi-Fi and battery icons: they fade with the wallpaper and do not scale,
-// as they belong to the screen's edge rather than to the panel.
 class StatusNode final : public scene::Node
 {
 public:
@@ -286,7 +280,6 @@ void AuthUi::refresh()
         m_controller->setPasswordRequired(m_passwordRequired);
         m_controllerSubscriptions.push_back(
                 m_controller->stateChanged.connect([this] { m_repeatTimer.stop(); }));
-        // The login screen shows the wallpaper of the account picked.
         if (login) {
             const auto showBackground = [this, secure](bool crossfade) {
                 if (!m_controller->typesUserName() && !m_controller->userName().empty())
@@ -311,8 +304,6 @@ void AuthUi::refresh()
         m_window->setContentView(std::move(screen));
         m_screen->focusPassword();
         m_panel = std::make_unique<toolkit::PanelTexture>(m_window.get());
-        // While the session is active the panel only has to be ready for the
-        // next lock: drawn once. Later changes wait for the first locked frame.
         m_window->onRenderRequested = [this] {
             m_dirty = true;
             if (m_session->isBlocked() || m_panel->image().isNull())
@@ -332,8 +323,7 @@ void AuthUi::refresh()
         m_started = true;
         m_controller->start();
     }
-    // A focused field blinks its caret, which would wake the compositor twice
-    // a second for a panel no one can see.
+    // A focused field's blinking caret would wake the compositor for an unseen panel.
     if (m_focused != m_session->isBlocked()) {
         m_focused = m_session->isBlocked();
         m_window->setKeyboardFocus(m_focused);
@@ -346,10 +336,7 @@ void AuthUi::refresh()
     refreshStatus(target);
     const base::Rect output = target.bounds;
     const double scale = target.scale;
-    // The output's full height: the clock at the top, the login column at the bottom.
     const base::Size size(std::min(480, output.width()), output.height());
-    // Centred by halving the room left, which a panel as tall as the output
-    // cannot overhang.
     const base::Rect bounds(output.origin()
                                     + base::Point((output.width() - size.width()) / 2,
                                                   (output.height() - size.height()) / 2),
@@ -358,8 +345,7 @@ void AuthUi::refresh()
     m_node->setVisible(!size.isEmpty());
     if (size.isEmpty())
         return;
-    // Drawn at the output's density: an image of the logical size would be
-    // stretched over the device pixels and come out blurred.
+    // Drawn at the output's density, so the image is not stretched and blurred.
     if (!(m_window->size() == ui::SizeF {double(size.width()), double(size.height())})
         || m_scale != scale || !m_sized) {
         m_scale = scale;
@@ -381,7 +367,6 @@ void AuthUi::refresh()
 const session::SecureOutput &
 AuthUi::panelOutput(const std::vector<session::SecureOutput> &outputs) const
 {
-    // The screen the user is looking at: the one under the pointer, else the primary one.
     const base::PointF pointer = m_pointerLocator ? m_pointerLocator() : m_pointerPosition;
     for (const session::SecureOutput &output : outputs) {
         // Both edges count as inside.
@@ -401,7 +386,6 @@ base::RectF AuthUi::fieldBounds() const
 {
     if (!m_screen)
         return {};
-    // Where the next frame puts it, also before the first one.
     m_window->updateLayout();
     return m_screen->fieldBounds();
 }
@@ -449,7 +433,6 @@ void AuthUi::refreshStatus(const session::SecureOutput &target)
         m_status = status.get();
         m_statusWindow->setContentView(std::move(status));
         m_statusPanel = std::make_unique<toolkit::PanelTexture>(m_statusWindow.get());
-        // Drawn once while the session is active, as the panel is.
         m_statusWindow->onRenderRequested = [this] {
             m_statusDirty = true;
             if (m_session->isBlocked() || m_statusPanel->image().isNull())
@@ -489,7 +472,6 @@ void AuthUi::judgeBackdrop()
     const auto *secure = m_session->secureContainer();
     const ui::Bitmap image = secure->wallpaperImage(m_panelOutput);
     if (image.isNull()) {
-        // The system's dark mode while nothing has been judged, as the bar does.
         if (!m_judged)
             m_status->setLightContents(ui::Theme::current().darkMode);
         return;
@@ -600,7 +582,6 @@ bool AuthUi::onPointerMotion(input::Timestamp, const base::PointF &position)
         const base::Size size = m_node->geometry().size();
         m_pointerInside = local.x() >= 0 && local.y() >= 0 && local.x() <= size.width()
                 && local.y() <= size.height();
-        // The views under the pointer are where the next frame puts them.
         m_window->updateLayout();
         m_window->pointerMove({local.x(), local.y()});
         updateCursor();

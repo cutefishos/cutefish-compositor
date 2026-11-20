@@ -2,10 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// xdg-foreign-unstable-v2, driven through real libwayland-client connections:
-// one client exports its toplevel, another imports the handle and parents its
-// own toplevel onto it. This is what the file chooser portal needs.
-
 #include <atomic>
 #include <chrono>
 #include <cstring>
@@ -348,7 +344,6 @@ TEST_F(XdgForeignProtocolTest, AnImportedHandleParentsTheOtherClientsToplevel)
             EXPECT_EQ(parentWindow, childWindow->transientParent());
         });
 
-        // Dropping the export invalidates the relationship it set up.
         zxdg_exported_v2_destroy(exported);
         exporterClient.sync();
         importerClient.sync();
@@ -375,8 +370,6 @@ TEST_F(XdgForeignProtocolTest, TheChildMayDropItsToplevelRoleBeforeTheExportGoes
         zxdg_imported_v2_set_parent_of(imported, child->surface);
         importerClient.sync();
 
-        // The wl_surface outlives its role, so the parent can only be dropped
-        // by looking the shell surface up again.
         xdg_toplevel_destroy(child->toplevel);
         child->toplevel = nullptr;
         xdg_surface_destroy(child->xdgSurface);
@@ -403,7 +396,6 @@ TEST_F(XdgForeignProtocolTest, AnUnknownHandleIsImportedInert)
         zxdg_imported_v2 *imported = importerClient.importToplevel("not-a-handle");
         EXPECT_EQ(1, importerClient.destroyedEvents);
 
-        // The object stays usable; the request simply has no effect.
         zxdg_imported_v2_set_parent_of(imported, child->surface);
         importerClient.sync();
         check([&] {

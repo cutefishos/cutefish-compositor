@@ -42,7 +42,6 @@ TEST(WindowVisualPolicy, CircularCornersFollowTheSessionStyle)
     } restore;
     render::setContinuousCorners(false);
     const render::RoundedShape shape {{0, 0, 100, 80}, 20};
-    // The arc is tangent at the radius; the continuous corner reaches 1.5x it.
     EXPECT_TRUE(shape.contains({20, 0}));
     EXPECT_FALSE(shape.contains({19, 0}));
     EXPECT_FALSE(shape.contains({5, 5}));

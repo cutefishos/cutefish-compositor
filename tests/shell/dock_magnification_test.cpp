@@ -2,9 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// The dock's magnification: the mapping along the dock, and what drives it
-// on stepped frames.
-
 #include <cmath>
 #include <vector>
 
@@ -23,7 +20,6 @@ constexpr double kSlot = 70;
 constexpr double kPeak = 96.0 / 54;
 constexpr double kFrameMs = shell::DockPresentation::kFrameIntervalMs;
 
-// The slot edges of a row of `count` slots from `start`.
 std::vector<double> edges(double start, int count)
 {
     std::vector<double> result;
@@ -32,7 +28,7 @@ std::vector<double> edges(double start, int count)
     return result;
 }
 
-// Steps `magnifier` by frames until it rests, at most `limitMs`; the time it took.
+// Returns the time it took, at most `limitMs`.
 double settle(DockMagnifier &magnifier, double &nowMs, double limitMs = 1000)
 {
     const double start = nowMs;
@@ -52,7 +48,6 @@ TEST(DockMagnificationTest, NoAmountIsTheRestLayoutExactly)
     EXPECT_TRUE(DockMagnification().isIdentity());
     for (double position : {-1e6, 0.0, 0.1, 17.25, 331.7, 1234.5678})
         EXPECT_EQ(position, none.map(position));
-    // A peak of 1 magnifies nothing either.
     EXPECT_TRUE(DockMagnification(331.7, 1, 1, kSlot).isIdentity());
 }
 
@@ -81,7 +76,6 @@ TEST(DockMagnificationTest, NeighboursFallOffOverThreeAndAHalfSlots)
         } else {
             EXPECT_NEAR(1, scale, 1e-12) << slot;
         }
-        // The same on the other side.
         const double mirrored = (field.map(2 * focus - from) - field.map(2 * focus - from - kSlot)) / kSlot;
         EXPECT_NEAR(scale, mirrored, 1e-12) << slot;
         previous = scale;
@@ -102,7 +96,6 @@ TEST(DockMagnificationTest, OrderIsKeptAndTheRowGrowsByAConstantAwayFromItsEnds)
             EXPECT_NEAR(field.expansion(), grown, 1e-9) << focus;
         else
             EXPECT_LE(grown, field.expansion() + 1e-9) << focus;
-        // Both ends only ever move outward.
         EXPECT_LE(field.map(row.front()), row.front());
         EXPECT_GE(field.map(row.back()), row.back());
     }
@@ -122,7 +115,6 @@ TEST(DockMagnificationTest, SmallPointerStepsMoveEverythingALittle)
         for (double edge : row)
             EXPECT_LE(std::abs(after.map(edge) - before.map(edge)), height * step + 1e-9) << focus << " " << edge;
     }
-    // And so does a small change of the amount.
     for (double amount = 0; amount < 1; amount += 0.01) {
         const DockMagnification before(400, amount, kPeak, kSlot);
         const DockMagnification after(400, amount + 0.01, kPeak, kSlot);
@@ -137,7 +129,6 @@ TEST(DockMagnifierTest, FadesInAndOutSoftlyToExactEnds)
     EXPECT_FALSE(magnifier.track(100));
     magnifier.setEnabled(true);
     ASSERT_TRUE(magnifier.track(100));
-    // The pointer itself is the focus at once.
     EXPECT_EQ(100, magnifier.focus());
     EXPECT_FALSE(magnifier.track(100));
 
@@ -154,7 +145,6 @@ TEST(DockMagnifierTest, FadesInAndOutSoftlyToExactEnds)
         if (reached < 0 && magnifier.amount() == 1)
             reached = now - 1000;
         previous = magnifier.amount();
-        // A soft start.
         if (frames == 1)
             EXPECT_LT(magnifier.amount(), 0.05);
     }
@@ -162,7 +152,6 @@ TEST(DockMagnifierTest, FadesInAndOutSoftlyToExactEnds)
     EXPECT_LE(reached, DockMagnifier::kAmountRampMs + kFrameMs);
     EXPECT_GE(reached, DockMagnifier::kAmountRampMs);
 
-    // Following the pointer has no lag.
     ASSERT_TRUE(magnifier.track(180.5));
     EXPECT_EQ(180.5, magnifier.focus());
     EXPECT_FALSE(magnifier.isMoving());
@@ -170,7 +159,6 @@ TEST(DockMagnifierTest, FadesInAndOutSoftlyToExactEnds)
     ASSERT_TRUE(magnifier.leave());
     EXPECT_LE(settle(magnifier, now), DockMagnifier::kAmountRampMs + kFrameMs);
     EXPECT_EQ(0, magnifier.amount());
-    // It faded out where it was.
     EXPECT_EQ(180.5, magnifier.focus());
 
     magnifier.setEnabled(false);
@@ -214,7 +202,6 @@ TEST(DockMagnifierTest, APointerElsewhereGlidesTheFocusOver)
     magnifier.advance(now += kFrameMs);
     ASSERT_GT(magnifier.amount(), 0);
 
-    // Back in at 300 while still magnified at 100.
     ASSERT_TRUE(magnifier.track(300));
     EXPECT_EQ(100, magnifier.focus());
     double previous = 100;
@@ -231,11 +218,9 @@ TEST(DockMagnifierTest, APointerElsewhereGlidesTheFocusOver)
     EXPECT_EQ(300, magnifier.focus());
     EXPECT_EQ(1, magnifier.amount());
     EXPECT_LE(reached, DockMagnifier::kFocusSettleMs + kFrameMs);
-    // Moving on from there follows the pointer exactly.
     magnifier.track(320);
     EXPECT_EQ(320, magnifier.focus());
 
-    // From nothing, it starts at the pointer.
     magnifier.leave();
     settle(magnifier, now);
     magnifier.track(40);
@@ -248,7 +233,6 @@ TEST(DockMagnifierTest, AHoldKeepsItAsItIsUntilReleased)
     magnifier.setEnabled(true);
     magnifier.track(100);
     double now = 1000;
-    // A fade-in under way completes while held.
     magnifier.advance(now += kFrameMs);
     magnifier.setHeld(true);
     EXPECT_FALSE(magnifier.track(400));
@@ -261,8 +245,6 @@ TEST(DockMagnifierTest, AHoldKeepsItAsItIsUntilReleased)
     EXPECT_EQ(1, magnifier.amount());
     EXPECT_EQ(100, magnifier.focus());
 
-    // Released with the pointer still in the dock: on from the pointer
-    // without a jump.
     magnifier.setHeld(false);
     ASSERT_TRUE(magnifier.track(160));
     EXPECT_EQ(100, magnifier.focus());
@@ -270,7 +252,6 @@ TEST(DockMagnifierTest, AHoldKeepsItAsItIsUntilReleased)
     EXPECT_EQ(160, magnifier.focus());
     EXPECT_EQ(1, magnifier.amount());
 
-    // Released with the pointer gone: it fades out in place.
     magnifier.setHeld(true);
     magnifier.setHeld(false);
     magnifier.leave();
@@ -309,7 +290,6 @@ TEST(DockMagnifierTest, TheFirstFrameAfterRestingIsOneIntervalOn)
         magnifier->setEnabled(true);
         magnifier->track(100);
     }
-    // However long since it last ticked.
     a.advance(5000);
     b.stop();
     b.advance(123456);
@@ -328,10 +308,8 @@ TEST(DockMagnifierTest, AFrameStampedLateMovesNoMoreThanAFrame)
         magnifier->advance(1000);
     }
     even.advance(1000 + kFrameMs);
-    // A second frame stamped nearly two intervals after the first.
     late.advance(1000 + 1.7 * kFrameMs);
     EXPECT_NEAR(even.amount(), late.amount(), 1e-12);
-    // Frames closer together step by their real time.
     fast.advance(1000 + kFrameMs / 2);
     EXPECT_LT(fast.amount(), even.amount());
     EXPECT_GT(fast.amount(), 0);

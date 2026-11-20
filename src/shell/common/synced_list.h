@@ -16,11 +16,8 @@
 
 namespace cutefish::shell {
 
-// A list of rows that reaches a new list through removes, moves and inserts
-// instead of a reset, so a view keeps the items (and loaded icons) of rows
-// that stay. Rows are matched by a unique key; rows on the longest run
-// already in the new order stay put, so a drag reorder is reported as the
-// single move it was.
+// Reaches a new list through removes, moves and inserts, so views keep the
+// items of rows that stay.
 template<typename T>
 class SyncedList
 {
@@ -48,7 +45,6 @@ public:
         insertMissing(target);
 
         for (size_t i = 0; i < m_rows.size(); ++i) {
-            // Without a comparison every row counts as unchanged.
             if (!m_sameContent || m_sameContent(m_rows[i], target[i]))
                 continue;
             m_rows[i] = target[i];
@@ -89,7 +85,6 @@ private:
         if (std::is_sorted(order.begin(), order.end()))
             return;
 
-        // The longest increasing run of target positions.
         std::vector<size_t> tails;
         std::vector<int> previous(n, -1);
         for (size_t i = 0; i < n; ++i) {

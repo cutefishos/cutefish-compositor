@@ -4,10 +4,6 @@
 //
 // Upstream: chromium/src/components/exo/buffer.h
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: the gfx::GpuMemoryBuffer / viz::TransferableResource
-// production is replaced by an EGLImage import, and the DMA-BUF description is
-// kept whole so the same buffer can be scanned out directly.
 
 #ifndef CUTEFISH_COMPOSITOR_DMABUF_BUFFER_H_
 #define CUTEFISH_COMPOSITOR_DMABUF_BUFFER_H_
@@ -20,17 +16,13 @@
 
 namespace cutefish::compositor {
 
-// A wl_buffer backed by a DMA-BUF the client allocated.
-//
-// The compositor samples the client's storage directly instead of copying it,
-// so retainsClientStorage() stays true: wl_buffer.release waits until the
-// buffer is off every surface, not merely until a frame was drawn.
+// Samples the client's storage directly, so wl_buffer.release waits until the
+// buffer is off every surface.
 class DmaBufBuffer : public Buffer, public render::ScanoutBuffer
 {
 public:
-    // Takes ownership of the plane fds in `attributes` in every case. Returns
-    // nullptr when `device` cannot import the buffer, which the protocol layer
-    // reports as zwp_linux_buffer_params_v1.failed.
+    // Takes ownership of the plane fds in `attributes` in every case; null when
+    // `device` cannot import the buffer.
     static std::unique_ptr<DmaBufBuffer> create(render::DmaBufDevice* device,
                                                 render::DmaBufAttributes attributes);
 
@@ -40,17 +32,14 @@ public:
 
     render::PixelFormat format() const override { return m_format; }
 
-    // Nothing is mapped: the contents are read by the GPU straight out of the
-    // client's DMA-BUF.
     const uint8_t* pixels() const override { return nullptr; }
 
     int stride() const override;
 
     std::shared_ptr<render::Texture> texture() const override { return m_texture; }
 
-    // The imported description, still owning its plane fds. The scanout path
-    // builds a DRM framebuffer from these very same fds rather than copying
-    // the buffer into compositor-owned storage.
+    // Still owning its plane fds, which the scanout path builds a DRM
+    // framebuffer from.
     const render::DmaBufAttributes& attributes() const { return m_attributes; }
 
     const render::DmaBufAttributes& scanoutAttributes() const override { return m_attributes; }

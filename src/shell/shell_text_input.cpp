@@ -65,7 +65,6 @@ void ShellTextInput::update(ShellWindow *window, const ui::TextInputState *state
         }
         return;
     }
-    // Only the window with the keyboard has a text field the input method serves.
     if (!window || m_relay->focusedSurface() != window->surface())
         return;
     const bool restart = window != m_window || m_relay->active() != this;

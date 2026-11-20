@@ -21,8 +21,7 @@ const char *const service = "org.freedesktop.login1";
 const char *const path = "/org/freedesktop/login1";
 const char *const manager = "org.freedesktop.login1.Manager";
 
-// Ash's PowerButtonController delays: the press that woke the system, and taps
-// faster than they can be acted on.
+// Ignores the press that woke the system, and taps faster than they can be acted on.
 constexpr std::chrono::milliseconds kIgnoreAfterResume(2000);
 constexpr std::chrono::milliseconds kIgnoreRepeatedRelease(500);
 

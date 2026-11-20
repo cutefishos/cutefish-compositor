@@ -16,10 +16,6 @@ enum class WindowType {
     Popup,
 };
 
-// The window states Cutefish supports. Ash's chromeos::WindowStateType has
-// floated/pip/pinned as well; those are deliberately absent. The two snapped
-// states are Ash's kPrimarySnapped / kSecondarySnapped: in the landscape layout
-// Cutefish supports they are the left and the right half of the work area.
 enum class WindowStateType {
     Normal,
     PrimarySnapped,
@@ -34,17 +30,12 @@ constexpr bool isSnappedStateType(WindowStateType type)
     return type == WindowStateType::PrimarySnapped || type == WindowStateType::SecondarySnapped;
 }
 
-// Snapped and maximized windows keep the floating look: rounded corners,
-// outline and shadow. Only fullscreen windows are square.
 constexpr bool isRoundedStateType(WindowStateType type)
 {
     return type == WindowStateType::Normal || type == WindowStateType::Maximized
             || isSnappedStateType(type);
 }
 
-// What a window is for. Everything but Normal is one of the compositor's shell
-// windows or the trusted desktop client's surface; the window manager only ever
-// sees the adapted concept, never a protocol object.
 enum class WindowRole {
     Normal,
     Desktop,
@@ -54,7 +45,7 @@ enum class WindowRole {
     Notification,
     // The screen capture interface; never painted into a capture.
     Capture,
-    // The on-screen display of a volume or brightness key; never focusable.
+    // A volume or brightness display; never focusable.
     Osd,
     // A shell dialog hanging from an application window, window-modal for it.
     Sheet,
@@ -62,21 +53,18 @@ enum class WindowRole {
     Picker,
 };
 
-// Whether a window may take the keyboard. A Panel or Dock still receives
-// pointer input: only activation is refused, so clicking the dock does not
-// take the keyboard away from the application behind it.
+// A Panel or Dock still receives pointer input; only activation is refused.
 enum class FocusPolicy {
     Normal,
     NoFocus,
 };
 
-// Panel/Dock stacking against ordinary windows. Ignored for other roles.
+// Ignored for other roles.
 enum class PanelBehavior {
     StayAbove,
     WindowsCanCover,
 };
 
-// The screen edge an exclusive zone is measured from.
 enum class ScreenEdge {
     Top,
     Bottom,
@@ -84,8 +72,6 @@ enum class ScreenEdge {
     Right,
 };
 
-// Which edge or corner an interactive resize is anchored to. Cutefish uses its
-// own enum rather than Chromium's HT* hit-test constants.
 enum class ResizeEdge {
     None,
     Top,
@@ -132,8 +118,7 @@ constexpr bool changesHeight(ResizeEdge edge)
     return isTopEdge(edge) || isBottomEdge(edge);
 }
 
-// The four edges a server-side frame occupies around the client area. All
-// zero for a client-decorated or fullscreen window.
+// All zero for a client-decorated or fullscreen window.
 struct Insets {
     int left = 0;
     int top = 0;
@@ -172,8 +157,7 @@ struct Insets {
     }
 };
 
-// The pixel in the middle of `rect`, the one above and left of the middle for
-// an even size; placement and hit testing pick the middle this way.
+// The one above and left of the middle for an even size.
 inline base::Point centerPixel(const base::Rect& rect)
 {
     return base::Point(int((int64_t(rect.x()) * 2 + rect.width() - 1) / 2),

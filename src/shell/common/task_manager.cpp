@@ -69,7 +69,6 @@ DesktopEntryPtr TaskManager::entryForProcess(int64_t pid, const std::string &app
     if (!appId.empty())
         return resolveProcess(appId, pid, {});
 
-    // A helper process, such as a browser's media process, goes by its window's.
     int depth = 0;
     for (int64_t process = pid; process > 1 && depth < 32; process = m_parentReader(process), ++depth) {
         const auto claim = m_claims.find(process);
@@ -150,7 +149,6 @@ void TaskManager::onWindowChanged(uint64_t id, uint32_t changes)
     window.title = client->title;
     window.taskList = client->isTaskListWindow();
 
-    // A title only stands for an application that has no entry to name it.
     regroup(id, entryChanged || (titleChanged && !window.entry));
 }
 
@@ -170,8 +168,6 @@ void TaskManager::onApplicationsChanged()
         return;
     m_registryScanned = true;
 
-    // Entries come and go, and a new one can claim a window better than the
-    // one it had; matching needs no /proc read, so every window is redone.
     const std::vector<uint64_t> arrival = m_arrival;
     for (uint64_t id : arrival) {
         if (m_windows.count(id))
@@ -196,8 +192,7 @@ bool TaskManager::resolve(uint64_t id)
             : m_applications.resolveWindow(window.appId, window.appId, window.program, window.programName);
     if (entry)
         window.claimedBy = entry->id;
-    // Every scan reads the files into new entries; one that reads the same
-    // is no change.
+    // Every scan makes new entries, so they are compared by content.
     const bool same = window.entry == entry
             || (window.entry && entry && window.entry->id == entry->id && window.entry->path == entry->path
                 && window.entry->name == entry->name && window.entry->icon == entry->icon);

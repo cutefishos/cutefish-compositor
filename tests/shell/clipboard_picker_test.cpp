@@ -2,9 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// The clipboard history's picker as the compositor draws it: its window,
-// place, glass, keys, pointer and paste, headless on a fake renderer.
-
 #include <chrono>
 #include <unistd.h>
 
@@ -56,7 +53,6 @@ std::shared_ptr<clipboard::StoredSource> textSource(const std::string &text)
     return source;
 }
 
-// Reads one type of the selection as a client would.
 std::string receive(clipboard::DataSource &source, const std::string &type)
 {
     int fds[2];
@@ -169,7 +165,6 @@ protected:
     shell::ClipboardPickerView *view() const { return picker->view(); }
     shell::ClipboardHistoryModel &model() const { return picker->history().model(); }
 
-    // A row's centre on screen.
     base::PointF rowCentre(int row) const
     {
         const base::Rect bounds = picker->window()->drawnBounds();
@@ -188,29 +183,24 @@ TEST_F(ClipboardPickerTest, OpensCentredInTheWorkAreaBorrowingTheKeyboard)
     wm::Window *window = picker->window()->wmWindow();
     ASSERT_NE(nullptr, window);
     EXPECT_EQ(wm::WindowRole::Picker, window->role());
-    // 720 x 440 in the middle of what the bar leaves.
     EXPECT_EQ(base::Rect(360, kMenuBar + (960 - kMenuBar - 440) / 2, 720, 440), window->bounds());
     EXPECT_EQ(picker->geometry(), window->bounds());
 
-    // The application stays active; the picker has the keys.
     EXPECT_EQ(application, manager.activation()->activeWindow());
     EXPECT_EQ(window, manager.keyboardGrab());
     EXPECT_EQ(picker->window(), shell->input()->keyboardWindow());
     EXPECT_TRUE(view()->filterField()->hasFocus());
 
-    // PopupGlass in PanelStyle.glassTint over the whole card.
     EXPECT_TRUE(picker->window()->surface()->glass().enabled);
     EXPECT_EQ(base::Rect(0, 0, 720, 440), picker->window()->surface()->backgroundBlurRect());
     EXPECT_EQ(18, picker->window()->surface()->backgroundBlurRadius());
 
-    // Newest first, the first selected.
     EXPECT_EQ(3u, view()->list()->rowCount());
     EXPECT_EQ(0, view()->currentIndex());
     EXPECT_EQ("gamma", model().title(0));
     EXPECT_EQ("gamma", view()->preview()->text());
     EXPECT_FALSE(view()->emptyLabel()->isVisible());
 
-    // The shortcut again closes it, and the application has the keys again.
     picker->history().toggle();
     EXPECT_FALSE(picker->isOpen());
     EXPECT_EQ(nullptr, manager.keyboardGrab());
@@ -235,7 +225,6 @@ TEST_F(ClipboardPickerTest, KeysMoveTheSelectionFilterAndClose)
     key(KEY_HOME);
     EXPECT_EQ(0, view()->currentIndex());
 
-    // Typing filters and selects the first row; Escape clears the filter.
     key(KEY_DOWN);
     key(KEY_B);
     key(KEY_E);
@@ -252,7 +241,6 @@ TEST_F(ClipboardPickerTest, KeysMoveTheSelectionFilterAndClose)
     EXPECT_EQ(3, model().count());
     EXPECT_TRUE(picker->isOpen());
 
-    // Escape with no filter closes; opening again starts afresh.
     key(KEY_ESC);
     EXPECT_FALSE(picker->isOpen());
     EXPECT_EQ(application->rootSurface(), seat.focusedSurface());
@@ -269,14 +257,12 @@ TEST_F(ClipboardPickerTest, ReturnPastesTheEntryIntoTheApplication)
     ASSERT_TRUE(test::runUntil([this] { return !picker->isOpen(); }));
     EXPECT_EQ(application, manager.activation()->activeWindow());
     EXPECT_EQ(application->rootSurface(), seat.focusedSurface());
-    // On the clipboard, and on top of the history.
     const auto source = seat.selection()->source();
     ASSERT_TRUE(source);
     EXPECT_EQ("beta", receive(*source, "text/plain"));
     EXPECT_EQ("beta", model().title(0));
     EXPECT_EQ(3, model().count());
 
-    // Shift+Return only copies.
     picker->open();
     key(KEY_END);
     shiftKey(KEY_ENTER);
@@ -308,7 +294,6 @@ TEST_F(ClipboardPickerTest, DeleteRemovesAndShiftDeleteClearsAfterAsking)
     shiftKey(KEY_DELETE);
     EXPECT_TRUE(view()->isConfirmingClear());
     EXPECT_FALSE(view()->filterField()->isEnabled());
-    // Escape asks no more and keeps the history and the picker.
     key(KEY_ESC);
     EXPECT_FALSE(view()->isConfirmingClear());
     EXPECT_TRUE(picker->isOpen());
@@ -320,7 +305,6 @@ TEST_F(ClipboardPickerTest, DeleteRemovesAndShiftDeleteClearsAfterAsking)
     EXPECT_EQ(0, model().count());
     EXPECT_TRUE(view()->emptyLabel()->isVisible());
     EXPECT_EQ("Clipboard Is Empty", view()->emptyLabel()->text());
-    // Nothing more to clear.
     shiftKey(KEY_DELETE);
     EXPECT_FALSE(view()->isConfirmingClear());
 }
@@ -329,7 +313,6 @@ TEST_F(ClipboardPickerTest, ThePointerSelectsOnlyOnceItMovesAndAClickPastes)
 {
     picker->open();
     frame();
-    // The pointer's first position over the card only counts as where it was.
     const base::PointF first = rowCentre(1);
     move(first.x(), first.y());
     EXPECT_EQ(0, view()->currentIndex());

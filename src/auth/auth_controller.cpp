@@ -20,8 +20,7 @@ namespace cutefish::auth {
 
 namespace {
 
-// Off by default. Nothing logged from this category ever carries a credential:
-// the password never reaches a log stream, in any build.
+// Nothing logged from this category ever carries a credential.
 const base::LogCategory cfAuth("cutefish.auth", base::LogLevel::Warning);
 
 using base::strings::trimmed;
@@ -42,8 +41,6 @@ std::string accountIcon(const std::string &userName)
 {
     const passwd *entry = getpwnam(userName.c_str());
     const std::string home = entry && entry->pw_dir ? entry->pw_dir : "";
-    // AccountsService first, then the per-home face file: the same two places
-    // the rest of Cutefish looks, and neither needs a running service.
     const std::string candidates[] = {
             "/var/lib/AccountsService/icons/" + userName,
             home.empty() ? std::string() : home + "/.face",
@@ -127,8 +124,6 @@ void AuthController::setUsers(std::vector<std::string> users)
         userChanged();
         return;
     }
-    // Whoever logged in last, else the first account: nobody types a name
-    // the system already knows.
     const std::string last = m_backend->defaultUserName();
     const bool listed = std::find(m_users.begin(), m_users.end(), last) != m_users.end();
     setUserName(listed ? last : m_users.front());
@@ -171,7 +166,6 @@ void AuthController::selectSessionFor(const std::string &userName)
 {
     if (m_sessions.empty())
         return;
-    // The user's last session, else Cutefish, else the first there is.
     const std::string remembered = userName.empty() ? std::string() : lastLoginSession(userName);
     int index = -1;
     for (const std::string &id : {remembered, std::string("cutefish-wayland")}) {
@@ -247,8 +241,6 @@ void AuthController::accountChanged(const std::string &userName)
     usersChanged();
 }
 
-// The service's choice once it has answered; until then, or without it, the
-// files it and the account keep.
 std::string AuthController::iconFor(const std::string &userName) const
 {
     const auto found = m_accounts.find(userName);
@@ -289,7 +281,6 @@ void AuthController::unlockWithoutPassword()
 
 void AuthController::reset()
 {
-    // A success is not something the user can type their way out of.
     if (!passwordRequired() || m_state == Succeeded || m_state == Authenticating)
         return;
     m_backend->reset();

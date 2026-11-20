@@ -11,25 +11,7 @@ namespace cutefish::wm {
 
 class Window;
 
-// The one place role-aware z-order is decided. Nothing outside this header may
-// hardcode a layer number, and no raise or activation may move a window out of
-// the layer its role puts it in.
-//
-// Bottom to top:
-//
-//   Desktop < Normal applications < AlwaysOnTop < DesktopPopup < Panel < Launchpad < Dock < AboveDock < Notification < Osd < Capture
-//
-// AboveDock holds application windows the client asked to keep above the
-// dock, such as a status item's panel.
-//
-// Osd is the level a volume or brightness key shows, which must not hide
-// behind a banner that happens to be up.
-//
-// Capture is the screen capture interface, which has to reach every pixel the
-// user can point at, the panels and banners included.
-//
-// The cursor is not a window; it composites above all of this from its own
-// scene container.
+// No raise or activation may move a window out of the layer its role puts it in.
 enum class StackingLayer {
     Desktop = 0,
     Normal = 1,

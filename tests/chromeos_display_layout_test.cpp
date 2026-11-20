@@ -93,7 +93,6 @@ INSTANTIATE_TEST_SUITE_P(
 INSTANTIATE_TEST_SUITE_P(DisplayLayoutTestCorner,
                          TwoDisplays,
                          testing::Values(
-                             // Top-Left
                              std::make_tuple(base::Rect(0, 0, 20, 40),
                                              base::Rect(0, 0, 30, 60),
                                              LayoutEdge::Left,
@@ -108,7 +107,6 @@ INSTANTIATE_TEST_SUITE_P(DisplayLayoutTestCorner,
                                              0,
                                              base::Rect(0, 0, 20, 40),
                                              base::Rect(-30, -60, 30, 60)),
-                             // Top-Right
                              std::make_tuple(base::Rect(0, 0, 20, 40),
                                              base::Rect(0, 0, 30, 60),
                                              LayoutEdge::Right,
@@ -123,7 +121,6 @@ INSTANTIATE_TEST_SUITE_P(DisplayLayoutTestCorner,
                                              0,
                                              base::Rect(0, 0, 20, 40),
                                              base::Rect(20, -60, 30, 60)),
-                             // Bottom-Right
                              std::make_tuple(base::Rect(0, 0, 20, 40),
                                              base::Rect(0, 0, 30, 60),
                                              LayoutEdge::Right,
@@ -138,7 +135,6 @@ INSTANTIATE_TEST_SUITE_P(DisplayLayoutTestCorner,
                                              0,
                                              base::Rect(0, 0, 20, 40),
                                              base::Rect(20, 40, 30, 60)),
-                             // Bottom-Left
                              std::make_tuple(base::Rect(0, 0, 20, 40),
                                              base::Rect(0, 0, 30, 60),
                                              LayoutEdge::Left,
@@ -221,7 +217,6 @@ INSTANTIATE_TEST_SUITE_P(
 INSTANTIATE_TEST_SUITE_P(DisplayLayoutTestMinimumOverlap,
                          TwoDisplays,
                          testing::Values(
-                             // Top-Left
                              std::make_tuple(base::Rect(0, 0, 20, 40),
                                              base::Rect(0, 0, 30, 60),
                                              LayoutEdge::Left,
@@ -236,7 +231,6 @@ INSTANTIATE_TEST_SUITE_P(DisplayLayoutTestMinimumOverlap,
                                              14,
                                              base::Rect(0, 0, 20, 40),
                                              base::Rect(-16, -60, 30, 60)),
-                             // Top-Right
                              std::make_tuple(base::Rect(0, 0, 20, 40),
                                              base::Rect(0, 0, 30, 60),
                                              LayoutEdge::Right,
@@ -251,7 +245,6 @@ INSTANTIATE_TEST_SUITE_P(DisplayLayoutTestMinimumOverlap,
                                              14,
                                              base::Rect(0, 0, 20, 40),
                                              base::Rect(6, -60, 30, 60)),
-                             // Bottom-Right
                              std::make_tuple(base::Rect(0, 0, 20, 40),
                                              base::Rect(0, 0, 30, 60),
                                              LayoutEdge::Right,
@@ -266,7 +259,6 @@ INSTANTIATE_TEST_SUITE_P(DisplayLayoutTestMinimumOverlap,
                                              14,
                                              base::Rect(0, 0, 20, 40),
                                              base::Rect(6, 40, 30, 60)),
-                             // Bottom-Left
                              std::make_tuple(base::Rect(0, 0, 20, 40),
                                              base::Rect(0, 0, 30, 60),
                                              LayoutEdge::Left,

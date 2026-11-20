@@ -4,9 +4,6 @@
 //
 // Upstream: chromium/src/components/exo/shared_memory.cc
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
-//
-// Adapted for Cutefish: integrates the upstream behavior with native
-// compositor types and ownership.
 
 #include "compositor/shm_pool.h"
 
@@ -28,8 +25,8 @@ namespace cutefish::compositor {
 
 namespace {
 
-// The pool being read on the current thread. SIGBUS is delivered to the thread
-// that touched the page, so the handler needs no locking to find it.
+// SIGBUS is delivered to the thread that touched the page, so the handler needs
+// no locking.
 struct AccessState {
     ShmPool *pool = nullptr;
     int depth = 0;
@@ -40,8 +37,7 @@ thread_local AccessState t_access;
 std::once_flag s_sigbusInstalled;
 struct sigaction s_previousSigbusAction;
 
-// A regular file shorter than the pool would mmap fine and fault on the first
-// touch past its end. Other file types have no meaningful st_size.
+// A regular file shorter than the pool would mmap fine and fault past its end.
 bool fileBacks(int fd, size_t size)
 {
     struct stat status {};
@@ -139,8 +135,8 @@ std::shared_ptr<ShmBuffer> ShmPool::createBuffer(const base::Size &size, int32_t
     if (size.width() <= 0 || size.height() <= 0 || stride <= 0 || offset < 0)
         return fail(ShmBufferError::InvalidStride);
 
-    // Everything below is in int64 so that a hostile width/stride/offset cannot
-    // wrap into a range that looks like it fits.
+    // int64 so that a hostile width/stride/offset cannot wrap into a range that
+    // looks like it fits.
     const int64_t bytesPerRow = static_cast<int64_t>(size.width()) * 4;
     if (static_cast<int64_t>(stride) < bytesPerRow)
         return fail(ShmBufferError::InvalidStride);
@@ -189,14 +185,13 @@ void ShmPool::handleSigbus(int, siginfo_t *info, void *)
     const auto *address = static_cast<const uint8_t *>(info->si_addr);
     const bool ours = pool && address >= pool->data() && address < pool->data() + pool->m_size;
 
-    // Cover the whole pool with private zero pages so the read that faulted,
-    // and every later one, completes. The client's file is never touched.
+    // Private zero pages let the faulting read, and every later one, complete.
     if (!ours
         || mmap(pool->m_data, pool->m_size, PROT_READ, MAP_PRIVATE | MAP_FIXED | MAP_ANONYMOUS,
                 -1, 0)
                 == MAP_FAILED) {
-        // Not a pool fault: hand it back to whoever handled SIGBUS before us,
-        // which by default terminates the process.
+        // Not a pool fault: hand it back to the previous handler, which by
+        // default terminates.
         sigaction(SIGBUS, &s_previousSigbusAction, nullptr);
         raise(SIGBUS);
         return;
@@ -209,8 +204,7 @@ void ShmPool::handleSigbus(int, siginfo_t *info, void *)
 
 namespace cutefish::compositor {
 
-// Both the pool range and the file behind it, which the client may have
-// truncated since create_pool.
+// The client may have truncated the file since create_pool.
 bool ShmPool::fileCovers(size_t offset, size_t length) const
 {
     if (offset > m_size || length > m_size - offset)
@@ -231,7 +225,6 @@ bool ShmPool::writeVectors(size_t offset, std::vector<iovec> vectors) const
         if (written <= 0)
             return false;
         offset += size_t(written);
-        // Drop what went out, trimming a vector that only partly did.
         while (written > 0) {
             iovec &vector = vectors[index];
             if (size_t(written) >= vector.iov_len) {
@@ -269,8 +262,7 @@ bool ShmPool::writeRows(size_t offset, size_t stride, size_t rows, size_t rowByt
     if (stride == rowBytes && dataStride == rowBytes)
         return writeVectors(offset, {iovec {const_cast<uint8_t *>(data), span}});
 
-    // Padding between rows belongs to the client and stays as it is, which
-    // rules out one contiguous write; rows then go out one at a time.
+    // Padding between rows belongs to the client, so rows go out one at a time.
     for (size_t row = 0; row < rows; ++row) {
         if (!writeVectors(offset + row * stride,
                           {iovec {const_cast<uint8_t *>(data + row * dataStride), rowBytes}}))
