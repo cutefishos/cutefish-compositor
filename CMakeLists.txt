@@ -655,6 +655,8 @@ add_library(cutefish-accelerators STATIC
     src/accelerators/hot_corner_controller.h
     src/accelerators/hot_corner_settings.cpp
     src/accelerators/hot_corner_settings.h
+    src/accelerators/menu_shortcut.cpp
+    src/accelerators/menu_shortcut.h
 )
 target_include_directories(cutefish-accelerators PUBLIC src)
 target_link_libraries(cutefish-accelerators PUBLIC cutefish-wm cutefish-session cutefish-input-dbus PkgConfig::Xkbcommon)

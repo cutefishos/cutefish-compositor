@@ -161,6 +161,7 @@ cutefish_add_test(overview_node_test cutefish-scene)
 cutefish_add_test(overview_test cutefish-wm)
 cutefish_add_test(show_desktop_test cutefish-wm)
 cutefish_add_test(hot_corner_test cutefish-accelerators)
+cutefish_add_test(menu_shortcut_test cutefish-accelerators)
 
 cutefish_add_test(cursor_test cutefish-cursor)
 cutefish_add_test(output_cursor_router_test cutefish-cursor)

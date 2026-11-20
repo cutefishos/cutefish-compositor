@@ -8,13 +8,10 @@
 #include <unistd.h>
 
 #include <algorithm>
-#include <cctype>
 #include <cstdarg>
 #include <cstdio>
 #include <filesystem>
 #include <utility>
-
-#include <xkbcommon/xkbcommon.h>
 
 #include "accelerators/accelerator_configuration.h"
 #include "accelerators/accelerator_controller.h"
@@ -23,6 +20,7 @@
 #include "accelerators/accelerator_service.h"
 #include "accelerators/hot_corner_controller.h"
 #include "accelerators/hot_corner_settings.h"
+#include "accelerators/menu_shortcut.h"
 #include "auth/login_sessions.h"
 #include "backend/drm/drm_backend.h"
 #include "backend/drm/drm_output.h"
@@ -690,52 +688,11 @@ bool CompositorShell::init()
 
 std::string CompositorShell::shortcutText(const std::string &key, uint32_t modifiers, bool activeWindow)
 {
-    uint32_t keysym = XKB_KEY_NoSymbol;
-    if (key.size() == 1)
-        keysym = xkb_utf32_to_keysym(uint32_t(std::tolower(static_cast<unsigned char>(key[0]))));
-    if (keysym == XKB_KEY_NoSymbol)
-        keysym = xkb_keysym_from_name(key.c_str(), XKB_KEYSYM_NO_FLAGS);
-    if (keysym == XKB_KEY_NoSymbol)
-        return {};
-
-    const bool ctrl = modifiers & ui::ControlModifier;
-    const bool alt = modifiers & ui::AltModifier;
-    const bool shift = modifiers & ui::ShiftModifier;
     const wm::Window *window = activeWindow ? m_windowManager.activation()->activeWindow() : nullptr;
-    const bool terminal = window && input::isTerminal(window->applicationId())
-            && !(m_security && m_security->bindsCommandKey(window->processId()));
-    input::PressedShortcut pressed
-            = input::pressedShortcut(m_seat.shortcutConvention(), terminal, keysym, ctrl, alt, shift);
-    // A Command shortcut the compositor takes never reaches the application,
-    // so the Control key is the one to press; Quit is the same either way.
-    if (pressed.command && m_acceleratorConfiguration) {
-        uint32_t flags = accelerators::MetaDown;
-        if (pressed.alt)
-            flags |= accelerators::AltDown;
-        if (pressed.shift)
-            flags |= accelerators::ShiftDown;
-        const accelerators::AcceleratorAction *action
-                = m_acceleratorConfiguration->findAcceleratorAction(accelerators::Accelerator(keysym, flags));
-        if (action && *action != accelerators::AcceleratorAction::QuitApplication)
-            pressed = {false, ctrl, alt, shift};
-    }
-
-    std::string text;
-    if (pressed.control)
-        text += "Ctrl+";
-    if (pressed.command)
-        text += "Command+";
-    if (pressed.alt)
-        text += "Alt+";
-    if (pressed.shift)
-        text += "Shift+";
-    if (modifiers & ui::SuperModifier)
-        text += "Super+";
-    if (key.size() == 1 && key[0] >= 'a' && key[0] <= 'z')
-        text += char(key[0] - 'a' + 'A');
-    else
-        text += key;
-    return text;
+    const bool bindsCommand = window && m_security && m_security->bindsCommandKey(window->processId());
+    const bool terminal = window && input::isTerminal(window->applicationId()) && !bindsCommand;
+    return accelerators::menuShortcutText(key, modifiers, m_seat.shortcutConvention(), terminal, bindsCommand,
+                                          m_acceleratorConfiguration.get());
 }
 
 void CompositorShell::initShell()
