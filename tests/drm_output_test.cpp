@@ -1594,26 +1594,31 @@ TEST_F(DrmOutputTest, NonparticipatingContentIsDiscardedAtSuccessfulSubmission)
 
 TEST_F(DrmOutputTest, HotplugRetirementKeepsRawFlipCookieAliveAfterOutputDestruction)
 {
-    ASSERT_TRUE(drm->enable());
-    update();
-    ASSERT_TRUE(waitEvents(1));
-    Output::FlipEvent *raw = nullptr;
-    for (const auto &commit : device.commits)
-        if (commit.userData)
-            raw = static_cast<Output::FlipEvent *>(commit.userData);
-    ASSERT_NE(raw, nullptr);
+    // Up to two frames are in flight, and on a slow run the flip timeout
+    // may retire the older one before the output goes.
     std::vector<std::unique_ptr<Output::FlipEvent>> retired;
     drm->setEventRetirementHandler([&](auto event) {
         retired.push_back(std::move(event));
     });
+    ASSERT_TRUE(drm->enable());
+    update();
+    ASSERT_TRUE(waitEvents(1));
     ASSERT_TRUE(drm->retireForReprobe(false));
     EXPECT_FALSE(drm->isEnabled());
     const int before = released;
     drm.reset();
-    ASSERT_FALSE(retired.empty());
-    EXPECT_EQ(retired.front().get(), raw);
-    EXPECT_FALSE(raw->output);
-    Output::dispatchPageFlip(*raw, 123, 456, 1);
+    std::vector<Output::FlipEvent *> raw;
+    for (const auto &commit : device.commits)
+        if (commit.userData)
+            raw.push_back(static_cast<Output::FlipEvent *>(commit.userData));
+    ASSERT_FALSE(raw.empty());
+    ASSERT_EQ(retired.size(), raw.size());
+    for (size_t i = 0; i < raw.size(); ++i) {
+        EXPECT_EQ(retired[i].get(), raw[i]);
+        EXPECT_FALSE(raw[i]->output);
+    }
+    for (auto *event : raw)
+        Output::dispatchPageFlip(*event, 123, 456, 1);
     EXPECT_EQ(released, before);
 }
 
