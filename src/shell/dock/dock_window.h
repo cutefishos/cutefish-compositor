@@ -16,6 +16,7 @@
 #include "base/geometry.h"
 #include "base/region.h"
 #include "base/signal.h"
+#include "base/thread_pool.h"
 #include "base/timer.h"
 #include "render/glass.h"
 #include "shell/dock/dock_icon.h"
@@ -118,6 +119,10 @@ private:
         bool desktop = false;
         bool window = false;
         bool files = false;
+        // The dropped files and, once typed on the file thread, their types.
+        std::vector<std::string> paths;
+        std::optional<std::vector<std::string>> fileTypes;
+        base::Job typesJob;
         std::optional<std::string> appId;
         std::optional<std::string> desktopId;
         ui::PointF position;
@@ -177,6 +182,8 @@ private:
     uint32_t dropAt(const ui::PointF &position);
     void resetDropTarget();
     void setDropHovered(DockIcon *icon);
+    // The hovered application icon, when its application opens the dropped files.
+    DockIcon *fileDropApplication() const;
     bool inApplicationArea(const ui::PointF &position) const;
     void enterApplicationArea();
     void anchorApplicationArea();

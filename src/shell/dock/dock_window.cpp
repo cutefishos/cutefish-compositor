@@ -10,6 +10,7 @@
 
 #include "base/dbus.h"
 #include "base/i18n.h"
+#include "base/mime_database.h"
 #include "base/strings.h"
 #include "base/url.h"
 #include "compositor/menu_model.h"
@@ -18,6 +19,7 @@
 #include "input/seat.h"
 #include "render/renderer.h"
 #include "shell/common/application_badges.h"
+#include "shell/common/file_thread.h"
 #include "shell/common/task_manager.h"
 #include "shell/common/task_windows.h"
 #include "shell/dock/dock.h"
@@ -1723,6 +1725,34 @@ void DockWindow::dropEnter(ui::DropOffer *offer, const ui::PointF &position)
         readId(kApplicationMime, false);
     if (m_drop.desktop)
         readId(kDesktopMime, true);
+    if (m_drop.files && !m_drop.fileTypes && !m_drop.typesJob.isPending()) {
+        offer->read("text/uri-list", [this, alive = m_alive, generation = m_drop.generation](std::string data) {
+            if (!*alive || generation != m_drop.generation)
+                return;
+            std::vector<std::string> paths;
+            for (const std::string &line : base::strings::split(data, '\n')) {
+                const std::string trimmed(base::strings::trimmed(line));
+                if (trimmed.empty() || trimmed.starts_with('#'))
+                    continue;
+                if (const auto path = base::url::toLocalFile(trimmed))
+                    paths.push_back(*path);
+            }
+            m_drop.paths = paths;
+            // Typing reads the files, which a slow mount must not make the
+            // compositor wait for.
+            m_drop.typesJob = runOnFileThread(
+                    [paths] {
+                        std::vector<std::string> types;
+                        for (const std::string &path : paths)
+                            types.push_back(base::mime::typeForFile(path));
+                        return types;
+                    },
+                    [this](std::vector<std::string> types) {
+                        m_drop.fileTypes = std::move(types);
+                        dropMove(m_drop.position);
+                    });
+        });
+    }
     dropMove(position);
 }
 
@@ -1744,9 +1774,14 @@ uint32_t DockWindow::dropMove(const ui::PointF &position)
             updateDropSlot();
     }
     setDropHovered(iconAt(position));
+    DockIcon *opener = fileDropApplication();
+    if (m_drop.hovered && m_drop.hovered->kind() == DockIcon::Kind::Application)
+        m_drop.hovered->setDropHover(opener != nullptr);
 
     if (m_drop.inArea && m_drop.slot >= 0)
         return ui::MoveAction;
+    if (opener)
+        return ui::CopyAction;
     if (m_drop.hovered == m_trash && m_drop.files && m_drop.offer)
         return (m_drop.offer->sourceActions() & ui::MoveAction) ? ui::MoveAction : ui::CopyAction;
     if (m_drop.window && m_drop.hovered && m_drop.hovered->kind() == DockIcon::Kind::Minimized)
@@ -1797,6 +1832,9 @@ uint32_t DockWindow::dropAt(const ui::PointF &position)
         m_drop.entered = false;
         m_drop.anchored = false;
         m_drop.slot = -1;
+    } else if (DockIcon *opener = fileDropApplication()) {
+        if (m_dock->applications().openFiles(opener->key(), m_drop.paths))
+            action = ui::CopyAction;
     } else if (m_drop.hovered == m_trash && m_drop.files && m_drop.offer) {
         action = (m_drop.offer->sourceActions() & ui::MoveAction) ? ui::MoveAction : ui::CopyAction;
         m_drop.offer->read("text/uri-list", [bus = m_shell->bus()](std::string data) {
@@ -1827,8 +1865,8 @@ void DockWindow::setDropHovered(DockIcon *icon)
 {
     if (icon == m_drop.hovered)
         return;
-    if (m_drop.hovered == m_trash)
-        m_trash->setDropHover(false);
+    if (m_drop.hovered)
+        m_drop.hovered->setDropHover(false);
     m_raiseTimer.stop();
     m_reorderTimer.stop();
     m_drop.hovered = icon;
@@ -1850,6 +1888,15 @@ void DockWindow::setDropHovered(DockIcon *icon)
             m_reorderTimer.start();
         break;
     }
+}
+
+DockIcon *DockWindow::fileDropApplication() const
+{
+    DockIcon *icon = m_drop.hovered;
+    if (!m_drop.files || !m_drop.fileTypes || m_drop.paths.empty() || !icon
+        || icon->kind() != DockIcon::Kind::Application)
+        return nullptr;
+    return m_dock->applications().opensFiles(icon->key(), *m_drop.fileTypes) ? icon : nullptr;
 }
 
 void DockWindow::reorderMinimized()

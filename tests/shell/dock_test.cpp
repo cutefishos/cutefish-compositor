@@ -29,9 +29,10 @@ public:
     explicit FakeAppRuntime(dbus::Connection *bus)
         : object(bus, "/AppRuntime", "org.cutefish.AppRuntime")
     {
-        object.addMethod("launchApplication", [this](const std::string &id, const std::vector<std::string> &,
+        object.addMethod("launchApplication", [this](const std::string &id, const std::vector<std::string> &files,
                                                      const std::string &token) {
             launched.push_back(id);
+            arguments.push_back(files);
             tokens.push_back(token);
             return uint32_t(1);
         });
@@ -51,6 +52,7 @@ public:
 
     dbus::Object object;
     std::vector<std::string> launched;
+    std::vector<std::vector<std::string>> arguments;
     std::vector<std::string> tokens;
     std::vector<std::string> quit;
 };
@@ -304,6 +306,22 @@ TEST_F(DockTest, LaunchesAndQuitsThroughTheRuntime)
     ASSERT_TRUE(test::runUntil([&] { return runtime.launched.size() == 2; }));
     EXPECT_EQ(runtime.launched.back(), "capture");
     EXPECT_EQ(launched, std::vector<std::string>{"editor"});
+}
+
+TEST_F(DockTest, OpensDroppedFilesWithAnApplicationThatTakesTheirTypes)
+{
+    applications.addSimple("viewer", "Viewer", {}, "MimeType=image/*;text/plain;inode/directory;\n");
+    start("[Dock]\nPinned=viewer, editor\n");
+    EXPECT_TRUE(model().opensFiles("viewer", {"image/png", "inode/directory"}));
+    EXPECT_TRUE(model().opensFiles("viewer", {"text/x-csrc"}));
+    EXPECT_FALSE(model().opensFiles("viewer", {"image/png", "audio/mpeg"}));
+    EXPECT_FALSE(model().opensFiles("editor", {"image/png"}));
+    EXPECT_FALSE(model().opensFiles(DockModel::kLaunchpadId, {"image/png"}));
+
+    EXPECT_TRUE(model().openFiles("viewer", {"/srv/a.png", "/srv/b"}));
+    ASSERT_TRUE(test::runUntil([&] { return !runtime.launched.empty(); }));
+    EXPECT_EQ(runtime.launched.back(), "viewer");
+    EXPECT_EQ(runtime.arguments.back(), (std::vector<std::string>{"/srv/a.png", "/srv/b"}));
 }
 
 TEST_F(DockTest, PinsMovesAndDrops)

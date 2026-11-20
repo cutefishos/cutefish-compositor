@@ -9,6 +9,7 @@
 
 #include "base/application_bundle.h"
 #include "base/i18n.h"
+#include "base/mime_database.h"
 #include "base/settings.h"
 #include "shell/common/app_launcher.h"
 #include "shell/common/file_thread.h"
@@ -439,6 +440,38 @@ void DockModel::unPinAt(int from, int row)
         changed(item);
     }
     savePins();
+}
+
+static bool listsType(const std::vector<std::string> &listed, const std::string &type)
+{
+    for (const std::string &entry : listed) {
+        if (entry == type || base::mime::inherits(type, entry))
+            return true;
+        if (entry.ends_with("/*") && type.starts_with(std::string_view(entry).substr(0, entry.size() - 1)))
+            return true;
+    }
+    return false;
+}
+
+bool DockModel::opensFiles(const std::string &id, const std::vector<std::string> &mimeTypes) const
+{
+    const DockItem *item = findById(id);
+    const DesktopEntryPtr entry = item ? m_applications.byId(item->id) : nullptr;
+    if (!entry || entry->exec.empty() || mimeTypes.empty())
+        return false;
+    return std::ranges::all_of(mimeTypes, [&](const std::string &type) { return listsType(entry->mimeTypes, type); });
+}
+
+bool DockModel::openFiles(const std::string &id, const std::vector<std::string> &paths)
+{
+    const DockItem *item = findById(id);
+    const DesktopEntryPtr entry = item ? m_applications.byId(item->id) : nullptr;
+    if (!entry || entry->exec.empty() || paths.empty())
+        return false;
+    if (hideLaunchpad)
+        hideLaunchpad();
+    m_launcher.launch(*entry, paths);
+    return true;
 }
 
 bool DockModel::dropApplication(const std::string &id, int row, bool pinned)

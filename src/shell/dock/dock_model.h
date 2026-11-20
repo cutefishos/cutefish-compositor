@@ -105,6 +105,12 @@ public:
     std::shared_ptr<compositor::MenuModel> dockMenu(const std::string &id) const;
 
     bool openNewInstance(const std::string &id);
+    // Whether the item's application opens files of every one of the types,
+    // by the types its desktop entry lists and their subtypes.
+    bool opensFiles(const std::string &id, const std::vector<std::string> &mimeTypes) const;
+    // Opens the files with the item's application, as dropping them on its
+    // icon does.
+    bool openFiles(const std::string &id, const std::vector<std::string> &paths);
     void quit(const std::string &id);
     void pin(const std::string &id);
     void unPin(const std::string &id);
