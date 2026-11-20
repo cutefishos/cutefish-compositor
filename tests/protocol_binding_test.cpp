@@ -63,7 +63,10 @@ public:
 
     bool showsSystemDialogs(int64_t) const override { return false; }
 
+    bool canSendKeys(const wl_client *client) const override { return client && client == typist; }
+
     const wl_client *computerUse = nullptr;
+    const wl_client *typist = nullptr;
 };
 
 struct Global {
@@ -131,7 +134,7 @@ protected:
             m_globals->shutdown();
     }
 
-    std::unique_ptr<Client> connect(bool trusted = false, bool computerUse = false)
+    std::unique_ptr<Client> connect(bool trusted = false, bool computerUse = false, bool typist = false)
     {
         int fds[2];
         EXPECT_EQ(0, socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, fds));
@@ -140,6 +143,8 @@ protected:
         EXPECT_NE(nullptr, serverClient);
         if (computerUse)
             m_security.computerUse = serverClient;
+        if (typist)
+            m_security.typist = serverClient;
         return connectTo(fds[1]);
     }
 
@@ -296,6 +301,20 @@ TEST_F(ProtocolBindingTest, TheComputerUseServiceBindsOutputCaptureButSeesNoWind
         client->bound.push_back(static_cast<wl_proxy *>(
                 wl_registry_bind(client->registry, global->second.name, interface, 1)));
     }
+    EXPECT_GE(roundtrip(*client), 0);
+    EXPECT_EQ(0, wl_display_get_error(client->display));
+}
+
+// A program that posts key events binds a virtual keyboard, and nothing of
+// the input method's.
+TEST_F(ProtocolBindingTest, ATypistSeesTheVirtualKeyboardAlone)
+{
+    auto client = connect(false, false, true);
+    EXPECT_FALSE(client->globals.contains("zwp_input_method_manager_v2"));
+    const auto global = client->globals.find(zwp_virtual_keyboard_manager_v1_interface.name);
+    ASSERT_NE(client->globals.end(), global);
+    client->bound.push_back(static_cast<wl_proxy *>(wl_registry_bind(
+            client->registry, global->second.name, &zwp_virtual_keyboard_manager_v1_interface, 1)));
     EXPECT_GE(roundtrip(*client), 0);
     EXPECT_EQ(0, wl_display_get_error(client->display));
 }

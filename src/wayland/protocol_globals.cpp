@@ -144,8 +144,15 @@ bool ProtocolGlobals::registerInputMethod()
                            : windows->workAreaFor(nullptr);
         });
     }
+    const auto typists = [security = m_deps.security](const wl_client *client) {
+        return security->canSendKeys(client);
+    };
+    m_inputMethod->setTypists(typists);
     m_privileged->addRestrictedGlobal(m_inputMethod->inputMethodGlobal(), authorize);
-    m_privileged->addRestrictedGlobal(m_inputMethod->virtualKeyboardGlobal(), authorize);
+    m_privileged->addRestrictedGlobal(m_inputMethod->virtualKeyboardGlobal(),
+                                      [authorize, typists](const wl_client *client) {
+                                          return authorize(client) || typists(client);
+                                      });
 
     m_inputMethodSettings = std::make_unique<input::InputMethodSettings>();
     m_launcherRunning = m_inputMethodLauncher->runningChanged.connect([this] {

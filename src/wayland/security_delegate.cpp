@@ -100,6 +100,11 @@ bool ExecutableSecurityDelegate::canPlaceWindows(const wl_client *client) const
     return runsOneOf(client, m_windowPlacementClients);
 }
 
+bool ExecutableSecurityDelegate::canSendKeys(const wl_client *client) const
+{
+    return runsOneOf(client, m_windowPlacementClients);
+}
+
 bool ExecutableSecurityDelegate::bindsCommandKey(int64_t pid) const
 {
     return runsOneOf(static_cast<pid_t>(pid), m_windowPlacementClients);

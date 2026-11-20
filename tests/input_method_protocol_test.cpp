@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include <linux/input-event-codes.h>
+
 #include "clipboard_test_util.h"
 #include "input-method-unstable-v2-client-protocol.h"
 #include "input/session_gate.h"
@@ -868,5 +870,91 @@ TEST(InputMethodProtocol, AuthorizerRestrictsInputMethodBinds)
     // The bind was refused with a protocol error; the proxies are still ours.
     if (bound)
         zwp_input_method_manager_v2_destroy(bound);
+    wl_registry_destroy(registry);
+}
+
+TEST(InputMethodProtocol, ATypistTypesIntoTheFocusedWindowInItsOwnTerms)
+{
+    ImeHarness h;
+    auto &typist = h.addClient();
+    h.manager.setAuthorizer([](const wl_client *) {
+        return false;
+    });
+    h.manager.setTypists([&](const wl_client *client) {
+        return client == typist.serverClient;
+    });
+    h.seat.setShortcutConvention(input::ShortcutConvention::Command);
+    Endpoint app(h, h.addClient(), false);
+    h.focus(app.client);
+
+    auto *registry = wl_display_get_registry(typist.display);
+    zwp_virtual_keyboard_manager_v1 *manager = nullptr;
+    static const wl_registry_listener listener = {
+            [](void *data, wl_registry *r, uint32_t name, const char *interface, uint32_t) {
+                if (!strcmp(interface, "zwp_virtual_keyboard_manager_v1")) {
+                    *static_cast<zwp_virtual_keyboard_manager_v1 **>(data) =
+                            static_cast<zwp_virtual_keyboard_manager_v1 *>(wl_registry_bind(
+                                    r, name, &zwp_virtual_keyboard_manager_v1_interface, 1));
+                }
+            },
+            [](void *, wl_registry *, uint32_t) {}};
+    wl_registry_add_listener(registry, &listener, &manager);
+    h.sync(typist);
+    ASSERT_NE(nullptr, manager);
+    auto *keyboard = zwp_virtual_keyboard_manager_v1_create_virtual_keyboard(manager, typist.seat);
+    // Any keymap will do: the codes are the seat's keys.
+    const std::string keymap = "xkb_keymap {};";
+    const int fd = memfd_create("keymap", MFD_CLOEXEC);
+    ASSERT_GE(fd, 0);
+    ASSERT_EQ(ssize_t(keymap.size() + 1), write(fd, keymap.c_str(), keymap.size() + 1));
+    zwp_virtual_keyboard_v1_keymap(keyboard, WL_KEYBOARD_KEYMAP_FORMAT_XKB_V1, fd, keymap.size() + 1);
+    close(fd);
+
+    // Its Ctrl is Command, which every other client gets as Ctrl.
+    zwp_virtual_keyboard_v1_key(keyboard, 0, KEY_LEFTCTRL, 1);
+    zwp_virtual_keyboard_v1_key(keyboard, 0, KEY_V, 1);
+    zwp_virtual_keyboard_v1_key(keyboard, 0, KEY_V, 0);
+    zwp_virtual_keyboard_v1_key(keyboard, 0, KEY_LEFTCTRL, 0);
+    h.sync(typist);
+    h.sync(app.client);
+    EXPECT_EQ((std::vector<std::pair<uint32_t, bool>> {
+                      {KEY_LEFTCTRL, true}, {KEY_V, true}, {KEY_V, false}, {KEY_LEFTCTRL, false}}),
+              app.client.keyEvents);
+    EXPECT_EQ(0, wl_display_get_error(typist.display));
+
+    // Nothing reaches a locked session.
+    struct Gate : input::SessionGate {
+        bool restrictsInput() const override { return true; }
+
+        input::EventSink *secureInput() const override { return nullptr; }
+
+        scene::Node *inputRoot() const override { return nullptr; }
+
+        bool allowsFocus(const compositor::Surface *) const override { return false; }
+
+        bool allowsActivation() const override { return false; }
+    } gate;
+    app.client.keyEvents.clear();
+    h.seat.setSessionGate(&gate);
+    zwp_virtual_keyboard_v1_key(keyboard, 0, KEY_A, 1);
+    zwp_virtual_keyboard_v1_key(keyboard, 0, KEY_A, 0);
+    h.sync(typist);
+    h.sync(app.client);
+    h.seat.setSessionGate(nullptr);
+    EXPECT_TRUE(app.client.keyEvents.empty());
+    h.focus(app.client);
+
+    // What it leaves down comes up when it goes.
+    zwp_virtual_keyboard_v1_key(keyboard, 0, KEY_LEFTSHIFT, 1);
+    h.sync(typist);
+    h.sync(app.client);
+    EXPECT_EQ((std::vector<std::pair<uint32_t, bool>> {{KEY_LEFTSHIFT, true}}), app.client.keyEvents);
+    zwp_virtual_keyboard_v1_destroy(keyboard);
+    h.sync(typist);
+    h.sync(app.client);
+    EXPECT_EQ((std::vector<std::pair<uint32_t, bool>> {{KEY_LEFTSHIFT, true}, {KEY_LEFTSHIFT, false}}),
+              app.client.keyEvents);
+
+    zwp_virtual_keyboard_manager_v1_destroy(manager);
     wl_registry_destroy(registry);
 }

@@ -8,6 +8,7 @@
 #include <cerrno>
 #include <cstring>
 #include <deque>
+#include <linux/input-event-codes.h>
 #include <set>
 #include <string>
 #include <sys/mman.h>
@@ -94,6 +95,10 @@ struct InputMethodManager::Impl : InputMethodRelay, input::SeatObserver {
         Impl *owner;
         wl_resource *resource;
         bool keymap = false;
+        // A typist's keys type into the focused window as a keyboard's
+        // would; the input method's only send back the keys it took.
+        bool typist = false;
+        std::set<uint32_t> pressed;
     };
 
     struct Popup : compositor::SurfaceObserver {
@@ -138,6 +143,7 @@ struct InputMethodManager::Impl : InputMethodRelay, input::SeatObserver {
     wl_global *methodGlobal = nullptr;
     wl_global *keyboardGlobal = nullptr;
     std::function<bool(const wl_client *)> authorizer;
+    std::function<bool(const wl_client *)> typists;
     std::function<base::Rect(const base::Rect &)> placementArea;
     std::set<wl_resource *> resources;
     std::vector<TextInput *> texts;
@@ -187,6 +193,36 @@ struct InputMethodManager::Impl : InputMethodRelay, input::SeatObserver {
     bool current(Method *m) const { return m == method && m_active && eligible(m_active); }
 
     bool authorized(wl_client *client) const { return !authorizer || authorizer(client); }
+
+    bool typist(wl_client *client) const { return !authorized(client) && typists && typists(client); }
+
+    // A typist's keys are in its own terms when it binds Command itself, as
+    // every typist does: Ctrl for Command and Meta for Control. The
+    // KeyTranslator takes Command as Meta under the Command convention.
+    uint32_t typedKey(uint32_t key) const
+    {
+        if (m_seat->shortcutConvention() != input::ShortcutConvention::Command)
+            return key;
+        switch (key) {
+        case KEY_LEFTCTRL:
+            return KEY_LEFTMETA;
+        case KEY_RIGHTCTRL:
+            return KEY_RIGHTMETA;
+        case KEY_LEFTMETA:
+            return KEY_LEFTCTRL;
+        case KEY_RIGHTMETA:
+            return KEY_RIGHTCTRL;
+        default:
+            return key;
+        }
+    }
+
+    void type(VirtualKeyboard *v, uint32_t key, bool pressed)
+    {
+        if (pressed ? !v->pressed.insert(key).second : !v->pressed.erase(key))
+            return;
+        m_seat->dispatchKey(std::chrono::steady_clock::now(), typedKey(key), pressed);
+    }
 
     input::Seat *seat() const override { return m_seat; }
 
@@ -505,7 +541,7 @@ struct InputMethodManager::Impl : InputMethodRelay, input::SeatObserver {
                 display, &zwp_virtual_keyboard_manager_v1_interface, 1, this,
                 [](wl_client *c, void *data, uint32_t, uint32_t id) {
                     auto *o = static_cast<Impl *>(data);
-                    if (!o->authorized(c)) {
+                    if (!o->authorized(c) && !o->typist(c)) {
                         wl_client_post_implementation_error(c, "Virtual keyboard not authorized");
                         return;
                     }
@@ -662,6 +698,14 @@ const struct zwp_input_method_manager_v2_interface
 const struct zwp_virtual_keyboard_v1_interface InputMethodManager::Impl::keyboardImplementation = {
         [](wl_client *, wl_resource *r, uint32_t format, int32_t fd, uint32_t size) {
             auto *v = getUserDataAs<VirtualKeyboard>(r);
+            // A typist's codes mean the seat's keys, whatever its keymap says.
+            if (v->typist) {
+                close(fd);
+                v->keymap = format == WL_KEYBOARD_KEYMAP_FORMAT_XKB_V1;
+                if (!v->keymap)
+                    wl_resource_post_error(r, 0, "An XKB keymap is required");
+                return;
+            }
             v->keymap = false;
             const auto &expected = v->owner->m_seat->clientXkbTracker()->keymap();
             if (format == WL_KEYBOARD_KEYMAP_FORMAT_XKB_V1 && size == expected.size() + 1) {
@@ -678,6 +722,11 @@ const struct zwp_virtual_keyboard_v1_interface InputMethodManager::Impl::keyboar
             auto *o = v->owner;
             if (!v->keymap) {
                 wl_resource_post_error(r, ZWP_VIRTUAL_KEYBOARD_V1_ERROR_NO_KEYMAP, "No keymap");
+                return;
+            }
+            if (v->typist) {
+                if (state <= 1 && (!state || o->usable()))
+                    o->type(v, key, state);
                 return;
             }
             if (state > 1 || !o->method || !o->current(o->method)
@@ -715,11 +764,18 @@ const struct zwp_virtual_keyboard_manager_v1_interface
                         return;
                     }
                     auto *v = new VirtualKeyboard {o, nullptr};
+                    v->typist = o->typist(c);
                     v->resource = o->createResource(c, &zwp_virtual_keyboard_v1_interface, id,
                                                     &keyboardImplementation, v, [](wl_resource *r) {
                                                         std::unique_ptr<VirtualKeyboard> v(
                                                                 getUserDataAs<VirtualKeyboard>(r));
                                                         v->owner->resources.erase(r);
+                                                        // Keys a typist left down would stay
+                                                        // down for every client.
+                                                        if (!v->owner->m_seat->wasShutdown()) {
+                                                            for (uint32_t key : std::set<uint32_t>(v->pressed))
+                                                                v->owner->type(v.get(), key, false);
+                                                        }
                                                     });
                     if (!v->resource)
                         delete v;
@@ -755,6 +811,12 @@ void InputMethodManager::setAuthorizer(std::function<bool(const wl_client *)> au
 {
     if (m_impl)
         m_impl->authorizer = std::move(authorizer);
+}
+
+void InputMethodManager::setTypists(std::function<bool(const wl_client *)> typists)
+{
+    if (m_impl)
+        m_impl->typists = std::move(typists);
 }
 
 InputMethodRelay *InputMethodManager::relay() const

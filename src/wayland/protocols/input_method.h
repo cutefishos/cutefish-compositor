@@ -49,6 +49,11 @@ public:
     // Restricts input-method and virtual-keyboard binds; unset allows every client.
     void setAuthorizer(std::function<bool(const wl_client *)> authorizer);
 
+    // Other clients that may bind virtual keyboards, whose keys type into the
+    // focused window as if pressed on a keyboard: past the compositor's
+    // shortcuts, not while the session is locked. Unset allows none.
+    void setTypists(std::function<bool(const wl_client *)> typists);
+
     // What text inputs of the compositor's own register with.
     InputMethodRelay *relay() const;
 

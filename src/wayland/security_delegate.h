@@ -34,6 +34,10 @@ public:
     // Clients that place their own windows and read where they are, as
     // programs written for a desktop where windows do.
     virtual bool canPlaceWindows(const wl_client *) const { return false; }
+    // Clients whose virtual keyboards type into the window holding the
+    // keyboard, whoever's it is, as programs that post key events to the
+    // session.
+    virtual bool canSendKeys(const wl_client *) const { return false; }
 };
 
 // Grants a privilege when the connecting process runs one of a fixed set of
@@ -56,6 +60,8 @@ public:
     bool showsSystemDialogs(int64_t pid) const override;
     bool canControlComputer(const wl_client *client) const override;
     bool canPlaceWindows(const wl_client *client) const override;
+    // The same programs as place their windows.
+    bool canSendKeys(const wl_client *client) const override;
     // Programs that place their own windows come from a desktop with a
     // Command key of its own and bind it themselves: they get Command as
     // Ctrl, never a terminal's rewritten shortcuts.
