@@ -81,7 +81,7 @@ std::string environmentVariable(const char *name)
 void acceptClient(const std::string &program, std::vector<std::string> arguments,
                   scene::WindowVisualMode expected,
                   bool exerciseResize = false, bool interactiveResize = false,
-                  double bufferScale = 1.0, bool exerciseDamage = false)
+                  double bufferScale = 1.0, bool exerciseDamage = false, bool subsurface = false)
 {
     test::TemporaryDirectory runtime;
     ASSERT_TRUE(runtime.isValid());
@@ -288,6 +288,7 @@ void acceptClient(const std::string &program, std::vector<std::string> arguments
         const base::Rect area = manager.workAreaFor(window);
         window->setBounds(base::Rect(area.topLeft(), window->bounds().size()));
         const base::Size baseSize = window->bounds().size();
+        int subsurfaceFrames = 0;
         for (int step = 0; step < 8; ++step) {
             const base::Size nextSize = baseSize + (step % 2 ? base::Size(30, 20) : base::Size(100, 80));
             const base::Rect initial = window->bounds();
@@ -302,6 +303,17 @@ void acceptClient(const std::string &program, std::vector<std::string> arguments
                         log = client.standardError();
                         h.compositor.updateTextures(*renderer);
                         auto *surface = window->rootSurface();
+                        // The subsurface 20 px inside the window takes each
+                        // size in the window's commit of it.
+                        for (const auto &[child, position] : surface->subSurfaceStack()) {
+                            if (!subsurface || child == surface)
+                                continue;
+                            ++subsurfaceFrames;
+                            EXPECT_EQ(child->contentSize(),
+                                      base::Size(surface->contentSize().width() - 40,
+                                                 surface->contentSize().height() - 40))
+                                    << "step=" << step;
+                        }
                         auto *texture = surface->node()->texture();
                         EXPECT_NE(texture, nullptr);
                         if (texture)
@@ -328,6 +340,10 @@ void acceptClient(const std::string &program, std::vector<std::string> arguments
                     5000))
                     << log;
             manager.eventHandler()->completeDrag(wm::ToplevelEventHandler::DragResult::Success);
+        }
+        if (subsurface) {
+            EXPECT_NE(log.find("SUBSURFACE valid=1"), std::string::npos) << log;
+            EXPECT_GT(subsurfaceFrames, 0);
         }
     }
     h.compositor.updateTextures(*renderer);
@@ -460,6 +476,12 @@ TEST(WindowVisualToolkit, ToolkitInteractiveResize)
         acceptClient(TOOLKIT_RESIZE_CLIENT, {},
                      scene::WindowVisualMode::ServerExterior, false, true, scale);
     }
+}
+
+TEST(WindowVisualToolkit, ToolkitSubsurfaceResize)
+{
+    acceptClient(TOOLKIT_RESIZE_CLIENT, {"--subsurface"}, scene::WindowVisualMode::ServerExterior, true,
+                 false, 1.0, false, true);
 }
 
 TEST(WindowVisualToolkit, ToolkitScrollingDamage)
