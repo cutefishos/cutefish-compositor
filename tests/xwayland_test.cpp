@@ -114,6 +114,9 @@ class XwaylandTest : public testing::Test
 protected:
     void SetUp() override
     {
+        // As the compositor's main(): the XWM's setup thread writes to an X
+        // server that may already have died.
+        signal(SIGPIPE, SIG_IGN);
         setenv("XDG_RUNTIME_DIR", runtime.path().c_str(), 1);
         server = std::make_unique<wayland::Server>();
         compositor = std::make_unique<compositor::Compositor>(scene.root());
