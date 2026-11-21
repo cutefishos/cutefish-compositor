@@ -638,9 +638,11 @@ ui::RectF MenuBarWindow::availableGeometry() const
     const Shell::Output *output = m_shell->output(m_window->outputName());
     if (!output)
         return {};
+    // The bar spans the whole output width, so only a top or bottom dock limits its menus.
     const base::Rect area = m_shell->workArea(*output);
+    const base::Rect bounds = output->bounds;
     const base::Point origin = m_window->geometry().topLeft();
-    return {double(area.x() - origin.x()), double(area.y() - origin.y()), double(area.width()),
+    return {double(bounds.x() - origin.x()), double(area.y() - origin.y()), double(bounds.width()),
             double(area.height())};
 }
 
