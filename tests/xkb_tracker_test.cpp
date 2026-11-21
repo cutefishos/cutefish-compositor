@@ -61,19 +61,36 @@ TEST(XkbTrackerTest, CapsLockLatchesIntoTheLockedMask)
     EXPECT_EQ(XKB_KEY_A, tracker.keysym(KEY_A));
 }
 
+TEST(XkbTrackerTest, NumLockStartsOn)
+{
+    XkbTracker tracker;
+    EXPECT_TRUE(tracker.modifierActive(XKB_MOD_NAME_NUM));
+    EXPECT_EQ(KeyboardLed::NumLock, tracker.leds());
+    EXPECT_EQ(XKB_KEY_KP_1, tracker.keysym(KEY_KP1));
+    EXPECT_EQ(0u, tracker.modifiers().depressed);
+
+    tracker.updateKey(KEY_NUMLOCK, true);
+    tracker.updateKey(KEY_NUMLOCK, false);
+    EXPECT_FALSE(tracker.modifierActive(XKB_MOD_NAME_NUM));
+    EXPECT_EQ(XKB_KEY_KP_End, tracker.keysym(KEY_KP1));
+}
+
 TEST(XkbTrackerTest, TheLockLightsFollowTheLocks)
 {
     XkbTracker tracker;
-    EXPECT_EQ(0u, tracker.leds());
+    EXPECT_EQ(KeyboardLed::NumLock, tracker.leds());
 
     tracker.updateKey(KEY_CAPSLOCK, true);
     tracker.updateKey(KEY_CAPSLOCK, false);
+    EXPECT_EQ(KeyboardLed::CapsLock | KeyboardLed::NumLock, tracker.leds());
+    tracker.updateKey(KEY_NUMLOCK, true);
+    tracker.updateKey(KEY_NUMLOCK, false);
+    EXPECT_EQ(KeyboardLed::CapsLock, tracker.leds());
+
+    ASSERT_TRUE(tracker.updateKeyboardLayout("de"));
     EXPECT_EQ(KeyboardLed::CapsLock, tracker.leds());
     tracker.updateKey(KEY_NUMLOCK, true);
     tracker.updateKey(KEY_NUMLOCK, false);
-    EXPECT_EQ(KeyboardLed::CapsLock | KeyboardLed::NumLock, tracker.leds());
-
-    ASSERT_TRUE(tracker.updateKeyboardLayout("de"));
     EXPECT_EQ(KeyboardLed::CapsLock | KeyboardLed::NumLock, tracker.leds());
     tracker.updateKey(KEY_CAPSLOCK, true);
     tracker.updateKey(KEY_CAPSLOCK, false);
@@ -90,12 +107,12 @@ TEST(XkbTrackerTest, CopyingLocksKeepsTheHeldModifiers)
 
     EXPECT_TRUE(tracker.copyLocks(source));
     EXPECT_FALSE(tracker.copyLocks(source));
-    EXPECT_EQ(KeyboardLed::CapsLock, tracker.leds());
+    EXPECT_EQ(KeyboardLed::CapsLock | KeyboardLed::NumLock, tracker.leds());
     EXPECT_TRUE(tracker.modifierPressed(XKB_MOD_NAME_SHIFT));
 
     tracker.updateKey(KEY_LEFTSHIFT, false);
     EXPECT_FALSE(tracker.modifierPressed(XKB_MOD_NAME_SHIFT));
-    EXPECT_EQ(KeyboardLed::CapsLock, tracker.leds());
+    EXPECT_EQ(KeyboardLed::CapsLock | KeyboardLed::NumLock, tracker.leds());
 }
 
 TEST(XkbTrackerTest, ANamedLayoutReplacesTheKeymap)

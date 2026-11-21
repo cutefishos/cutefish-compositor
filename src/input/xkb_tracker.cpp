@@ -23,7 +23,12 @@ XkbTracker::XkbTracker()
     // environment; the layout comes from the keyboard settings alone.
     : m_context(xkb_context_new(XKB_CONTEXT_NO_ENVIRONMENT_NAMES))
 {
-    updateKeyboardLayoutInternal(nullptr);
+    if (!updateKeyboardLayoutInternal(nullptr))
+        return;
+
+    const xkb_mod_index_t num = xkb_keymap_mod_get_index(m_keymap.get(), XKB_MOD_NAME_NUM);
+    if (num != XKB_MOD_INVALID)
+        xkb_state_update_mask(m_state.get(), 0, 0, 1u << num, 0, 0, 0);
 }
 
 XkbTracker::~XkbTracker() = default;

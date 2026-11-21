@@ -875,13 +875,14 @@ TEST_F(SessionLockTest, CapsLockToggledWhileLockedReachesClientsAndTheLights)
     lockFully();
     input.onKey({}, KEY_CAPSLOCK, true);
     input.onKey({}, KEY_CAPSLOCK, false);
-    EXPECT_EQ(input::KeyboardLed::CapsLock, seat.clientXkbTracker()->leds());
+    EXPECT_EQ(input::KeyboardLed::CapsLock | input::KeyboardLed::NumLock,
+              seat.clientXkbTracker()->leds());
     ASSERT_TRUE(controller.requestUnlock());
     controller.notifyFramePresented();
     input.onKey({}, KEY_CAPSLOCK, true);
     input.onKey({}, KEY_CAPSLOCK, false);
-    EXPECT_EQ(0u, seat.clientXkbTracker()->leds());
-    EXPECT_EQ(0u, seat.xkbTracker()->leds());
+    EXPECT_EQ(input::KeyboardLed::NumLock, seat.clientXkbTracker()->leds());
+    EXPECT_EQ(input::KeyboardLed::NumLock, seat.xkbTracker()->leds());
 }
 
 TEST_F(SessionLockTest, ModifiersHeldForTheLockShortcutAreReleasedWhileLocked)
