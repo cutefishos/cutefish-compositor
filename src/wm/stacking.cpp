@@ -45,7 +45,12 @@ StackingLayer layerFor(const Window *window)
         return layerFor(window->transientParent());
     if (window->isPopup() && window->transientParent()) {
         const StackingLayer parentLayer = layerFor(window->transientParent());
-        return parentLayer == StackingLayer::Desktop ? StackingLayer::DesktopPopup : parentLayer;
+        if (parentLayer == StackingLayer::Desktop)
+            return StackingLayer::DesktopPopup;
+        // A panel's menus open over the dock beside it.
+        if (parentLayer == StackingLayer::Panel)
+            return StackingLayer::AboveDock;
+        return parentLayer;
     }
     if (window->isAboveDock() && window->role() == WindowRole::Normal)
         return StackingLayer::AboveDock;

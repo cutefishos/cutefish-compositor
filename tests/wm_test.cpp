@@ -2120,6 +2120,23 @@ TEST_F(WmTest, DesktopPopupTreeStaysAboveApplicationsAndBelowDock)
     verifyOrder();
 }
 
+TEST_F(WmTest, APanelsMenusOpenOverTheDock)
+{
+    Window *panel = makeWindow(base::Rect(0, 0, 1000, 30));
+    panel->setRole(WindowRole::Panel);
+    Window *dock = makeWindow(base::Rect(0, 30, 80, 700));
+    dock->setRole(WindowRole::Dock);
+    Window *menu = manager.createWindow(makeSurface(base::Size(200, 300)),
+                                        {.type = WindowType::Popup, .transientParent = panel});
+    Window *submenu = manager.createWindow(makeSurface(base::Size(200, 300)),
+                                           {.type = WindowType::Popup, .transientParent = menu});
+
+    EXPECT_EQ(layerFor(menu), StackingLayer::AboveDock);
+    EXPECT_EQ(layerFor(submenu), StackingLayer::AboveDock);
+    const std::vector<Window *> expected {panel, dock, menu, submenu};
+    EXPECT_EQ(expected, manager.windows());
+}
+
 TEST_F(WmTest, ADyingSurfaceIsNoLongerListedByTheCompositor)
 {
     Window *window = makeWindow(base::Rect(0, 0, 200, 200));
