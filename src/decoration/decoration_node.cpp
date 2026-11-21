@@ -166,12 +166,10 @@ void DecorationNode::paintButtons(render::Renderer& renderer, const base::Rect& 
         state.artwork = iconName(button.type(), m_decoration->isRestoreButton());
         state.dark = m_theme->darkMode();
         state.active = m_decoration->isActive();
-        state.colored = m_theme->coloredWindowControls();
-        state.hovered = button.isHovered() || (state.colored && m_decoration->isControlsHovered());
+        state.hovered = button.isHovered();
         state.pressed = button.isPressed();
-        const std::string key = std::format("control:{}:{}:{}{}{}{}{}", scale, state.artwork, int(state.dark),
-                                            int(state.active), int(state.hovered), int(state.pressed),
-                                            int(state.colored));
+        const std::string key = std::format("control:{}:{}:{}{}{}{}", scale, state.artwork, int(state.dark),
+                                            int(state.active), int(state.hovered), int(state.pressed));
         render::Texture* texture = m_theme->texture(renderer, key, [&] {
             return ui::window_controls::render(state, scale, ui::Bitmap::Format::Rgba8888Premultiplied);
         });
