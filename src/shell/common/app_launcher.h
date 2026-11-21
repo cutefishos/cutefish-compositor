@@ -35,6 +35,9 @@ public:
     void launchCommand(const std::vector<std::string> &command, const std::string &workingDirectory,
                        const std::string &appId, Done done = {});
     void quitApplication(const std::string &appId);
+    // For a bundle while nothing runs bundles: the file manager offers to
+    // install what does.
+    static void openInFileManager(const std::string &path);
     // `environment` holds `NAME=value` entries set over the compositor's.
     static bool startDetached(const std::string &program, const std::vector<std::string> &arguments = {},
                               const std::vector<std::string> &environment = {});

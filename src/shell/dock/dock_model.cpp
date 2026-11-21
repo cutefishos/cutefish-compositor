@@ -151,17 +151,6 @@ static bool isBundle(const DockItem &item)
     return !base::bundle::bundlePath(item.desktopPath).empty();
 }
 
-static void openInFileManager(const std::string &path)
-{
-    base::dbus::Connection *bus = base::dbus::Connection::session();
-    if (!bus)
-        return;
-    base::dbus::Message message =
-            bus->newMethodCall("org.cutefish.FileManager", "/FileManager", "org.cutefish.FileManager", "openFiles");
-    message.append(std::vector<std::string>{path});
-    bus->send(message);
-}
-
 static void showMissingBundle(DockItem *item)
 {
     item->uninstalled = true;
@@ -348,7 +337,7 @@ bool DockModel::openNewInstance(const std::string &id)
         bundle.id = item->desktopPath;
         m_launcher.launch(bundle);
     } else if (entry && entry->bundle && entry->exec.empty()) {
-        openInFileManager(entry->path);
+        ApplicationLauncher::openInFileManager(entry->path);
     } else if (entry) {
         m_launcher.launch(*entry);
     } else {

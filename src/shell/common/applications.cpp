@@ -4,7 +4,10 @@
 
 #include "shell/common/applications.h"
 
+#include <algorithm>
+
 #include "base/application_registry.h"
+#include "base/locale.h"
 #include "ui/icon.h"
 
 namespace cutefish::shell {
@@ -12,11 +15,31 @@ namespace cutefish::shell {
 RegistryApplications::RegistryApplications()
     : m_registry(base::ApplicationRegistry::instance())
 {
+    update();
     m_changed = m_registry.changed.connect([this] {
         // A new application's icons arrive with its desktop entry.
         ui::reloadThemeIcons();
+        update();
         changed();
     });
+}
+
+void RegistryApplications::update()
+{
+    m_applications = m_registry.applications();
+
+    // An installed bundle has no command while nothing runs bundles, yet it
+    // stays listed: opening it offers to install what runs it.
+    const base::Locale &locale = base::Locale::system();
+    for (const DesktopEntryPtr &entry : m_registry.entries()) {
+        if (!entry->bundle || !entry->exec.empty() || entry->hidden || entry->noDisplay)
+            continue;
+        const auto position = std::upper_bound(m_applications.begin(), m_applications.end(), entry,
+                                               [&locale](const DesktopEntryPtr &a, const DesktopEntryPtr &b) {
+                                                   return locale.compare(a->name, b->name) < 0;
+                                               });
+        m_applications.insert(position, entry);
+    }
 }
 
 bool RegistryApplications::isLoading() const
@@ -43,7 +66,7 @@ DesktopEntryPtr RegistryApplications::resolveWindow(const std::string &appId, co
 
 const std::vector<DesktopEntryPtr> &RegistryApplications::applications() const
 {
-    return m_registry.applications();
+    return m_applications;
 }
 
 } // namespace cutefish::shell

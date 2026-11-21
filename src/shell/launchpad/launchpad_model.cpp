@@ -543,6 +543,11 @@ bool LaunchpadModel::launch(const std::string &idOrPath)
         return false;
 
     clearNewInstalled({entry->id});
+    if (entry->bundle && entry->exec.empty()) {
+        ApplicationLauncher::openInFileManager(entry->path);
+        applicationLaunched();
+        return true;
+    }
     const std::vector<std::string> command = entry->command();
     if (command.empty())
         return false;

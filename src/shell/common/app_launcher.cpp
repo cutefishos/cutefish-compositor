@@ -100,6 +100,17 @@ void ApplicationLauncher::quitApplication(const std::string &appId)
         m_runtime.send("quitApplication", appId);
 }
 
+void ApplicationLauncher::openInFileManager(const std::string &path)
+{
+    base::dbus::Connection *bus = base::dbus::Connection::session();
+    if (!bus)
+        return;
+    base::dbus::Message message =
+            bus->newMethodCall("org.cutefish.FileManager", "/FileManager", "org.cutefish.FileManager", "openFiles");
+    message.append(std::vector<std::string>{path});
+    bus->send(message);
+}
+
 bool ApplicationLauncher::startDetached(const std::string &program, const std::vector<std::string> &arguments,
                                         const std::vector<std::string> &environment)
 {

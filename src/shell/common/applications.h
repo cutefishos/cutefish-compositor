@@ -52,7 +52,10 @@ public:
     const std::vector<DesktopEntryPtr> &applications() const override;
 
 private:
+    void update();
+
     base::ApplicationRegistry &m_registry;
+    std::vector<DesktopEntryPtr> m_applications;
     base::Subscription m_changed;
 };
 
