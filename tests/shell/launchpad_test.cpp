@@ -300,6 +300,30 @@ TEST_F(LaunchpadTest, PagesFollowTheList)
     EXPECT_EQ(moves, 1);
 }
 
+TEST_F(LaunchpadTest, HandsABundleNothingRunsToTheFileManager)
+{
+    test::DBusTestClient fileManagerClient;
+    std::vector<std::vector<std::string>> opened;
+    dbus::Object fileManager(fileManagerClient.connection.get(), "/FileManager", "org.cutefish.FileManager");
+    fileManager.addMethod("openFiles", [&opened](const std::vector<std::string> &paths) { opened.push_back(paths); });
+    ASSERT_TRUE(fileManager.publish());
+    ASSERT_TRUE(fileManagerClient.connection->requestName("org.cutefish.FileManager"));
+
+    const std::string bundle = "/Applications/Editor.app";
+    applications.addUnhandledBundle(bundle, "Editor");
+    start();
+    applications.scan();
+    ASSERT_TRUE(test::runUntil([&] { return model().count() == 4; }));
+    EXPECT_EQ(ids(), (std::vector<std::string>{"alpha", bundle, "mid", "zeta"}));
+
+    int launched = 0;
+    const base::Subscription subscription = model().applicationLaunched.connect([&launched] { ++launched; });
+    EXPECT_TRUE(model().launch(bundle));
+    EXPECT_EQ(launched, 1);
+    ASSERT_TRUE(test::runUntil([&opened] { return !opened.empty(); }));
+    EXPECT_EQ(opened, (std::vector<std::vector<std::string>>{{bundle}}));
+}
+
 TEST_F(LaunchpadTest, ShowsHidesAndRemembersOpenedApplications)
 {
     applications.scan();

@@ -32,7 +32,8 @@ public:
     virtual DesktopEntryPtr resolveWindow(const std::string &appId, const std::string &windowClass,
                                           const std::string &executablePath,
                                           const std::string &executableName) const = 0;
-    // Sorted by name.
+    // Sorted by name. Installed bundles are listed while nothing runs them,
+    // with no command.
     virtual const std::vector<DesktopEntryPtr> &applications() const = 0;
 
     base::Signal<> changed;

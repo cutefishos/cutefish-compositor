@@ -10,6 +10,8 @@
 
 #include <gtest/gtest.h>
 
+#include "base/application_registry.h"
+#include "core/main_loop.h"
 #include "dbus_test_client.h"
 #include "shell/common/application_badges.h"
 #include "shell/common/count_badge.h"
@@ -17,6 +19,7 @@
 #include "shell/common/task_manager.h"
 #include "shell/common/text_match.h"
 #include "shell_test_util.h"
+#include "temporary_directory.h"
 #include "toolkit/toolkit_host.h"
 #include "ui/bitmap.h"
 #include "ui/embedded_window.h"
@@ -158,6 +161,56 @@ TEST_F(TaskManagerTest, FindsTheEntryOfAProcessThroughItsAncestors)
     commands[200] = {"/usr/bin/org.example.Editor", "org.example.Editor"};
     EXPECT_EQ(tasks->resolveProcess({}, 200, {})->id, "org.example.Editor");
     EXPECT_EQ(tasks->entryForProcess(300), nullptr);
+}
+
+static std::string infoPlist(const std::string &name)
+{
+    return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<plist version=\"1.0\"><dict>"
+           "<key>CFBundleName</key><string>" + name + "</string>"
+           "<key>CFBundleIdentifier</key><string>org.example." + name + "</string>"
+           "</dict></plist>\n";
+}
+
+static std::vector<std::string> names(const shell::Applications &applications)
+{
+    std::vector<std::string> list;
+    for (const shell::DesktopEntryPtr &entry : applications.applications())
+        list.push_back(entry->name);
+    return list;
+}
+
+TEST(RegistryApplicationsTest, ListsInstalledBundlesWhileNothingRunsThem)
+{
+    const test::TemporaryDirectory directory;
+    ASSERT_TRUE(directory.write("applications/files.desktop",
+                                "[Desktop Entry]\nType=Application\nName=Files\nExec=files\n"));
+    ASSERT_TRUE(directory.write("Applications/Editor.app/Contents/Info.plist", infoPlist("Editor")));
+    ASSERT_TRUE(directory.write("Applications/Zebra.app/Contents/Info.plist", infoPlist("Zebra")));
+
+    base::EventLoop &loop = *core::mainLoop();
+    base::ApplicationRegistry::setInstance(
+            loop, base::ApplicationRegistry::create(loop, {directory.filePath("applications")},
+                                                    {directory.filePath("Applications")}));
+    {
+        shell::RegistryApplications applications;
+        ASSERT_TRUE(test::runUntil(
+                [&] { return !applications.isLoading() && applications.applications().size() == 3; }));
+        EXPECT_EQ(names(applications), (std::vector<std::string>{"Editor", "Files", "Zebra"}));
+        const shell::DesktopEntryPtr editor = applications.byPath(directory.filePath("Applications/Editor.app"));
+        ASSERT_TRUE(editor);
+        EXPECT_TRUE(editor->exec.empty());
+
+        // Once something runs them, they are listed once, with its command.
+        ASSERT_TRUE(directory.write("applications/runner.desktop",
+                                    "[Desktop Entry]\nType=Application\nName=Runner\nExec=runner %f\n"
+                                    "MimeType=application/x-apple-app;\nNoDisplay=true\n"));
+        ASSERT_TRUE(test::runUntil([&] {
+            const shell::DesktopEntryPtr entry = applications.byPath(directory.filePath("Applications/Editor.app"));
+            return entry && !entry->exec.empty();
+        }));
+        EXPECT_EQ(names(applications), (std::vector<std::string>{"Editor", "Files", "Zebra"}));
+    }
+    base::ApplicationRegistry::setInstance(loop, nullptr);
 }
 
 TEST(ApplicationBadgesTest, NamesTheDesktopIdOfALauncherUri)
