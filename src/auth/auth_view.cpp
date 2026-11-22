@@ -922,7 +922,9 @@ public:
         m_prompt = m_pill->addChild<ui::Label>();
         m_prompt->setFontSize(13);
         m_prompt->setColor(white(0.72));
-        m_prompt->setElide(ui::Label::Elide::None);
+        // The pill is sized for a password, not a sentence: a long prompt ends
+        // in an ellipsis inside the field instead of running past its edge.
+        m_prompt->setElide(ui::Label::Elide::Right);
         m_prompt->setFadesWhenDisabled(false);
         m_input = m_pill->addChild<PasswordInput>();
         m_input->onTextChanged = [this] { update(); };
@@ -999,8 +1001,10 @@ protected:
         const ui::RectF rect = localRect();
         m_pill->setGeometry({rect.x + m_shakeOffset, rect.y, rect.width, rect.height});
         const ui::SizeF prompt = m_prompt->sizeHint();
-        m_prompt->setGeometry({14, centeredStart(rect.height, prompt.height), prompt.width,
-                               prompt.height});
+        // The text stops where the input stops, before the button.
+        const double promptSpace = std::max(0.0, rect.width - 14.0 - 40.0);
+        m_prompt->setGeometry({14, centeredStart(rect.height, prompt.height),
+                               std::min(prompt.width, promptSpace), prompt.height});
         m_input->setGeometry({14, 0, rect.width - 14 - 40, rect.height});
         m_go->setGeometry({rect.width - 4 - 24, centeredStart(rect.height, 24), 24, 24});
     }
@@ -1144,6 +1148,50 @@ private:
     RaisedLabel *m_label;
 };
 
+// The neutral counterpart of ErrorLabel: it says the reader is waiting for a
+// finger, and carries no error colour. It takes no room while hidden.
+class HintLabel final : public ui::View
+{
+public:
+    explicit HintLabel(ui::Window *window)
+        : m_opacity(window, 180, ui::Animation::Easing::OutCubic, numberInterpolation(),
+                    [this] { setOpacity(m_opacity.value()); })
+    {
+        m_label = addChild<RaisedLabel>(13, 400, white(0.76), kBlack.withAlpha(0.35));
+        m_label->setElidedCentred();
+        m_opacity.setTarget(0);
+        setVisible(false);
+    }
+
+    void setMessage(const std::string &message)
+    {
+        const bool shown = !message.empty();
+        if (shown)
+            m_label->setText(message);
+        if (m_shown == shown)
+            return;
+        m_shown = shown;
+        m_opacity.setTarget(shown ? 1 : 0);
+        // A hidden row would still take a gap in the column.
+        setVisible(shown);
+        requestLayout();
+    }
+
+    ui::SizeF sizeHint() const override { return {0, 20}; }
+
+protected:
+    void layout() override
+    {
+        const double height = m_label->sizeHint().height;
+        m_label->setGeometry({0, centeredStart(geometry().height, height), geometry().width, height});
+    }
+
+private:
+    NumberBehavior m_opacity;
+    RaisedLabel *m_label;
+    bool m_shown = false;
+};
+
 class UnlockPrompt final : public ui::View
 {
 public:
@@ -1233,6 +1281,9 @@ AuthScreen::AuthScreen(ui::Window *window, AuthController *controller)
     m_password->setLayoutHints(centred(true));
     m_password->setPlaceholder(tr("Enter Password"));
     m_password->setVisible(m_controller->passwordRequired());
+    m_fingerprint = m_pod->addChild<HintLabel>(window);
+    m_fingerprint->setName("fingerprint-hint");
+    m_fingerprint->setLayoutHints(centred(true));
     m_unlock = m_pod->addChild<UnlockPrompt>();
     m_unlock->setName("unlock-prompt");
     m_unlock->setLayoutHints(centred(true));
@@ -1278,6 +1329,7 @@ AuthScreen::AuthScreen(ui::Window *window, AuthController *controller)
     m_password->onEdited = [this] {
         if (m_controller->failed())
             m_controller->reset();
+        updateFingerprintHint();
     };
     NameInput *name = m_userName->input();
     name->onTextEdited = [this, name] {
@@ -1319,6 +1371,7 @@ AuthScreen::AuthScreen(ui::Window *window, AuthController *controller)
     m_subscriptions.push_back(m_controller->sessionsChanged.connect(sessionsChanged));
     m_subscriptions.push_back(m_controller->sessionChanged.connect(sessionsChanged));
     m_subscriptions.push_back(m_controller->stateChanged.connect(stateChanged));
+    m_subscriptions.push_back(m_controller->hintChanged.connect([this] { updateFingerprintHint(); }));
     m_subscriptions.push_back(m_controller->authenticationFailed.connect([this] {
         m_password->clear();
         m_password->shake();
@@ -1329,6 +1382,7 @@ AuthScreen::AuthScreen(ui::Window *window, AuthController *controller)
     userChanged();
     sessionsChanged();
     stateChanged();
+    updateFingerprintHint();
 
     m_clockTimer.setSingleShot(true);
     m_clockTimer.onTimeout = [this] { tick(); };
@@ -1343,9 +1397,24 @@ AuthScreen::~AuthScreen()
 void AuthScreen::retranslate()
 {
     m_userName->retranslate();
-    m_password->setPlaceholder(tr("Enter Password"));
+    updatePlaceholder();
+    updateFingerprintHint();
     m_unlock->retranslate();
     tick();
+}
+
+void AuthScreen::updatePlaceholder()
+{
+    // The pill holds a password, not a sentence; what the reader needs is said
+    // on the line below it.
+    m_password->setPlaceholder(tr("Enter Password"));
+}
+
+void AuthScreen::updateFingerprintHint()
+{
+    const bool shown = m_controller->fingerprintActive() && !m_controller->succeeded()
+            && !m_controller->busy() && m_password->input()->text().empty();
+    m_fingerprint->setMessage(shown ? tr("Touch the fingerprint reader") : std::string());
 }
 
 void AuthScreen::setBlocked(bool blocked)

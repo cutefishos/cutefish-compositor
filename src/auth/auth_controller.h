@@ -85,16 +85,25 @@ public:
     void unlockWithoutPassword();
     void reset();
 
+    // The reader's latest notice ("Place your finger on the reader"); empty
+    // until it has said something. Only the lock screen offers the reader.
+    const std::string &hint() const { return m_hint; }
+
+    // True while the reader is actually waiting for a finger.
+    bool fingerprintActive() const { return m_fingerprintActive; }
+
     base::Signal<> stateChanged;
     base::Signal<> userChanged;
     base::Signal<> sessionChanged;
     base::Signal<> sessionsChanged;
     base::Signal<> usersChanged;
+    base::Signal<> hintChanged;
     base::Signal<> authenticationFailed;
     // Emitted once.
     base::Signal<> authenticationSucceeded;
 
 private:
+    void startFingerprint();
     void setState(State state, const std::string &errorMessage = {});
     void resolveUser();
     void selectSessionFor(const std::string &userName);
@@ -110,6 +119,9 @@ private:
     std::string m_iconSource;
     std::string m_iconStamp;
     std::string m_errorMessage;
+    // The reader's last notice; never a credential.
+    std::string m_hint;
+    bool m_fingerprintActive = false;
     std::vector<std::string> m_users;
     std::vector<std::string> m_userIcons;
     std::vector<std::string> m_userIconStamps;

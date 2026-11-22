@@ -22,12 +22,21 @@ public:
     void authenticate(const std::string &userName, Secret secret) override;
     void reset() override;
 
+    bool fingerprintAvailable(const std::string &userName) const override;
+    void startFingerprint(const std::string &userName) override;
+    void stopFingerprint() override;
+
     void accept() override { }
 
 private:
     std::unique_ptr<base::Process> m_process;
     base::Timer m_timeout;
     bool m_pending = false;
+    // Kept until the next attempt so its finish callback never deletes itself.
+    std::unique_ptr<base::Process> m_fingerprint;
+    bool m_fingerprintDone = true;
+    bool m_fingerprintActive = false;
+    void setFingerprintActive(bool active);
 };
 } // namespace cutefish::auth
 #endif
