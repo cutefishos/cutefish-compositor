@@ -12,7 +12,7 @@
 #include "base/logging.h"
 #include "base/process.h"
 #include "shell/common/app_launcher.h"
-#include "shell/controlcenter/panel_style.h"
+#include "shell/shell_data.h"
 #include "shell/search/search_view.h"
 #include "shell/shell_data.h"
 #include "shell/shell_window.h"
@@ -22,7 +22,23 @@
 namespace cutefish::shell {
 
 namespace {
+
 const base::LogCategory cfSearch("cutefish.search", base::LogLevel::Warning);
+
+// The panel's glass: clearer than the Control Center's, with a little more
+// colour in the backdrop and a highlight along the rim, as macOS Tahoe reads.
+render::GlassParams searchGlass()
+{
+    const bool dark = ui::Theme::current().darkMode;
+    render::GlassParams glass = dark ? popupGlass(0.14, 0.15, 0.18, 0.45)
+                                     : popupGlass(1.0, 1.0, 1.0, 0.38);
+    glass.saturation = 1.35f;
+    glass.specularIntensity = 0.55f;
+    glass.shininess = 60.0f;
+    glass.sheen = 0.35f;
+    return glass;
+}
+
 } // namespace
 
 SearchWindow::SearchWindow(Shell *shell, base::dbus::Connection *bus)
@@ -147,9 +163,8 @@ void SearchWindow::applyGlass()
         return;
     m_glassDark = int(dark);
     m_glassHeight = height;
-    // The Control Center's own glass, so the panel reads as part of the shell.
-    m_window->setBackgroundBlur(base::Rect(0, 0, SearchView::kWidth, height), panel::kPanelRadius,
-                                panel::panelGlass());
+    m_window->setBackgroundBlur(base::Rect(0, 0, SearchView::kWidth, height),
+                                int(SearchView::kCardRadius), searchGlass());
 }
 
 void SearchWindow::open()

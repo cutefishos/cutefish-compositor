@@ -137,7 +137,7 @@ protected:
     {
         if (m_selected)
             painter.drawRoundedRect(localRect(), {SearchView::kRowRadius, 0, ui::themeCorners()},
-                                    ui::Theme::current().highlight);
+                                    ui::Theme::current().highlight.withAlpha(0.9));
     }
 
 private:
@@ -350,6 +350,12 @@ void SearchView::paint(ui::Painter &painter)
 {
     if (onPainted)
         onPainted();
+    // A light along the inside of the rim: glass catches the window's edge.
+    const ui::Theme &theme = ui::Theme::current();
+    const ui::Color rim = theme.darkMode ? ui::Color::rgb(0xFFFFFF).withAlpha(0.10)
+                                         : ui::Color::rgb(0xFFFFFF).withAlpha(0.32);
+    painter.strokeRoundedRect({0.5, 0.5, geometry().width - 1, geometry().height - 1},
+                              kCardRadius - 0.5, rim, 1);
     const double bar = kPadding * 2 + kHeaderHeight;
     if (geometry().height <= bar + 1)
         return;

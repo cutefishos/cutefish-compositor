@@ -38,7 +38,7 @@ public:
     static constexpr int kWidth = 680;
     static constexpr int kHeight = 420;
     static constexpr int kPadding = 14;
-    static constexpr double kCardRadius = 16;
+    static constexpr double kCardRadius = 24;
     static constexpr double kRowRadius = kCardRadius - kPadding;
     static constexpr int kHeaderHeight = 48;
     static constexpr int kRowHeight = 46;
