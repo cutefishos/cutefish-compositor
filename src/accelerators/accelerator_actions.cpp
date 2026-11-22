@@ -14,9 +14,10 @@ namespace cutefish::accelerators {
 
 namespace {
 
-constexpr std::array<std::pair<AcceleratorAction, const char *>, 51> kActionNames = {{
+constexpr std::array<std::pair<AcceleratorAction, const char *>, 52> kActionNames = {{
         {AcceleratorAction::ToggleAppList, "toggle-app-list"},
         {AcceleratorAction::LockScreen, "lock-screen"},
+        {AcceleratorAction::OpenRipple, "open-ripple"},
         {AcceleratorAction::CycleForwardMru, "cycle-forward-mru"},
         {AcceleratorAction::CycleBackwardMru, "cycle-backward-mru"},
         {AcceleratorAction::ToggleMaximized, "toggle-maximized"},

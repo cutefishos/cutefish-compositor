@@ -59,6 +59,7 @@
 #include "session/session_state.h"
 #include "shell/clipboard/clipboard_history.h"
 #include "shell/clipboard/clipboard_picker.h"
+#include "shell/ripple/ripple_window.h"
 #include "shell/common/task_manager.h"
 #include "shell/controlcenter/control_center.h"
 #include "shell/dock/dock.h"
@@ -731,6 +732,7 @@ void CompositorShell::initShell()
     auto *dockWindow = m_shell->addComponent(std::make_unique<shell::DockWindow>(m_shell.get(), std::move(dock)));
     auto *clipboard = m_shell->addComponent(std::make_unique<shell::ClipboardPicker>(
             m_shell.get(), std::make_unique<shell::ClipboardHistory>(environment.bus, *m_seat.selection())));
+    auto *ripple = m_shell->addComponent(std::make_unique<shell::RippleWindow>(m_shell.get(), environment.bus));
     m_shell->addComponent(std::make_unique<shell::NotRespondingSheets>(m_shell.get()));
     auto *screenshot = m_shell->addComponent(std::make_unique<shell::ScreenCapture>(
             m_shell.get(), screenCaptureServices(dockWindow, wallpaper)));
@@ -789,6 +791,8 @@ void CompositorShell::initShell()
         osd->registerService();
         dockService->registerService();
         clipboard->history().registerService();
+        if (ripple)
+            ripple->registerService();
         screenshot->registerService();
         secrets->start();
         notifications->registerServices();

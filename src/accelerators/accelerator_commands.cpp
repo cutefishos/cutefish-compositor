@@ -218,6 +218,11 @@ void lockScreen(const CommandContext &context)
         context.session->requestLock();
 }
 
+void openRipple(const CommandContext &context)
+{
+    context.delegate->toggleRipple();
+}
+
 void toggleAppList(const CommandContext &context)
 {
     context.delegate->toggleAppList();

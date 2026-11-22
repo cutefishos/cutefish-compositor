@@ -84,6 +84,7 @@ public:
     void startCaptureMode() override { captures.push_back("capture-mode"); }
     void stopScreenRecording() override { captures.push_back("stop-recording"); }
     void toggleClipboardHistory() override { ++clipboardHistoryToggles; }
+    void toggleRipple() override { ++rippleToggles; }
     void mediaPlayPause() override { media.push_back("media-play-pause"); }
     void mediaPause() override { media.push_back("media-pause"); }
     void mediaPrevious() override { media.push_back("media-previous"); }
@@ -100,6 +101,7 @@ public:
 
     int appListToggles = 0;
     int clipboardHistoryToggles = 0;
+    int rippleToggles = 0;
     std::vector<std::string> captures;
     std::vector<std::string> levels;
     std::vector<std::string> media;
@@ -1794,7 +1796,7 @@ TEST_F(AcceleratorTest, ServiceListsActionsWithTheirDefaultsOverTheBus)
     const auto reply = proxy.call("accelerators");
     ASSERT_FALSE(reply.isError()) << reply.error().message;
     const base::json::Value actions = parse(reply.value<std::string>().value_or(""))["actions"];
-    EXPECT_EQ(51u, actions.size());
+    EXPECT_EQ(52u, actions.size());
     bool sawMaximize = false;
     bool sawOverview = false;
     for (const base::json::Value &action : actions.toArray()) {

@@ -22,6 +22,7 @@ namespace cutefish::accelerators {
 enum class AcceleratorAction : uint32_t {
     ToggleAppList,
     LockScreen,
+    OpenRipple,
 
     CycleForwardMru,
     CycleBackwardMru,

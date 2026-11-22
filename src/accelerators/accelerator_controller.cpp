@@ -194,6 +194,7 @@ bool AcceleratorController::canPerformAction(AcceleratorAction action,
     case AcceleratorAction::StartCaptureMode:
     case AcceleratorAction::StopScreenRecording:
     case AcceleratorAction::ToggleClipboardHistory:
+    case AcceleratorAction::OpenRipple:
     case AcceleratorAction::MediaPlayPause:
     case AcceleratorAction::MediaPause:
     case AcceleratorAction::MediaPrevious:
@@ -229,6 +230,9 @@ void AcceleratorController::performAction(AcceleratorAction action, const Accele
         break;
     case AcceleratorAction::LockScreen:
         commands::lockScreen(m_context);
+        break;
+    case AcceleratorAction::OpenRipple:
+        commands::openRipple(m_context);
         break;
     case AcceleratorAction::MoveActiveWindowBetweenDisplays:
         commands::moveActiveWindowBetweenDisplays(m_context);
