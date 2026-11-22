@@ -84,6 +84,9 @@ public:
     void authenticate(std::string password);
     void unlockWithoutPassword();
     void reset();
+    // Someone is at the lock screen: the reader, which stops after a while
+    // without a finger, is offered again.
+    void userActive();
 
     // The reader's latest notice ("Place your finger on the reader"); empty
     // until it has said something. Only the lock screen offers the reader.

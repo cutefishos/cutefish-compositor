@@ -5,8 +5,10 @@
 #ifndef CUTEFISH_AUTH_PAM_BACKEND_H
 #define CUTEFISH_AUTH_PAM_BACKEND_H
 #include "auth/auth_backend.h"
+#include "base/dbus.h"
 #include "base/process.h"
 #include "base/timer.h"
+#include <chrono>
 #include <memory>
 
 namespace cutefish::auth {
@@ -34,8 +36,14 @@ private:
     bool m_pending = false;
     // Kept until the next attempt so its finish callback never deletes itself.
     std::unique_ptr<base::Process> m_fingerprint;
-    bool m_fingerprintDone = true;
+    base::Timer m_fingerprintRetry;
+    std::chrono::steady_clock::time_point m_fingerprintRestsUntil;
+    base::dbus::Proxy m_logind;
+    base::dbus::Match m_prepareForSleep;
+    bool m_fingerprintRunning = false;
+    bool m_fingerprintSpoke = false;
     bool m_fingerprintActive = false;
+    void launchFingerprint();
     void setFingerprintActive(bool active);
 };
 } // namespace cutefish::auth

@@ -528,6 +528,8 @@ bool AuthUi::onKey(input::Timestamp, uint32_t code, bool pressed)
         m_repeatTimer.stop();
     if (!sendKey(code, pressed, false))
         return true;
+    if (pressed)
+        m_controller->userActive();
     if (pressed && m_keyRepeat.enabled && m_xkb->keyRepeats(code) && !m_controller->busy()
         && !m_controller->succeeded()) {
         m_repeatCode = code;
@@ -585,6 +587,7 @@ bool AuthUi::onPointerMotion(input::Timestamp, const base::PointF &position)
         m_window->updateLayout();
         m_window->pointerMove({local.x(), local.y()});
         updateCursor();
+        m_controller->userActive();
     }
     return true;
 }
@@ -592,7 +595,11 @@ bool AuthUi::onPointerMotion(input::Timestamp, const base::PointF &position)
 bool AuthUi::onPointerButton(input::Timestamp, const base::PointF &position, uint32_t button,
                              bool pressed)
 {
-    if (m_resetPending || button != BTN_LEFT || !m_window || !m_node->isEffectivelyVisible())
+    if (m_resetPending || !m_window || !m_node->isEffectivelyVisible())
+        return true;
+    if (pressed)
+        m_controller->userActive();
+    if (button != BTN_LEFT)
         return true;
     const base::PointF local = position - base::PointF(m_node->absolutePosition());
     m_window->updateLayout();

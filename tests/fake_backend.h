@@ -30,10 +30,40 @@ public:
 
     void setSession(const cutefish::auth::LoginSession &session) override { lastSession = session.id; }
 
+    bool fingerprintAvailable(const std::string &) const override { return hasReader; }
+
+    void startFingerprint(const std::string &) override
+    {
+        ++fingerprintStartCount;
+        readerRunning = true;
+    }
+
+    void stopFingerprint() override
+    {
+        ++fingerprintStopCount;
+        readerRunning = false;
+    }
+
     void succeed() { succeeded(); }
 
     void reject(const std::string &message = "Incorrect password") { failed(message); }
 
+    void touch()
+    {
+        readerRunning = false;
+        fingerprintSucceeded();
+    }
+
+    void wake()
+    {
+        stopFingerprint();
+        systemWoke();
+    }
+
+    bool hasReader = false;
+    bool readerRunning = false;
+    int fingerprintStartCount = 0;
+    int fingerprintStopCount = 0;
     int startCount = 0;
     int authenticateCount = 0;
     int resetCount = 0;

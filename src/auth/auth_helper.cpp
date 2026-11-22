@@ -42,8 +42,9 @@ int conversation(int count, const pam_message **messages, pam_response **respons
         } else if (messages[i]->msg_style == PAM_TEXT_INFO
                    || messages[i]->msg_style == PAM_ERROR_MSG) {
             // The reader's progress notices ("Place your finger on the
-            // reader"). They never carry a credential, and the caller shows
-            // them while it waits.
+            // reader"). They never carry a credential, and they are all this
+            // program writes: the caller takes any line as the reader having
+            // started.
             if (messages[i]->msg)
                 fprintf(stderr, "%s\n", messages[i]->msg);
             continue;
@@ -107,9 +108,11 @@ int main(int argc, char **argv)
     }
     if (handle)
         pam_end(handle, result);
-    if (result != PAM_SUCCESS)
-        fprintf(stderr, "pam: %s\n", pam_strerror(handle, result));
     // A finger authenticates without answering a prompt: the credential the
     // conversation would have carried stays empty, and that is a success.
-    return result == PAM_SUCCESS && (fingerprint || credential.answered) ? 0 : 1;
+    // PAM_MAXTRIES is a finger that was read and did not match, which the
+    // caller tells apart (2) to try again while the user is at the reader.
+    if (fingerprint)
+        return result == PAM_SUCCESS ? 0 : result == PAM_MAXTRIES ? 2 : 1;
+    return result == PAM_SUCCESS && credential.answered ? 0 : 1;
 }

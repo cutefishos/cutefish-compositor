@@ -76,6 +76,8 @@ AuthController::AuthController(Mode mode, AuthBackend *backend)
             return;
         setState(Failed, message);
         authenticationFailed();
+        // authenticate() stopped the reader for the password that just failed.
+        startFingerprint();
     }));
     m_backendSubscriptions.push_back(m_backend->succeeded.connect([this] {
         // Only an outstanding attempt can authorize a transition.
@@ -112,6 +114,7 @@ AuthController::AuthController(Mode mode, AuthBackend *backend)
                 m_fingerprintActive = active;
                 hintChanged();
             }));
+    m_backendSubscriptions.push_back(m_backend->systemWoke.connect([this] { startFingerprint(); }));
     resolveUser();
     if (m_mode == Login) {
         setUsers(findLoginUsers());
@@ -283,12 +286,17 @@ void AuthController::start()
     startFingerprint();
 }
 
+void AuthController::userActive()
+{
+    startFingerprint();
+}
+
 void AuthController::startFingerprint()
 {
     // Only the lock screen offers the reader: a login that skips the password
     // cannot unlock the keyring, so it stays password-first until the login
     // flow can wait for a secret after a failed touch.
-    if (m_mode != Lock || m_accepted || m_state == Succeeded)
+    if (m_mode != Lock || m_accepted || m_state == Succeeded || m_state == Authenticating)
         return;
     if (!m_backend->fingerprintAvailable(m_userName))
         return;
@@ -324,8 +332,6 @@ void AuthController::reset()
         return;
     m_backend->reset();
     setState(Idle);
-    // The failed attempt was a typed password, so the reader gets another turn.
-    startFingerprint();
 }
 
 void AuthController::setState(State state, const std::string &errorMessage)

@@ -41,7 +41,8 @@ public:
 
     // Fingerprint verification runs beside the password path, not in front of
     // it, so a typed password never waits for the reader. A backend without a
-    // reader leaves these alone.
+    // reader leaves these alone. startFingerprint() may decline: the reader
+    // is not kept verifying, and rests after an attempt ends.
     virtual bool fingerprintAvailable(const std::string &) const { return false; }
     virtual void startFingerprint(const std::string &) { }
     virtual void stopFingerprint() { }
@@ -58,6 +59,10 @@ public:
     // The reader's own progress text ("Place your finger on the reader"). It
     // never contains a credential.
     base::Signal<const std::string &> fingerprintMessage;
+
+    // The machine woke from sleep, which resets the reader; whoever woke it
+    // is at the screen.
+    base::Signal<> systemWoke;
 
     // `message` never contains the credential.
     base::Signal<const std::string &> failed;
