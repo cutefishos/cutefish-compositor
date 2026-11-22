@@ -35,7 +35,6 @@ struct AcceleratorData {
 inline constexpr auto kAcceleratorData = std::to_array<AcceleratorData>({
         {false, XKB_KEY_Super_L, NoModifier, AcceleratorAction::ToggleAppList},
         {true, XKB_KEY_l, MetaDown, AcceleratorAction::LockScreen},
-        {true, XKB_KEY_r, ControlDown | ShiftDown, AcceleratorAction::OpenRipple},
 
         {true, XKB_KEY_Tab, AltDown, AcceleratorAction::CycleForwardMru},
         {true, XKB_KEY_Tab, AltDown | ShiftDown, AcceleratorAction::CycleBackwardMru},
@@ -97,7 +96,6 @@ inline constexpr auto kAcceleratorData = std::to_array<AcceleratorData>({
 // Command reaches the compositor as Meta, so MetaDown reads as Command.
 inline constexpr auto kCommandAcceleratorData = std::to_array<AcceleratorData>({
         {true, XKB_KEY_q, ControlDown | MetaDown, AcceleratorAction::LockScreen},
-        {true, XKB_KEY_r, MetaDown | ShiftDown, AcceleratorAction::OpenRipple},
 
         {true, XKB_KEY_Tab, MetaDown, AcceleratorAction::CycleForwardMru},
         {true, XKB_KEY_Tab, MetaDown | ShiftDown, AcceleratorAction::CycleBackwardMru},

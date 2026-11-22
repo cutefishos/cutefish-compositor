@@ -31,7 +31,6 @@ public:
     bool isOpen() const;
     void open();
     void close();
-    void toggle();
 
     // Files handed in by the file manager: show them, and the devices to send
     // them to. The argument is a JSON array of paths.

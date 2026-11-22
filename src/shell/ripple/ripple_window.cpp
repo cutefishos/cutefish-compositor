@@ -195,19 +195,6 @@ void RippleWindow::close()
         m_window->hide();
 }
 
-void RippleWindow::toggle()
-{
-    if (isOpen()) {
-        close();
-        return;
-    }
-    m_pending.clear();
-    m_view->setPending(0);
-    m_view->setMode(RippleView::Mode::Devices);
-    refreshPeers();
-    open();
-}
-
 void RippleWindow::share(const std::string &pathsJson)
 {
     m_pending.clear();
@@ -283,7 +270,6 @@ bool RippleWindow::registerService()
     auto object = std::make_unique<base::dbus::Object>(m_bus, "/RipplePanel", "org.cutefish.RipplePanel");
     object->addMethod("share", [this](const std::string &paths) { share(paths); },
                       base::dbus::ArgumentNames {{"paths"}, {}});
-    object->addMethod("toggle", [this] { toggle(); });
     if (!object->publish()
         || !m_bus->requestName("org.cutefish.RipplePanel", base::dbus::Connection::DoNotQueue)) {
         CF_WARNING(cfRipple) << "Cannot own org.cutefish.RipplePanel";
