@@ -26,6 +26,7 @@ namespace cutefish::auth {
 class AuthController;
 class ChoiceMenu;
 class ErrorLabel;
+class HintLabel;
 class PasswordField;
 class RaisedLabel;
 class UserGrid;
@@ -57,6 +58,8 @@ protected:
 private:
     void tick();
     void retranslate();
+    void updatePlaceholder();
+    void updateFingerprintHint();
     void closeMenus(ui::PointF position);
     bool canSwitchUser() const;
     void updateSwappable();
@@ -75,6 +78,7 @@ private:
     UserView *m_user = nullptr;
     UserNameField *m_userName = nullptr;
     PasswordField *m_password = nullptr;
+    HintLabel *m_fingerprint = nullptr;
     UnlockPrompt *m_unlock = nullptr;
     ErrorLabel *m_error = nullptr;
     ChoiceMenu *m_sessions = nullptr;

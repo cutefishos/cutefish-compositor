@@ -861,6 +861,17 @@ set(CUTEFISH_PAM_CONFIG "${_cutefish_pam_default}" CACHE FILEPATH
     "PAM service file for Cutefish lock-screen authentication")
 install(FILES "${CUTEFISH_PAM_CONFIG}"
         DESTINATION ${CMAKE_INSTALL_FULL_SYSCONFDIR}/pam.d RENAME cutefish-auth)
+# The fingerprint half runs beside cutefish-auth; it carries pam_fprintd alone.
+set(_cutefish_pam_fingerprint_default
+    "${CMAKE_CURRENT_SOURCE_DIR}/data/cutefish-auth-fingerprint")
+if(EXISTS "/etc/pam.d/system-auth" AND NOT EXISTS "/etc/pam.d/common-auth")
+    set(_cutefish_pam_fingerprint_default
+        "${CMAKE_CURRENT_SOURCE_DIR}/data/cutefish-auth-fingerprint-fedora")
+endif()
+set(CUTEFISH_PAM_FINGERPRINT_CONFIG "${_cutefish_pam_fingerprint_default}" CACHE FILEPATH
+    "PAM service file for Cutefish fingerprint unlock")
+install(FILES "${CUTEFISH_PAM_FINGERPRINT_CONFIG}"
+        DESTINATION ${CMAKE_INSTALL_FULL_SYSCONFDIR}/pam.d RENAME cutefish-auth-fingerprint)
 add_library(cutefish-auth STATIC
     src/auth/auth_status.cpp src/auth/auth_status.h
     src/auth/auth_ui.cpp src/auth/auth_ui.h

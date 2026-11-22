@@ -3,6 +3,7 @@
 // found in the LICENSE file.
 
 #include <array>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <pwd.h>
@@ -12,6 +13,11 @@
 #include <unistd.h>
 
 namespace {
+constexpr const char *kPasswordService = "cutefish-auth";
+// A stack of its own, holding nothing but pam_fprintd: verifying against
+// common-auth would put the reader's waiting in front of every password.
+constexpr const char *kFingerprintService = "cutefish-auth-fingerprint";
+
 struct Credential {
     std::array<char, 4097> bytes {};
     bool answered = false;
@@ -35,6 +41,11 @@ int conversation(int count, const pam_message **messages, pam_response **respons
                 continue;
         } else if (messages[i]->msg_style == PAM_TEXT_INFO
                    || messages[i]->msg_style == PAM_ERROR_MSG) {
+            // The reader's progress notices ("Place your finger on the
+            // reader"). They never carry a credential, and the caller shows
+            // them while it waits.
+            if (messages[i]->msg)
+                fprintf(stderr, "%s\n", messages[i]->msg);
             continue;
         }
         for (int j = 0; j < count; ++j) {
@@ -51,8 +62,16 @@ int conversation(int count, const pam_message **messages, pam_response **respons
 }
 } // namespace
 
-int main()
+int main(int argc, char **argv)
 {
+    // Without a password on stdin, authenticate the reader instead. This is
+    // what lets the lock screen start an attempt before anything is typed.
+    bool fingerprint = false;
+    for (int i = 1; i < argc; ++i) {
+        if (strcmp(argv[i], "--fingerprint") == 0)
+            fingerprint = true;
+    }
+
     const rlimit limit {0, 0};
     setrlimit(RLIMIT_CORE, &limit);
     prctl(PR_SET_DUMPABLE, 0);
@@ -62,22 +81,25 @@ int main()
         return 1;
     Credential credential;
     size_t size = 0;
-    for (;;) {
-        const ssize_t n =
-                read(STDIN_FILENO, credential.bytes.data() + size, credential.bytes.size() - size);
-        if (n < 0)
-            return 1;
-        if (!n)
-            break;
-        size += size_t(n);
-        if (size >= credential.bytes.size())
+    if (!fingerprint) {
+        for (;;) {
+            const ssize_t n =
+                    read(STDIN_FILENO, credential.bytes.data() + size, credential.bytes.size() - size);
+            if (n < 0)
+                return 1;
+            if (!n)
+                break;
+            size += size_t(n);
+            if (size >= credential.bytes.size())
+                return 1;
+        }
+        if (!size || memchr(credential.bytes.data(), 0, size))
             return 1;
     }
-    if (!size || memchr(credential.bytes.data(), 0, size))
-        return 1;
     pam_conv conv {conversation, &credential};
     pam_handle_t *handle = nullptr;
-    int result = pam_start("cutefish-auth", user->pw_name, &conv, &handle);
+    int result = pam_start(fingerprint ? kFingerprintService : kPasswordService, user->pw_name,
+                           &conv, &handle);
     if (result == PAM_SUCCESS) {
         result = pam_authenticate(handle, PAM_DISALLOW_NULL_AUTHTOK);
         if (result == PAM_SUCCESS)
@@ -85,5 +107,9 @@ int main()
     }
     if (handle)
         pam_end(handle, result);
-    return result == PAM_SUCCESS && credential.answered ? 0 : 1;
+    if (result != PAM_SUCCESS)
+        fprintf(stderr, "pam: %s\n", pam_strerror(handle, result));
+    // A finger authenticates without answering a prompt: the credential the
+    // conversation would have carried stays empty, and that is a success.
+    return result == PAM_SUCCESS && (fingerprint || credential.answered) ? 0 : 1;
 }

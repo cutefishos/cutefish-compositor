@@ -1,0 +1,15 @@
+# PAM stack for the fingerprint half of Cutefish lock-screen authentication.
+#
+# The lock screen runs this beside the password stack, never in front of it:
+# pam_fprintd holds the reader until a finger arrives or its timeout passes, so
+# a password typed meanwhile must not queue behind it. Whichever succeeds first
+# unlocks.
+#
+# Only pam_fprintd is here. Nothing opens a session, sets up an environment or
+# starts a keyring; cutefish-auth does that for the session itself.
+#
+# The service is installed unconditionally and costs nothing when the module is
+# absent: the helper is only started for it when pam_fprintd.so exists.
+
+auth     required   pam_fprintd.so max-tries=1 timeout=20
+account  include    common-account

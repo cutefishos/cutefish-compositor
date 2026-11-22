@@ -1,0 +1,7 @@
+#%PAM-1.0
+# Fingerprint half of Cutefish lock-screen authentication, for Fedora/RHEL
+# systems whose PAM configuration runs through authselect's system-auth.
+# The lock screen runs this beside the password stack, never in front of it.
+
+auth     required   pam_fprintd.so max-tries=1 timeout=20
+account  include    system-auth
