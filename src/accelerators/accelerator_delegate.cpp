@@ -64,6 +64,11 @@ void DBusAcceleratorDelegate::toggleClipboardHistory()
     call("org.cutefish.ClipboardHistory", "/ClipboardHistory", "toggle");
 }
 
+void DBusAcceleratorDelegate::toggleSearch()
+{
+    call("org.cutefish.Search", "/Search", "toggle");
+}
+
 void DBusAcceleratorDelegate::mediaPlayPause()
 {
     call("org.cutefish.MenuBar", "/MenuBar", "mediaPlayPause");

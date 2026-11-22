@@ -84,6 +84,7 @@ public:
     void startCaptureMode() override { captures.push_back("capture-mode"); }
     void stopScreenRecording() override { captures.push_back("stop-recording"); }
     void toggleClipboardHistory() override { ++clipboardHistoryToggles; }
+    void toggleSearch() override { ++searchToggles; }
     void mediaPlayPause() override { media.push_back("media-play-pause"); }
     void mediaPause() override { media.push_back("media-pause"); }
     void mediaPrevious() override { media.push_back("media-previous"); }
@@ -100,6 +101,7 @@ public:
 
     int appListToggles = 0;
     int clipboardHistoryToggles = 0;
+    int searchToggles = 0;
     std::vector<std::string> captures;
     std::vector<std::string> levels;
     std::vector<std::string> media;
@@ -991,14 +993,13 @@ TEST_F(AcceleratorTest, UnderTheCommandConventionApplicationsGetCommandAsCtrl)
             {KEY_LEFTCTRL, true}, {KEY_C, true}, {KEY_C, false}, {KEY_LEFTCTRL, false}};
     EXPECT_EQ(expected, keyboardDelegate->keys);
 
+    // The search panel takes Command+Space, as Spotlight does; the app no
+    // longer sees it as Control+Space.
     keyboardDelegate->keys.clear();
     chord({KEY_LEFTALT}, KEY_SPACE);
     EXPECT_EQ(0, delegate.appListToggles);
-    const std::vector<std::pair<uint32_t, bool>> space = {{KEY_LEFTCTRL, true},
-                                                          {KEY_SPACE, true},
-                                                          {KEY_SPACE, false},
-                                                          {KEY_LEFTCTRL, false}};
-    EXPECT_EQ(space, keyboardDelegate->keys);
+    EXPECT_EQ(1, delegate.searchToggles);
+    EXPECT_TRUE(keyboardDelegate->keys.empty());
 
     int closes = 0;
     window->setCloseCallback([&closes] {
@@ -1794,7 +1795,7 @@ TEST_F(AcceleratorTest, ServiceListsActionsWithTheirDefaultsOverTheBus)
     const auto reply = proxy.call("accelerators");
     ASSERT_FALSE(reply.isError()) << reply.error().message;
     const base::json::Value actions = parse(reply.value<std::string>().value_or(""))["actions"];
-    EXPECT_EQ(51u, actions.size());
+    EXPECT_EQ(52u, actions.size());
     bool sawMaximize = false;
     bool sawOverview = false;
     for (const base::json::Value &action : actions.toArray()) {

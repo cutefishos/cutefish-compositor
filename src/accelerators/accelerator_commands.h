@@ -67,6 +67,7 @@ void newDesk(const CommandContext &context);
 void removeCurrentDesk(const CommandContext &context);
 void toggleAssignToAllDesks(const CommandContext &context);
 void lockScreen(const CommandContext &context);
+void openSearch(const CommandContext &context);
 void toggleAppList(const CommandContext &context);
 // Screen capture belongs to the shell; these only ask it.
 void takeScreenshot(const CommandContext &context, bool toClipboard);
