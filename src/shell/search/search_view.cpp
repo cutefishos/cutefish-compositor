@@ -137,7 +137,7 @@ protected:
     {
         if (m_selected)
             painter.drawRoundedRect(localRect(), {SearchView::kRowRadius, 0, ui::themeCorners()},
-                                    ui::Theme::current().highlight.withAlpha(0.9));
+                                    ui::Theme::current().highlight.withAlpha(0.85));
     }
 
 private:
