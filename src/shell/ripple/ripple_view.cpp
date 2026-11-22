@@ -151,7 +151,7 @@ protected:
     {
         if (m_selected)
             painter.drawRoundedRect(localRect(), {RippleView::kRowRadius, 0, ui::themeCorners()},
-                                    ui::Theme::current().highlight);
+                                    ui::Theme::current().highlight.withAlpha(0.9));
     }
 
 private:
@@ -432,6 +432,12 @@ void RippleView::paint(ui::Painter &painter)
     // The end of a transfer is the bar alone, as the empty search panel is.
     if (m_mode == Mode::Done)
         return;
+    // The same liquid glass rim as the search panel.
+    const ui::Theme &theme = ui::Theme::current();
+    const ui::Color rim = theme.darkMode ? ui::Color::rgb(0xFFFFFF).withAlpha(0.10)
+                                         : ui::Color::rgb(0xFFFFFF).withAlpha(0.32);
+    painter.strokeRoundedRect({0.5, 0.5, geometry().width - 1, geometry().height - 1},
+                              kCardRadius - 0.5, rim, 1);
     const double width = geometry().width;
     painter.drawRoundedRect({double(kPadding), double(kPadding * 2 + kHeaderHeight - 1),
                              width - 2 * kPadding, 1},

@@ -13,7 +13,7 @@
 #include "base/process.h"
 #include "base/logging.h"
 #include "core/main_loop.h"
-#include "shell/controlcenter/panel_style.h"
+#include "shell/shell_data.h"
 #include "shell/shell_window.h"
 #include "ui/theme.h"
 #include "wm/window_manager.h"
@@ -24,7 +24,22 @@ using cutefish::i18n::format;
 using cutefish::i18n::tr;
 
 namespace {
+
 const base::LogCategory cfRipple("cutefish.ripple", base::LogLevel::Warning);
+
+// The search panel's liquid glass, so the two float alike.
+render::GlassParams panelGlassLiquid()
+{
+    const bool dark = ui::Theme::current().darkMode;
+    render::GlassParams glass = dark ? popupGlass(0.14, 0.15, 0.18, 0.45)
+                                     : popupGlass(1.0, 1.0, 1.0, 0.38);
+    glass.saturation = 1.35f;
+    glass.specularIntensity = 0.55f;
+    glass.shininess = 60.0f;
+    glass.sheen = 0.35f;
+    return glass;
+}
+
 } // namespace
 
 RippleWindow::RippleWindow(Shell *shell, base::dbus::Connection *bus)
@@ -157,8 +172,8 @@ void RippleWindow::applyGlass()
     if (height == m_glassHeight)
         return;
     m_glassHeight = height;
-    m_window->setBackgroundBlur(base::Rect(0, 0, RippleView::kWidth, height), panel::kPanelRadius,
-                                panel::panelGlass());
+    m_window->setBackgroundBlur(base::Rect(0, 0, RippleView::kWidth, height),
+                                int(RippleView::kCardRadius), panelGlassLiquid());
 }
 
 void RippleWindow::refreshPeers()
