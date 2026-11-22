@@ -36,23 +36,8 @@ RippleWindow::RippleWindow(Shell *shell, base::dbus::Connection *bus)
     m_window = std::make_unique<ShellWindow>(shell, wm::WindowRole::Picker);
     auto view = std::make_unique<RippleView>();
     m_view = view.get();
-    m_view->onSend = [this](int index) {
-        if (m_pending.empty() || index < 0 || index >= int(m_peers.size()))
-            return;
-        const RipplePeer &peer = m_peers[size_t(index)];
-        const std::string session = m_client->send(m_pending, peer.fingerprint);
-        if (session.empty()) {
-            m_view->setMessage(tr("Cannot send to that device"));
-            return;
-        }
-        m_pending.clear();
-        m_view->setPending(0);
-        RippleTransfer transfer;
-        transfer.direction = "send";
-        m_view->setTransfer(transfer);
-        m_session = session;
-        m_sendingTo = peer.alias.empty() ? peer.host : peer.alias;
-    };
+    m_view->onSend = [this](int index) { sendTo(index); };
+    m_view->onRowActivated = [this](int index) { sendTo(index); };
     m_view->onAccept = [this] { acceptOffer(); };
     m_view->onDecline = [this] { declineOffer(); };
     m_view->onOpenFolder = [this] {
@@ -241,6 +226,25 @@ void RippleWindow::share(const std::string &pathsJson)
     m_view->setMode(RippleView::Mode::Devices);
     refreshPeers();
     open();
+}
+
+void RippleWindow::sendTo(int index)
+{
+    if (m_pending.empty() || index < 0 || index >= int(m_peers.size()))
+        return;
+    const RipplePeer &peer = m_peers[size_t(index)];
+    const std::string session = m_client->send(m_pending, peer.fingerprint);
+    if (session.empty()) {
+        m_view->setMessage(tr("Cannot send to that device"));
+        return;
+    }
+    m_pending.clear();
+    m_view->setPending(0);
+    RippleTransfer transfer;
+    transfer.direction = "send";
+    m_view->setTransfer(transfer);
+    m_session = session;
+    m_sendingTo = peer.alias.empty() ? peer.host : peer.alias;
 }
 
 void RippleWindow::acceptOffer()

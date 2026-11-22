@@ -80,10 +80,15 @@ std::string deviceJson(const Device &device)
     return device.toJson().serialize();
 }
 
-Client::Client(std::string fingerprint)
-    : m_fingerprint(std::move(fingerprint))
+Client::Client()
 {
     curl_global_init(CURL_GLOBAL_DEFAULT);
+}
+
+void Client::setCertificate(std::string certificate, std::string key)
+{
+    m_certificate = std::move(certificate);
+    m_key = std::move(key);
 }
 
 Client::~Client()
@@ -118,6 +123,18 @@ int Client::postJson(const Device &peer, const std::string &path, const std::str
         // Self-signed by design; the fingerprint below is the check.
         curl_easy_setopt(handle, CURLOPT_SSL_VERIFYPEER, 0L);
         curl_easy_setopt(handle, CURLOPT_SSL_VERIFYHOST, 0L);
+        // LocalSend receivers require a client certificate; ours is the
+        // device's identity, the same one announced on the network.
+        curl_blob certificate {m_certificate.data(), m_certificate.size(), CURL_BLOB_NOCOPY};
+        curl_blob key {m_key.data(), m_key.size(), CURL_BLOB_NOCOPY};
+        if (!m_certificate.empty()) {
+            curl_easy_setopt(handle, CURLOPT_SSLCERT_BLOB, &certificate);
+            curl_easy_setopt(handle, CURLOPT_SSLCERTTYPE, "PEM");
+        }
+        if (!m_key.empty()) {
+            curl_easy_setopt(handle, CURLOPT_SSLKEY_BLOB, &key);
+            curl_easy_setopt(handle, CURLOPT_SSLKEYTYPE, "PEM");
+        }
     }
 
     const CURLcode result = curl_easy_perform(handle);
@@ -177,6 +194,16 @@ int Client::postFile(const Device &peer, const std::string &path, const std::str
     if (peer.protocol == "https") {
         curl_easy_setopt(handle, CURLOPT_SSL_VERIFYPEER, 0L);
         curl_easy_setopt(handle, CURLOPT_SSL_VERIFYHOST, 0L);
+        curl_blob certificate {m_certificate.data(), m_certificate.size(), CURL_BLOB_NOCOPY};
+        curl_blob key {m_key.data(), m_key.size(), CURL_BLOB_NOCOPY};
+        if (!m_certificate.empty()) {
+            curl_easy_setopt(handle, CURLOPT_SSLCERT_BLOB, &certificate);
+            curl_easy_setopt(handle, CURLOPT_SSLCERTTYPE, "PEM");
+        }
+        if (!m_key.empty()) {
+            curl_easy_setopt(handle, CURLOPT_SSLKEY_BLOB, &key);
+            curl_easy_setopt(handle, CURLOPT_SSLKEYTYPE, "PEM");
+        }
     }
 
     const CURLcode result = curl_easy_perform(handle);

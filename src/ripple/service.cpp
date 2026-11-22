@@ -87,7 +87,7 @@ std::string mimeFor(const std::string &name)
 Service::Service(base::EventLoop &loop)
     : m_loop(loop)
     , m_handle(loop.handle())
-    , m_client(std::string())
+    , m_client()
     , m_announce(&loop)
     , m_prune(&loop)
 {
@@ -118,6 +118,7 @@ bool Service::start()
         CF_WARNING(cfRipple) << "Cannot make the certificate for Ripple";
         return false;
     }
+    m_client.setCertificate(m_certificate.certificate, m_certificate.key);
 
     if (!m_server.start(m_config.port(), m_certificate.certificate, m_certificate.key)) {
         CF_WARNING(cfRipple) << "Cannot listen on port" << m_config.port();

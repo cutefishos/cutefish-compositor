@@ -18,8 +18,12 @@ namespace cutefish::ripple {
 class Client
 {
 public:
-    explicit Client(std::string fingerprint);
+    Client();
     ~Client();
+
+    // The device's own certificate: LocalSend's receivers ask for a client
+    // certificate, and answer ours with the fingerprint they know.
+    void setCertificate(std::string certificate, std::string key);
 
     Client(const Client &) = delete;
     Client &operator=(const Client &) = delete;
@@ -35,7 +39,8 @@ public:
                  const std::function<void(uint64_t)> &progress, std::string &error);
 
 private:
-    std::string m_fingerprint;
+    std::string m_certificate;
+    std::string m_key;
 };
 
 // Our own facts, in the shape every request carries.

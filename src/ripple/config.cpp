@@ -32,7 +32,8 @@ std::string configPath()
 
 std::string dataPath()
 {
-    return base::paths::cutefishConfig("ripple.d");
+    // A directory beside ripple.conf, not another settings file.
+    return base::paths::configHome() + "/cutefish/ripple";
 }
 
 Config::Config()

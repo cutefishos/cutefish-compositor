@@ -107,10 +107,24 @@ public:
     bool acceptsPointer() const override { return true; }
 
     std::function<void(int)> onPressed;
+    std::function<void(int)> onHovered;
 
-    void pointerPress(const ui::PointerEvent &) override
+    void hoverMove(const ui::PointerEvent &) override
     {
-        if (onPressed)
+        if (onHovered)
+            onHovered(m_index);
+    }
+
+    void pointerPress(const ui::PointerEvent &event) override
+    {
+        m_pressed = event.button == ui::MouseButton::Left;
+    }
+
+    void pointerRelease(const ui::PointerEvent &event) override
+    {
+        const bool clicked = m_pressed && localRect().contains(event.position);
+        m_pressed = false;
+        if (clicked && onPressed)
             onPressed(m_index);
     }
 
@@ -146,6 +160,7 @@ private:
     ui::Label *m_subtitle;
     std::string m_iconPath;
     int m_index = 0;
+    bool m_pressed = false;
     bool m_selected = false;
 };
 
@@ -187,7 +202,12 @@ RippleView::RippleView()
             subtitle = humanSize(file.size);
         }
         auto *bound = static_cast<Row *>(item);
-        bound->onPressed = [this](int pressed) { select(pressed); };
+        bound->onHovered = [this](int hovered) { select(hovered); };
+        bound->onPressed = [this](int pressed) {
+            select(pressed);
+            if (onRowActivated)
+                onRowActivated(pressed);
+        };
         bound->bind(path, title, subtitle, index == m_currentIndex, index);
     };
 
@@ -416,6 +436,14 @@ void RippleView::paint(ui::Painter &painter)
     painter.drawRoundedRect({double(kPadding), double(kPadding * 2 + kHeaderHeight - 1),
                              width - 2 * kPadding, 1},
                             {}, hairlineColor());
+}
+
+void RippleView::pointerPress(const ui::PointerEvent &event)
+{
+    if (m_mode == Mode::Done && onOpenFolder)
+        onOpenFolder();
+    else
+        ui::View::pointerPress(event);
 }
 
 bool RippleView::keyPress(const ui::KeyEvent &event)

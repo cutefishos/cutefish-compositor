@@ -45,6 +45,7 @@ private:
     void place();
     void applyGlass();
     void refreshPeers();
+    void sendTo(int index);
     void acceptOffer();
     void declineOffer();
 

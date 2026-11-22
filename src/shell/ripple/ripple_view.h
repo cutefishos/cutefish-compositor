@@ -65,6 +65,8 @@ public:
     void select(int index);
 
     std::function<void(int)> onSend;
+    // A row clicked: the same as choosing it and pressing Return.
+    std::function<void(int)> onRowActivated;
     std::function<void()> onAccept;
     std::function<void()> onDecline;
     std::function<void()> onCloseRequested;
@@ -74,8 +76,11 @@ public:
     std::function<void()> onHeightChanged;
 
     bool acceptsFocus() const override { return true; }
+    // The Sent/Received face answers a click by opening the folder.
+    bool acceptsPointer() const override { return m_mode == Mode::Done; }
 
 protected:
+    void pointerPress(const ui::PointerEvent &event) override;
     bool keyPress(const ui::KeyEvent &event) override;
     void layout() override;
     void paint(ui::Painter &painter) override;
