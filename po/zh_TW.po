@@ -24,6 +24,14 @@ msgstr "按 Enter 鍵解鎖"
 msgid "Enter Password"
 msgstr "輸入密碼"
 
+#: src/auth/auth_view.cpp
+msgid "Fingerprint or Password"
+msgstr "指紋或密碼"
+
+#: src/auth/auth_view.cpp
+msgid "Password Required"
+msgstr "需要密碼"
+
 #: src/auth/greetd_backend.cpp
 msgid "Sign-in failed"
 msgstr "登入失敗"
@@ -31,10 +39,6 @@ msgstr "登入失敗"
 #: src/auth/pam_backend.cpp
 msgid "Authentication timed out"
 msgstr "認證逾時"
-
-#: src/auth/pam_backend.cpp
-msgid "Authentication failed"
-msgstr "認證失敗"
 
 #: src/auth/pam_backend.cpp
 msgid "Authentication service unavailable"

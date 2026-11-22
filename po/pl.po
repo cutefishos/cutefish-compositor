@@ -24,6 +24,14 @@ msgstr "Naciśnij Enter, aby odblokować"
 msgid "Enter Password"
 msgstr "Wprowadź hasło"
 
+#: src/auth/auth_view.cpp
+msgid "Fingerprint or Password"
+msgstr "Odcisk palca lub hasło"
+
+#: src/auth/auth_view.cpp
+msgid "Password Required"
+msgstr "Wymagane hasło"
+
 #: src/auth/greetd_backend.cpp
 msgid "Sign-in failed"
 msgstr "Logowanie nie powiodło się"
@@ -31,10 +39,6 @@ msgstr "Logowanie nie powiodło się"
 #: src/auth/pam_backend.cpp
 msgid "Authentication timed out"
 msgstr "Upłynął limit czasu uwierzytelniania"
-
-#: src/auth/pam_backend.cpp
-msgid "Authentication failed"
-msgstr "Uwierzytelnianie nie powiodło się"
 
 #: src/auth/pam_backend.cpp
 msgid "Authentication service unavailable"

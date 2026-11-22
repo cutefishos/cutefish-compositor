@@ -24,6 +24,14 @@ msgstr "Enter キーを押してロックを解除"
 msgid "Enter Password"
 msgstr "パスワードを入力"
 
+#: src/auth/auth_view.cpp
+msgid "Fingerprint or Password"
+msgstr "指紋またはパスワード"
+
+#: src/auth/auth_view.cpp
+msgid "Password Required"
+msgstr "パスワードが必要です"
+
 #: src/auth/greetd_backend.cpp
 msgid "Sign-in failed"
 msgstr "サインインに失敗しました"
@@ -31,10 +39,6 @@ msgstr "サインインに失敗しました"
 #: src/auth/pam_backend.cpp
 msgid "Authentication timed out"
 msgstr "認証がタイムアウトしました"
-
-#: src/auth/pam_backend.cpp
-msgid "Authentication failed"
-msgstr "認証に失敗しました"
 
 #: src/auth/pam_backend.cpp
 msgid "Authentication service unavailable"

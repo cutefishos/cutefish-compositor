@@ -24,6 +24,14 @@ msgstr "Premi Invio per sbloccare"
 msgid "Enter Password"
 msgstr "Inserisci la password"
 
+#: src/auth/auth_view.cpp
+msgid "Fingerprint or Password"
+msgstr "Impronta digitale o password"
+
+#: src/auth/auth_view.cpp
+msgid "Password Required"
+msgstr "Password richiesta"
+
 #: src/auth/greetd_backend.cpp
 msgid "Sign-in failed"
 msgstr "Accesso non riuscito"
@@ -31,10 +39,6 @@ msgstr "Accesso non riuscito"
 #: src/auth/pam_backend.cpp
 msgid "Authentication timed out"
 msgstr "Tempo scaduto per l’autenticazione"
-
-#: src/auth/pam_backend.cpp
-msgid "Authentication failed"
-msgstr "Autenticazione non riuscita"
 
 #: src/auth/pam_backend.cpp
 msgid "Authentication service unavailable"

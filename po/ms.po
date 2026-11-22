@@ -24,6 +24,14 @@ msgstr "Tekan Enter untuk membuka kunci"
 msgid "Enter Password"
 msgstr "Masukkan Kata Laluan"
 
+#: src/auth/auth_view.cpp
+msgid "Fingerprint or Password"
+msgstr "Cap Jari atau Kata Laluan"
+
+#: src/auth/auth_view.cpp
+msgid "Password Required"
+msgstr "Kata Laluan Diperlukan"
+
 #: src/auth/greetd_backend.cpp
 msgid "Sign-in failed"
 msgstr "Log masuk gagal"
@@ -31,10 +39,6 @@ msgstr "Log masuk gagal"
 #: src/auth/pam_backend.cpp
 msgid "Authentication timed out"
 msgstr "Pengesahan tamat masa"
-
-#: src/auth/pam_backend.cpp
-msgid "Authentication failed"
-msgstr "Pengesahan gagal"
 
 #: src/auth/pam_backend.cpp
 msgid "Authentication service unavailable"

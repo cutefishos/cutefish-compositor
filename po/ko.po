@@ -24,6 +24,14 @@ msgstr "잠금을 해제하려면 Enter 키를 누르세요"
 msgid "Enter Password"
 msgstr "암호 입력"
 
+#: src/auth/auth_view.cpp
+msgid "Fingerprint or Password"
+msgstr "지문 또는 암호"
+
+#: src/auth/auth_view.cpp
+msgid "Password Required"
+msgstr "암호 필요"
+
 #: src/auth/greetd_backend.cpp
 msgid "Sign-in failed"
 msgstr "로그인 실패"
@@ -31,10 +39,6 @@ msgstr "로그인 실패"
 #: src/auth/pam_backend.cpp
 msgid "Authentication timed out"
 msgstr "인증 시간이 초과되었습니다"
-
-#: src/auth/pam_backend.cpp
-msgid "Authentication failed"
-msgstr "인증에 실패했습니다"
 
 #: src/auth/pam_backend.cpp
 msgid "Authentication service unavailable"

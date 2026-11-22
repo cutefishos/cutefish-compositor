@@ -44,6 +44,9 @@ public:
     void setBlocked(bool blocked);
     void setKeyboardFocused(bool focused);
     void focusPassword();
+    // Brings out the password field the reader's prompt holds back; any key
+    // asks for it.
+    void revealPassword();
 
     // In panel coordinates; it moves with the shake.
     base::RectF fieldBounds() const;
@@ -58,8 +61,7 @@ protected:
 private:
     void tick();
     void retranslate();
-    void updatePlaceholder();
-    void updateFingerprintHint();
+    void updateFingerprint();
     void closeMenus(ui::PointF position);
     bool canSwitchUser() const;
     void updateSwappable();
@@ -79,6 +81,7 @@ private:
     UserNameField *m_userName = nullptr;
     PasswordField *m_password = nullptr;
     HintLabel *m_fingerprint = nullptr;
+    bool m_passwordRevealed = false;
     UnlockPrompt *m_unlock = nullptr;
     ErrorLabel *m_error = nullptr;
     ChoiceMenu *m_sessions = nullptr;

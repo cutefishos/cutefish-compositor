@@ -24,6 +24,14 @@ msgstr "Pulsa Intro para desbloquear"
 msgid "Enter Password"
 msgstr "Escribir contraseña"
 
+#: src/auth/auth_view.cpp
+msgid "Fingerprint or Password"
+msgstr "Huella digital o contraseña"
+
+#: src/auth/auth_view.cpp
+msgid "Password Required"
+msgstr "Se requiere la contraseña"
+
 #: src/auth/greetd_backend.cpp
 msgid "Sign-in failed"
 msgstr "Error al iniciar sesión"
@@ -31,10 +39,6 @@ msgstr "Error al iniciar sesión"
 #: src/auth/pam_backend.cpp
 msgid "Authentication timed out"
 msgstr "Se agotó el tiempo de autenticación"
-
-#: src/auth/pam_backend.cpp
-msgid "Authentication failed"
-msgstr "Error de autenticación"
 
 #: src/auth/pam_backend.cpp
 msgid "Authentication service unavailable"

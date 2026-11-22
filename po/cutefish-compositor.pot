@@ -25,16 +25,20 @@ msgstr ""
 msgid "Enter Password"
 msgstr ""
 
+#: src/auth/auth_view.cpp
+msgid "Fingerprint or Password"
+msgstr ""
+
+#: src/auth/auth_view.cpp
+msgid "Password Required"
+msgstr ""
+
 #: src/auth/greetd_backend.cpp
 msgid "Sign-in failed"
 msgstr ""
 
 #: src/auth/pam_backend.cpp
 msgid "Authentication timed out"
-msgstr ""
-
-#: src/auth/pam_backend.cpp
-msgid "Authentication failed"
 msgstr ""
 
 #: src/auth/pam_backend.cpp

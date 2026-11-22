@@ -1292,3 +1292,123 @@ TEST(AuthUiTest, StatusIconsAreLightOnADarkWallpaperAndDarkOnALightOne)
     secure.setSettingsFile(light, true);
     EXPECT_TRUE(test::runUntil([&] { return !ui.status()->lightContents(); }));
 }
+
+TEST(AuthUiTest, AnEnrolledFingerLeadsAndAnyKeyBringsOutThePassword)
+{
+    scene::Node root;
+    session::SecureContainer secure(&root);
+    session::SessionController controller(&secure);
+    controller.setOutputs({{"one", base::Rect(0, 0, 800, 600)}});
+    scene::Node applications;
+    compositor::Compositor compositor(&applications);
+    input::Seat seat(&compositor);
+    seat.setSessionGate(&controller);
+    input::InputManager input(&seat);
+    FakeBackend backend;
+    backend.hasReader = true;
+    backend.enrolled = true;
+    auth::AuthUi ui(&controller, seat.xkbTracker(), &backend);
+    // Animations advance on rendered frames.
+    const auto revealed = [&] {
+        return test::runUntil(
+                [&] {
+                    ui.renderImage();
+                    return ui.fieldOpacity() == 1;
+                },
+                std::chrono::milliseconds(500));
+    };
+    const auto press = [&](int key) {
+        input.onKey({}, key, true);
+        input.onKey({}, key, false);
+    };
+
+    ASSERT_TRUE(controller.requestLock());
+    controller.notifyFramePresented();
+    ui.refresh();
+    ui::View *screen = ui.window()->contentView();
+    ui::View *field = findView(screen, "password-field");
+    ui::View *caption = findView(screen, "fingerprint-caption");
+    ui::View *hint = findView(screen, "fingerprint-hint");
+    ASSERT_TRUE(field && caption && hint);
+    EXPECT_TRUE(backend.readerRunning);
+    // The text holds the field's place, and the row under it is kept empty.
+    EXPECT_EQ(ui.fieldOpacity(), 0);
+    EXPECT_EQ(caption->opacity(), 1);
+    EXPECT_TRUE(hint->isVisible());
+    EXPECT_EQ(hint->opacity(), 0);
+    ui.window()->updateLayout();
+    const base::RectF fieldRect = panelRect(field);
+    const base::RectF hintRect = panelRect(hint);
+    EXPECT_NEAR(panelRect(caption).center().y(), fieldRect.center().y(), 0.5);
+    EXPECT_GT(hintRect.y(), fieldRect.bottom());
+
+    press(KEY_A);
+    EXPECT_EQ(fieldText(ui), "a");
+    EXPECT_TRUE(revealed());
+    EXPECT_EQ(caption->opacity(), 0);
+    EXPECT_EQ(hint->opacity(), 1);
+    ui.window()->updateLayout();
+    EXPECT_EQ(panelRect(field), fieldRect);
+    EXPECT_EQ(panelRect(hint), hintRect);
+    seat.shutdown();
+}
+
+TEST(AuthUiTest, ThreeMisreadFingersBringOutThePassword)
+{
+    scene::Node root;
+    session::SecureContainer secure(&root);
+    session::SessionController controller(&secure);
+    controller.setOutputs({{"one", base::Rect(0, 0, 800, 600)}});
+    scene::Node applications;
+    compositor::Compositor compositor(&applications);
+    input::Seat seat(&compositor);
+    seat.setSessionGate(&controller);
+    input::InputManager input(&seat);
+    FakeBackend backend;
+    backend.hasReader = true;
+    backend.enrolled = true;
+    auth::AuthUi ui(&controller, seat.xkbTracker(), &backend);
+    // Animations advance on rendered frames.
+    const auto revealed = [&] {
+        return test::runUntil(
+                [&] {
+                    ui.renderImage();
+                    return ui.fieldOpacity() == 1;
+                },
+                std::chrono::milliseconds(500));
+    };
+
+    ASSERT_TRUE(controller.requestLock());
+    controller.notifyFramePresented();
+    ui.refresh();
+    backend.mismatch();
+    backend.mismatch();
+    EXPECT_FALSE(revealed());
+    backend.mismatch();
+    EXPECT_TRUE(revealed());
+    EXPECT_EQ(controller.state(), session::SessionState::Locked);
+    seat.shutdown();
+}
+
+TEST(AuthUiTest, AFingerFoundBeforeTheLockOpensOnTheReaderWithoutAChange)
+{
+    scene::Node root;
+    session::SecureContainer secure(&root);
+    session::SessionController controller(&secure);
+    controller.setOutputs({{"one", base::Rect(0, 0, 800, 600)}});
+    FakeBackend backend;
+    backend.hasReader = true;
+    auth::AuthUi ui(&controller, nullptr, &backend);
+    ui.refresh();
+    ASSERT_TRUE(ui.window());
+    EXPECT_EQ(backend.enrollmentCheckCount, 1);
+    EXPECT_EQ(ui.fieldOpacity(), 1);
+
+    backend.setEnrolled(true);
+    EXPECT_EQ(ui.fieldOpacity(), 0);
+    EXPECT_FALSE(backend.readerRunning);
+
+    EXPECT_TRUE(controller.requestLock());
+    EXPECT_TRUE(test::runUntil([&] { return backend.readerRunning; }));
+    EXPECT_EQ(ui.fieldOpacity(), 0);
+}

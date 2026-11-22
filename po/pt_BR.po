@@ -24,6 +24,14 @@ msgstr "Pressione Enter para desbloquear"
 msgid "Enter Password"
 msgstr "Digite a senha"
 
+#: src/auth/auth_view.cpp
+msgid "Fingerprint or Password"
+msgstr "Digital ou senha"
+
+#: src/auth/auth_view.cpp
+msgid "Password Required"
+msgstr "Senha necessária"
+
 #: src/auth/greetd_backend.cpp
 msgid "Sign-in failed"
 msgstr "Falha no login"
@@ -31,10 +39,6 @@ msgstr "Falha no login"
 #: src/auth/pam_backend.cpp
 msgid "Authentication timed out"
 msgstr "A autenticação excedeu o tempo limite"
-
-#: src/auth/pam_backend.cpp
-msgid "Authentication failed"
-msgstr "Falha na autenticação"
 
 #: src/auth/pam_backend.cpp
 msgid "Authentication service unavailable"

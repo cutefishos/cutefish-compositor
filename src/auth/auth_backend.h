@@ -47,18 +47,22 @@ public:
     virtual void startFingerprint(const std::string &) { }
     virtual void stopFingerprint() { }
 
+    // Whether the user has a finger enrolled on a reader that is present, as
+    // last found; checkFingerprintEnrollment() asks again and reports a change
+    // through fingerprintEnrollmentChanged.
+    virtual bool fingerprintEnrolled() const { return false; }
+    virtual void checkFingerprintEnrollment(const std::string &) { }
+
     // accept() may now be called, exactly once.
     base::Signal<> succeeded;
 
     // The reader verified the user while no password was being checked.
     base::Signal<> fingerprintSucceeded;
 
-    // True while the reader is waiting for a finger, so the UI can offer it.
-    base::Signal<bool> fingerprintActiveChanged;
+    // The reader read a finger that is not the user's.
+    base::Signal<> fingerprintNoMatch;
 
-    // The reader's own progress text ("Place your finger on the reader"). It
-    // never contains a credential.
-    base::Signal<const std::string &> fingerprintMessage;
+    base::Signal<> fingerprintEnrollmentChanged;
 
     // The machine woke from sleep, which resets the reader; whoever woke it
     // is at the screen.

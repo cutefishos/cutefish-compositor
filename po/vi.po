@@ -24,6 +24,14 @@ msgstr "Nhấn Enter để mở khóa"
 msgid "Enter Password"
 msgstr "Nhập mật khẩu"
 
+#: src/auth/auth_view.cpp
+msgid "Fingerprint or Password"
+msgstr "Vân tay hoặc mật khẩu"
+
+#: src/auth/auth_view.cpp
+msgid "Password Required"
+msgstr "Yêu cầu mật khẩu"
+
 #: src/auth/greetd_backend.cpp
 msgid "Sign-in failed"
 msgstr "Đăng nhập không thành công"
@@ -31,10 +39,6 @@ msgstr "Đăng nhập không thành công"
 #: src/auth/pam_backend.cpp
 msgid "Authentication timed out"
 msgstr "Hết thời gian xác thực"
-
-#: src/auth/pam_backend.cpp
-msgid "Authentication failed"
-msgstr "Xác thực không thành công"
 
 #: src/auth/pam_backend.cpp
 msgid "Authentication service unavailable"

@@ -278,6 +278,7 @@ void AuthUi::refresh()
                 login ? AuthController::Login : AuthController::Lock,
                 m_injectedBackend ? m_injectedBackend : m_backend.get());
         m_controller->setPasswordRequired(m_passwordRequired);
+        m_controller->prepare();
         m_controllerSubscriptions.push_back(
                 m_controller->stateChanged.connect([this] { m_repeatTimer.stop(); }));
         if (login) {
@@ -528,8 +529,10 @@ bool AuthUi::onKey(input::Timestamp, uint32_t code, bool pressed)
         m_repeatTimer.stop();
     if (!sendKey(code, pressed, false))
         return true;
-    if (pressed)
+    if (pressed) {
+        m_screen->revealPassword();
         m_controller->userActive();
+    }
     if (pressed && m_keyRepeat.enabled && m_xkb->keyRepeats(code) && !m_controller->busy()
         && !m_controller->succeeded()) {
         m_repeatCode = code;

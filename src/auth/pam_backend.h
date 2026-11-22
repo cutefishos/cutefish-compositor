@@ -10,6 +10,7 @@
 #include "base/timer.h"
 #include <chrono>
 #include <memory>
+#include <vector>
 
 namespace cutefish::auth {
 class PamBackend : public AuthBackend
@@ -27,24 +28,32 @@ public:
     bool fingerprintAvailable(const std::string &userName) const override;
     void startFingerprint(const std::string &userName) override;
     void stopFingerprint() override;
+    bool fingerprintEnrolled() const override;
+    void checkFingerprintEnrollment(const std::string &userName) override;
 
     void accept() override { }
 
 private:
+    void launchFingerprint();
+    void setFingerprintEnrolled(bool enrolled);
+
     std::unique_ptr<base::Process> m_process;
     base::Timer m_timeout;
     bool m_pending = false;
-    // Kept until the next attempt so its finish callback never deletes itself.
+    // Set only while an attempt runs.
     std::unique_ptr<base::Process> m_fingerprint;
+    // Kept until the next attempt ends so its finish callback never deletes itself.
+    std::unique_ptr<base::Process> m_lastFingerprint;
     base::Timer m_fingerprintRetry;
     std::chrono::steady_clock::time_point m_fingerprintRestsUntil;
+    std::chrono::steady_clock::time_point m_fingerprintWantedUntil;
+    bool m_fingerprintSpoke = false;
     base::dbus::Proxy m_logind;
     base::dbus::Match m_prepareForSleep;
-    bool m_fingerprintRunning = false;
-    bool m_fingerprintSpoke = false;
-    bool m_fingerprintActive = false;
-    void launchFingerprint();
-    void setFingerprintActive(bool active);
+    base::dbus::PendingCall m_enrollmentDevices;
+    std::vector<base::dbus::PendingCall> m_enrollmentFingers;
+    size_t m_enrollmentUnanswered = 0;
+    bool m_enrollmentFound = false;
 };
 } // namespace cutefish::auth
 #endif

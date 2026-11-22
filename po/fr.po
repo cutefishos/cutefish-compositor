@@ -24,6 +24,14 @@ msgstr "Appuyez sur Entrée pour déverrouiller"
 msgid "Enter Password"
 msgstr "Saisir le mot de passe"
 
+#: src/auth/auth_view.cpp
+msgid "Fingerprint or Password"
+msgstr "Empreinte digitale ou mot de passe"
+
+#: src/auth/auth_view.cpp
+msgid "Password Required"
+msgstr "Mot de passe requis"
+
 #: src/auth/greetd_backend.cpp
 msgid "Sign-in failed"
 msgstr "Échec de la connexion"
@@ -31,10 +39,6 @@ msgstr "Échec de la connexion"
 #: src/auth/pam_backend.cpp
 msgid "Authentication timed out"
 msgstr "L'authentification a expiré"
-
-#: src/auth/pam_backend.cpp
-msgid "Authentication failed"
-msgstr "Échec de l'authentification"
 
 #: src/auth/pam_backend.cpp
 msgid "Authentication service unavailable"

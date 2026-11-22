@@ -24,6 +24,14 @@ msgstr "Odemkněte stisknutím klávesy Enter"
 msgid "Enter Password"
 msgstr "Zadejte heslo"
 
+#: src/auth/auth_view.cpp
+msgid "Fingerprint or Password"
+msgstr "Otisk prstu nebo heslo"
+
+#: src/auth/auth_view.cpp
+msgid "Password Required"
+msgstr "Vyžadováno heslo"
+
 #: src/auth/greetd_backend.cpp
 msgid "Sign-in failed"
 msgstr "Přihlášení selhalo"
@@ -31,10 +39,6 @@ msgstr "Přihlášení selhalo"
 #: src/auth/pam_backend.cpp
 msgid "Authentication timed out"
 msgstr "Vypršel časový limit ověření"
-
-#: src/auth/pam_backend.cpp
-msgid "Authentication failed"
-msgstr "Ověření selhalo"
 
 #: src/auth/pam_backend.cpp
 msgid "Authentication service unavailable"

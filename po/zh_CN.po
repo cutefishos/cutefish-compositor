@@ -24,6 +24,14 @@ msgstr "按回车键解锁"
 msgid "Enter Password"
 msgstr "输入密码"
 
+#: src/auth/auth_view.cpp
+msgid "Fingerprint or Password"
+msgstr "指纹或密码"
+
+#: src/auth/auth_view.cpp
+msgid "Password Required"
+msgstr "需要密码"
+
 #: src/auth/greetd_backend.cpp
 msgid "Sign-in failed"
 msgstr "登录失败"
@@ -31,10 +39,6 @@ msgstr "登录失败"
 #: src/auth/pam_backend.cpp
 msgid "Authentication timed out"
 msgstr "认证超时"
-
-#: src/auth/pam_backend.cpp
-msgid "Authentication failed"
-msgstr "认证失败"
 
 #: src/auth/pam_backend.cpp
 msgid "Authentication service unavailable"

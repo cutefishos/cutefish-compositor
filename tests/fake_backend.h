@@ -44,6 +44,22 @@ public:
         readerRunning = false;
     }
 
+    bool fingerprintEnrolled() const override { return enrolled; }
+
+    void checkFingerprintEnrollment(const std::string &) override { ++enrollmentCheckCount; }
+
+    void setEnrolled(bool value)
+    {
+        enrolled = value;
+        fingerprintEnrollmentChanged();
+    }
+
+    void mismatch()
+    {
+        readerRunning = false;
+        fingerprintNoMatch();
+    }
+
     void succeed() { succeeded(); }
 
     void reject(const std::string &message = "Incorrect password") { failed(message); }
@@ -61,7 +77,9 @@ public:
     }
 
     bool hasReader = false;
+    bool enrolled = false;
     bool readerRunning = false;
+    int enrollmentCheckCount = 0;
     int fingerprintStartCount = 0;
     int fingerprintStopCount = 0;
     int startCount = 0;

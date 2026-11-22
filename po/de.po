@@ -24,6 +24,14 @@ msgstr "Zum Entsperren die Eingabetaste drücken"
 msgid "Enter Password"
 msgstr "Passwort eingeben"
 
+#: src/auth/auth_view.cpp
+msgid "Fingerprint or Password"
+msgstr "Fingerabdruck oder Passwort"
+
+#: src/auth/auth_view.cpp
+msgid "Password Required"
+msgstr "Passwort erforderlich"
+
 #: src/auth/greetd_backend.cpp
 msgid "Sign-in failed"
 msgstr "Anmeldung fehlgeschlagen"
@@ -31,10 +39,6 @@ msgstr "Anmeldung fehlgeschlagen"
 #: src/auth/pam_backend.cpp
 msgid "Authentication timed out"
 msgstr "Zeitüberschreitung bei der Authentifizierung"
-
-#: src/auth/pam_backend.cpp
-msgid "Authentication failed"
-msgstr "Authentifizierung fehlgeschlagen"
 
 #: src/auth/pam_backend.cpp
 msgid "Authentication service unavailable"
