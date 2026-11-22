@@ -31,8 +31,9 @@ const base::LogCategory cfRipple("cutefish.ripple", base::LogLevel::Warning);
 render::GlassParams panelGlassLiquid()
 {
     const bool dark = ui::Theme::current().darkMode;
-    render::GlassParams glass = dark ? popupGlass(0.14, 0.15, 0.18, 0.45)
-                                     : popupGlass(1.0, 1.0, 1.0, 0.38);
+    render::GlassParams glass = dark ? popupGlass(0.14, 0.15, 0.18, 0.50)
+                                     : popupGlass(1.0, 1.0, 1.0, 0.46);
+    glass.blurSigma = 8.0f;
     glass.saturation = 1.35f;
     glass.specularIntensity = 0.55f;
     glass.shininess = 60.0f;
