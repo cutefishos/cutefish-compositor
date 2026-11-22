@@ -160,3 +160,22 @@ TEST_F(WmTaskWindowsTest, KeepsTheApplicationAWindowOffTheTaskListIsInFrontOf)
     viewer->rootSurface()->setSkipTaskbar(true);
     EXPECT_EQ(windows.activeWindow(), editor->id());
 }
+
+TEST_F(WmTaskWindowsTest, ADialogStandsForTheWindowItBelongsTo)
+{
+    shell::WmTaskWindows windows(manager);
+    wm::Window *viewer = open("org.example.Viewer", "Picture");
+    wm::Window *editor = open("org.example.Editor", "Draft");
+    wm::Window *dialog = open("org.example.Editor", "Save");
+    ASSERT_TRUE(dialog->setTransientParent(editor));
+    wm::Window *nested = open("org.example.Editor", "Replace?");
+    ASSERT_TRUE(nested->setTransientParent(dialog));
+
+    manager.activation()->activate(viewer);
+    ASSERT_EQ(windows.activeWindow(), viewer->id());
+    manager.activation()->activate(dialog);
+    EXPECT_EQ(windows.activeWindow(), editor->id());
+    manager.activation()->activate(viewer);
+    manager.activation()->activate(nested);
+    EXPECT_EQ(windows.activeWindow(), editor->id());
+}

@@ -226,7 +226,7 @@ void WmTaskWindows::refresh(wm::Window *window)
 void WmTaskWindows::updateActiveWindow()
 {
     wm::Window *window = m_manager.activation()->activeWindow();
-    if (window && window->role() == wm::WindowRole::Sheet && window->transientParent())
+    while (window && window->transientParent())
         window = window->transientParent();
     std::erase_if(m_history, [this](uint64_t id) {
         const auto it = m_windows.find(id);
