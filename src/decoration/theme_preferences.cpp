@@ -40,6 +40,10 @@ ThemePreferences::ThemePreferences(Theme &theme)
                     setReduceTransparency(readBool(message));
                 }));
         m_signals.push_back(m_appearance.onSignal(
+                "coloredWindowControlsChanged", [this, readBool](const base::dbus::Message &message) {
+                    setColoredWindowControls(readBool(message));
+                }));
+        m_signals.push_back(m_appearance.onSignal(
                 "accentColorChanged", [this](const base::dbus::Message &message) {
                     int32_t index = 0;
                     if (message.read(index))
@@ -58,6 +62,7 @@ void ThemePreferences::reload()
     setDarkMode(m_settings.boolValue("Appearance/DarkMode", false));
     setContinuousCorners(m_settings.boolValue("Appearance/ContinuousCorners", true));
     setReduceTransparency(m_settings.boolValue("Appearance/ReduceTransparency", false));
+    setColoredWindowControls(m_settings.boolValue("Appearance/ColoredWindowControls", false));
     setAccentColor(int(m_settings.intValue("Appearance/AccentColor", 0)));
     setCaptionPointSize(m_settings.doubleValue("Appearance/FontSize", 9));
 }
@@ -96,6 +101,11 @@ void ThemePreferences::setContinuousCorners(bool continuous)
 void ThemePreferences::setReduceTransparency(bool reduce)
 {
     m_theme.setReduceTransparency(reduce);
+}
+
+void ThemePreferences::setColoredWindowControls(bool colored)
+{
+    m_theme.setColoredWindowControls(colored);
 }
 
 void ThemePreferences::setAccentColor(int index)

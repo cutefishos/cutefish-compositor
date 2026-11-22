@@ -41,6 +41,8 @@ public:
     // In frame coordinates.
     base::Rect captionArea() const;
     bool isRestoreButton() const;
+    // Shows the artwork on all of them.
+    bool isControlsHovered() const { return m_controlsHovered; }
 
     wm::Insets extents() const override;
     base::Rect inputBounds() const override;
@@ -93,6 +95,7 @@ private:
     bool setHoveredButton(int index);
     // Gaps included, in frame coordinates.
     base::Rect controlsRect() const;
+    void setControlsHovered(bool hovered);
     void toggleMaximize();
 
     wm::Window* m_window = nullptr;
@@ -101,6 +104,7 @@ private:
 
     std::vector<CaptionButton> m_buttons;
     int m_hoveredButton = -1;
+    bool m_controlsHovered = false;
     int m_pressedButton = -1;
     // Empty while the pointer holds it.
     std::optional<int32_t> m_pressTouch;

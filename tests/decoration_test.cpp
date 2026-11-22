@@ -642,6 +642,18 @@ TEST_F(DecorationTest, TheButtonsCentreInTheTitleBarAtItsStart)
     }
 }
 
+TEST_F(DecorationTest, ColoredWindowControlsSitCloser)
+{
+    ShellSurface *shell = makeToplevel(base::Size(400, 300));
+    decoration::Decoration *frame = frameOf(shell->window());
+    const auto gap = [frame] { return frame->buttons()[1].geometry().left() - frame->buttons()[0].geometry().right(); };
+    EXPECT_EQ(int(ui::window_controls::kSpacing), gap());
+    theme.setColoredWindowControls(true);
+    EXPECT_EQ(int(ui::window_controls::kColoredSpacing), gap());
+    theme.setColoredWindowControls(false);
+    EXPECT_EQ(int(ui::window_controls::kSpacing), gap());
+}
+
 TEST_F(DecorationTest, TheDebugBoundsAreTheFrameInOutputCoordinates)
 {
     ShellSurface *shell = makeToplevel(base::Size(400, 300));
@@ -1217,6 +1229,28 @@ TEST_F(DecorationTest, CaptionButtonsAreDrawnOneTexelPerPixelOnTheirGeometry)
             EXPECT_TRUE(controls[i].mapping.isIdentity());
         }
     }
+}
+
+TEST_F(DecorationTest, HoveringTheButtonRowRedrawsEveryButton)
+{
+    ShellSurface *shell = makeToplevel(base::Size(400, 300));
+    Window *window = shell->window();
+    decoration::Decoration *frame = frameOf(window);
+    const auto &buttons = frame->buttons();
+    ASSERT_EQ(3u, buttons.size());
+
+    const base::Point gap(buttons[0].geometry().right(), buttons[0].geometry().center().y());
+    frame->onPointerMotion({}, onFrame(window, gap));
+    EXPECT_TRUE(frame->isControlsHovered());
+    for (const auto &button : buttons)
+        EXPECT_FALSE(button.isHovered());
+
+    frame->onPointerMotion({}, onTitleBar(window));
+    EXPECT_FALSE(frame->isControlsHovered());
+    frame->onPointerMotion({}, onFrame(window, wm::centerPixel(buttons[2].geometry())));
+    EXPECT_TRUE(frame->isControlsHovered());
+    frame->onPointerLeave();
+    EXPECT_FALSE(frame->isControlsHovered());
 }
 
 TEST_F(DecorationTest, AMinimizedWindowHidesItsFrameWithIt)

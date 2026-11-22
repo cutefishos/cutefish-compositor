@@ -126,6 +126,9 @@ public:
     void setReduceTransparency(bool reduce);
     bool reduceTransparency() const { return m_reduceTransparency; }
 
+    void setColoredWindowControls(bool colored);
+    bool coloredWindowControls() const { return m_coloredWindowControls; }
+
     // The Appearance service's AccentColor index; only notifies observers.
     void setAccentColor(int index);
     int accentColor() const { return m_accentColor; }
@@ -152,6 +155,7 @@ private:
     bool m_darkMode = false;
     int m_accentColor = 0;
     bool m_reduceTransparency = false;
+    bool m_coloredWindowControls = false;
     std::vector<ThemeObserver *> m_observers;
 
     render::Renderer *m_renderer = nullptr;

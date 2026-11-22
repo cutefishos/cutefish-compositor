@@ -257,6 +257,14 @@ bool Decoration::setHoveredButton(int index)
     return true;
 }
 
+void Decoration::setControlsHovered(bool hovered)
+{
+    if (hovered == m_controlsHovered)
+        return;
+    m_controlsHovered = hovered;
+    scheduleRepaint();
+}
+
 bool Decoration::onPointerMotion(input::Timestamp, const base::PointF &at)
 {
     if (!m_window)
@@ -265,6 +273,7 @@ bool Decoration::onPointerMotion(input::Timestamp, const base::PointF &at)
     const base::Point framePoint = toFrame(at);
     if (m_pressedButton >= 0 && m_pressTouch)
         return true;
+    setControlsHovered(controlsRect().contains(framePoint) && resizeEdgeAt(framePoint) == ResizeEdge::None);
     if (m_pressedButton >= 0) {
         const bool inside = m_buttons[m_pressedButton].geometry().contains(framePoint);
         if (m_buttons[m_pressedButton].setHovered(inside))
@@ -399,6 +408,7 @@ void Decoration::releaseButton(const base::Point &framePoint)
 void Decoration::onPointerLeave()
 {
     setHoveredButton(-1);
+    setControlsHovered(false);
 }
 
 void Decoration::runButtonAction(CaptionButtonType type)

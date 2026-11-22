@@ -26,6 +26,7 @@ public:
     void setDarkMode(bool dark);
     void setContinuousCorners(bool continuous);
     void setReduceTransparency(bool reduce);
+    void setColoredWindowControls(bool colored);
     void setAccentColor(int index);
     void setCaptionPointSize(double points);
     // The font size signal carries no value, so it is read back from the service.
