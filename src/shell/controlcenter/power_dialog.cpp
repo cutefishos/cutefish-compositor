@@ -11,13 +11,14 @@
 #include "base/i18n.h"
 #include "core/main_loop.h"
 #include "shell/shell.h"
+#include "shell/shell_data.h"
 #include "shell/shell_window.h"
-#include "ui/color_provider.h"
 #include "ui/dialog_window.h"
 #include "ui/embedded_window.h"
 #include "ui/keys.h"
 #include "ui/label.h"
 #include "ui/painter.h"
+#include "ui/theme.h"
 #include "wm/shell_surface.h"
 
 using cutefish::i18n::tr;
@@ -66,9 +67,13 @@ public:
 protected:
     void layout() override { m_alert->setGeometry(localRect()); }
 
-    void paint(ui::Painter &painter) override
+    void paint(ui::Painter &) override
     {
-        painter.fillRect(localRect(), ui::ColorProvider::current().get(ui::ColorId::AlertBackground));
+        const uint64_t generation = ui::Theme::generation();
+        if (generation == m_theme)
+            return;
+        m_theme = generation;
+        m_dialog->updateGlass();
     }
 
     void pointerPress(const ui::PointerEvent &event) override
@@ -99,6 +104,7 @@ private:
     ui::AlertView *m_alert;
     bool m_pressed = false;
     ui::PointF m_pressPosition;
+    uint64_t m_theme = 0;
 };
 
 PowerDialog::PowerDialog(Shell *shell)
@@ -176,6 +182,18 @@ void PowerDialog::retranslate()
 void PowerDialog::resize()
 {
     m_window->setSize(base::Size(int(m_content->width()), int(m_content->height())));
+    updateGlass();
+}
+
+void PowerDialog::updateGlass()
+{
+    const base::Size size = m_window->size();
+    const bool dark = ui::Theme::current().darkMode;
+    // The panels' glass, its tint thicker: the dialog sits over the middle
+    // of the screen, where the backdrop greys a thin one.
+    m_window->setBackgroundBlur(base::Rect(0, 0, size.width(), size.height()),
+                                int(std::lround(ui::Theme::current().windowRadius)),
+                                dark ? popupGlass(0.17, 0.17, 0.19, 0.8) : popupGlass(1, 1, 1, 0.8));
 }
 
 void PowerDialog::close()

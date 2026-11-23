@@ -48,6 +48,7 @@ private:
 
     void finish(bool accepted);
     void resize();
+    void updateGlass();
 
     Shell *m_shell;
     std::unique_ptr<ShellWindow> m_window;
