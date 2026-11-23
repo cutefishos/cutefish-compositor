@@ -15,6 +15,7 @@
 #include "session/session_state.h"
 #include "ui/bitmap.h"
 #include <ctime>
+#include <map>
 #include <optional>
 #include <functional>
 #include <memory>
@@ -134,6 +135,7 @@ private:
     std::unique_ptr<AuthBackend> m_backend;
     std::unique_ptr<AuthController> m_controller;
     std::vector<base::Subscription> m_controllerSubscriptions;
+    std::optional<std::map<std::string, std::string>> m_greeterLanguage;
     std::unique_ptr<ui::EmbeddedWindow> m_window;
     std::unique_ptr<toolkit::PanelTexture> m_panel;
     AuthScreen *m_screen = nullptr;

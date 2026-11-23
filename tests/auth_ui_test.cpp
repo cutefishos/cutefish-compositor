@@ -7,6 +7,7 @@
 #include "auth/auth_status.h"
 #include "auth/auth_ui.h"
 #include "auth/auth_view.h"
+#include "auth/login_sessions.h"
 #include "compositor/compositor.h"
 #include "core/main_loop.h"
 #include "core/preferences.h"
@@ -38,6 +39,8 @@
 
 #include <gtest/gtest.h>
 
+#include "toolkit/toolkit_host.h"
+#include "ui/application.h"
 #include "ui/bitmap.h"
 #include "ui/embedded_window.h"
 #include "ui/label.h"
@@ -1411,4 +1414,47 @@ TEST(AuthUiTest, AFingerFoundBeforeTheLockOpensOnTheReaderWithoutAChange)
     EXPECT_TRUE(controller.requestLock());
     EXPECT_TRUE(test::runUntil([&] { return backend.readerRunning; }));
     EXPECT_EQ(ui.fieldOpacity(), 0);
+}
+
+TEST(AuthUiTest, LoginLanguageFollowsThePickedUser)
+{
+    const auto saved = auth::currentLanguageEnvironment();
+    test::TemporaryDirectory backgrounds;
+    ASSERT_TRUE(backgrounds.isValid());
+    auth::setLoginBackgroundDirectoryForTesting(backgrounds.path());
+    struct Guard {
+        std::map<std::string, std::string> env;
+        ~Guard()
+        {
+            auth::setLoginBackgroundDirectoryForTesting({});
+            toolkit::application().setLanguageEnvironment(env);
+        }
+    } guard {saved};
+
+    base::Settings alice(backgrounds.filePath("alice.conf"));
+    alice.setValue("Language/LANG", "zh_TW.UTF-8");
+    alice.setValue("Language/LANGUAGE", "zh_TW:en_US");
+    ASSERT_TRUE(alice.sync());
+
+    const auto loaded = auth::loginLanguageEnvironment("alice");
+    ASSERT_TRUE(loaded.has_value());
+    EXPECT_EQ(loaded->at("LANG"), "zh_TW.UTF-8");
+    EXPECT_EQ(loaded->at("LANGUAGE"), "zh_TW:en_US");
+    EXPECT_FALSE(auth::loginLanguageEnvironment("bob").has_value());
+
+    scene::Node root;
+    session::SecureContainer secure(&root);
+    session::SessionController controller(&secure, nullptr, session::SessionState::Login);
+    controller.setOutputs({{"one", base::Rect(0, 0, 800, 600)}});
+    FakeBackend backend;
+    auth::AuthUi ui(&controller, nullptr, &backend);
+    ui.refresh();
+    ASSERT_TRUE(ui.controller());
+    ui.controller()->setUsers({"alice", "bob"});
+    ui.controller()->setUserIndex(0);
+    EXPECT_EQ(std::string(std::getenv("LANGUAGE") ? std::getenv("LANGUAGE") : ""), "zh_TW:en_US");
+
+    ui.controller()->setUserIndex(1);
+    EXPECT_EQ(std::string(std::getenv("LANGUAGE") ? std::getenv("LANGUAGE") : ""),
+              saved.at("LANGUAGE"));
 }

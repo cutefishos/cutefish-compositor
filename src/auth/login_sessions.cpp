@@ -5,6 +5,7 @@
 #include "auth/login_sessions.h"
 
 #include <algorithm>
+#include <array>
 #include <cstdlib>
 #include <filesystem>
 #include <map>
@@ -25,6 +26,18 @@ namespace {
 
 const std::string kStatePath = "/var/lib/cutefish-dm/state.conf";
 const std::string kBackgroundDirectory = "/var/lib/cutefish-dm/backgrounds";
+
+constexpr std::array<std::string_view, 14> kLanguageKeys = {
+    "LANG",       "LANGUAGE",   "LC_CTYPE",    "LC_NUMERIC", "LC_TIME",
+    "LC_COLLATE", "LC_MONETARY", "LC_MESSAGES", "LC_PAPER",   "LC_NAME",
+    "LC_ADDRESS", "LC_TELEPHONE", "LC_MEASUREMENT", "LC_IDENTIFICATION",
+};
+
+std::string &testBackgroundDirectory()
+{
+    static std::string directory;
+    return directory;
+}
 
 bool isSpace(char c)
 {
@@ -274,7 +287,45 @@ std::string lastLoginSession(const std::string &user)
 
 std::string loginBackgroundFile(const std::string &user)
 {
-    return kBackgroundDirectory + '/' + user + ".conf";
+    const std::string &directory =
+            testBackgroundDirectory().empty() ? kBackgroundDirectory : testBackgroundDirectory();
+    return directory + '/' + user + ".conf";
+}
+
+void setLoginBackgroundDirectoryForTesting(std::string directory)
+{
+    testBackgroundDirectory() = std::move(directory);
+}
+
+std::optional<std::map<std::string, std::string>> loginLanguageEnvironment(const std::string &user)
+{
+    const base::Settings settings(loginBackgroundFile(user));
+    std::map<std::string, std::string> variables;
+    bool hasAny = false;
+    for (const std::string_view key : kLanguageKeys) {
+        const std::string name(key);
+        const std::string value = settings.stringValue("Language/" + name);
+        if (!value.empty())
+            hasAny = true;
+        variables[name] = value;
+    }
+    if (!hasAny)
+        return std::nullopt;
+    variables["LC_ALL"] = std::string();
+    return variables;
+}
+
+std::map<std::string, std::string> currentLanguageEnvironment()
+{
+    std::map<std::string, std::string> variables;
+    for (const std::string_view key : kLanguageKeys) {
+        const std::string name(key);
+        const char *value = std::getenv(name.c_str());
+        variables[name] = value ? std::string(value) : std::string();
+    }
+    const char *all = std::getenv("LC_ALL");
+    variables["LC_ALL"] = all ? std::string(all) : std::string();
+    return variables;
 }
 
 } // namespace cutefish::auth

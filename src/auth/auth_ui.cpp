@@ -16,6 +16,7 @@
 #include "session/session_controller.h"
 #include "shell/wallpaper/bar_backdrop.h"
 #include "toolkit/toolkit_host.h"
+#include "ui/application.h"
 #include "ui/embedded_window.h"
 #include "ui/theme.h"
 #include <algorithm>
@@ -281,14 +282,21 @@ void AuthUi::refresh()
         m_controller->prepare();
         m_controllerSubscriptions.push_back(
                 m_controller->stateChanged.connect([this] { m_repeatTimer.stop(); }));
+        toolkit::application();
         if (login) {
-            const auto showBackground = [this, secure](bool crossfade) {
-                if (!m_controller->typesUserName() && !m_controller->userName().empty())
-                    secure->setSettingsFile(loginBackgroundFile(m_controller->userName()), crossfade);
+            if (!m_greeterLanguage)
+                m_greeterLanguage = currentLanguageEnvironment();
+            const auto applyUser = [this, secure](bool crossfade) {
+                if (m_controller->typesUserName() || m_controller->userName().empty())
+                    return;
+                const std::string user = m_controller->userName();
+                secure->setSettingsFile(loginBackgroundFile(user), crossfade);
+                const auto language = loginLanguageEnvironment(user);
+                toolkit::application().setLanguageEnvironment(language ? *language : *m_greeterLanguage);
             };
-            showBackground(false);
+            applyUser(false);
             m_controllerSubscriptions.push_back(
-                    m_controller->userChanged.connect([showBackground] { showBackground(true); }));
+                    m_controller->userChanged.connect([applyUser] { applyUser(true); }));
         }
         m_controllerSubscriptions.push_back(
                 m_controller->authenticationSucceeded.connect([this, login] {
@@ -298,7 +306,6 @@ void AuthUi::refresh()
                         m_session->requestUnlock();
                     }
                 }));
-        toolkit::application();
         m_window = std::make_unique<ui::EmbeddedWindow>();
         auto screen = std::make_unique<AuthScreen>(m_window.get(), m_controller.get());
         m_screen = screen.get();
