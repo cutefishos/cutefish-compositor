@@ -721,7 +721,7 @@ TEST_F(ControlCenterTest, ThePowerDialogConfirmsWithReturnAndCancelsWithEscape)
     ASSERT_NE(nullptr, window);
     EXPECT_EQ(wm::WindowRole::Normal, window->role());
     EXPECT_TRUE(window->isAlwaysOnTop());
-    EXPECT_EQ(336, window->bounds().width());
+    EXPECT_EQ(int(ui::AlertView::kWidth), window->bounds().width());
     dialog.open(shell::PowerDialog::Action::Reboot);
     EXPECT_EQ(shell::PowerDialog::Action::Reboot, dialog.action());
     key(KEY_ENTER);

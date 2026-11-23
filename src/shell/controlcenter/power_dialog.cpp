@@ -4,7 +4,6 @@
 
 #include "shell/controlcenter/power_dialog.h"
 
-#include <algorithm>
 #include <cmath>
 
 #include "compositor/surface.h"
@@ -13,12 +12,12 @@
 #include "core/main_loop.h"
 #include "shell/shell.h"
 #include "shell/shell_window.h"
+#include "ui/color_provider.h"
 #include "ui/dialog_window.h"
 #include "ui/embedded_window.h"
 #include "ui/keys.h"
 #include "ui/label.h"
 #include "ui/painter.h"
-#include "ui/theme.h"
 #include "wm/shell_surface.h"
 
 using cutefish::i18n::tr;
@@ -26,13 +25,7 @@ using cutefish::i18n::trNoop;
 
 namespace cutefish::shell {
 
-static constexpr double kMargin = 16;
-static constexpr double kBottomMargin = 12;
-static constexpr double kMinimumWidth = 336;
-static constexpr double kTextSize = 14;
-static constexpr double kButtonSpacing = 8;
 static constexpr double kDragDistance = 10;
-static constexpr int kDemiBold = 600;
 
 static const char *const kText = trNoop("Every application is asked to quit first, so you can save your work.");
 
@@ -42,76 +35,40 @@ public:
     explicit Content(PowerDialog *dialog)
         : m_dialog(dialog)
     {
-        m_title = addChild<ui::Label>();
-        m_title->setFontSize(kTextSize);
-        m_title->setWeight(kDemiBold);
-        m_title->setWrap(true);
-        m_text = addChild<ui::Label>(tr(kText));
-        m_text->setFontSize(kTextSize);
-        m_text->setWrap(true);
-        m_text->setFixedLineHeight(20);
-        m_text->setColor(ui::ColorId::DisabledText);
-        m_cancel = addChild<ui::DialogButton>(tr("Cancel"));
-        m_cancel->onClicked = [this] { m_dialog->finish(false); };
-        m_confirm = addChild<ui::DialogButton>(std::string(), true);
-        m_confirm->onClicked = [this] { m_dialog->finish(true); };
+        m_alert = addChild<ui::AlertView>();
+        m_alert->setText(tr(kText));
+        m_alert->cancel()->setText(tr("Cancel"));
+        m_alert->cancel()->onClicked = [this] { m_dialog->finish(false); };
+        m_alert->confirm()->onClicked = [this] { m_dialog->finish(true); };
     }
 
-    ui::DialogButton *cancel() const { return m_cancel; }
+    ui::DialogButton *cancel() const { return m_alert->cancel(); }
 
     void retranslate()
     {
-        m_text->setText(tr(kText));
-        m_cancel->setText(tr("Cancel"));
+        m_alert->setText(tr(kText));
+        m_alert->cancel()->setText(tr("Cancel"));
     }
 
     void setAction(Action action)
     {
-        m_title->setText(PowerDialog::title(action));
-        m_confirm->setText(PowerDialog::confirmText(action));
-        requestLayout();
+        m_alert->title()->setText(PowerDialog::title(action));
+        m_alert->confirm()->setText(PowerDialog::confirmText(action));
+        m_alert->requestLayout();
     }
 
-    double width() const
-    {
-        const double actions = m_cancel->sizeHint().width + kButtonSpacing + m_confirm->sizeHint().width;
-        return std::max(kMinimumWidth, actions + 2 * kMargin);
-    }
+    double width() const { return ui::AlertView::kWidth; }
 
-    double textWidth() const { return width() - 2 * kMargin; }
-
-    double height() const
-    {
-        const double texts = m_title->heightForWidth(textWidth()) + 4 + m_text->heightForWidth(textWidth());
-        const double buttons = std::max(m_cancel->sizeHint().height, m_confirm->sizeHint().height);
-        return std::ceil(kMargin + texts + kMargin + buttons + kBottomMargin);
-    }
+    double height() const { return m_alert->heightForWidth(width()); }
 
     bool acceptsPointer() const override { return true; }
 
 protected:
-    void layout() override
-    {
-        const double width = geometry().width;
-        const double textWidth = this->textWidth();
-        const double titleHeight = m_title->heightForWidth(textWidth);
-        m_title->setGeometry({kMargin, kMargin, textWidth, titleHeight});
-        const double textHeight = m_text->heightForWidth(textWidth);
-        m_text->setGeometry({kMargin, kMargin + titleHeight + 4, textWidth, textHeight});
-        const ui::SizeF cancel = m_cancel->sizeHint();
-        const ui::SizeF confirm = m_confirm->sizeHint();
-        const double buttonsHeight = std::max(cancel.height, confirm.height);
-        const double y = kMargin + titleHeight + 4 + textHeight + kMargin;
-        const double right = width - kMargin;
-        m_confirm->setGeometry({right - confirm.width, y + (buttonsHeight - confirm.height) / 2, confirm.width,
-                                confirm.height});
-        m_cancel->setGeometry({right - confirm.width - kButtonSpacing - cancel.width,
-                               y + (buttonsHeight - cancel.height) / 2, cancel.width, cancel.height});
-    }
+    void layout() override { m_alert->setGeometry(localRect()); }
 
     void paint(ui::Painter &painter) override
     {
-        painter.fillRect(localRect(), ui::Theme::current().secondBackground);
+        painter.fillRect(localRect(), ui::ColorProvider::current().get(ui::ColorId::AlertBackground));
     }
 
     void pointerPress(const ui::PointerEvent &event) override
@@ -139,10 +96,7 @@ protected:
 
 private:
     PowerDialog *m_dialog;
-    ui::Label *m_title;
-    ui::Label *m_text;
-    ui::DialogButton *m_cancel;
-    ui::DialogButton *m_confirm;
+    ui::AlertView *m_alert;
     bool m_pressed = false;
     ui::PointF m_pressPosition;
 };
