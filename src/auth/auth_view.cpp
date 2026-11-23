@@ -37,6 +37,7 @@ using ui::rounding::centeredStart;
 
 constexpr ui::Color kWhite {255, 255, 255, 255};
 constexpr ui::Color kBlack {0, 0, 0, 255};
+constexpr double kTimeLetterSpacing = 3.5;
 
 ui::Color white(double alpha)
 {
@@ -1305,6 +1306,7 @@ AuthScreen::AuthScreen(ui::Window *window, AuthController *controller)
     m_date->setName("date");
     m_time = addChild<RaisedLabel>(84, 600, kWhite, kBlack.withAlpha(0.3));
     m_time->setName("time");
+    m_time->setLetterSpacing(kTimeLetterSpacing);
 
     m_pod = addChild<ui::ColumnLayout>();
     m_pod->setSpacing(18);
@@ -1607,10 +1609,12 @@ void AuthScreen::layout()
     const double height = geometry().height;
     const ui::SizeF date = m_date->sizeHint();
     const ui::SizeF time = m_time->sizeHint();
-    const double column = std::max(date.width, time.width);
+    // Label::setLetterSpacing adds trailing space after the last glyph; exclude it when centring.
+    const double timeWidth = std::max(0.0, time.width - kTimeLetterSpacing);
+    const double column = std::max(date.width, timeWidth);
     const double left = centeredStart(width, column);
     m_date->setGeometry({left + centeredStart(column, date.width), 56, date.width, date.height});
-    m_time->setGeometry({left + centeredStart(column, time.width), 56 + date.height - 4, time.width,
+    m_time->setGeometry({left + centeredStart(column, timeWidth), 56 + date.height - 4, time.width,
                          time.height});
 
     const double podWidth = std::min(width - 48, 240.0);
