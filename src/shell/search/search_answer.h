@@ -10,7 +10,7 @@
 
 namespace cutefish::shell {
 
-// What Spotlight answers beside the results: a sum, a conversion.
+// Inline answer shown beside search results: a calculation or conversion.
 struct SearchAnswer
 {
     // The answer alone, ready to be copied: "42", "6.21 miles".

@@ -5,10 +5,12 @@
 #include "shell/search/search_answer.h"
 
 #include <algorithm>
+#include <array>
 #include <cctype>
 #include <cmath>
 #include <cstdlib>
 #include <ctime>
+#include <filesystem>
 #include <fstream>
 #include <iomanip>
 #include <map>
@@ -64,8 +66,7 @@ std::string formatNumber(double value)
     else if (std::trunc(value) == value)
         out << std::fixed << std::setprecision(0) << value;
     else
-        // Six digits, as Spotlight answers: "6.21371 miles", not the machine's
-        // whole float.
+        // Six significant digits: e.g. "6.21371 miles".
         out.precision(6), out << value;
     std::string text = out.str();
     if (text.find('e') == std::string::npos) {
@@ -157,26 +158,44 @@ private:
 
     double power()
     {
+        if (++m_depth > kMaxDepth) {
+            m_ok = false;
+            return 0;
+        }
         double value = unary();
         if (accept('^'))
             value = std::pow(value, power());
+        --m_depth;
         return value;
     }
 
     double unary()
     {
+        if (++m_depth > kMaxDepth) {
+            m_ok = false;
+            return 0;
+        }
+        double value = 0;
         if (accept('-'))
-            return -unary();
-        if (accept('+'))
-            return unary();
-        return primary();
+            value = -unary();
+        else if (accept('+'))
+            value = unary();
+        else
+            value = primary();
+        --m_depth;
+        return value;
     }
 
     double primary()
     {
         skipSpace();
         if (accept('(')) {
+            if (++m_depth > kMaxDepth) {
+                m_ok = false;
+                return 0;
+            }
             const double value = expression();
+            --m_depth;
             if (!accept(')'))
                 m_ok = false;
             return value;
@@ -184,26 +203,30 @@ private:
         skipSpace();
         const size_t start = m_pos;
         bool dot = false;
+        bool hasDigit = false;
         while (m_pos < m_text.size()) {
             const char c = m_text[m_pos];
-            if (c >= '0' && c <= '9')
+            if (c >= '0' && c <= '9') {
+                hasDigit = true;
                 ++m_pos;
-            else if (c == '.' && !dot) {
+            } else if (c == '.' && !dot) {
                 dot = true;
                 ++m_pos;
             } else {
                 break;
             }
         }
-        if (m_pos == start) {
+        if (m_pos == start || !hasDigit) {
             m_ok = false;
             return 0;
         }
         return std::strtod(std::string(m_text.substr(start, m_pos - start)).c_str(), nullptr);
     }
 
+    static constexpr int kMaxDepth = 64;
     std::string_view m_text;
     size_t m_pos = 0;
+    int m_depth = 0;
     bool m_ok = true;
 };
 
@@ -304,29 +327,59 @@ const Unit *findUnit(const std::string &name)
     return nullptr;
 }
 
+constexpr std::array<std::string_view, 31> kKnownCurrencies = {
+        "AUD", "BGN", "BRL", "CAD", "CHF", "CNY", "CZK", "DKK", "EUR", "GBP", "HKD",
+        "HUF", "IDR", "ILS", "INR", "ISK", "JPY", "KRW", "MXN", "MYR", "NOK", "NZD",
+        "PHP", "PLN", "RON", "SEK", "SGD", "THB", "TRY", "USD", "ZAR",
+};
+
+bool isKnownCurrency(std::string_view code)
+{
+    return std::binary_search(kKnownCurrencies.begin(), kKnownCurrencies.end(), code);
+}
+
 std::string ratesPath()
 {
     return base::paths::cacheHome() + "/cutefish/search-rates.json";
 }
 
 // USD to each currency, from the cache; empty when it holds nothing usable.
-std::map<std::string, double> currencyRates()
+const std::map<std::string, double> &currencyRates()
 {
-    std::map<std::string, double> rates;
+    static std::map<std::string, double> cached;
+    static std::string cachedPath;
+    static std::time_t cachedMtime = 0;
+    static off_t cachedSize = -1;
+
+    const std::string path = ratesPath();
     struct stat info;
-    if (stat(ratesPath().c_str(), &info) != 0)
-        return rates;
-    std::ifstream file(ratesPath());
+    if (stat(path.c_str(), &info) != 0) {
+        cached.clear();
+        cachedPath.clear();
+        cachedMtime = 0;
+        cachedSize = -1;
+        return cached;
+    }
+    if (path == cachedPath && info.st_mtime == cachedMtime && info.st_size == cachedSize)
+        return cached;
+
+    std::map<std::string, double> rates;
+    std::ifstream file(path);
     if (!file)
-        return rates;
+        return cached;
     const std::string text((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
     const base::json::Value document = base::json::Value::parse(text).value_or(base::json::Value());
     for (const auto &[code, rate] : document["rates"].toObject()) {
         if (rate.isNumber())
             rates[code] = rate.toDouble();
     }
-    rates["USD"] = 1;
-    return rates;
+    if (!rates.empty())
+        rates["USD"] = 1;
+    cached = std::move(rates);
+    cachedPath = path;
+    cachedMtime = info.st_mtime;
+    cachedSize = info.st_size;
+    return cached;
 }
 
 bool ratesAreStale()
@@ -348,8 +401,15 @@ void refreshCurrencyRatesIfStale()
 {
     if (!ratesAreStale())
         return;
-    // Written in place: a half-written file parses as nothing and is retried.
-    base::Process::startDetached("curl", {"-fsS", "--max-time", "15", "-o", ratesPath(), kRatesUrl});
+    static std::time_t lastAttempt = 0;
+    const std::time_t now = std::time(nullptr);
+    if (now - lastAttempt < 60)
+        return;
+    lastAttempt = now;
+    const std::filesystem::path path(ratesPath());
+    std::error_code ec;
+    std::filesystem::create_directories(path.parent_path(), ec);
+    base::Process::startDetached("curl", {"-fsS", "--max-time", "15", "-o", path.string(), kRatesUrl});
 }
 
 std::optional<SearchAnswer> answerFor(const std::string &query)
@@ -411,15 +471,18 @@ std::optional<SearchAnswer> answerFor(const std::string &query)
     const std::string to = lower(right);
 
     // Currencies first: they are not units of a fixed size.
-    std::map<std::string, double> rates = currencyRates();
-    if (rates.contains(upper(from)) || rates.contains(upper(to))) {
+    const std::string fromCode = upper(from);
+    const std::string toCode = upper(to);
+    const std::map<std::string, double> &rates = currencyRates();
+    if (rates.contains(fromCode) || rates.contains(toCode)
+        || (isKnownCurrency(fromCode) && isKnownCurrency(toCode))) {
         refreshCurrencyRatesIfStale();
-        const auto fromRate = rates.find(upper(from));
-        const auto toRate = rates.find(upper(to));
+        const auto fromRate = rates.find(fromCode);
+        const auto toRate = rates.find(toCode);
         if (fromRate == rates.end() || toRate == rates.end() || fromRate->second <= 0)
             return std::nullopt;
         const double result = amount / fromRate->second * toRate->second;
-        return SearchAnswer {.value = formatRate(result) + " " + upper(to),
+        return SearchAnswer {.value = formatRate(result) + " " + toCode,
                              .expression = text};
     }
 
