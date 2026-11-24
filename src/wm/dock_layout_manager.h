@@ -35,7 +35,6 @@ enum class DockAutoHideBehavior {
 enum class DockVisibilityState {
     Visible,
     AutoHide,
-    Hidden,
 };
 
 enum class DockAutoHideState {
@@ -119,6 +118,7 @@ private:
     bool hasVisibleWindow(const base::Rect &output) const;
     const Window *topmostWindowFor(const base::Rect &output) const;
     Window *fullscreenWindowFor(const base::Rect &output) const;
+    bool fullscreenCapturesPointer(const base::Rect &output) const;
     bool isTopBar(const Window *dock, const Dock &entry, const base::Rect &output) const;
     void updateReveal(Window *dock, Dock &entry);
     bool isLaunchpadShowing(const base::Rect &output) const;

@@ -13,6 +13,7 @@
 
 #include "compositor/compositor.h"
 #include "compositor/surface.h"
+#include "input/pointer_constraint_delegate.h"
 #include "input/seat.h"
 #include "scene/node.h"
 #include "wm/activation.h"
@@ -151,8 +152,12 @@ DockLayoutManager::DockLayoutManager(WindowManager *manager)
     m_managerSignals.push_back(m_manager->pointerMoved.connect([this](const base::PointF &location) {
         onPointerMoved(location);
     }));
-    if (input::Seat *seat = m_manager->seat())
+    if (input::Seat *seat = m_manager->seat()) {
         m_pointer = seat->pointerLocation();
+        m_managerSignals.push_back(seat->pointerConstraints()->activeChanged.connect([this] {
+            update();
+        }));
+    }
     for (Window *window : m_manager->windows())
         window->addObserver(this);
 }
@@ -256,6 +261,16 @@ Window *DockLayoutManager::fullscreenWindowFor(const base::Rect &output) const
     return nullptr;
 }
 
+bool DockLayoutManager::fullscreenCapturesPointer(const base::Rect &output) const
+{
+    input::Seat *seat = m_manager->seat();
+    const auto *constraint = seat ? seat->pointerConstraints()->active() : nullptr;
+    if (!constraint)
+        return false;
+    const Window *fullscreen = fullscreenWindowFor(output);
+    return fullscreen && m_manager->windowForSurface(constraint->constrainedSurface()) == fullscreen;
+}
+
 bool DockLayoutManager::hasVisibleWindow(const base::Rect &output) const
 {
     const auto &windows = m_manager->windows();
@@ -277,11 +292,8 @@ DockVisibilityState DockLayoutManager::computeVisibility(const Window *dock,
                                                          const base::Rect &output) const
 {
     const WorkspaceState workspace = workspaceStateFor(output);
-    if (isAwayForSession())
+    if (isAwayForSession() || workspace == WorkspaceState::Fullscreen)
         return DockVisibilityState::AutoHide;
-    if (workspace == WorkspaceState::Fullscreen)
-        return dock->role() == WindowRole::Dock ? DockVisibilityState::Hidden
-                                               : DockVisibilityState::AutoHide;
     if (dock->role() == WindowRole::Panel)
         return DockVisibilityState::Visible;
     switch (m_behavior) {
@@ -299,9 +311,7 @@ DockVisibilityState DockLayoutManager::computeVisibility(const Window *dock,
 DockAutoHideState DockLayoutManager::computeAutoHideState(const Window *dock, const Dock &entry,
                                                           const base::Rect &output, bool revealing) const
 {
-    if (entry.visibility == DockVisibilityState::Hidden)
-        return DockAutoHideState::Hidden;
-    if (entry.visibility == DockVisibilityState::Visible)
+    if (entry.visibility != DockVisibilityState::AutoHide)
         return DockAutoHideState::Shown;
 
     if (isAwayForSession())
@@ -319,6 +329,9 @@ DockAutoHideState DockLayoutManager::computeAutoHideState(const Window *dock, co
 
     if (!hasVisibleWindow(output))
         return DockAutoHideState::Shown;
+
+    if (dock->role() == WindowRole::Dock && fullscreenCapturesPointer(output))
+        return DockAutoHideState::Hidden;
 
     if (isTopBar(dock, entry, output)) {
         const Window *fullscreen = fullscreenWindowFor(output);
@@ -412,7 +425,7 @@ void DockLayoutManager::updateDock(Window *dock, Dock &entry)
             entry.autoHide == DockAutoHideState::Shown || entry.autoHideTimer.isActive();
     const DockAutoHideState autoHide = computeAutoHideState(dock, entry, output, revealing);
     const bool applying = autoHide != entry.autoHide
-            && (entry.visibility != DockVisibilityState::AutoHide
+            && (entry.visibility == DockVisibilityState::Visible
                 || (!entry.autoHideTimer.isActive() && autoHide == DockAutoHideState::Hidden));
     if (!applying)
         updateReveal(dock, entry);
@@ -423,7 +436,7 @@ void DockLayoutManager::updateDock(Window *dock, Dock &entry)
             slideTo(dock, entry, hiddenOffset(reachedBounds(dock, entry.edge), output, entry.edge));
         return;
     }
-    if (entry.visibility != DockVisibilityState::AutoHide) {
+    if (entry.visibility == DockVisibilityState::Visible) {
         entry.autoHideTimer.stop();
         applyAutoHideState(dock, entry, autoHide);
         return;

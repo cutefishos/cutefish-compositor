@@ -16,6 +16,7 @@
 #include "compositor/surface_observer.h"
 #include "base/geometry.h"
 #include "base/region.h"
+#include "base/signal.h"
 
 namespace cutefish::input {
 
@@ -39,6 +40,7 @@ public:
     void remove(PointerConstraintDelegate *delegate);
 
     PointerConstraintDelegate *active() const { return m_active; }
+    base::Signal<> activeChanged;
 
     bool isLocked() const;
 
