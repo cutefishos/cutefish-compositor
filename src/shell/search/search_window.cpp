@@ -230,6 +230,7 @@ void SearchWindow::close()
     // and the field and the glass leave together.
     m_heightAnimation->stop();
     m_animating = false;
+    m_model->stop();
     m_window->hide();
 }
 

@@ -8,6 +8,7 @@
 #include <chrono>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "base/signal.h"
@@ -61,7 +62,11 @@ public:
 
     // Empty clears; anything else debounces, then searches as the words are.
     void setQuery(const std::string &text);
+    // Cancels any pending debounce or in-flight file walk.
+    void stop();
     const std::string &query() const { return m_query; }
+
+    static bool isIgnoredPath(std::string_view path, std::string_view root = {});
 
     // Applications first, then files.
     const std::vector<SearchResult> &results() const { return m_results; }

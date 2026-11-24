@@ -5,6 +5,7 @@
 #include "shell/search/search_model.h"
 
 #include <algorithm>
+#include <array>
 #include <cctype>
 #include <string_view>
 
@@ -87,6 +88,10 @@ int applicationRank(const base::DesktopEntry &entry, const std::string &query,
     return matchesAll(details, words) ? 3 : -1;
 }
 
+constexpr std::array<std::string_view, 8> kIgnoredDirectories = {
+        "CMakeFiles", "__pycache__", "build", "dist", "node_modules", "target", "vendor", "venv",
+};
+
 std::string shortenedPath(const std::string &path)
 {
     const std::string home = base::paths::home();
@@ -119,6 +124,37 @@ SearchModel::SearchModel()
 }
 
 SearchModel::~SearchModel() = default;
+
+bool SearchModel::isIgnoredPath(std::string_view path, std::string_view root)
+{
+    if (!root.empty() && path.size() > root.size() && path.starts_with(root)
+        && (root.back() == '/' || path[root.size()] == '/'))
+        path.remove_prefix(root.size());
+    size_t pos = 0;
+    while (pos < path.size()) {
+        while (pos < path.size() && path[pos] == '/')
+            ++pos;
+        if (pos >= path.size())
+            break;
+        const size_t end = path.find('/', pos);
+        const std::string_view segment =
+                path.substr(pos, end == std::string_view::npos ? path.size() - pos : end - pos);
+        if (segment.starts_with('.')
+            || std::binary_search(kIgnoredDirectories.begin(), kIgnoredDirectories.end(), segment))
+            return true;
+        if (end == std::string_view::npos)
+            break;
+        pos = end + 1;
+    }
+    return false;
+}
+
+void SearchModel::stop()
+{
+    m_debounce.stop();
+    m_lister.stop();
+    setSearching(false);
+}
 
 void SearchModel::setQuery(const std::string &text)
 {
@@ -218,20 +254,31 @@ void SearchModel::takeFiles()
         return;
     }
     m_files.clear();
+    const std::string home = base::paths::home();
     const files::FileItemList &items = m_lister.items();
+    bool capped = false;
     for (const files::FileItem &item : items) {
         if (item.isHidden())
             continue;
         const std::string path = item.localPath();
-        if (path.empty() || path == base::paths::home())
+        if (path.empty() || path == home || isIgnoredPath(path, home))
             continue;
         m_files.push_back({.kind = SearchResult::Kind::File,
                            .title = item.name(),
                            .subtitle = folderOf(path),
+                           .icon = item.iconName(),
                            .path = path,
                            .isDirectory = item.isDir()});
-        if (int(m_files.size()) >= kMaxFiles)
+        if (int(m_files.size()) >= kMaxFiles) {
+            capped = true;
             break;
+        }
+    }
+    if (capped) {
+        // The file lister walks breadth-first, so the first kMaxFiles hits are
+        // the shallowest; stop walking the rest of the home tree.
+        m_lister.stop();
+        setSearching(false);
     }
     rebuild();
 }

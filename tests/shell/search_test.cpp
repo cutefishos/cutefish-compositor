@@ -7,6 +7,7 @@
 #include <string>
 
 #include "shell/search/search_answer.h"
+#include "shell/search/search_model.h"
 
 namespace cutefish::shell {
 namespace {
@@ -48,6 +49,18 @@ TEST(SearchAnswerTest, ConvertsUnits)
     EXPECT_EQ("32 f", fahrenheit->value);
 
     EXPECT_FALSE(answerFor("10 km to kg").has_value());
+}
+
+TEST(SearchModelTest, FiltersHiddenAndBuildDirectories)
+{
+    const std::string home = "/home/user";
+    EXPECT_TRUE(SearchModel::isIgnoredPath("/home/user/app/node_modules/pkg/index.js", home));
+    EXPECT_TRUE(SearchModel::isIgnoredPath("/home/user/repo/.git/HEAD", home));
+    EXPECT_TRUE(SearchModel::isIgnoredPath("/home/user/proj/build/CMakeCache.txt", home));
+    EXPECT_TRUE(SearchModel::isIgnoredPath("/home/user/proj/__pycache__/mod.pyc", home));
+    EXPECT_TRUE(SearchModel::isIgnoredPath("/home/user/rust/target/release/app", home));
+    EXPECT_FALSE(SearchModel::isIgnoredPath("/home/user/Documents/notes.txt", home));
+    EXPECT_FALSE(SearchModel::isIgnoredPath("/home/user/Projects/my-builder/main.cpp", home));
 }
 
 } // namespace
