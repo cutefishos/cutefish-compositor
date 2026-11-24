@@ -45,9 +45,16 @@ std::string iconFor(const SearchResult &result, double scale)
     case SearchResult::Kind::Answer:
         name = "accessories-calculator";
         break;
-    case SearchResult::Kind::File:
-        name = result.isDirectory ? "folder" : "text-x-generic";
+    case SearchResult::Kind::File: {
+        const std::string fallback = result.isDirectory ? "folder" : "text-x-generic";
+        if (!result.icon.empty()) {
+            const std::string resolved = ui::themeIconPath(result.icon, 96, scale);
+            if (!resolved.empty())
+                return resolved;
+        }
+        name = fallback;
         break;
+    }
     }
     return ui::themeIconPath(name, 96, scale);
 }
@@ -416,10 +423,14 @@ void SearchView::layout()
 
     if (m_completion->isVisible()) {
         // The field draws its text at its left margin; the guess starts where
-        // that text ends, a caret's width later.
+        // that text ends, a caret's width later. Hide it once the typed text
+        // scrolls past the field's visible width.
         const double textLeft = filterX + 2 + m_measure->sizeHint().width + 2;
-        const double room = std::max(0.0, width - kSearchIconLeft - textLeft);
-        m_completion->setGeometry({textLeft, double(kPadding), room, double(kHeaderHeight)});
+        const double room = width - kSearchIconLeft - textLeft;
+        if (room > 0)
+            m_completion->setGeometry({textLeft, double(kPadding), room, double(kHeaderHeight)});
+        else
+            m_completion->setGeometry({});
     }
 }
 
