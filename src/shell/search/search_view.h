@@ -54,6 +54,7 @@ public:
     static constexpr int kPageRows = 6;
     // The panel never grows past this many rows; the list scrolls.
     static constexpr int kMaxRows = 7;
+    static constexpr int kMaxHeight = kBarHeight + 1 + kPadding + kMaxRows * kRowHeight + kPadding;
 
     explicit SearchView(SearchModel &model);
     ~SearchView() override;
@@ -63,6 +64,7 @@ public:
     void retranslate();
     // The bar alone until there is something to show, then one row per result.
     double preferredHeight() const;
+    void setPanelHeight(double height);
 
     int currentIndex() const { return m_currentIndex; }
     void select(int index);
@@ -100,6 +102,8 @@ private:
     // Measures the typed text so the guess starts where it ends.
     ui::Label *m_measure;
     int m_currentIndex = 0;
+    double m_panelHeight = 0;
+    bool m_emptyVisible = false;
     std::vector<base::Subscription> m_subscriptions;
 };
 

@@ -5,13 +5,13 @@
 #ifndef CUTEFISH_SHELL_SEARCH_SEARCH_WINDOW_H_
 #define CUTEFISH_SHELL_SEARCH_SEARCH_WINDOW_H_
 
+#include <cstdint>
 #include <memory>
 #include <vector>
 
 #include "base/dbus.h"
 #include "base/geometry.h"
 #include "base/signal.h"
-#include "base/timer.h"
 #include "shell/shell.h"
 #include "shell/search/search_model.h"
 
@@ -42,27 +42,30 @@ public:
     bool registerService();
 
 private:
-    base::Rect geometry() const;
+    class HeightAnimation;
+
+    base::Rect geometry(int height) const;
+    void setWindowHeight(int height);
     void place();
     void applyGlass();
-    // Grows or shrinks the panel for its results on the loop; the glass
-    // follows every step. Opening and closing are the window's own animation.
+    // Grows or shrinks the panel for its results on compositor vsync; the glass
+    // and input region follow every step atomically.
     void animate(int targetHeight);
-    void tickAnimation();
+    void tickAnimation(uint64_t frameTimeNs);
     void activate(int index);
 
     Shell *m_shell;
     base::dbus::Connection *m_bus = nullptr;
     std::unique_ptr<SearchModel> m_model;
     std::unique_ptr<ShellWindow> m_window;
+    std::unique_ptr<HeightAnimation> m_heightAnimation;
     SearchView *m_view = nullptr;
     std::unique_ptr<base::dbus::Object> m_object;
     std::vector<base::Subscription> m_subscriptions;
     int m_glassDark = -1;
     int m_glassHeight = -1;
-    base::Timer m_animation;
     int m_height = 0;
-    double m_animationProgress = 0;
+    uint64_t m_animationStartNs = 0;
     double m_heightFrom = 0;
     double m_heightTo = 0;
     bool m_animating = false;

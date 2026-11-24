@@ -341,6 +341,15 @@ double SearchView::preferredHeight() const
     return bar;
 }
 
+void SearchView::setPanelHeight(double height)
+{
+    if (m_panelHeight == height)
+        return;
+    m_panelHeight = height;
+    requestLayout();
+    requestPaint();
+}
+
 void SearchView::modelChanged()
 {
     const size_t count = m_model.results().size();
@@ -356,9 +365,11 @@ void SearchView::modelChanged()
 
 void SearchView::updateEmpty()
 {
-    const bool empty = !m_filter->text().empty() && !m_model.searching() && m_model.results().empty();
-    m_empty->setText(empty ? tr("No Results") : std::string());
-    m_empty->setVisible(empty);
+    m_emptyVisible = !m_filter->text().empty() && !m_model.searching() && m_model.results().empty();
+    m_empty->setText(m_emptyVisible ? tr("No Results") : std::string());
+    const double panelHeight = m_panelHeight > 0 ? std::min(m_panelHeight, geometry().height) : geometry().height;
+    const double bodyHeight = std::max(0.0, panelHeight - (kBarHeight + 1));
+    m_empty->setVisible(m_emptyVisible && bodyHeight > 2 * kPadding);
 }
 
 void SearchView::updateCompletion()
@@ -395,8 +406,11 @@ void SearchView::layout()
     const double bodyY = bar + 1;
     // To the panel's bottom edge: the list's own bar needs the right edge, and
     // its bottom corner radius keeps the track clear of the corner.
-    const double bodyHeight = std::max(0.0, geometry().height - bodyY);
+    const double panelHeight = m_panelHeight > 0 ? std::min(m_panelHeight, geometry().height) : geometry().height;
+    const double bodyHeight = std::max(0.0, panelHeight - bodyY);
+    m_list->setVisible(bodyHeight > 0);
     m_list->setGeometry({0, bodyY, width, bodyHeight});
+    m_empty->setVisible(m_emptyVisible && bodyHeight > 2 * kPadding);
     m_empty->setGeometry({double(kPadding), bodyY + kPadding, width - 2 * kPadding,
                           std::max(0.0, bodyHeight - 2 * kPadding)});
 
@@ -413,8 +427,9 @@ void SearchView::paint(ui::Painter &painter)
 {
     if (onPainted)
         onPainted();
-    const double bar = kPadding * 2 + kHeaderHeight;
-    if (geometry().height <= bar + 1)
+    const double bar = kBarHeight;
+    const double panelHeight = m_panelHeight > 0 ? std::min(m_panelHeight, geometry().height) : geometry().height;
+    if (panelHeight <= bar + 1)
         return;
     const double width = geometry().width;
     painter.drawRoundedRect({double(kPadding), bar, width - 2 * kPadding, 1}, {}, hairlineColor());

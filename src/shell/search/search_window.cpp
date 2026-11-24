@@ -11,15 +11,16 @@
 #include "base/application_registry.h"
 #include "base/logging.h"
 #include "base/process.h"
+#include "base/region.h"
 #include "clipboard/selection.h"
 #include "clipboard/stored_source.h"
-#include "core/main_loop.h"
 #include "input/seat.h"
 #include "shell/common/app_launcher.h"
 #include "shell/search/search_view.h"
 #include "shell/shell_data.h"
 #include "shell/shell_window.h"
-#include "ui/path.h"
+#include "ui/embedded_window.h"
+#include "ui/frame_client.h"
 #include "ui/theme.h"
 #include "wm/window_manager.h"
 
@@ -28,24 +29,52 @@ namespace cutefish::shell {
 namespace {
 
 const base::LogCategory cfSearch("cutefish.search", base::LogLevel::Warning);
+constexpr double kAnimationDurationMs = 200.0;
 
 render::GlassParams searchGlass()
 {
     const bool dark = ui::Theme::current().darkMode;
-    return dark ? popupGlass(0.14, 0.15, 0.18, 0.50)
-                : popupGlass(1.0, 1.0, 1.0, 0.46);
+    render::GlassParams glass = dark ? popupGlass(0.14, 0.15, 0.18, 0.50)
+                                     : popupGlass(1.0, 1.0, 1.0, 0.46);
+    glass.circularCorners = true;
+    return glass;
 }
 
 } // namespace
+
+class SearchWindow::HeightAnimation final : public ui::FrameClient
+{
+public:
+    explicit HeightAnimation(SearchWindow *owner)
+        : FrameClient(owner->m_window->window())
+        , m_owner(owner)
+    {
+    }
+
+    void start()
+    {
+        if (!isTicking())
+            startTicking();
+    }
+
+    void stop()
+    {
+        if (isTicking())
+            stopTicking();
+    }
+
+protected:
+    void tick(uint64_t frameTimeNs) override { m_owner->tickAnimation(frameTimeNs); }
+
+private:
+    SearchWindow *m_owner;
+};
 
 SearchWindow::SearchWindow(Shell *shell, base::dbus::Connection *bus)
     : m_shell(shell)
     , m_bus(bus)
     , m_model(std::make_unique<SearchModel>())
-    , m_animation(core::mainLoop())
 {
-    m_animation.setInterval(std::chrono::milliseconds(16));
-    m_animation.onTimeout = [this] { tickAnimation(); };
     m_window = std::make_unique<ShellWindow>(shell, wm::WindowRole::Picker);
     // The field and the glass open and close as one surface, as the launchpad.
     m_window->setLaunchpadAnimation(true);
@@ -59,7 +88,10 @@ SearchWindow::SearchWindow(Shell *shell, base::dbus::Connection *bus)
             place();
     };
     m_window->setContentView(std::move(view));
-    m_window->setSize(base::Size(SearchView::kWidth, int(std::lround(m_view->preferredHeight()))));
+    m_heightAnimation = std::make_unique<HeightAnimation>(this);
+    m_height = int(std::lround(m_view->preferredHeight()));
+    m_view->setPanelHeight(m_height);
+    setWindowHeight(SearchView::kMaxHeight);
     m_window->onKeyboardFocusChanged = [this](bool focused) {
         if (focused) {
             m_hadKeyboard = true;
@@ -72,8 +104,10 @@ SearchWindow::SearchWindow(Shell *shell, base::dbus::Connection *bus)
     applyGlass();
 
     m_subscriptions.push_back(m_shell->outputsChanged.connect([this] {
-        if (isOpen())
+        if (isOpen()) {
+            setWindowHeight(SearchView::kMaxHeight);
             place();
+        }
     }));
 }
 
@@ -81,6 +115,7 @@ SearchWindow::~SearchWindow()
 {
     m_subscriptions.clear();
     m_object.reset();
+    m_heightAnimation.reset();
     m_window.reset();
     m_model.reset();
 }
@@ -90,23 +125,28 @@ bool SearchWindow::isOpen() const
     return m_window->isShown();
 }
 
-base::Rect SearchWindow::geometry() const
+base::Rect SearchWindow::geometry(int height) const
 {
     const int width = SearchView::kWidth;
-    const int height = m_height > 0 ? m_height : int(std::lround(m_view->preferredHeight()));
+    const int requested = height > 0 ? height : int(std::lround(m_view->preferredHeight()));
     const Shell::Output *output = m_shell->output({});
     if (!output)
-        return base::Rect(0, 0, width, height);
+        return base::Rect(0, 0, width, requested);
     const base::Rect area = m_shell->workArea(*output);
-    const int top = area.y() + std::min(96, std::max(0, area.height() - height));
-    const int clampedHeight = std::min(height, std::max(1, area.y() + area.height() - top));
+    const int top = area.y() + std::min(96, std::max(0, area.height() - requested));
+    const int clampedHeight = std::min(requested, std::max(1, area.y() + area.height() - top));
     return base::Rect(int(std::lround(area.x() + (area.width() - width) / 2.0)), top, width,
                       clampedHeight);
 }
 
+void SearchWindow::setWindowHeight(int height)
+{
+    m_window->setGeometry(geometry(height));
+}
+
 void SearchWindow::place()
 {
-    const int target = int(std::lround(m_view->preferredHeight()));
+    const int target = geometry(int(std::lround(m_view->preferredHeight()))).height();
     if (isOpen()) {
         // Retarget while a growth is running, or the panel stops at the height
         // the first result wanted.
@@ -114,55 +154,53 @@ void SearchWindow::place()
             animate(target);
     } else {
         m_height = target;
-        m_window->setGeometry(geometry());
+        m_view->setPanelHeight(m_height);
+        setWindowHeight(SearchView::kMaxHeight);
         applyGlass();
     }
 }
 
 void SearchWindow::animate(int targetHeight)
 {
+    if (!m_animating && targetHeight == m_height)
+        return;
     // A new target while running starts from where the panel is now.
     m_heightFrom = m_height > 0 ? m_height : targetHeight;
     m_heightTo = targetHeight;
-    m_animationProgress = 0;
+    m_animationStartNs = 0;
     m_animating = true;
-    m_animation.start();
+    m_heightAnimation->start();
+    m_window->requestFrame();
 }
 
-void SearchWindow::tickAnimation()
+void SearchWindow::tickAnimation(uint64_t frameTimeNs)
 {
-    // 150 ms, eased out: quick enough to feel direct.
-    m_animationProgress = std::min(1.0, m_animationProgress + 16.0 / 150.0);
-    const double t = 1 - std::pow(1 - m_animationProgress, 3);
+    if (!m_animationStartNs)
+        m_animationStartNs = frameTimeNs;
+    const double elapsedMs = double(frameTimeNs - m_animationStartNs) / 1e6;
+    const double progress = std::min(1.0, elapsedMs / kAnimationDurationMs);
+    const double t = 1.0 - std::pow(1.0 - progress, 3);
     m_height = int(std::lround(m_heightFrom + (m_heightTo - m_heightFrom) * t));
-    m_window->setGeometry(geometry());
-    applyGlass();
-    if (m_animationProgress < 1)
+    m_view->setPanelHeight(m_height);
+    if (progress < 1.0)
         return;
-    m_animation.stop();
+    m_height = int(std::lround(m_heightTo));
+    m_view->setPanelHeight(m_height);
     m_animating = false;
+    m_heightAnimation->stop();
 }
 
 void SearchWindow::applyGlass()
 {
     const bool dark = ui::Theme::current().darkMode;
-    // The height the window has this frame, not the one it is heading to.
-    const int height = geometry().height();
-    // The panel grows a row at a time; a glass laid out for the old height
-    // would leave the new rows on nothing.
+    const int height = m_height > 0 ? m_height : geometry(0).height();
     if (int(dark) == m_glassDark && height == m_glassHeight)
         return;
     m_glassDark = int(dark);
     m_glassHeight = height;
-    // Use an explicit circular rounded-rect path: continuous corners scale
-    // radius by 1.5x and clamp X/Y independently, which distorts a pill
-    // (radius == height / 2) into a stretched squircle and morphs the top
-    // corners as the panel grows.
-    ui::Path shape;
-    shape.addRoundedRect({0, 0, double(SearchView::kWidth), double(height)},
-                         SearchView::kCardRadius, SearchView::kCardRadius);
-    m_window->setBackgroundBlur(base::Rect(0, 0, SearchView::kWidth, height),
-                                int(SearchView::kCardRadius), searchGlass(), shape);
+    const base::Rect rect(0, 0, SearchView::kWidth, height);
+    m_window->setBackgroundBlur(rect, int(SearchView::kCardRadius), searchGlass());
+    m_window->setInputRegion(base::Region(rect));
 }
 
 void SearchWindow::open()
@@ -170,13 +208,14 @@ void SearchWindow::open()
     if (isOpen())
         return;
     m_hadKeyboard = false;
-    m_animation.stop();
+    m_heightAnimation->stop();
     m_animating = false;
     m_view->reset();
     // The field is already at its place on the first frame; the window's own
     // launchpad animation brings the whole surface in.
-    m_height = int(std::lround(m_view->preferredHeight()));
-    m_window->setGeometry(geometry());
+    m_height = geometry(int(std::lround(m_view->preferredHeight()))).height();
+    m_view->setPanelHeight(m_height);
+    setWindowHeight(SearchView::kMaxHeight);
     applyGlass();
     // Mapping a picker takes the keyboard grab.
     m_window->show();
@@ -189,7 +228,7 @@ void SearchWindow::close()
         return;
     // No separate content fade: hiding the window starts its one animation,
     // and the field and the glass leave together.
-    m_animation.stop();
+    m_heightAnimation->stop();
     m_animating = false;
     m_window->hide();
 }
