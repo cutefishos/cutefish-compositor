@@ -176,14 +176,17 @@ private:
 
 SearchView::SearchView(SearchModel &model)
     : m_model(model)
+    , m_searchIcon(addChild<ui::Icon>("search", kSearchIconSize))
     , m_filter(addChild<SearchFilterField>())
     , m_list(addChild<ui::ListView>())
     , m_empty(addChild<ui::Label>())
     , m_completion(addChild<ui::Label>())
     , m_measure(addChild<ui::Label>())
 {
+    m_searchIcon->setColor(ui::ColorId::DisabledText);
+
     m_filter->setFrameVisible(false);
-    m_filter->setTextMargins(kPadding, kPadding);
+    m_filter->setTextMargins(2, 2);
     m_filter->setPlaceholder(tr("Search"));
     m_filter->setFontSize(ui::Theme::current().fontSize() + 4);
     m_filter->onKey = [this](const ui::KeyEvent &event) { return handleKey(event); };
@@ -192,7 +195,6 @@ SearchView::SearchView(SearchModel &model)
         m_currentIndex = 0;
         m_list->setScrollPosition({0, 0});
         modelChanged();
-        updateCompletion();
     };
 
     m_list->setClipsChildren(true);
@@ -309,7 +311,7 @@ bool SearchView::handleKey(const ui::KeyEvent &event)
         select(int(m_model.results().size()) - 1);
         return true;
     case ui::key::Tab:
-        // Complete to the selected row's name, as Spotlight fills the field.
+        // Complete to the selected row's name.
         if (!m_model.results().empty()) {
             const SearchResult &result = m_model.results()[size_t(m_currentIndex)];
             if (result.kind != SearchResult::Kind::Answer)
@@ -334,17 +336,18 @@ double SearchView::preferredHeight() const
     // The same gap as around the field: above the first row and below the last.
     if (rows > 0)
         return bar + 1 + kPadding + rows * kRowHeight + kPadding;
-    if (!m_filter->text().empty())
+    if (!m_filter->text().empty() && !m_model.searching())
         return bar + 1 + kPadding + 24 + kPadding;
     return bar;
 }
 
 void SearchView::modelChanged()
 {
-    m_list->setRowCount(m_model.results().size());
+    const size_t count = m_model.results().size();
+    if (m_currentIndex >= int(count))
+        m_currentIndex = std::max(0, int(count) - 1);
+    m_list->setRowCount(count);
     m_list->reload();
-    if (m_currentIndex >= int(m_model.results().size()))
-        m_currentIndex = std::max(0, int(m_model.results().size()) - 1);
     updateEmpty();
     updateCompletion();
     if (onHeightChanged)
@@ -353,9 +356,8 @@ void SearchView::modelChanged()
 
 void SearchView::updateEmpty()
 {
-    const bool typing = !m_filter->text().empty();
-    const bool empty = typing && m_model.results().empty();
-    m_empty->setText(empty ? (m_model.searching() ? tr("Searching…") : tr("No Results")) : std::string());
+    const bool empty = !m_filter->text().empty() && !m_model.searching() && m_model.results().empty();
+    m_empty->setText(empty ? tr("No Results") : std::string());
     m_empty->setVisible(empty);
 }
 
@@ -383,9 +385,13 @@ void SearchView::updateCompletion()
 void SearchView::layout()
 {
     const double width = geometry().width;
-    // One gap to every edge: the field, the hairline and the rows all take it.
-    m_filter->setGeometry({double(kPadding), double(kPadding), width - 2 * kPadding, double(kHeaderHeight)});
-    const double bar = kPadding * 2 + kHeaderHeight;
+    const double bar = kBarHeight;
+    const double iconY = (bar - kSearchIconSize) / 2.0;
+    m_searchIcon->setGeometry({double(kSearchIconLeft), iconY, double(kSearchIconSize),
+                               double(kSearchIconSize)});
+    const double filterX = kSearchIconLeft + kSearchIconSize + kSearchIconGap;
+    m_filter->setGeometry({filterX, double(kPadding), std::max(0.0, width - filterX - kSearchIconLeft),
+                           double(kHeaderHeight)});
     const double bodyY = bar + 1;
     // To the panel's bottom edge: the list's own bar needs the right edge, and
     // its bottom corner radius keeps the track clear of the corner.
@@ -397,8 +403,8 @@ void SearchView::layout()
     if (m_completion->isVisible()) {
         // The field draws its text at its left margin; the guess starts where
         // that text ends, a caret's width later.
-        const double textLeft = kPadding + kPadding + m_measure->sizeHint().width + 2;
-        const double room = std::max(0.0, width - kPadding - 14 - textLeft);
+        const double textLeft = filterX + 2 + m_measure->sizeHint().width + 2;
+        const double room = std::max(0.0, width - kSearchIconLeft - textLeft);
         m_completion->setGeometry({textLeft, double(kPadding), room, double(kHeaderHeight)});
     }
 }
@@ -407,12 +413,6 @@ void SearchView::paint(ui::Painter &painter)
 {
     if (onPainted)
         onPainted();
-    // A light along the inside of the rim: glass catches the window's edge.
-    const ui::Theme &theme = ui::Theme::current();
-    const ui::Color rim = theme.darkMode ? ui::Color::rgb(0xFFFFFF).withAlpha(0.10)
-                                         : ui::Color::rgb(0xFFFFFF).withAlpha(0.32);
-    painter.strokeRoundedRect({0.5, 0.5, geometry().width - 1, geometry().height - 1},
-                              kCardRadius - 0.5, rim, 1);
     const double bar = kPadding * 2 + kHeaderHeight;
     if (geometry().height <= bar + 1)
         return;

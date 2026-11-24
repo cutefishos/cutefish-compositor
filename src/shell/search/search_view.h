@@ -13,6 +13,7 @@
 #include "ui/view.h"
 
 namespace cutefish::ui {
+class Icon;
 class Label;
 class ListView;
 } // namespace cutefish::ui
@@ -35,15 +36,20 @@ protected:
 class SearchView : public ui::View
 {
 public:
-    static constexpr int kWidth = 680;
-    static constexpr int kHeight = 420;
-    static constexpr int kPadding = 14;
-    static constexpr double kCardRadius = 24;
+    static constexpr int kWidth = 480;
+    static constexpr int kPadding = 8;
+    static constexpr int kHeaderHeight = 32;
+    static constexpr int kBarHeight = kPadding * 2 + kHeaderHeight;
+    // Matches half the collapsed bar height so the bar is a pill and keeps the
+    // exact same top corners when results unfold below it.
+    static constexpr double kCardRadius = kBarHeight / 2.0;
     // A row sits a padding in from the panel's edge, so this is the radius
     // that keeps it concentric with the panel's corner.
     static constexpr double kRowRadius = kCardRadius - kPadding;
-    static constexpr int kHeaderHeight = 48;
-    static constexpr int kRowHeight = 46;
+    static constexpr int kSearchIconSize = 18;
+    static constexpr int kSearchIconLeft = 16;
+    static constexpr int kSearchIconGap = 8;
+    static constexpr int kRowHeight = 44;
     static constexpr int kIconSize = 24;
     static constexpr int kPageRows = 6;
     // The panel never grows past this many rows; the list scrolls.
@@ -85,6 +91,7 @@ private:
     void activateRow(int row);
 
     SearchModel &m_model;
+    ui::Icon *m_searchIcon;
     SearchFilterField *m_filter;
     ui::ListView *m_list;
     ui::Label *m_empty;

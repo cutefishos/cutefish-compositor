@@ -20,9 +20,9 @@ namespace cutefish::shell {
 class SearchView;
 class ShellWindow;
 
-// Spotlight's panel: applications and files found as the words are typed, from
-// anywhere, with Alt+Space. As a Picker window it only borrows the keyboard,
-// and losing it closes the panel.
+// The desktop search panel: applications and files found as the words are
+// typed, from anywhere, with Alt+Space. As a Picker window it only borrows the
+// keyboard, and losing it closes the panel.
 class SearchWindow : public Component
 {
 public:

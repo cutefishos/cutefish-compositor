@@ -4,18 +4,22 @@
 
 #include "shell/search/search_window.h"
 
+#include <algorithm>
 #include <cmath>
 #include <string>
 
 #include "base/application_registry.h"
-#include "core/main_loop.h"
 #include "base/logging.h"
 #include "base/process.h"
+#include "clipboard/selection.h"
+#include "clipboard/stored_source.h"
+#include "core/main_loop.h"
+#include "input/seat.h"
 #include "shell/common/app_launcher.h"
-#include "shell/shell_data.h"
 #include "shell/search/search_view.h"
 #include "shell/shell_data.h"
 #include "shell/shell_window.h"
+#include "ui/path.h"
 #include "ui/theme.h"
 #include "wm/window_manager.h"
 
@@ -25,19 +29,11 @@ namespace {
 
 const base::LogCategory cfSearch("cutefish.search", base::LogLevel::Warning);
 
-// The panel's glass: clearer than the Control Center's, with a little more
-// colour in the backdrop and a highlight along the rim, as macOS Tahoe reads.
 render::GlassParams searchGlass()
 {
     const bool dark = ui::Theme::current().darkMode;
-    render::GlassParams glass = dark ? popupGlass(0.14, 0.15, 0.18, 0.50)
-                                     : popupGlass(1.0, 1.0, 1.0, 0.46);
-    glass.blurSigma = 8.0f;
-    glass.saturation = 1.35f;
-    glass.specularIntensity = 0.55f;
-    glass.shininess = 60.0f;
-    glass.sheen = 0.35f;
-    return glass;
+    return dark ? popupGlass(0.14, 0.15, 0.18, 0.50)
+                : popupGlass(1.0, 1.0, 1.0, 0.46);
 }
 
 } // namespace
@@ -102,9 +98,10 @@ base::Rect SearchWindow::geometry() const
     if (!output)
         return base::Rect(0, 0, width, height);
     const base::Rect area = m_shell->workArea(*output);
-    // Spotlight's place: centred, a little below the top edge.
-    return base::Rect(int(std::lround(area.x() + (area.width() - width) / 2.0)), area.y() + 96, width,
-                      height);
+    const int top = area.y() + std::min(96, std::max(0, area.height() - height));
+    const int clampedHeight = std::min(height, std::max(1, area.y() + area.height() - top));
+    return base::Rect(int(std::lround(area.x() + (area.width() - width) / 2.0)), top, width,
+                      clampedHeight);
 }
 
 void SearchWindow::place()
@@ -157,8 +154,15 @@ void SearchWindow::applyGlass()
         return;
     m_glassDark = int(dark);
     m_glassHeight = height;
+    // Use an explicit circular rounded-rect path: continuous corners scale
+    // radius by 1.5x and clamp X/Y independently, which distorts a pill
+    // (radius == height / 2) into a stretched squircle and morphs the top
+    // corners as the panel grows.
+    ui::Path shape;
+    shape.addRoundedRect({0, 0, double(SearchView::kWidth), double(height)},
+                         SearchView::kCardRadius, SearchView::kCardRadius);
     m_window->setBackgroundBlur(base::Rect(0, 0, SearchView::kWidth, height),
-                                int(SearchView::kCardRadius), searchGlass());
+                                int(SearchView::kCardRadius), searchGlass(), shape);
 }
 
 void SearchWindow::open()
@@ -206,8 +210,15 @@ void SearchWindow::activate(int index)
     const SearchResult result = results[size_t(index)];
     close();
     if (result.kind == SearchResult::Kind::Answer) {
-        // Return on a sum copies it, as Spotlight does.
-        base::Process::startDetached("wl-copy", {result.title});
+        if (input::Seat *seat = m_shell->seat(); seat && seat->selection()) {
+            auto source = std::make_shared<clipboard::StoredSource>();
+            for (const char *mime : {"text/plain;charset=utf-8", "text/plain", "UTF8_STRING",
+                                     "STRING", "TEXT"}) {
+                source->offer(mime);
+                source->payloads[mime] = result.title;
+            }
+            seat->selection()->setSource(std::move(source));
+        }
         return;
     }
     if (result.kind == SearchResult::Kind::Application) {
