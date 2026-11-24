@@ -65,8 +65,8 @@ public:
 
     // Applications first, then files.
     const std::vector<SearchResult> &results() const { return m_results; }
-    // The rest of the name the best match would have: the letters Spotlight
-    // shows ahead of the caret. Empty when nothing completes the words.
+    // The rest of the best-matching name shown ahead of the caret. Empty when
+    // nothing completes the words.
     const std::string &completion() const { return m_completion; }
 
     // True while a file search is still handing results on.

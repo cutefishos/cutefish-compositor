@@ -111,12 +111,8 @@ SearchModel::SearchModel()
     m_debounce.setInterval(std::chrono::milliseconds(120));
     m_debounce.onTimeout = [this] { run(); };
 
-    // The file manager's own search: the words in a name, found as it walks.
-    // A lister searches the folder it has open, so the home folder is opened
-    // once, here, rather than at the first keystroke.
     m_lister.setShowHiddenFiles(false);
     m_lister.setAutoUpdate(false);
-    m_lister.openUrl(files::Url::fromLocalFile(base::paths::home()));
     m_itemsChanged = m_lister.itemsChanged.connect([this] { takeFiles(); });
     m_completed = m_lister.completed.connect([this] { setSearching(false); });
     m_canceled = m_lister.canceled.connect([this] { setSearching(false); });
@@ -142,16 +138,19 @@ void SearchModel::setQuery(const std::string &text)
         return;
     m_query = std::move(trimmed);
     m_debounce.stop();
+    m_lister.stop();
 
     if (m_query.empty()) {
         m_answer.reset();
         m_applications.clear();
         m_files.clear();
-        m_lister.stop();
+        // Reset the lister's last search words so re-typing the same query runs again.
+        m_lister.search({}, {});
         setSearching(false);
         rebuild();
         return;
     }
+    setSearching(true);
     m_debounce.start();
 }
 
@@ -191,11 +190,12 @@ void SearchModel::run()
         if (int(m_applications.size()) >= kMaxApplications)
             break;
     }
+    m_files.clear();
     rebuild();
 
     if (words.empty()) {
         m_lister.stop();
-        m_files.clear();
+        setSearching(false);
         return;
     }
     setSearching(true);
@@ -245,8 +245,7 @@ void SearchModel::rebuild()
                            .subtitle = m_answer->expression});
     results.insert(results.end(), m_applications.begin(), m_applications.end());
     results.insert(results.end(), m_files.begin(), m_files.end());
-    // The rest of the name the best match would have, as Spotlight shows it.
-    // The best match is the first row, so an exact name offers nothing.
+    // The rest of the best-matching name; an exact match offers nothing.
     std::string completion;
     if (!m_query.empty()) {
         const auto top = std::find_if(results.begin(), results.end(), [](const SearchResult &result) {
