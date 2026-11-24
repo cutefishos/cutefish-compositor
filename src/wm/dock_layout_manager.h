@@ -35,6 +35,7 @@ enum class DockAutoHideBehavior {
 enum class DockVisibilityState {
     Visible,
     AutoHide,
+    Hidden,
 };
 
 enum class DockAutoHideState {

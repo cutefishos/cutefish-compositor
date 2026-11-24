@@ -277,8 +277,11 @@ DockVisibilityState DockLayoutManager::computeVisibility(const Window *dock,
                                                          const base::Rect &output) const
 {
     const WorkspaceState workspace = workspaceStateFor(output);
-    if (isAwayForSession() || workspace == WorkspaceState::Fullscreen)
+    if (isAwayForSession())
         return DockVisibilityState::AutoHide;
+    if (workspace == WorkspaceState::Fullscreen)
+        return dock->role() == WindowRole::Dock ? DockVisibilityState::Hidden
+                                               : DockVisibilityState::AutoHide;
     if (dock->role() == WindowRole::Panel)
         return DockVisibilityState::Visible;
     switch (m_behavior) {
@@ -296,7 +299,9 @@ DockVisibilityState DockLayoutManager::computeVisibility(const Window *dock,
 DockAutoHideState DockLayoutManager::computeAutoHideState(const Window *dock, const Dock &entry,
                                                           const base::Rect &output, bool revealing) const
 {
-    if (entry.visibility != DockVisibilityState::AutoHide)
+    if (entry.visibility == DockVisibilityState::Hidden)
+        return DockAutoHideState::Hidden;
+    if (entry.visibility == DockVisibilityState::Visible)
         return DockAutoHideState::Shown;
 
     if (isAwayForSession())
@@ -407,7 +412,7 @@ void DockLayoutManager::updateDock(Window *dock, Dock &entry)
             entry.autoHide == DockAutoHideState::Shown || entry.autoHideTimer.isActive();
     const DockAutoHideState autoHide = computeAutoHideState(dock, entry, output, revealing);
     const bool applying = autoHide != entry.autoHide
-            && (entry.visibility == DockVisibilityState::Visible
+            && (entry.visibility != DockVisibilityState::AutoHide
                 || (!entry.autoHideTimer.isActive() && autoHide == DockAutoHideState::Hidden));
     if (!applying)
         updateReveal(dock, entry);
@@ -418,7 +423,7 @@ void DockLayoutManager::updateDock(Window *dock, Dock &entry)
             slideTo(dock, entry, hiddenOffset(reachedBounds(dock, entry.edge), output, entry.edge));
         return;
     }
-    if (entry.visibility == DockVisibilityState::Visible) {
+    if (entry.visibility != DockVisibilityState::AutoHide) {
         entry.autoHideTimer.stop();
         applyAutoHideState(dock, entry, autoHide);
         return;

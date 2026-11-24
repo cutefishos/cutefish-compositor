@@ -115,9 +115,10 @@ TEST_F(DockLayoutTest, FullscreenWindowHidesTheDockWhateverTheSetting)
 {
     Window *window = makeWindow(base::Rect(100, 100, 300, 200));
     window->activate();
+    moveTo(base::PointF(500, 799));
     window->setFullscreen(true);
 
-    EXPECT_EQ(DockVisibilityState::AutoHide, layout.visibilityState(dock));
+    EXPECT_EQ(DockVisibilityState::Hidden, layout.visibilityState(dock));
     EXPECT_FALSE(isShown());
     EXPECT_TRUE(layout.isSliding(dock));
 
@@ -126,11 +127,37 @@ TEST_F(DockLayoutTest, FullscreenWindowHidesTheDockWhateverTheSetting)
     EXPECT_TRUE(dock->isPresentationHidden());
     EXPECT_EQ(kOutput.bottom(), dock->node()->absoluteGeometry().top());
 
+    moveTo(base::PointF(500, 400));
+    moveTo(base::PointF(500, 799));
+    waitForReveal();
+    EXPECT_FALSE(isShown());
+    EXPECT_TRUE(dock->isPresentationHidden());
+    EXPECT_TRUE(dock->node()->isEventTargetingBlocked());
+
     window->setFullscreen(false);
     EXPECT_TRUE(isShown());
     EXPECT_FALSE(dock->isPresentationHidden());
     finishSlide();
     EXPECT_EQ(base::Point(), dock->presentationOffset());
+}
+
+TEST_F(DockLayoutTest, EnteringFullscreenCancelsAPendingDockReveal)
+{
+    layout.setBehavior(DockAutoHideBehavior::Always);
+    Window *window = makeWindow(base::Rect(100, 100, 300, 200));
+    window->activate();
+    finishSlide();
+
+    moveTo(base::PointF(500, 799));
+    ASSERT_FALSE(isShown());
+    window->setFullscreen(true);
+    waitForReveal();
+    EXPECT_FALSE(isShown());
+
+    window->setFullscreen(false);
+    EXPECT_FALSE(isShown());
+    waitForReveal();
+    EXPECT_TRUE(isShown());
 }
 
 TEST_F(DockLayoutTest, PanelOnlyGivesWayToFullscreen)
