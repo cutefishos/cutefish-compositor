@@ -51,6 +51,8 @@ SearchWindow::SearchWindow(Shell *shell, base::dbus::Connection *bus)
     m_animation.setInterval(std::chrono::milliseconds(16));
     m_animation.onTimeout = [this] { tickAnimation(); };
     m_window = std::make_unique<ShellWindow>(shell, wm::WindowRole::Picker);
+    // The field and the glass open and close as one surface, as the launchpad.
+    m_window->setLaunchpadAnimation(true);
     auto view = std::make_unique<SearchView>(*m_model);
     m_view = view.get();
     m_view->onCloseRequested = [this] { close(); };
@@ -111,8 +113,8 @@ void SearchWindow::place()
     if (isOpen()) {
         // Retarget while a growth is running, or the panel stops at the height
         // the first result wanted.
-        if (!m_animating || m_hideWhenDone || target != int(std::lround(m_heightTo)))
-            animate(target, 1, false);
+        if (!m_animating || target != int(std::lround(m_heightTo)))
+            animate(target);
     } else {
         m_height = target;
         m_window->setGeometry(geometry());
@@ -120,15 +122,12 @@ void SearchWindow::place()
     }
 }
 
-void SearchWindow::animate(int targetHeight, double targetOpacity, bool hideWhenDone)
+void SearchWindow::animate(int targetHeight)
 {
     // A new target while running starts from where the panel is now.
     m_heightFrom = m_height > 0 ? m_height : targetHeight;
     m_heightTo = targetHeight;
-    m_opacityFrom = m_view->opacity();
-    m_opacityTo = targetOpacity;
     m_animationProgress = 0;
-    m_hideWhenDone = hideWhenDone;
     m_animating = true;
     m_animation.start();
 }
@@ -139,18 +138,12 @@ void SearchWindow::tickAnimation()
     m_animationProgress = std::min(1.0, m_animationProgress + 16.0 / 150.0);
     const double t = 1 - std::pow(1 - m_animationProgress, 3);
     m_height = int(std::lround(m_heightFrom + (m_heightTo - m_heightFrom) * t));
-    m_view->setOpacity(m_opacityFrom + (m_opacityTo - m_opacityFrom) * t);
     m_window->setGeometry(geometry());
     applyGlass();
     if (m_animationProgress < 1)
         return;
     m_animation.stop();
     m_animating = false;
-    if (m_hideWhenDone) {
-        m_hideWhenDone = false;
-        m_window->hide();
-        m_view->setOpacity(1);
-    }
 }
 
 void SearchWindow::applyGlass()
@@ -176,14 +169,13 @@ void SearchWindow::open()
     m_animation.stop();
     m_animating = false;
     m_view->reset();
-    // The bar first, then it opens: the field is already at its place.
+    // The field is already at its place on the first frame; the window's own
+    // launchpad animation brings the whole surface in.
     m_height = int(std::lround(m_view->preferredHeight()));
-    m_view->setOpacity(0);
     m_window->setGeometry(geometry());
     applyGlass();
     // Mapping a picker takes the keyboard grab.
     m_window->show();
-    animate(int(std::lround(m_view->preferredHeight())), 1, false);
 }
 
 void SearchWindow::close()
@@ -191,7 +183,11 @@ void SearchWindow::close()
     m_hadKeyboard = false;
     if (!isOpen())
         return;
-    animate(m_height, 0, true);
+    // No separate content fade: hiding the window starts its one animation,
+    // and the field and the glass leave together.
+    m_animation.stop();
+    m_animating = false;
+    m_window->hide();
 }
 
 void SearchWindow::toggle()

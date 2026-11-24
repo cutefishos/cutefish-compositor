@@ -80,6 +80,8 @@ public:
     WindowRole role() const { return m_role; }
 
     void setRole(WindowRole role);
+    // Its open and close animate as the launchpad's: scale and fade together.
+    void setLaunchpadAnimation(bool launchpad);
 
     bool isShellWindow() const { return m_role != WindowRole::Normal; }
 
@@ -306,6 +308,8 @@ private:
     void onEffectiveVisibilityChanged(bool wasVisible);
     void placeSheets();
     void updateFrame();
+    // The style its open and close take from its role or its launchpad flag.
+    void applyAnimationStyle();
     // Hands the surface tree back to the compositor so it outlives this window's node.
     void detachSurfaceNode();
 
@@ -317,6 +321,7 @@ private:
     std::string m_applicationId;
     int64_t m_processId = 0;
     WindowRole m_role = WindowRole::Normal;
+    bool m_launchpadAnimation = false;
     FocusPolicy m_focusPolicy = FocusPolicy::Normal;
     PanelBehavior m_panelBehavior = PanelBehavior::StayAbove;
     base::Point m_clientPosition;

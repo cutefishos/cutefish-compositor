@@ -39,11 +39,11 @@ public:
     static constexpr int kHeight = 420;
     static constexpr int kPadding = 14;
     static constexpr double kCardRadius = 24;
+    // A row sits a padding in from the panel's edge, so this is the radius
+    // that keeps it concentric with the panel's corner.
     static constexpr double kRowRadius = kCardRadius - kPadding;
     static constexpr int kHeaderHeight = 48;
     static constexpr int kRowHeight = 46;
-    // Between the hairline and the first row, and below the last.
-    static constexpr int kBodyGap = 8;
     static constexpr int kIconSize = 24;
     static constexpr int kPageRows = 6;
     // The panel never grows past this many rows; the list scrolls.
@@ -80,6 +80,9 @@ private:
     void modelChanged();
     void updateEmpty();
     void updateCompletion();
+    // The pointer's row: it marks the row but does not scroll the list.
+    void hoverRow(int row);
+    void activateRow(int row);
 
     SearchModel &m_model;
     SearchFilterField *m_filter;

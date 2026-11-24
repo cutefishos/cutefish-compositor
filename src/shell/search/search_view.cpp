@@ -64,8 +64,9 @@ bool SearchFilterField::keyPress(const ui::KeyEvent &event)
 class SearchView::Row : public ui::View
 {
 public:
-    explicit Row(SearchModel *model)
-        : m_model(model)
+    Row(SearchView *view, SearchModel *model)
+        : m_view(view)
+        , m_model(model)
         , m_icon(addChild<ui::ImageView>())
         , m_title(addChild<ui::Label>())
         , m_subtitle(addChild<ui::Label>())
@@ -84,6 +85,7 @@ public:
         const std::vector<SearchResult> &results = m_model->results();
         if (row < 0 || row >= int(results.size()))
             return;
+        m_row = row;
         const SearchResult &result = results[size_t(row)];
         m_selected = selected;
 
@@ -111,9 +113,29 @@ public:
         requestPaint();
     }
 
-    bool acceptsPointer() const override { return false; }
+    bool acceptsPointer() const override { return true; }
 
 protected:
+    // The pointer chooses the row under it without moving the list.
+    void hoverMove(const ui::PointerEvent &) override
+    {
+        if (m_row >= 0)
+            m_view->hoverRow(m_row);
+    }
+
+    void pointerPress(const ui::PointerEvent &event) override
+    {
+        m_pressed = event.button == ui::MouseButton::Left;
+    }
+
+    void pointerRelease(const ui::PointerEvent &event) override
+    {
+        const bool clicked = m_pressed && localRect().contains(event.position);
+        m_pressed = false;
+        if (clicked && m_row >= 0)
+            m_view->activateRow(m_row);
+    }
+
     void layout() override
     {
         const double size = SearchView::kIconSize;
@@ -141,12 +163,15 @@ protected:
     }
 
 private:
+    SearchView *m_view;
     SearchModel *m_model;
     ui::ImageView *m_icon;
     ui::Label *m_title;
     ui::Label *m_subtitle;
     std::string m_iconPath;
+    int m_row = -1;
     bool m_selected = false;
+    bool m_pressed = false;
 };
 
 SearchView::SearchView(SearchModel &model)
@@ -172,9 +197,15 @@ SearchView::SearchView(SearchModel &model)
 
     m_list->setClipsChildren(true);
     m_list->setElastic(false);
-    m_list->setVerticalBarPolicy(ui::ScrollView::BarPolicy::AlwaysOff);
+    m_list->setVerticalBarPolicy(ui::ScrollView::BarPolicy::AsNeeded);
+    // The list is as wide as the panel, so its bar keeps the toolkit's inset
+    // from the right edge; the rows get their margins from the content.
+    m_list->setMargins(ui::Margins::all(double(kPadding)));
+    // The list reaches the panel's bottom edge, where its bar must stop short
+    // of the rounded corner.
+    m_list->setBottomCornerRadius(kCardRadius);
     m_list->setRowHeight(kRowHeight);
-    m_list->createItem = [this] { return std::make_unique<Row>(&m_model); };
+    m_list->createItem = [this] { return std::make_unique<Row>(this, &m_model); };
     m_list->bindItem = [this](ui::View *item, size_t row) {
         static_cast<Row *>(item)->bind(int(row), int(row) == m_currentIndex);
     };
@@ -222,11 +253,32 @@ void SearchView::select(int index)
     if (count == 0)
         return;
     const int clamped = std::clamp(index, 0, count - 1);
+    hoverRow(clamped);
+    m_list->scrollToRow(size_t(clamped));
+}
+
+void SearchView::hoverRow(int row)
+{
+    const int count = int(m_model.results().size());
+    if (count == 0)
+        return;
+    const int clamped = std::clamp(row, 0, count - 1);
     if (clamped == m_currentIndex)
         return;
     m_currentIndex = clamped;
     m_list->reload();
-    m_list->scrollToRow(size_t(clamped));
+}
+
+void SearchView::activateRow(int row)
+{
+    const int count = int(m_model.results().size());
+    if (row < 0 || row >= count)
+        return;
+    // The window closes from onActivated; no reload of this row under its own
+    // pointer event.
+    m_currentIndex = row;
+    if (onActivated)
+        onActivated(row);
 }
 
 bool SearchView::handleKey(const ui::KeyEvent &event)
@@ -279,10 +331,11 @@ double SearchView::preferredHeight() const
     const int rows = std::min(int(m_model.results().size()), kMaxRows);
     // The bar holds the field alone; the hairline only comes with a body.
     const double bar = kPadding * 2 + kHeaderHeight;
+    // The same gap as around the field: above the first row and below the last.
     if (rows > 0)
-        return bar + 1 + kBodyGap + rows * kRowHeight + kBodyGap;
+        return bar + 1 + kPadding + rows * kRowHeight + kPadding;
     if (!m_filter->text().empty())
-        return bar + 1 + kBodyGap + 24 + kBodyGap;
+        return bar + 1 + kPadding + 24 + kPadding;
     return bar;
 }
 
@@ -330,12 +383,16 @@ void SearchView::updateCompletion()
 void SearchView::layout()
 {
     const double width = geometry().width;
+    // One gap to every edge: the field, the hairline and the rows all take it.
     m_filter->setGeometry({double(kPadding), double(kPadding), width - 2 * kPadding, double(kHeaderHeight)});
     const double bar = kPadding * 2 + kHeaderHeight;
-    const double bodyY = bar + 1 + kBodyGap;
-    const double bodyHeight = std::max(0.0, geometry().height - bodyY - kBodyGap);
-    m_list->setGeometry({double(kPadding), bodyY, width - 2 * kPadding, bodyHeight});
-    m_empty->setGeometry({double(kPadding), bodyY, width - 2 * kPadding, bodyHeight});
+    const double bodyY = bar + 1;
+    // To the panel's bottom edge: the list's own bar needs the right edge, and
+    // its bottom corner radius keeps the track clear of the corner.
+    const double bodyHeight = std::max(0.0, geometry().height - bodyY);
+    m_list->setGeometry({0, bodyY, width, bodyHeight});
+    m_empty->setGeometry({double(kPadding), bodyY + kPadding, width - 2 * kPadding,
+                          std::max(0.0, bodyHeight - 2 * kPadding)});
 
     if (m_completion->isVisible()) {
         // The field draws its text at its left margin; the guess starts where

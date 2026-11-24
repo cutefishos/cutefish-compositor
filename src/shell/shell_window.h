@@ -78,6 +78,8 @@ public:
 
     void setFocusPolicy(wm::FocusPolicy policy);
     void setPanelBehavior(wm::PanelBehavior behavior);
+    // Open and close as the launchpad does, scaling and fading as one surface.
+    void setLaunchpadAnimation(bool launchpad);
     // By wl_output name; empty follows the output under the window's position.
     void setOutput(const std::string &name);
     const std::string &outputName() const { return m_metadata.outputName; }

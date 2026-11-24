@@ -45,9 +45,9 @@ private:
     base::Rect geometry() const;
     void place();
     void applyGlass();
-    // Grows or shrinks the panel, and fades the content in or out, on the
-    // loop; the glass follows every step.
-    void animate(int targetHeight, double targetOpacity, bool hideWhenDone);
+    // Grows or shrinks the panel for its results on the loop; the glass
+    // follows every step. Opening and closing are the window's own animation.
+    void animate(int targetHeight);
     void tickAnimation();
     void activate(int index);
 
@@ -65,10 +65,7 @@ private:
     double m_animationProgress = 0;
     double m_heightFrom = 0;
     double m_heightTo = 0;
-    double m_opacityFrom = 1;
-    double m_opacityTo = 1;
     bool m_animating = false;
-    bool m_hideWhenDone = false;
     bool m_hadKeyboard = false;
 };
 
