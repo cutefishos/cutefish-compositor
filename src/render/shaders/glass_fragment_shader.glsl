@@ -41,7 +41,7 @@ vec2 outwardAt(vec2 p, vec2 halfSize, float r) {
     vec2 q = edge + radius;
     if (min(radius.x, radius.y) <= 0.0 || min(q.x, q.y) <= 0.0)
         return edge.x > edge.y ? vec2(sign(p.x), 0.0) : vec2(0.0, sign(p.y));
-    return sign(p) * cornerNormal(q / radius, radius);
+    return sign(p) * cornerNormal(q / radius, radius, isCircularRadius(vec2(r)));
 }
 
 // One forward sample cannot straddle the corner rounding; the slope is capped
@@ -93,11 +93,12 @@ vec3 refractedAt(vec2 p, vec2 offset, vec2 halfSize, float r, float band,
 void shade() {
     vec2 halfSize = uLens.zw * 0.5;
     vec2 p = vTexCoord * uSize - uLens.xy - halfSize;
-    float r = clamp(uRadius, 0.0, min(halfSize.x, halfSize.y));
+    float rMag = clamp(abs(uRadius), 0.0, min(halfSize.x, halfSize.y));
+    float r = uRadius < 0.0 ? -rMag : rMag;
     float sd = roundRect(p, halfSize, r);
     // The roll-off band is bounded so the glass cannot keep curving towards the
     // middle of a large surface.
-    float band = clamp(uBevel > 0.0 ? uBevel : r, 1.0, min(halfSize.x, halfSize.y));
+    float band = clamp(uBevel > 0.0 ? uBevel : rMag, 1.0, min(halfSize.x, halfSize.y));
 
     vec2 uv = uSampleRect.xy + vTexCoord * uSampleRect.zw;
     // Over the lip the offset changes so fast that neighbouring pixels read far

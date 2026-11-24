@@ -672,20 +672,22 @@ void EglRenderer::applyRoundedClip(const GlProgram &program)
         state.bounds[i * 4 + 1] = rect.y();
         state.bounds[i * 4 + 2] = rect.width();
         state.bounds[i * 4 + 3] = rect.height();
+        const float sign = m_roundedClips[i].circular ? -1.0f : 1.0f;
         state.radii[i * 2] =
-                m_roundedClips[i].radius * m_roundedClips[i].radiusScale.width() * rasterScale();
+                sign * m_roundedClips[i].radius * m_roundedClips[i].radiusScale.width() * rasterScale();
         state.radii[i * 2 + 1] =
-                m_roundedClips[i].radius * m_roundedClips[i].radiusScale.height() * rasterScale();
+                sign * m_roundedClips[i].radius * m_roundedClips[i].radiusScale.height() * rasterScale();
     }
     const base::RectF outline = device(m_outlineShape);
     state.outline[0] = outline.x();
     state.outline[1] = outline.y();
     state.outline[2] = outline.width();
     state.outline[3] = outline.height();
+    const float outlineSign = m_outlineShape.circular ? -1.0f : 1.0f;
     state.outlineRadii[0] =
-            m_outlineShape.radius * m_outlineShape.radiusScale.width() * rasterScale();
+            outlineSign * m_outlineShape.radius * m_outlineShape.radiusScale.width() * rasterScale();
     state.outlineRadii[1] =
-            m_outlineShape.radius * m_outlineShape.radiusScale.height() * rasterScale();
+            outlineSign * m_outlineShape.radius * m_outlineShape.radiusScale.height() * rasterScale();
     state.outlineWidth = m_outlineWidth;
     state.continuous = continuousCorners() ? 1.0f : 0.0f;
 
