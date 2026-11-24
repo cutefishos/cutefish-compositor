@@ -993,8 +993,8 @@ TEST_F(AcceleratorTest, UnderTheCommandConventionApplicationsGetCommandAsCtrl)
             {KEY_LEFTCTRL, true}, {KEY_C, true}, {KEY_C, false}, {KEY_LEFTCTRL, false}};
     EXPECT_EQ(expected, keyboardDelegate->keys);
 
-    // The search panel takes Command+Space, as Spotlight does; the app no
-    // longer sees it as Control+Space.
+    // The search panel takes Command+Space; the app no longer sees it as
+    // Control+Space.
     keyboardDelegate->keys.clear();
     chord({KEY_LEFTALT}, KEY_SPACE);
     EXPECT_EQ(0, delegate.appListToggles);

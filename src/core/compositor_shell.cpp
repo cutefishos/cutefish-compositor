@@ -789,7 +789,6 @@ void CompositorShell::initShell()
     bar->addPanels(notifications);
     if (!m_options.noDrm) {
         osd->registerService();
-    if (search)
         search->registerService();
         dockService->registerService();
         clipboard->history().registerService();

@@ -53,8 +53,7 @@ add_library(cutefish-shell-search STATIC
     src/shell/search/search_window.cpp
     src/shell/search/search_window.h
 )
-target_link_libraries(cutefish-shell-search PUBLIC cutefish-shell cutefish-search
-    cutefish-shell-controlcenter)
+target_link_libraries(cutefish-shell-search PUBLIC cutefish-shell cutefish-search)
 target_link_libraries(cutefish-compositor PRIVATE cutefish-shell-search)
 
 add_library(cutefish-shell-notresponding STATIC
