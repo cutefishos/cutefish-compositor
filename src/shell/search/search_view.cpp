@@ -145,7 +145,7 @@ protected:
         const double iconY = (height - size) / 2;
         m_icon->setGeometry({left, iconY, size, size});
 
-        const double textLeft = left + size + 10;
+        const double textLeft = left + size + 11;
         const double textWidth = std::max(0.0, width - (textLeft - left));
         const double titleHeight = m_title->sizeHint().height;
         const double subtitleHeight = m_subtitle->isVisible() ? m_subtitle->sizeHint().height : 0;
@@ -188,7 +188,7 @@ SearchView::SearchView(SearchModel &model)
     m_filter->setFrameVisible(false);
     m_filter->setTextMargins(2, 2);
     m_filter->setPlaceholder(tr("Search"));
-    m_filter->setFontSize(ui::Theme::current().fontSize() + 4);
+    m_filter->setFontSize(ui::Theme::current().fontSize() + 6);
     m_filter->onKey = [this](const ui::KeyEvent &event) { return handleKey(event); };
     m_filter->onTextChanged = [this] {
         m_model.setQuery(m_filter->text());
@@ -372,7 +372,7 @@ void SearchView::updateCompletion()
     }
 
     const ui::Theme &theme = ui::Theme::current();
-    const double size = theme.fontSize() + 4;
+    const double size = theme.fontSize() + 6;
     for (ui::Label *label : {m_completion, m_measure}) {
         label->setFontSize(size);
         label->setFontFamily(theme.fontFamily);

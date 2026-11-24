@@ -36,9 +36,9 @@ protected:
 class SearchView : public ui::View
 {
 public:
-    static constexpr int kWidth = 480;
-    static constexpr int kPadding = 8;
-    static constexpr int kHeaderHeight = 32;
+    static constexpr int kWidth = 528;
+    static constexpr int kPadding = 9;
+    static constexpr int kHeaderHeight = 36;
     static constexpr int kBarHeight = kPadding * 2 + kHeaderHeight;
     // Matches half the collapsed bar height so the bar is a pill and keeps the
     // exact same top corners when results unfold below it.
@@ -46,11 +46,11 @@ public:
     // A row sits a padding in from the panel's edge, so this is the radius
     // that keeps it concentric with the panel's corner.
     static constexpr double kRowRadius = kCardRadius - kPadding;
-    static constexpr int kSearchIconSize = 18;
-    static constexpr int kSearchIconLeft = 16;
-    static constexpr int kSearchIconGap = 8;
-    static constexpr int kRowHeight = 44;
-    static constexpr int kIconSize = 24;
+    static constexpr int kSearchIconSize = 20;
+    static constexpr int kSearchIconLeft = 18;
+    static constexpr int kSearchIconGap = 9;
+    static constexpr int kRowHeight = 48;
+    static constexpr int kIconSize = 26;
     static constexpr int kPageRows = 6;
     // The panel never grows past this many rows; the list scrolls.
     static constexpr int kMaxRows = 7;
