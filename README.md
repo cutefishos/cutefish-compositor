@@ -24,6 +24,13 @@ sudo make install
 
 Pass `-DBUILD_TESTING=ON` to build the tests.
 
+## Window shortcuts
+
+Hold Super (Command in the Command shortcut convention) and drag with the left
+mouse button to move an application window from anywhere inside it. Drag with
+the right mouse button to resize from the corner in the pointer's quadrant.
+Release the mouse button to finish, or press Escape to cancel.
+
 ## Open-source references
 
 Parts of the compositor were written with an open-source project as their

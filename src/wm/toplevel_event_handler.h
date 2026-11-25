@@ -9,6 +9,7 @@
 #ifndef CUTEFISH_WM_TOPLEVEL_EVENT_HANDLER_H_
 #define CUTEFISH_WM_TOPLEVEL_EVENT_HANDLER_H_
 
+#include <cstdint>
 #include <memory>
 #include <optional>
 
@@ -42,6 +43,9 @@ public:
                    std::optional<int32_t> touchId = std::nullopt);
     bool beginResize(Window *window, ResizeEdge edge, const base::PointF &pointerPosition,
                      std::optional<int32_t> touchId = std::nullopt);
+    // A compositor mouse shortcut ends on release of its initiating button.
+    bool beginPointerDrag(Window *window, ResizeEdge edge, const base::PointF &pointerPosition,
+                          uint32_t button);
 
     bool isDragging() const { return m_resizer != nullptr; }
 
@@ -55,7 +59,7 @@ public:
 
     // Each returns true if the drag consumed the event.
     bool onPointerMotion(const base::PointF &location);
-    bool onPointerButtonReleased();
+    bool onPointerButtonReleased(std::optional<uint32_t> button = std::nullopt);
     bool onTouchMotion(int32_t id, const base::PointF &location);
     bool onTouchUp(int32_t id);
     void onTouchCancel();
@@ -68,7 +72,8 @@ public:
 
 private:
     bool beginDrag(Window *window, ResizeEdge edge, const base::PointF &pointerPosition,
-                   std::optional<int32_t> touchId);
+                   std::optional<int32_t> touchId,
+                   std::optional<uint32_t> pointerButton = std::nullopt);
     void drag(const base::PointF &location);
     // Called with the drag already detached from the handler.
     void settleDrag(WindowResizer *resizer, SnapType snapped, const base::Rect &initialRestoreBounds);
@@ -83,6 +88,7 @@ private:
     std::optional<base::Subscription> m_frameStarted;
     std::unique_ptr<WindowResizer> m_resizer;
     std::optional<int32_t> m_touchId;
+    std::optional<uint32_t> m_pointerButton;
     std::unique_ptr<SnapDragController> m_snapController;
     // Empty unless the drag started from a tiled state.
     base::Rect m_initialRestoreBounds;

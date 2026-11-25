@@ -1439,6 +1439,114 @@ TEST_F(WmTest, AMoveIsDrivenThroughTheInputManagerAndConsumesEvents)
     EXPECT_FALSE(manager.eventHandler()->isDragging());
 }
 
+TEST_F(WmTest, SuperLeftDragMovesTheWindowUnderThePointerUntilLeftRelease)
+{
+    Window *target = makeWindow(base::Rect(100, 100, 300, 200));
+    Window *other = makeWindow(base::Rect(500, 100, 300, 200));
+    manager.activation()->activate(other);
+
+    input.onPointerMotionAbsolute(at(1), base::PointF(220, 180));
+    input.onKey(at(2), KEY_LEFTMETA, true);
+    input.onPointerButton(at(3), BTN_LEFT, true);
+
+    ASSERT_EQ(target, manager.eventHandler()->draggedWindow());
+    EXPECT_EQ(target, manager.activation()->activeWindow());
+    EXPECT_FALSE(seat.pointerGrabSurface());
+
+    input.onPointerButton(at(4), BTN_RIGHT, true);
+    input.onPointerButton(at(5), BTN_RIGHT, false);
+    input.onKey(at(6), KEY_LEFTMETA, false);
+    input.onPointerMotionAbsolute(at(7), base::PointF(250, 220));
+    EXPECT_EQ(base::Rect(130, 140, 300, 200), target->bounds());
+
+    input.onPointerButton(at(8), BTN_LEFT, false);
+    EXPECT_FALSE(manager.eventHandler()->isDragging());
+    input.onPointerMotionAbsolute(at(9), base::PointF(300, 250));
+    EXPECT_EQ(base::Rect(130, 140, 300, 200), target->bounds());
+}
+
+TEST_F(WmTest, SuperRightDragResizesFromThePointersQuadrant)
+{
+    Window *target = makeWindow(base::Rect(200, 200, 300, 240));
+
+    input.onPointerMotionAbsolute(at(1), base::PointF(300, 270));
+    input.onKey(at(2), KEY_RIGHTMETA, true);
+    input.onPointerButton(at(3), BTN_RIGHT, true);
+    ASSERT_EQ(ResizeEdge::TopLeft, manager.eventHandler()->draggedEdge());
+    EXPECT_FALSE(seat.pointerGrabSurface());
+
+    input.onPointerMotionAbsolute(at(4), base::PointF(260, 250));
+    input.onPointerButton(at(5), BTN_RIGHT, false);
+    EXPECT_FALSE(manager.eventHandler()->isDragging());
+    EXPECT_EQ(base::Rect(160, 180, 340, 260), target->bounds());
+
+    input.onPointerMotionAbsolute(at(6), base::PointF(430, 380));
+    input.onPointerButton(at(7), BTN_RIGHT, true);
+    ASSERT_EQ(ResizeEdge::BottomRight, manager.eventHandler()->draggedEdge());
+    input.onPointerMotionAbsolute(at(8), base::PointF(450, 400));
+    input.onKey(at(9), KEY_ESC, true);
+    EXPECT_FALSE(manager.eventHandler()->isDragging());
+    EXPECT_EQ(base::Rect(160, 180, 340, 260), target->bounds());
+    input.onPointerButton(at(10), BTN_RIGHT, false);
+    EXPECT_FALSE(seat.pointerGrabSurface());
+}
+
+TEST_F(WmTest, PointerShortcutUsesCommandInTheCommandConvention)
+{
+    Window *target = makeWindow(base::Rect(100, 100, 300, 200));
+    seat.setShortcutConvention(input::ShortcutConvention::Command);
+    input.onPointerMotionAbsolute(at(1), base::PointF(220, 180));
+
+    // The PC layout puts Command on the key next to Space.
+    input.onKey(at(2), KEY_LEFTALT, true);
+    input.onPointerButton(at(3), BTN_LEFT, true);
+    EXPECT_EQ(target, manager.eventHandler()->draggedWindow());
+    input.onPointerButton(at(4), BTN_LEFT, false);
+    input.onKey(at(5), KEY_LEFTALT, false);
+}
+
+TEST_F(WmTest, PointerShortcutLeavesOrdinaryClicksAndFixedSizeWindowsAlone)
+{
+    Window *target = makeWindow(base::Rect(100, 100, 300, 200));
+    target->setResizable(false);
+    input.onPointerMotionAbsolute(at(1), base::PointF(220, 180));
+
+    input.onPointerButton(at(2), BTN_LEFT, true);
+    EXPECT_FALSE(manager.eventHandler()->isDragging());
+    EXPECT_EQ(target->rootSurface(), seat.pointerGrabSurface());
+    input.onPointerButton(at(3), BTN_LEFT, false);
+
+    input.onKey(at(4), KEY_LEFTMETA, true);
+    input.onPointerButton(at(5), BTN_RIGHT, true);
+    EXPECT_FALSE(manager.eventHandler()->isDragging());
+    EXPECT_EQ(target->rootSurface(), seat.pointerGrabSurface());
+    input.onPointerButton(at(6), BTN_RIGHT, false);
+}
+
+TEST_F(WmTest, PointerShortcutRespectsClientShortcutInhibition)
+{
+    struct Inhibitor : input::ShortcutsInhibitorDelegate {
+        compositor::Surface *surface = nullptr;
+        compositor::Surface *inhibitedSurface() const override { return surface; }
+        void onInhibitorActivated() override {}
+        void onInhibitorDeactivated() override {}
+    };
+    Window *target = makeWindow(base::Rect(100, 100, 300, 200));
+    manager.activation()->activate(target);
+    Inhibitor inhibitor;
+    inhibitor.surface = target->rootSurface();
+    ASSERT_TRUE(seat.shortcutsInhibition()->add(&inhibitor));
+    EXPECT_TRUE(seat.shortcutsInhibition()->isActive());
+
+    input.onPointerMotionAbsolute(at(1), base::PointF(220, 180));
+    input.onKey(at(2), KEY_LEFTMETA, true);
+    input.onPointerButton(at(3), BTN_LEFT, true);
+    EXPECT_FALSE(manager.eventHandler()->isDragging());
+    EXPECT_EQ(target->rootSurface(), seat.pointerGrabSurface());
+    input.onPointerButton(at(4), BTN_LEFT, false);
+    seat.shortcutsInhibition()->remove(&inhibitor);
+}
+
 TEST_F(WmTest, EscapeRevertsAMove)
 {
     Window *window = makeWindow(base::Rect(100, 100, 300, 200));

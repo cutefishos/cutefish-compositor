@@ -364,6 +364,7 @@ private:
     Window *modalBlockedWindowAt(const base::PointF &location) const;
     bool handlePointerButton(input::Timestamp timestamp, const base::PointF &location, uint32_t code,
                              bool pressed);
+    bool beginModifierDrag(const base::PointF &location, uint32_t button);
     bool isPopupSurface(compositor::Surface *surface) const;
     bool isPopupAt(const base::PointF &location) const;
     Window *drawnWindowAt(const base::PointF &location) const;
