@@ -141,6 +141,17 @@ void Seat::removeTouch(Touch *touch)
     m_touches.erase(std::remove(m_touches.begin(), m_touches.end(), touch), m_touches.end());
 }
 
+void Seat::setHasTouch(bool hasTouch)
+{
+    if (m_hasTouch == hasTouch)
+        return;
+    m_hasTouch = hasTouch;
+    for (SeatObserver *observer : std::vector<SeatObserver *>(m_observers)) {
+        if (std::find(m_observers.begin(), m_observers.end(), observer) != m_observers.end())
+            observer->onCapabilitiesChanged();
+    }
+}
+
 void Seat::setCursorHiddenByTouch(bool hidden)
 {
     if (m_cursorHiddenByTouch == hidden)

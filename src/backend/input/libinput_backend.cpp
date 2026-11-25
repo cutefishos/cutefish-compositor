@@ -122,14 +122,17 @@ LibinputBackend::LibinputBackend(Session *session, input::InputManager *inputMan
     m_settingsSubscriptions.push_back(m_touchscreenSettings.settingsChanged.connect([this] {
         for (auto *device : m_touchscreens)
             applyTouchscreenSettings(device);
+        updateTouchCapability();
         dispatch();
     }));
 }
 
 LibinputBackend::~LibinputBackend()
 {
-    if (input::Seat *seat = m_inputManager->seat())
+    if (input::Seat *seat = m_inputManager->seat()) {
+        seat->setHasTouch(false);
         seat->removeObserver(this);
+    }
     if (m_watch)
         core::mainLoop()->unwatch(m_watch);
     for (auto *device : m_mice)
@@ -487,6 +490,19 @@ void LibinputBackend::updateTouchscreenList()
                                             });
     });
     m_touchscreenSettings.setDevices(names);
+    updateTouchCapability();
+}
+
+void LibinputBackend::updateTouchCapability()
+{
+    input::Seat *seat = m_inputManager ? m_inputManager->seat() : nullptr;
+    if (!seat)
+        return;
+    const bool hasEnabledTouchscreen =
+            std::any_of(m_touchscreens.begin(), m_touchscreens.end(), [this](libinput_device *d) {
+                return m_touchscreenSettings.deviceEnabled(libinput_device_get_name(d));
+            });
+    seat->setHasTouch(hasEnabledTouchscreen);
 }
 
 void LibinputBackend::applyTouchscreenSettings(libinput_device *device)

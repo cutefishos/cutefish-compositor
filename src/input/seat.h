@@ -250,6 +250,9 @@ public:
     void addTouch(Touch *touch);
     void removeTouch(Touch *touch);
 
+    bool hasTouch() const { return m_hasTouch; }
+    void setHasTouch(bool hasTouch);
+
     void onSurfaceDestroying(compositor::Surface *surface) override;
 
 private:
@@ -283,6 +286,7 @@ private:
     std::vector<Pointer *> m_pointers;
     std::vector<Keyboard *> m_keyboards;
     std::vector<Touch *> m_touches;
+    bool m_hasTouch = false;
     bool m_cursorHiddenByTouch = false;
 
     struct DeliveredTouch {

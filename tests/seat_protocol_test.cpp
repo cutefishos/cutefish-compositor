@@ -689,15 +689,25 @@ protected:
 
 } // namespace
 
-TEST_F(SeatProtocolTest, TheRegistryListsWlSeatWithPointerKeyboardAndTouch)
+TEST_F(SeatProtocolTest, TheRegistryListsWlSeatAndUpdatesTouchCapability)
 {
-    run([](Client& c) {
+    run([&](Client& c) {
         ASSERT_TRUE(c.globals.contains("wl_seat"));
         EXPECT_EQ(wayland::kWlSeatVersion, c.globals["wl_seat"].second);
+        EXPECT_EQ(uint32_t(WL_SEAT_CAPABILITY_POINTER | WL_SEAT_CAPABILITY_KEYBOARD),
+                  c.observed.seatCapabilities);
+        EXPECT_EQ("default", c.observed.seatName);
+
+        check([&] { seat.setHasTouch(true); });
+        c.sync();
         EXPECT_EQ(uint32_t(WL_SEAT_CAPABILITY_POINTER | WL_SEAT_CAPABILITY_KEYBOARD
                            | WL_SEAT_CAPABILITY_TOUCH),
                   c.observed.seatCapabilities);
-        EXPECT_EQ("default", c.observed.seatName);
+
+        check([&] { seat.setHasTouch(false); });
+        c.sync();
+        EXPECT_EQ(uint32_t(WL_SEAT_CAPABILITY_POINTER | WL_SEAT_CAPABILITY_KEYBOARD),
+                  c.observed.seatCapabilities);
     });
 }
 
