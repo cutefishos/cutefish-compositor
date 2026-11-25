@@ -1020,6 +1020,152 @@ TEST_F(XwaylandTest, GtkFrameExtentsLeaveTheClientShadowOutOfTheWindow)
     EXPECT_TRUE(geometryMatches(base::Rect(100, 120, 400, 300)));
 }
 
+TEST_F(XwaylandTest, InitialPositionHintsPlaceUndecoratedOrSkipTaskbarWindows)
+{
+    xwayland->setScale(1.5);
+    ASSERT_TRUE(start()) << xwayland->error();
+    setenv("XAUTHORITY", xwayland->authority().c_str(), 1);
+    auto *c = xcbReply([&] {
+        return xcb_connect(xwayland->display().c_str(), nullptr);
+    });
+    ASSERT_EQ(xcb_connection_has_error(c), 0);
+    base::ScopeGuard cleanup([&] {
+        xcb_disconnect(c);
+    });
+    auto *screen = xcb_setup_roots_iterator(xcb_get_setup(c)).data;
+    const xcb_atom_t motif = intern(c, "_MOTIF_WM_HINTS");
+    const uint32_t undecorated[] = {2, 0, 0, 0, 0};
+    const xcb_atom_t state = intern(c, "_NET_WM_STATE");
+    const xcb_atom_t skipTaskbar = intern(c, "_NET_WM_STATE_SKIP_TASKBAR");
+    const xcb_atom_t windowType = intern(c, "_NET_WM_WINDOW_TYPE");
+    const xcb_atom_t utility = intern(c, "_NET_WM_WINDOW_TYPE_UTILITY");
+    constexpr uint32_t userPosition = 1u << 0;
+    constexpr uint32_t programPosition = 1u << 2;
+    constexpr uint32_t winGravity = 1u << 9;
+
+    auto create = [&](int x, int y, int width, int height, const char *title, bool decorated,
+                      uint32_t hintFlags, uint32_t gravity, bool skip = false,
+                      xcb_window_t transientFor = XCB_WINDOW_NONE,
+                      xcb_atom_t type = XCB_ATOM_NONE) {
+        const auto id = xcb_generate_id(c);
+        const uint32_t values[] = {screen->white_pixel};
+        xcb_create_window(c, XCB_COPY_FROM_PARENT, id, screen->root, x, y, width, height, 0,
+                          XCB_WINDOW_CLASS_INPUT_OUTPUT, screen->root_visual, XCB_CW_BACK_PIXEL,
+                          values);
+        xcb_change_property(c, XCB_PROP_MODE_REPLACE, id, XCB_ATOM_WM_NAME, XCB_ATOM_STRING, 8,
+                            strlen(title), title);
+        if (!decorated) {
+            xcb_change_property(c, XCB_PROP_MODE_REPLACE, id, motif, motif, 32, 5, undecorated);
+        }
+        if (skip)
+            xcb_change_property(c, XCB_PROP_MODE_REPLACE, id, state, XCB_ATOM_ATOM, 32, 1,
+                                &skipTaskbar);
+        if (transientFor)
+            xcb_change_property(c, XCB_PROP_MODE_REPLACE, id, XCB_ATOM_WM_TRANSIENT_FOR,
+                                XCB_ATOM_WINDOW, 32, 1, &transientFor);
+        if (type)
+            xcb_change_property(c, XCB_PROP_MODE_REPLACE, id, windowType, XCB_ATOM_ATOM, 32, 1,
+                                &type);
+        if (hintFlags) {
+            uint32_t hints[18] {};
+            hints[0] = hintFlags;
+            hints[17] = gravity;
+            xcb_change_property(c, XCB_PROP_MODE_REPLACE, id, XCB_ATOM_WM_NORMAL_HINTS,
+                                XCB_ATOM_WM_SIZE_HINTS, 32, 18, hints);
+        }
+        xcb_map_window(c, id);
+        return id;
+    };
+    auto findWindow = [&](std::string_view title) -> wm::Window * {
+        for (auto *w : manager->windows()) {
+            if (w->title() == title)
+                return w;
+        }
+        return nullptr;
+    };
+
+    // Two adjacent undecorated windows (like a menu and a floating toolbar) keep their requested
+    // positions instead of both being centered on top of each other.
+    const auto menuId = create(300, 120, 180, 240, "menu", false, userPosition | winGravity,
+                               XCB_GRAVITY_STATIC);
+    const auto barId = create(300, 372, 240, 60, "bar", false, userPosition | winGravity,
+                              XCB_GRAVITY_STATIC);
+    xcb_flush(c);
+    ASSERT_TRUE(until([&] {
+        return findWindow("menu") && findWindow("bar");
+    }));
+    wm::Window *menu = findWindow("menu");
+    wm::Window *bar = findWindow("bar");
+    EXPECT_EQ(menu->contentBounds().topLeft(), base::Point(200, 80));
+    EXPECT_EQ(bar->contentBounds().topLeft(), base::Point(200, 248));
+    EXPECT_FALSE(menu->bounds().intersects(bar->bounds()));
+
+    // Unmapping, reconfiguring, and remapping moves the window to the new requested position.
+    xcb_unmap_window(c, barId);
+    xcb_flush(c);
+    ASSERT_TRUE(until([&] {
+        return !findWindow("bar");
+    }));
+    const uint32_t moved[] = {90, 90};
+    xcb_configure_window(c, barId, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y, moved);
+    xcb_map_window(c, barId);
+    xcb_flush(c);
+    ASSERT_TRUE(until([&] {
+        return findWindow("bar") != nullptr;
+    }));
+    EXPECT_EQ(findWindow("bar")->contentBounds().topLeft(), base::Point(60, 60));
+    xcb_destroy_window(c, menuId);
+    xcb_destroy_window(c, barId);
+
+    // Decorated skip-taskbar windows respect gravity: NorthWestGravity places the outer frame,
+    // StaticGravity places the client content area.
+    const auto nwId = create(150, 150, 240, 180, "nw", true, programPosition,
+                             XCB_GRAVITY_NORTH_WEST, true);
+    const auto staticId = create(150, 150, 240, 180, "static", true, userPosition | winGravity,
+                                 XCB_GRAVITY_STATIC, true);
+    const auto mainId = create(10, 42, 600, 420, "main", true, programPosition,
+                               XCB_GRAVITY_NORTH_WEST);
+    const auto unpositionedId = create(30, 45, 240, 180, "unpositioned", false, 0, 0);
+    xcb_flush(c);
+    ASSERT_TRUE(until([&] {
+        return findWindow("nw") && findWindow("static") && findWindow("unpositioned")
+            && findWindow("main");
+    }));
+    EXPECT_EQ(findWindow("nw")->bounds().topLeft(), base::Point(100, 100));
+    EXPECT_EQ(findWindow("static")->contentBounds().topLeft(), base::Point(100, 100));
+    EXPECT_EQ(findWindow("unpositioned")->bounds().topLeft(), base::Point(320, 240));
+    const wm::Window *main = findWindow("main");
+    const base::Rect mainBounds = main->bounds();
+    EXPECT_EQ(mainBounds.topLeft(),
+              base::Point((800 - mainBounds.width()) / 2, (600 - mainBounds.height()) / 2));
+
+    // A transient follows its parent even if it is undecorated and skips the taskbar.
+    const auto dialogId = create(15, 30, 240, 180, "dialog", false, programPosition,
+                                 XCB_GRAVITY_NORTH_WEST, true, mainId);
+    const auto utilityId = create(240, 270, 240, 60, "utility", false, userPosition | winGravity,
+                                  XCB_GRAVITY_STATIC, false, mainId, utility);
+    xcb_flush(c);
+    ASSERT_TRUE(until([&] {
+        return findWindow("dialog") && findWindow("utility");
+    }));
+    const wm::Window *dialog = findWindow("dialog");
+    EXPECT_EQ(dialog->transientParent(), main);
+    const base::Rect parentArea = mainBounds.adjusted(0, main->frameInsets().top, 0, 0);
+    EXPECT_EQ(dialog->bounds().topLeft(),
+              parentArea.topLeft() + base::Point((parentArea.width() - 160) / 2,
+                                                (parentArea.height() - 120) / 2));
+    EXPECT_EQ(findWindow("utility")->transientParent(), main);
+    EXPECT_EQ(findWindow("utility")->contentBounds().topLeft(), base::Point(160, 180));
+
+    xcb_destroy_window(c, utilityId);
+    xcb_destroy_window(c, dialogId);
+    xcb_destroy_window(c, mainId);
+    xcb_destroy_window(c, nwId);
+    xcb_destroy_window(c, staticId);
+    xcb_destroy_window(c, unpositionedId);
+    xcb_flush(c);
+}
+
 TEST_F(XwaylandTest, NetWmWindowOpacityFadesTheWholeWindow)
 {
     ASSERT_TRUE(start()) << xwayland->error();
