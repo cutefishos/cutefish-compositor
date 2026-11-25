@@ -413,6 +413,14 @@ protected:
         networkmanager::Client::setInstanceBus(nullptr);
         systemBus.reset();
         networkManager.reset();
+        // A call still on its way to the fake service would make the bus
+        // start the real one, which then holds the name in the next test.
+        base::dbus::Connection *session = base::dbus::Connection::session(core::mainLoop());
+        bool answered = false;
+        auto ping = session->callAsync(
+                session->newMethodCall("org.freedesktop.secrets", "/", "org.freedesktop.DBus.Peer", "Ping"),
+                [&answered](const base::dbus::Reply &) { answered = true; });
+        EXPECT_TRUE(test::runUntil([&answered] { return answered; }));
         secrets.reset();
         seat.shutdown();
     }
