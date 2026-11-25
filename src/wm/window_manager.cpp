@@ -672,8 +672,13 @@ Window *WindowManager::createWindow(compositor::Surface *rootSurface, const Wind
         if (workArea.isEmpty())
             workArea = workAreaFor(window);
         window->setBounds(m_placement.place(window->frameInsets().outset(size), workArea));
-        if (init.positionManaged)
+        if (init.positionManaged) {
             window->setBounds(boundsForNewWindow(window, window->bounds()));
+        } else {
+            base::Rect bounds = window->bounds();
+            if (requestedPlacement(window, &bounds))
+                window->setBounds(bounds);
+        }
     }
 
     // Before anything is drawn or announced.

@@ -56,6 +56,52 @@ std::string_view propertyBytes(xcb_get_property_reply_t *reply)
                             size_t(xcb_get_property_value_length(reply)));
 }
 
+// Content top-left for a client-positioned window once `insets` frame it (ICCCM 4.1.5).
+base::Point contentPositionForGravity(const base::Point &position, uint32_t gravity,
+                                      const wm::Insets &insets)
+{
+    int dx = insets.left;
+    int dy = insets.top;
+    switch (gravity) {
+    case XCB_GRAVITY_STATIC:
+        dx = 0;
+        dy = 0;
+        break;
+    case XCB_GRAVITY_NORTH:
+        dx = (insets.left - insets.right) / 2;
+        break;
+    case XCB_GRAVITY_NORTH_EAST:
+        dx = -insets.right;
+        break;
+    case XCB_GRAVITY_WEST:
+        dy = (insets.top - insets.bottom) / 2;
+        break;
+    case XCB_GRAVITY_CENTER:
+        dx = (insets.left - insets.right) / 2;
+        dy = (insets.top - insets.bottom) / 2;
+        break;
+    case XCB_GRAVITY_EAST:
+        dx = -insets.right;
+        dy = (insets.top - insets.bottom) / 2;
+        break;
+    case XCB_GRAVITY_SOUTH_WEST:
+        dy = -insets.bottom;
+        break;
+    case XCB_GRAVITY_SOUTH:
+        dx = (insets.left - insets.right) / 2;
+        dy = -insets.bottom;
+        break;
+    case XCB_GRAVITY_SOUTH_EAST:
+        dx = -insets.right;
+        dy = -insets.bottom;
+        break;
+    case XCB_GRAVITY_NORTH_WEST:
+    default:
+        break;
+    }
+    return position + base::Point(dx, dy);
+}
+
 int constrainedExtent(int value, int base, int increment, int minimum, int maximum)
 {
     const int low = std::clamp(minimum, 1, 65535);
@@ -253,6 +299,8 @@ struct Xwm::X11Window : compositor::SurfaceObserver, wm::WindowObserver {
     std::string startupId;
     // No maximum: an empty size.
     base::Size minimum {1, 1}, maximum, increment {1, 1}, base {0, 0};
+    bool hasPosition = false;
+    uint32_t winGravity = XCB_GRAVITY_NORTH_WEST;
     bool mapped = false, overrideRedirect = false, decorated = true;
     // _GTK_FRAME_EXTENTS, in X11 pixels: the shadow the client draws around its body.
     wm::Insets extents;
@@ -1317,11 +1365,14 @@ void Xwm::properties(X11Window &w, std::vector<xcb_atom_t> atoms)
                       w.maximum = base::Size();
                       w.increment = base::Size(1, 1);
                       w.base = base::Size(0, 0);
+                      w.hasPosition = false;
+                      w.winGravity = XCB_GRAVITY_NORTH_WEST;
                       if (r->type == XCB_ATOM_WM_SIZE_HINTS && count >= 15) {
                           auto size = [words](int i) {
                               return base::Size(std::clamp<int32_t>(words[i], 1, 65535),
                                            std::clamp<int32_t>(words[i + 1], 1, 65535));
                           };
+                          w.hasPosition = (words[0] & ((1 << 0) | (1 << 2))) != 0;
                           w.minimum = words[0] & (1 << 4) ? size(5) : base::Size(1, 1);
                           w.maximum = words[0] & (1 << 5) ? size(7).expandedTo(w.minimum) : base::Size();
                           w.increment = words[0] & (1 << 6) ? size(9) : base::Size(1, 1);
@@ -1329,6 +1380,8 @@ void Xwm::properties(X11Window &w, std::vector<xcb_atom_t> atoms)
                                   ? base::Size(std::clamp<int32_t>(words[15], 0, 65535),
                                           std::clamp<int32_t>(words[16], 0, 65535))
                                   : w.minimum;
+                          if (count >= 18 && (words[0] & (1 << 9)))
+                              w.winGravity = words[17];
                       }
                   } else if (a == atom("_NET_WM_STATE") && !w.roleLocked) {
                       w.fullscreen = w.maximized = w.demandsAttention = w.modal = false;
@@ -1483,7 +1536,17 @@ void Xwm::present(X11Window &w)
     };
     w.surface->setHidden(false);
     applyHints(w);
+    if (w.hasPosition) {
+        const wm::Insets frameInsets = w.decorated && m_manager->frameProvider()
+                ? m_manager->frameProvider()->defaultExtents()
+                : wm::Insets();
+        w.surface->setRequestedPosition(contentPositionForGravity(
+                bodyFromX(w, w.xGeometry).topLeft(), w.winGravity, frameInsets));
+    } else {
+        w.surface->setRequestedPosition(std::nullopt);
+    }
     w.window = m_manager->createWindow(w.surface, init);
+    w.surface->setRequestedPosition(std::nullopt);
     if (!w.window)
         return;
     // From here the state goes to the window and back into the property.
@@ -1521,6 +1584,7 @@ void Xwm::detach(X11Window &w)
     if (surface) {
         surface->removeSurfaceObserver(&w);
         surface->setHidden(true);
+        surface->setRequestedPosition(std::nullopt);
         surface->node()->setContentShape(std::nullopt);
         surface->setExternalInputRegion(std::nullopt);
         m_manager->clearSurfaceOwner(surface);

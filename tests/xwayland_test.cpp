@@ -1020,6 +1020,105 @@ TEST_F(XwaylandTest, GtkFrameExtentsLeaveTheClientShadowOutOfTheWindow)
     EXPECT_TRUE(geometryMatches(base::Rect(100, 120, 400, 300)));
 }
 
+TEST_F(XwaylandTest, InitialPositionHintsPlaceUndecoratedAndDecoratedWindows)
+{
+    xwayland->setScale(1.5);
+    ASSERT_TRUE(start()) << xwayland->error();
+    setenv("XAUTHORITY", xwayland->authority().c_str(), 1);
+    auto *c = xcbReply([&] {
+        return xcb_connect(xwayland->display().c_str(), nullptr);
+    });
+    ASSERT_EQ(xcb_connection_has_error(c), 0);
+    base::ScopeGuard cleanup([&] {
+        xcb_disconnect(c);
+    });
+    auto *screen = xcb_setup_roots_iterator(xcb_get_setup(c)).data;
+    const xcb_atom_t motif = intern(c, "_MOTIF_WM_HINTS");
+    const uint32_t undecorated[] = {2, 0, 0, 0, 0};
+
+    auto create = [&](int x, int y, int width, int height, const char *title, bool decorated,
+                      uint32_t hintFlags, uint32_t gravity) {
+        const auto id = xcb_generate_id(c);
+        const uint32_t values[] = {screen->white_pixel};
+        xcb_create_window(c, XCB_COPY_FROM_PARENT, id, screen->root, x, y, width, height, 0,
+                          XCB_WINDOW_CLASS_INPUT_OUTPUT, screen->root_visual, XCB_CW_BACK_PIXEL,
+                          values);
+        xcb_change_property(c, XCB_PROP_MODE_REPLACE, id, XCB_ATOM_WM_NAME, XCB_ATOM_STRING, 8,
+                            strlen(title), title);
+        if (!decorated) {
+            xcb_change_property(c, XCB_PROP_MODE_REPLACE, id, motif, motif, 32, 5, undecorated);
+        }
+        if (hintFlags) {
+            uint32_t hints[18] {};
+            hints[0] = hintFlags;
+            hints[17] = gravity;
+            xcb_change_property(c, XCB_PROP_MODE_REPLACE, id, XCB_ATOM_WM_NORMAL_HINTS,
+                                XCB_ATOM_WM_SIZE_HINTS, 32, 18, hints);
+        }
+        xcb_map_window(c, id);
+        return id;
+    };
+    auto findWindow = [&](std::string_view title) -> wm::Window * {
+        for (auto *w : manager->windows()) {
+            if (w->title() == title)
+                return w;
+        }
+        return nullptr;
+    };
+
+    // Two adjacent undecorated windows (like a menu and a floating toolbar) keep their requested
+    // positions instead of both being centered on top of each other.
+    const auto menuId = create(300, 120, 180, 240, "menu", false, (1u << 0) | (1u << 9),
+                               XCB_GRAVITY_STATIC);
+    const auto barId = create(300, 372, 240, 60, "bar", false, (1u << 0) | (1u << 9),
+                              XCB_GRAVITY_STATIC);
+    xcb_flush(c);
+    ASSERT_TRUE(until([&] {
+        return findWindow("menu") && findWindow("bar");
+    }));
+    wm::Window *menu = findWindow("menu");
+    wm::Window *bar = findWindow("bar");
+    EXPECT_EQ(menu->contentBounds().topLeft(), base::Point(200, 80));
+    EXPECT_EQ(bar->contentBounds().topLeft(), base::Point(200, 248));
+    EXPECT_FALSE(menu->bounds().intersects(bar->bounds()));
+
+    // Unmapping, reconfiguring, and remapping moves the window to the new requested position.
+    xcb_unmap_window(c, barId);
+    xcb_flush(c);
+    ASSERT_TRUE(until([&] {
+        return !findWindow("bar");
+    }));
+    const uint32_t moved[] = {90, 90};
+    xcb_configure_window(c, barId, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y, moved);
+    xcb_map_window(c, barId);
+    xcb_flush(c);
+    ASSERT_TRUE(until([&] {
+        return findWindow("bar") != nullptr;
+    }));
+    EXPECT_EQ(findWindow("bar")->contentBounds().topLeft(), base::Point(60, 60));
+    xcb_destroy_window(c, menuId);
+    xcb_destroy_window(c, barId);
+
+    // Decorated windows respect win_gravity: NorthWestGravity places the outer frame, while
+    // StaticGravity places the client content area.
+    const auto nwId = create(150, 150, 240, 180, "nw", true, 1u << 2, XCB_GRAVITY_NORTH_WEST);
+    const auto staticId = create(150, 150, 240, 180, "static", true, (1u << 0) | (1u << 9),
+                                 XCB_GRAVITY_STATIC);
+    // Without USPosition/PPosition, the window manager still centers the window.
+    const auto unpositionedId = create(30, 45, 240, 180, "unpositioned", false, 0, 0);
+    xcb_flush(c);
+    ASSERT_TRUE(until([&] {
+        return findWindow("nw") && findWindow("static") && findWindow("unpositioned");
+    }));
+    EXPECT_EQ(findWindow("nw")->bounds().topLeft(), base::Point(100, 100));
+    EXPECT_EQ(findWindow("static")->contentBounds().topLeft(), base::Point(100, 100));
+    EXPECT_EQ(findWindow("unpositioned")->bounds().topLeft(), base::Point(320, 240));
+    xcb_destroy_window(c, nwId);
+    xcb_destroy_window(c, staticId);
+    xcb_destroy_window(c, unpositionedId);
+    xcb_flush(c);
+}
+
 TEST_F(XwaylandTest, NetWmWindowOpacityFadesTheWholeWindow)
 {
     ASSERT_TRUE(start()) << xwayland->error();

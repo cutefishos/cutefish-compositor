@@ -2854,3 +2854,12 @@ TEST_F(WmTest, AConsumedPressKeepsItsReleaseForEachButton)
     EXPECT_FALSE(manager.onPointerButton(at(5), base::PointF(20, 20), BTN_LEFT, true));
     EXPECT_FALSE(manager.onPointerButton(at(6), base::PointF(20, 20), BTN_LEFT, false));
 }
+
+TEST_F(WmTest, UnmanagedPositionWindowHonorsSurfaceRequestedPosition)
+{
+    compositor::Surface *surface = makeSurface(base::Size(200, 100));
+    surface->setRequestedPosition(base::Point(120, 90));
+    Window *window = manager.createWindow(surface, {.requestedSize = base::Size(200, 100),
+                                                    .positionManaged = false});
+    EXPECT_EQ(base::Rect(120, 90, 200, 100), window->bounds());
+}
