@@ -9,6 +9,9 @@
 #include "compositor/surface.h"
 #include "fake_renderer.h"
 #include "input/input_manager.h"
+#include "input/pointer.h"
+#include "input/pointer_constraint_delegate.h"
+#include "input/pointer_delegate.h"
 #include "input/seat.h"
 #include "loop_test_util.h"
 #include "scene/node.h"
@@ -31,6 +34,47 @@ input::Timestamp at(int ms)
 const base::Rect kOutput(0, 0, 1000, 800);
 const base::Rect kDockBounds(200, 720, 600, 75);
 
+class TestPointerDelegate : public input::PointerDelegate
+{
+public:
+    void onPointerDestroying(input::Pointer *) override {}
+    bool canAcceptPointerEventsForSurface(compositor::Surface *) const override { return true; }
+    void onPointerEnter(compositor::Surface *, const base::PointF &, input::ButtonFlags) override {}
+    void onPointerLeave(compositor::Surface *) override {}
+    void onPointerMotion(input::Timestamp, const base::PointF &) override {}
+    void onPointerButton(input::Timestamp, input::ButtonFlags, bool) override {}
+    void onPointerScroll(input::Timestamp, const base::PointF &, bool) override {}
+    void onFingerScrollStop(input::Timestamp) override {}
+    void onPointerFrame() override {}
+};
+
+class TestConstraint : public input::PointerConstraintDelegate
+{
+public:
+    TestConstraint(input::PointerConstraints *constraints, compositor::Surface *surface, Kind kind)
+        : m_constraints(constraints), m_surface(surface), m_kind(kind)
+    {
+        EXPECT_TRUE(m_constraints->add(this));
+    }
+
+    ~TestConstraint() override { m_constraints->remove(this); }
+
+    Kind kind() const override { return m_kind; }
+    void onConstraintActivated() override {}
+    void onAlreadyConstrained() override {}
+    void onConstraintBroken() override {}
+    void onDefunct() override { m_surface = nullptr; }
+    bool isPersistent() const override { return true; }
+    compositor::Surface *constrainedSurface() const override { return m_surface; }
+    std::optional<base::Region> region() const override { return std::nullopt; }
+    std::optional<base::PointF> cursorPositionHint() const override { return std::nullopt; }
+
+private:
+    input::PointerConstraints *m_constraints;
+    compositor::Surface *m_surface;
+    Kind m_kind;
+};
+
 class DockLayoutTest : public testing::Test
 {
 protected:
@@ -45,7 +89,8 @@ protected:
     DockLayoutManager layout {&manager};
 
     std::vector<std::unique_ptr<compositor::Surface>> surfaces;
-    std::shared_ptr<compositor::ShmPool> pool = testsupport::makePool(1 << 20);
+    std::shared_ptr<compositor::ShmPool> pool =
+            testsupport::makePool(kOutput.width() * kOutput.height() * 4);
     Window *dock = nullptr;
 
     void SetUp() override
@@ -126,12 +171,62 @@ TEST_F(DockLayoutTest, FullscreenWindowHidesTheDockWhateverTheSetting)
     EXPECT_TRUE(dock->isPresentationHidden());
     EXPECT_EQ(kOutput.bottom(), dock->node()->absoluteGeometry().top());
 
+    moveTo(base::PointF(500, 799));
+    waitForReveal();
+    EXPECT_TRUE(isShown());
+
     window->setFullscreen(false);
     EXPECT_TRUE(isShown());
     EXPECT_FALSE(dock->isPresentationHidden());
     finishSlide();
     EXPECT_EQ(base::Point(), dock->presentationOffset());
 }
+
+class FullscreenPointerConstraintDockTest
+    : public DockLayoutTest,
+      public testing::WithParamInterface<input::PointerConstraintDelegate::Kind>
+{
+};
+
+TEST_P(FullscreenPointerConstraintDockTest, ConstraintCancelsEdgeRevealAndLaunchpadCanShowDock)
+{
+    TestPointerDelegate pointerDelegate;
+    input::Pointer pointer(&pointerDelegate, &seat);
+    Window *launchpad = makeWindow(base::Rect(0, 0, 300, 200));
+    launchpad->setRole(WindowRole::Launchpad);
+    launchpad->setVisible(false);
+    Window *window = makeWindow(kOutput);
+    window->activate();
+    window->setFullscreen(true);
+    finishSlide();
+
+    input.onPointerMotionLogical(at(1), base::PointF(500, 799));
+    ASSERT_EQ(window->rootSurface(), seat.pointerFocus());
+    ASSERT_FALSE(isShown());
+    {
+        TestConstraint constraint(seat.pointerConstraints(), window->rootSurface(), GetParam());
+        ASSERT_EQ(&constraint, seat.pointerConstraints()->active());
+        waitForReveal();
+        EXPECT_FALSE(isShown());
+        EXPECT_TRUE(dock->isPresentationHidden());
+        EXPECT_TRUE(dock->node()->isEventTargetingBlocked());
+
+        launchpad->setVisible(true);
+        ASSERT_EQ(&constraint, seat.pointerConstraints()->active());
+        waitForReveal();
+        EXPECT_TRUE(isShown());
+
+        launchpad->setVisible(false);
+        EXPECT_FALSE(isShown());
+    }
+    EXPECT_FALSE(isShown());
+    waitForReveal();
+    EXPECT_TRUE(isShown());
+}
+
+INSTANTIATE_TEST_SUITE_P(PointerConstraints, FullscreenPointerConstraintDockTest,
+        testing::Values(input::PointerConstraintDelegate::Kind::Confine,
+                        input::PointerConstraintDelegate::Kind::Lock));
 
 TEST_F(DockLayoutTest, PanelOnlyGivesWayToFullscreen)
 {

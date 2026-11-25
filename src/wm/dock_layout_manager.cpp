@@ -13,6 +13,7 @@
 
 #include "compositor/compositor.h"
 #include "compositor/surface.h"
+#include "input/pointer_constraint_delegate.h"
 #include "input/seat.h"
 #include "scene/node.h"
 #include "wm/activation.h"
@@ -151,8 +152,12 @@ DockLayoutManager::DockLayoutManager(WindowManager *manager)
     m_managerSignals.push_back(m_manager->pointerMoved.connect([this](const base::PointF &location) {
         onPointerMoved(location);
     }));
-    if (input::Seat *seat = m_manager->seat())
+    if (input::Seat *seat = m_manager->seat()) {
         m_pointer = seat->pointerLocation();
+        m_managerSignals.push_back(seat->pointerConstraints()->activeChanged.connect([this] {
+            update();
+        }));
+    }
     for (Window *window : m_manager->windows())
         window->addObserver(this);
 }
@@ -256,6 +261,16 @@ Window *DockLayoutManager::fullscreenWindowFor(const base::Rect &output) const
     return nullptr;
 }
 
+bool DockLayoutManager::fullscreenCapturesPointer(const base::Rect &output) const
+{
+    input::Seat *seat = m_manager->seat();
+    const auto *constraint = seat ? seat->pointerConstraints()->active() : nullptr;
+    if (!constraint)
+        return false;
+    const Window *fullscreen = fullscreenWindowFor(output);
+    return fullscreen && m_manager->windowForSurface(constraint->constrainedSurface()) == fullscreen;
+}
+
 bool DockLayoutManager::hasVisibleWindow(const base::Rect &output) const
 {
     const auto &windows = m_manager->windows();
@@ -314,6 +329,9 @@ DockAutoHideState DockLayoutManager::computeAutoHideState(const Window *dock, co
 
     if (!hasVisibleWindow(output))
         return DockAutoHideState::Shown;
+
+    if (dock->role() == WindowRole::Dock && fullscreenCapturesPointer(output))
+        return DockAutoHideState::Hidden;
 
     if (isTopBar(dock, entry, output)) {
         const Window *fullscreen = fullscreenWindowFor(output);

@@ -87,11 +87,14 @@ void PointerConstraints::remove(PointerConstraintDelegate *delegate)
     // Destroying the lock is how a client unlocks, Xwayland included, so the
     // hint applies here too.
     std::optional<base::PointF> warpTo;
-    if (m_active == delegate) {
+    const bool wasActive = m_active == delegate;
+    if (wasActive) {
         warpTo = hintPosition();
         m_active = nullptr;
     }
     erase(delegate);
+    if (wasActive)
+        activeChanged();
     if (warpTo && warp)
         warp(*warpTo);
 }
@@ -175,6 +178,7 @@ void PointerConstraints::update()
         return;
     m_active = it->second;
     m_active->onConstraintActivated();
+    activeChanged();
 }
 
 void PointerConstraints::deactivate()
@@ -187,6 +191,7 @@ void PointerConstraints::deactivate()
         erase(delegate);
         delegate->onDefunct();
     }
+    activeChanged();
 }
 
 base::PointF PointerConstraints::confine(const base::PointF &from, const base::PointF &to) const
@@ -245,11 +250,14 @@ void PointerConstraints::onSurfaceDestroying(compositor::Surface *surface)
     PointerConstraintDelegate *delegate = it->second;
     m_constraints.erase(it);
     surface->removeSurfaceObserver(this);
-    if (m_active == delegate) {
+    const bool wasActive = m_active == delegate;
+    if (wasActive) {
         m_active = nullptr;
         delegate->onConstraintBroken();
     }
     delegate->onDefunct();
+    if (wasActive)
+        activeChanged();
 }
 
 } // namespace cutefish::input
