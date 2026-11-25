@@ -146,6 +146,7 @@ const char *const atomNames[] = {"WL_SURFACE_SERIAL",
                                  "_NET_WM_WINDOW_TYPE",
                                  "_NET_WM_WINDOW_TYPE_NORMAL",
                                  "_NET_WM_WINDOW_TYPE_DIALOG",
+                                 "_NET_WM_WINDOW_TYPE_UTILITY",
                                  "_NET_WM_WINDOW_TYPE_MENU",
                                  "_NET_WM_WINDOW_TYPE_DROPDOWN_MENU",
                                  "_NET_WM_WINDOW_TYPE_POPUP_MENU",
@@ -293,7 +294,8 @@ struct Xwm::X11Window : compositor::SurfaceObserver, wm::WindowObserver {
     uint32_t transient = 0;
     // The process behind the client's socket; zero for the server itself or this compositor.
     uint32_t pid = 0;
-    bool dialog = false, urgent = false, demandsAttention = false, initiallyMinimized = false;
+    bool dialog = false, utility = false;
+    bool urgent = false, demandsAttention = false, initiallyMinimized = false;
     bool dragIcon = false;
     uint32_t leader = 0;
     std::string startupId;
@@ -1238,13 +1240,17 @@ void Xwm::properties(X11Window &w, std::vector<xcb_atom_t> atoms)
                               ? std::string(data, size_t(bytes))
                               : std::string();
                   else if (a == atom("_NET_WM_WINDOW_TYPE") && !w.roleLocked) {
-                      w.dialog = w.popup = w.dragIcon = false;
+                      w.dialog = w.utility = w.popup = w.dragIcon = false;
                       if (r->type == XCB_ATOM_ATOM) {
                           for (int i = 0; i < count; ++i) {
                               if (words[i] == atom("_NET_WM_WINDOW_TYPE_NORMAL"))
                                   break;
                               if (words[i] == atom("_NET_WM_WINDOW_TYPE_DIALOG")) {
                                   w.dialog = true;
+                                  break;
+                              }
+                              if (words[i] == atom("_NET_WM_WINDOW_TYPE_UTILITY")) {
+                                  w.utility = true;
                                   break;
                               }
                               for (auto name :
@@ -1522,6 +1528,10 @@ void Xwm::present(X11Window &w)
     init.focusPolicy = w.input || w.takeFocus ? wm::FocusPolicy::Normal : wm::FocusPolicy::NoFocus;
     auto parent = m_windows.find(w.transient);
     init.transientParent = parent == m_windows.end() ? nullptr : parent->second->window;
+    // A transient utility may be positioned alongside another client window, as in WPS.
+    const bool usePositionHint = w.hasPosition && (!w.decorated || w.skipTaskbar)
+            && (!w.transient || w.utility);
+    init.positionManaged = usePositionHint;
     init.modal = w.modal;
     init.closeCallback = [this, id = w.id] {
         auto it = m_windows.find(id);
@@ -1536,7 +1546,7 @@ void Xwm::present(X11Window &w)
     };
     w.surface->setHidden(false);
     applyHints(w);
-    if (w.hasPosition) {
+    if (usePositionHint) {
         const wm::Insets frameInsets = w.decorated && m_manager->frameProvider()
                 ? m_manager->frameProvider()->defaultExtents()
                 : wm::Insets();
