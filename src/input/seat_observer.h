@@ -34,6 +34,8 @@ public:
     virtual void onKeyboardLayoutUpdated() {}
 
     virtual void onKeyRepeatSettingsChanged() {}
+
+    virtual void onCapabilitiesChanged() {}
 };
 
 } // namespace cutefish::input

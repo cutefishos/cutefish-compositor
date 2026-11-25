@@ -67,6 +67,8 @@ const struct wl_touch_interface touch_implementation = {touch_release};
 void seat_get_pointer(wl_client *client, wl_resource *resource, uint32_t id)
 {
     auto *data = getUserDataAs<WaylandSeat>(resource);
+    if (!data)
+        return;
 
     wl_resource *pointerResource = wl_resource_create(client, &wl_pointer_interface,
                                                       wl_resource_get_version(resource), id);
@@ -86,6 +88,8 @@ void seat_get_pointer(wl_client *client, wl_resource *resource, uint32_t id)
 void seat_get_keyboard(wl_client *client, wl_resource *resource, uint32_t id)
 {
     auto *data = getUserDataAs<WaylandSeat>(resource);
+    if (!data)
+        return;
 
     wl_resource *keyboardResource = wl_resource_create(client, &wl_keyboard_interface,
                                                        wl_resource_get_version(resource), id);
@@ -105,6 +109,8 @@ void seat_get_keyboard(wl_client *client, wl_resource *resource, uint32_t id)
 void seat_get_touch(wl_client *client, wl_resource *resource, uint32_t id)
 {
     auto *data = getUserDataAs<WaylandSeat>(resource);
+    if (!data)
+        return;
 
     wl_resource *touchResource =
             wl_resource_create(client, &wl_touch_interface, wl_resource_get_version(resource), id);
@@ -126,6 +132,12 @@ void seat_release(wl_client *, wl_resource *resource)
     wl_resource_destroy(resource);
 }
 
+void seat_resource_destroyed(wl_resource *resource)
+{
+    if (auto *seat = getUserDataAs<WaylandSeat>(resource))
+        seat->removeResource(resource);
+}
+
 const struct wl_seat_interface seat_implementation = {seat_get_pointer, seat_get_keyboard,
                                                       seat_get_touch, seat_release};
 
@@ -138,13 +150,13 @@ void bind_seat(wl_client *client, void *data, uint32_t version, uint32_t id)
         return;
     }
 
-    wl_resource_set_implementation(resource, &seat_implementation, data, nullptr);
+    auto *seat = static_cast<WaylandSeat *>(data);
+    wl_resource_set_implementation(resource, &seat_implementation, seat, seat_resource_destroyed);
+    seat->addResource(resource);
 
     if (wl_resource_get_version(resource) >= WL_SEAT_NAME_SINCE_VERSION)
         wl_seat_send_name(resource, "default");
-    // Touch is always offered: a client without a touchscreen simply never gets a touch event.
-    wl_seat_send_capabilities(resource, WL_SEAT_CAPABILITY_POINTER | WL_SEAT_CAPABILITY_KEYBOARD
-                                                | WL_SEAT_CAPABILITY_TOUCH);
+    wl_seat_send_capabilities(resource, seat->capabilities());
 }
 
 } // namespace
@@ -159,6 +171,9 @@ WaylandSeat::WaylandSeat(input::Seat *seat, SerialTracker *serialTracker)
 
 WaylandSeat::~WaylandSeat()
 {
+    for (wl_resource *resource : resources)
+        wl_resource_set_user_data(resource, nullptr);
+    resources.clear();
     seat->removeObserver(this);
 }
 
@@ -167,6 +182,33 @@ void WaylandSeat::onSurfaceFocused(compositor::Surface *gained, compositor::Surf
     auto *resource = getSurfaceResource(gained);
     seat->primarySelection()->setRecipient(resource ? wl_resource_get_client(resource) : nullptr);
     seat->selection()->setRecipient(resource ? wl_resource_get_client(resource) : nullptr);
+}
+
+uint32_t WaylandSeat::capabilities() const
+{
+    uint32_t caps = WL_SEAT_CAPABILITY_POINTER | WL_SEAT_CAPABILITY_KEYBOARD;
+    if (seat && seat->hasTouch())
+        caps |= WL_SEAT_CAPABILITY_TOUCH;
+    return caps;
+}
+
+void WaylandSeat::addResource(wl_resource *resource)
+{
+    resources.push_back(resource);
+}
+
+void WaylandSeat::removeResource(wl_resource *resource)
+{
+    std::erase(resources, resource);
+}
+
+void WaylandSeat::onCapabilitiesChanged()
+{
+    const uint32_t caps = capabilities();
+    for (wl_resource *resource : resources) {
+        wl_seat_send_capabilities(resource, caps);
+        wl_client_flush(wl_resource_get_client(resource));
+    }
 }
 
 input::Pointer *pointerFromResource(wl_resource *resource)

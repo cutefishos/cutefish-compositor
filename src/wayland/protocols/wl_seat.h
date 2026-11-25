@@ -9,6 +9,7 @@
 #define CUTEFISH_WAYLAND_PROTOCOLS_WL_SEAT_H_
 
 #include <cstdint>
+#include <vector>
 #include <wayland-server-core.h>
 
 #include "input/seat_observer.h"
@@ -36,11 +37,16 @@ struct WaylandSeat : input::SeatObserver {
     WaylandSeat(input::Seat* seat, SerialTracker* serialTracker);
     ~WaylandSeat() override;
     void onSurfaceFocused(compositor::Surface* gained, compositor::Surface* lost) override;
+    void onCapabilitiesChanged() override;
+    uint32_t capabilities() const;
+    void addResource(wl_resource* resource);
+    void removeResource(wl_resource* resource);
     WaylandSeat(const WaylandSeat&) = delete;
     WaylandSeat& operator=(const WaylandSeat&) = delete;
 
     input::Seat* const seat;
     SerialTracker* const serialTracker;
+    std::vector<wl_resource*> resources;
 };
 
 WaylandSeat* waylandSeatFromResource(wl_resource* resource);

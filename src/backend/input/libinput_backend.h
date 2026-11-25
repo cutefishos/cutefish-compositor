@@ -65,6 +65,7 @@ private:
     void addTouchscreen(libinput_device *device);
     void removeTouchscreen(libinput_device *device);
     void updateTouchscreenList();
+    void updateTouchCapability();
     void applyTouchscreenSettings(libinput_device *device);
 
     static int openRestricted(const char *path, int flags, void *userData);
