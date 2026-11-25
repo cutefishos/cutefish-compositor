@@ -17,6 +17,12 @@ if sys.argv[1].endswith("source"):
     area.drag_source_set(Gdk.ModifierType.BUTTON1_MASK, targets, actions)
     area.connect("drag-begin", lambda *_: print("STARTED", flush=True))
 
+    def pressed(widget, event):
+        print("PRESSED", flush=True)
+        return False
+
+    area.connect("button-press-event", pressed)
+
     def send(widget, context, selection, info, time):
         selection.set(selection.get_target(), 8, b"d" * 131072)
 

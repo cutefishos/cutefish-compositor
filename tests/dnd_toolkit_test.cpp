@@ -118,8 +118,13 @@ void dragBetweenGtkWindows()
         destinationWindow->surfaceNode()->absolutePosition() + base::Point(60, 85);
     input.onPointerMotionAbsolute({}, startPosition);
     input.onPointerButton({}, BTN_LEFT, true);
-    for (int i = 0; i < 5; ++i)
-        h.pump();
+    // GTK 3 starts no drag when the press and the motion past its threshold reach it together.
+    ASSERT_TRUE(h.until(
+        [&] {
+            return source.saw("PRESSED");
+        },
+        5000))
+        << source.standardError();
     input.onPointerMotionAbsolute({}, startPosition + base::PointF(25, 15));
     ASSERT_TRUE(h.until(
         [&] {
