@@ -6,6 +6,8 @@
 //           (SetCursor, MoveCursor, NextCursorBuffer)
 // Revision: 7acd40ddefff49c9d36144999aafdbb674dbd07a
 
+#include <algorithm>
+#include <array>
 #include <cmath>
 #include <gtest/gtest.h>
 #include <memory>
@@ -20,11 +22,14 @@
 #include "cursor/cursor.h"
 #include "cursor/output_cursor_router.h"
 #include "fake_drm_device.h"
+#include "fake_renderer.h"
 #include "input/input_manager.h"
 #include "input/pointer.h"
 #include "input/pointer_delegate.h"
 #include "input/seat.h"
+#include "loop_test_util.h"
 #include "scene/scene.h"
+#include "scene/surface_node.h"
 #include "session/secure_container.h"
 #include "session/session_controller.h"
 #include "session/session_teardown.h"
@@ -52,6 +57,7 @@ public:
         lastHotspot = image.hotspot;
         if (!accept)
             return false;
+        std::copy_n(image.pixels, lastPixel.size(), lastPixel.begin());
         visible = true;
         return true;
     }
@@ -76,6 +82,7 @@ public:
     base::Size lastSize;
     base::Point lastHotspot;
     base::PointF lastPosition;
+    std::array<uint8_t, 4> lastPixel {};
 };
 
 class DrmCursorTest : public ::testing::Test
@@ -373,6 +380,76 @@ TEST_F(DrmCursorTest, OtherDriversMoveTheCursorDuringAFlip)
     EXPECT_EQ(m_device->cursorPosition, base::Point(100, 90));
     cursor->setFlipPending(false);
     EXPECT_EQ(m_device->moveCursorCalls, 1);
+}
+
+TEST_F(DrmCursorTest, AnAtomicHideThenShowDuringAFlipKeepsTheScanoutBufferUntouched)
+{
+    m_device->cursorWaits = true;
+    auto cursor = backend::DrmCursor::create(m_device.get(), kCrtcId, 42);
+    ASSERT_TRUE(cursor);
+    const uint8_t first[] = {10, 20, 30, 255};
+    const uint8_t next[] = {40, 50, 60, 255};
+    ASSERT_TRUE(cursor->setImage(first, {1, 1}, 4, {}));
+    EXPECT_FALSE(cursor->hasPendingAtomicUpdate());
+    cursor->move({20, 30});
+    const auto front = cursor->atomicPlaneContent().framebufferId;
+    ASSERT_EQ(front, m_device->liveFramebuffers.front());
+    const auto handle = m_device->addFramebufferCalls.front().handles[0];
+    const auto *scanout = static_cast<const uint8_t *>(m_device->dumbMappings.at(handle));
+    cursor->markAtomicCommitted();
+    cursor->setFlipPending(true);
+
+    cursor->hide();
+    ASSERT_TRUE(cursor->setImage(next, {1, 1}, 4, {1, 1}));
+    EXPECT_EQ(scanout[0], first[0]);
+
+    cursor->setFlipPending(false);
+    const auto plane = cursor->atomicPlaneContent();
+    EXPECT_TRUE(cursor->hasPendingAtomicUpdate());
+    EXPECT_EQ(plane.framebufferId, m_device->liveFramebuffers.back());
+    EXPECT_EQ(plane.displayRect.topLeft(), base::Point(19, 29));
+    EXPECT_EQ(scanout[0], first[0]);
+}
+
+TEST_F(DrmCursorTest, AtomicCursorPlaneUsesFramebuffersAndAvoidsLegacyIoctls)
+{
+    constexpr uint32_t kCursorPlaneId = 42;
+    m_device->cursorWaits = true;
+    {
+        auto cursor = backend::DrmCursor::create(m_device.get(), kCrtcId, kCursorPlaneId);
+        ASSERT_TRUE(cursor);
+        ASSERT_TRUE(cursor->usesAtomicPlane());
+        EXPECT_EQ(m_device->liveFramebuffers.size(), 2u);
+
+        int updates = 0;
+        cursor->setAtomicUpdateCallback([&] { ++updates; });
+
+        const cutefish::base::Size size(24, 24);
+        const auto pixels = opaquePixels(size);
+        ASSERT_TRUE(cursor->setImage(pixels.data(), size, size.width() * 4, base::Point(5, 3)));
+        cursor->move(base::Point(100, 90));
+
+        EXPECT_EQ(m_device->setCursorCalls, 0);
+        EXPECT_EQ(m_device->moveCursorCalls, 0);
+        EXPECT_GE(updates, 1);
+        EXPECT_TRUE(cursor->hasPendingAtomicUpdate());
+
+        const auto plane = cursor->atomicPlaneContent();
+        EXPECT_EQ(plane.planeId, kCursorPlaneId);
+        EXPECT_NE(plane.framebufferId, 0u);
+        EXPECT_EQ(plane.displayRect, base::Rect(base::Point(95, 87), m_device->maxCursor));
+        EXPECT_EQ(plane.hotspot, base::Point(5, 3));
+
+        cursor->markAtomicCommitted();
+        EXPECT_FALSE(cursor->hasPendingAtomicUpdate());
+
+        cursor->hide();
+        EXPECT_TRUE(cursor->hasPendingAtomicUpdate());
+        EXPECT_EQ(cursor->atomicPlaneContent().framebufferId, 0u);
+    }
+
+    EXPECT_TRUE(m_device->liveFramebuffers.empty());
+    EXPECT_EQ(m_device->liveDumbBuffers, 0);
 }
 
 namespace {
@@ -692,6 +769,142 @@ TEST(SessionLockCursor, WakingWithARefusingPlaneStillLeavesNoSessionCursor)
     EXPECT_FALSE(fixture.cursor->isHardware());
     EXPECT_FALSE(fixture.sink.visible);
     EXPECT_TRUE(fixture.node->isVisible());
+}
+
+TEST(SessionLockCursor, ClientShmCursorPromotesToHardwarePlaneAndFallsBackCleanly)
+{
+    LockCursorFixture fixture;
+    PermissivePointerDelegate delegate;
+    input::Pointer pointer(&delegate, &fixture.seat);
+    fixture.cursor->setSink(&fixture.sink);
+    fixture.cursor->setScale(1.5);
+    ASSERT_TRUE(fixture.cursor->isHardware());
+
+    compositor::Surface *window = fixture.makeSurface({200, 150});
+    window->setPosition({100, 100});
+    fixture.seat.onPointerMotion(input::Timestamp(std::chrono::milliseconds(1)), base::PointF(150, 150));
+    ASSERT_EQ(window, pointer.focusedSurface());
+
+    const int uploadsBefore = fixture.sink.setImageCalls;
+    compositor::Surface *clientCursor = fixture.makeSurface({16, 16});
+    pointer.setCursor(clientCursor, base::Point(2, 4));
+
+    EXPECT_TRUE(fixture.cursor->isHardware());
+    EXPECT_GT(fixture.sink.setImageCalls, uploadsBefore);
+    EXPECT_EQ(fixture.sink.lastSize, base::Size(24, 24));
+    EXPECT_EQ(fixture.sink.lastHotspot, base::Point(3, 6));
+    EXPECT_FALSE(fixture.clients->isVisible());
+    EXPECT_FALSE(fixture.node->isVisible());
+
+    // Moving a hardware-promoted client cursor moves the sink without repainting the scene.
+    int repaints = 0;
+    const auto repaintSub = fixture.compositor.repaintNeeded.connect([&](bool) { ++repaints; });
+    fixture.seat.updateCursorPosition({160.25, 170.5});
+    EXPECT_EQ(repaints, 0);
+    EXPECT_TRUE(base::fuzzyCompare(fixture.sink.lastPosition, base::PointF(160.25, 170.5)));
+
+    // Dropping the sink falls back to compositing the client cursor with subpixel offset.
+    fixture.cursor->setSink(nullptr);
+    EXPECT_FALSE(fixture.cursor->isHardware());
+    EXPECT_TRUE(fixture.clients->isVisible());
+    fixture.seat.updateCursorPosition({161.25, 171.75});
+    EXPECT_GT(repaints, 0);
+}
+
+TEST(HardwareCursorFallback, ReleasedClientPixelsStayAvailableToCaptureAndReupload)
+{
+    LockCursorFixture fixture;
+    PermissivePointerDelegate delegate;
+    input::Pointer pointer(&delegate, &fixture.seat);
+    fixture.cursor->setSink(&fixture.sink);
+    auto *window = fixture.makeSurface({200, 150});
+    fixture.seat.onPointerMotion(input::Timestamp(std::chrono::milliseconds(1)), {50, 50});
+    ASSERT_EQ(window, pointer.focusedSurface());
+
+    const int32_t offset = 128 * 1024;
+    const std::array<uint8_t, 4> original {10, 20, 30, 255};
+    const std::array<uint8_t, 4> replacement {70, 80, 90, 255};
+    ASSERT_TRUE(fixture.pool->write(offset, original.data(), original.size()));
+    auto clientCursor = fixture.compositor.createSurface();
+    auto buffer = fixture.pool->createBuffer({1, 1}, offset, 4,
+                                             render::PixelFormat::Bgra8888, nullptr);
+    ASSERT_TRUE(buffer);
+    clientCursor->attach(buffer, {});
+    clientCursor->commit();
+    pointer.setCursor(clientCursor.get(), {});
+    ASSERT_TRUE(fixture.cursor->isHardware());
+    EXPECT_TRUE(buffer->isReleased());
+    EXPECT_EQ(fixture.sink.lastPixel, original);
+
+    ASSERT_TRUE(fixture.pool->write(offset, replacement.data(), replacement.size()));
+    fixture.cursor->setScale(2);
+    ASSERT_TRUE(fixture.cursor->isHardware());
+    EXPECT_EQ(fixture.sink.lastPixel, original);
+
+    class CaptureRenderer : public testsupport::FakeRenderer
+    {
+    public:
+        void drawTexture(render::Texture *texture, const base::Rect &, float) override
+        {
+            const auto &pixels = static_cast<testsupport::FakeTexture *>(texture)->pixels();
+            std::copy_n(pixels.begin(), pixel.size(), pixel.begin());
+        }
+
+        std::array<uint8_t, 4> pixel {};
+    } renderer;
+    fixture.cursor->paintForCapture(renderer);
+    EXPECT_EQ(renderer.pixel, original);
+
+    fixture.cursor->setSink(nullptr);
+    ASSERT_TRUE(clientCursor->updateTexture(renderer));
+    const auto *texture =
+            static_cast<const testsupport::FakeTexture *>(clientCursor->node()->texture());
+    ASSERT_TRUE(texture);
+    EXPECT_EQ(texture->pixels(), (std::vector<uint8_t>(original.begin(), original.end())));
+
+    clientCursor->attach(buffer, {});
+    clientCursor->commit();
+    fixture.cursor->setSink(&fixture.sink);
+    ASSERT_TRUE(fixture.cursor->isHardware());
+    EXPECT_TRUE(buffer->isReleased());
+    EXPECT_EQ(fixture.sink.lastPixel, replacement);
+}
+
+TEST(HardwareCursorFallback, ClientCursorFrameCallbacksArePacedOutsideCommit)
+{
+    LockCursorFixture fixture;
+    PermissivePointerDelegate delegate;
+    input::Pointer pointer(&delegate, &fixture.seat);
+    fixture.cursor->setSink(&fixture.sink);
+    auto *window = fixture.makeSurface({200, 150});
+    fixture.seat.onPointerMotion(input::Timestamp(std::chrono::milliseconds(1)), {50, 50});
+    ASSERT_EQ(window, pointer.focusedSurface());
+    auto *clientCursor = fixture.makeSurface({16, 16});
+    pointer.setCursor(clientCursor, {});
+    ASSERT_TRUE(fixture.cursor->isHardware());
+
+    std::vector<std::chrono::steady_clock::time_point> callbacks;
+    const auto record = [&](std::optional<uint32_t> time) {
+        if (time)
+            callbacks.push_back(std::chrono::steady_clock::now());
+    };
+    clientCursor->requestFrameCallback(record);
+    clientCursor->commit();
+    EXPECT_TRUE(callbacks.empty());
+    ASSERT_TRUE(test::runUntil([&] { return callbacks.size() == 1; }));
+
+    clientCursor->requestFrameCallback(record);
+    clientCursor->commit();
+    EXPECT_EQ(callbacks.size(), 1u);
+    ASSERT_TRUE(test::runUntil([&] { return callbacks.size() == 2; }));
+    EXPECT_GE(callbacks.back() - callbacks.front(), std::chrono::milliseconds(16));
+
+    clientCursor->requestFrameCallback(record);
+    clientCursor->commit();
+    fixture.cursor->setSink(nullptr);
+    test::runFor(std::chrono::milliseconds(30));
+    EXPECT_EQ(callbacks.size(), 2u);
+    EXPECT_EQ(clientCursor->committedFrameCallbackCount(), 1u);
 }
 
 } // namespace cutefish

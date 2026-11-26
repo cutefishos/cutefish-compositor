@@ -18,6 +18,7 @@
 #include <xf86drmMode.h>
 
 #include <algorithm>
+#include <cerrno>
 #include <cmath>
 #include <utility>
 
@@ -289,6 +290,10 @@ void ScanoutController::addPlaneProperties(AtomicRequest &request, const DrmPlan
     // A previous DRM master may have left the plane turned or mirrored.
     if (!off)
         request.add(id, properties.id("rotation"), DRM_MODE_ROTATE_0);
+    if (!off && plane.type == DRM_PLANE_TYPE_CURSOR) {
+        request.add(id, properties.id("HOTSPOT_X"), content.hotspot.x());
+        request.add(id, properties.id("HOTSPOT_Y"), content.hotspot.y());
+    }
 
     // Validation rejects explicit-sync promotion without IN_FENCE_FD.
     if (!off && content.acquireFenceFd() >= 0)
@@ -306,7 +311,8 @@ std::vector<const DrmPlane *> ScanoutController::allPlanes() const
 }
 
 AtomicRequest ScanoutController::buildRequest(const std::vector<PlaneContent> &planes, bool modeset,
-                                              uint32_t modeBlobId, bool off, bool secure) const
+                                              uint32_t modeBlobId, bool off, bool secure,
+                                              const PlaneContent *cursor) const
 {
     AtomicRequest request;
 
@@ -332,6 +338,13 @@ AtomicRequest ScanoutController::buildRequest(const std::vector<PlaneContent> &p
             continue;
         addPlaneProperties(request, *plane, content, off);
         used.push_back(plane->id);
+    }
+    if (cursor && cursor->planeId) {
+        if (const DrmPlane *cursorPlane = planeById(cursor->planeId)) {
+            const bool cursorOff = off || secure || cursor->framebufferId == 0;
+            addPlaneProperties(request, *cursorPlane, *cursor, cursorOff);
+            used.push_back(cursorPlane->id);
+        }
     }
 
     // A plane no longer in use must be switched off, or it keeps scanning out;
@@ -359,7 +372,7 @@ AtomicRequest ScanoutController::buildRequest(const std::vector<PlaneContent> &p
 
 bool ScanoutController::commit(const std::vector<PlaneContent> &planes, bool modeset,
                                void *userData, uint32_t modeBlobId, render::SyncFence *releaseFence,
-                               bool secure)
+                               bool secure, const PlaneContent *cursor)
 {
     const uint32_t outFenceProperty =
             releaseFence ? m_config.crtcProperties.id("OUT_FENCE_PTR") : 0;
@@ -372,7 +385,7 @@ bool ScanoutController::commit(const std::vector<PlaneContent> &planes, bool mod
     }
 
     const auto attempt = [&] {
-        AtomicRequest request = buildRequest(planes, modeset, modeBlobId, false, secure);
+        AtomicRequest request = buildRequest(planes, modeset, modeBlobId, false, secure, cursor);
         // OUT_FENCE_PTR writes the fd straight into this variable during the
         // commit, so it has to outlive the ioctl.
         int outFenceFd = -1;
@@ -417,7 +430,21 @@ bool ScanoutController::commit(const std::vector<PlaneContent> &planes, bool mod
     return true;
 }
 
-bool ScanoutController::disable()
+int ScanoutController::commitCursor(const PlaneContent &cursor, void *userData)
+{
+    const DrmPlane *plane = planeById(cursor.planeId);
+    if (!plane)
+        return EINVAL;
+    AtomicRequest request;
+    addPlaneProperties(request, *plane, cursor, cursor.framebufferId == 0);
+    const uint32_t flags = DRM_MODE_ATOMIC_NONBLOCK | (userData ? DRM_MODE_PAGE_FLIP_EVENT : 0);
+    errno = 0;
+    if (m_device->atomicCommit(request, flags, userData))
+        return 0;
+    return errno ? errno : EIO;
+}
+
+bool ScanoutController::disable(const PlaneContent *cursor)
 {
     std::vector<PlaneContent> planes;
     if (m_primaryPlane) {
@@ -426,7 +453,7 @@ bool ScanoutController::disable()
         planes.push_back(std::move(content));
     }
 
-    const AtomicRequest request = buildRequest(planes, true, 0, true);
+    const AtomicRequest request = buildRequest(planes, true, 0, true, false, cursor);
     if (!m_device->atomicCommit(request, DRM_MODE_ATOMIC_ALLOW_MODESET, nullptr))
         return false;
     m_activePlanes.clear();

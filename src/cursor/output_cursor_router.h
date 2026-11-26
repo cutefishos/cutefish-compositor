@@ -35,6 +35,7 @@ public:
     bool setCursorImage(const render::CursorImage &image) override;
     void hideCursor() override;
     void moveCursor(const base::PointF &position) override;
+    std::chrono::nanoseconds frameInterval() const override;
 
     int activeTarget() const { return m_activeTargets.empty() ? -1 : m_activeTargets.front(); }
 

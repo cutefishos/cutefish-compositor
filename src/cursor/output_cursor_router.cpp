@@ -74,6 +74,13 @@ void OutputCursorRouter::hideCursor()
     m_activeTargets.clear();
 }
 
+std::chrono::nanoseconds OutputCursorRouter::frameInterval() const
+{
+    const int target = activeTarget();
+    return target < 0 ? render::CursorSink::frameInterval()
+                      : m_targets[target].sink->frameInterval();
+}
+
 void OutputCursorRouter::moveCursor(const base::PointF& position)
 {
     m_position = position;

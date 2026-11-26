@@ -6,6 +6,7 @@
 #define CUTEFISH_RENDER_CURSOR_SINK_H_
 
 
+#include <chrono>
 #include <cstdint>
 #include "base/geometry.h"
 
@@ -35,6 +36,11 @@ public:
     // Logical desktop coordinates for the cursor's own sink, output pixels for
     // an output.
     virtual void moveCursor(const base::PointF& position) = 0;
+
+    virtual std::chrono::nanoseconds frameInterval() const
+    {
+        return std::chrono::nanoseconds(1'000'000'000 / 60);
+    }
 };
 
 } // namespace cutefish::render

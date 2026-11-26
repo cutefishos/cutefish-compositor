@@ -229,6 +229,7 @@ public:
     bool setCursorImage(const render::CursorImage &image) override;
     void hideCursor() override;
     void moveCursor(const base::PointF &position) override;
+    std::chrono::nanoseconds frameInterval() const override { return m_scheduler.period(); }
 
     uint64_t directScanoutFrames() const { return m_directScanoutFrames; }
 
@@ -308,6 +309,7 @@ private:
                        bool retry = false);
     void wakeup();
     void armWakeup();
+    static render::OutputScheduler::Duration framePeriod(double hz);
     // The refresh the frame begun last is drawn for, in monotonic nanoseconds.
     uint64_t aimedNs() const;
     void finishFlip(uint64_t frame, uint32_t timeMs,
@@ -317,6 +319,10 @@ private:
     // this output.
     void retireEvent(std::unique_ptr<FlipEvent> event);
     bool commit(const std::vector<PlaneContent> &planes, bool modeset, uint64_t frame = 0);
+    bool canCommitCursorOnly() const;
+    void scheduleCursorCommit();
+    void commitCursorIfIdle();
+    void finishCursorFlip();
     // Copies the CRTC's current framebuffer when the sizes match and clears it
     // black otherwise.
     bool fillModesetBuffer(render::EglRenderTarget *target, const base::Size &size, bool copyScanout);
@@ -389,6 +395,9 @@ private:
     base::Timer m_wakeup {core::mainLoop()};
     render::OutputScheduler::Time m_armedDeadline {};
     base::Timer m_flipTimeout {core::mainLoop()};
+    base::Timer m_cursorCommitTimer {core::mainLoop()};
+    render::OutputScheduler::Time m_cursorOnlyAfter {};
+    bool m_cursorCommitScheduled = false;
     std::map<uint64_t, std::unique_ptr<FlipEvent>> m_events;
     std::function<void(std::unique_ptr<FlipEvent>)> m_retireEvent;
     uint64_t m_bufferFrame = 0;
@@ -396,6 +405,7 @@ private:
     // committed, queued, or a modeset's; gone once presented or discarded.
     std::vector<uint64_t> m_outstanding;
     uint64_t m_frameCount = 0, m_commits = 0, m_flipCommits = 0, m_completions = 0;
+    uint64_t m_cursorCommitCount = 0;
     std::clock_t m_cpuStart = std::clock();
     uint32_t m_lastSequence = 0, m_lastTimeMs = 0;
     bool m_unsynced = false;

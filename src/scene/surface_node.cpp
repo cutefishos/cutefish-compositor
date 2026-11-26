@@ -37,6 +37,14 @@ void SurfaceNode::setScanoutBuffer(std::shared_ptr<render::ScanoutBuffer> buffer
     m_scanoutBuffer = std::move(buffer);
 }
 
+void SurfaceNode::setFractionalOffset(const base::PointF &offset)
+{
+    if (base::fuzzyCompare(m_fractionalOffset, offset))
+        return;
+    m_fractionalOffset = offset;
+    notifyChanged();
+}
+
 void SurfaceNode::setOpaque(bool opaque)
 {
     if (m_opaque == opaque)
@@ -101,6 +109,10 @@ void SurfaceNode::paint(render::Renderer &renderer, const base::Rect &absoluteGe
             renderer.drawTextureMapped(m_texture.get(), absoluteGeometry, alpha, m_textureMapping);
             renderer.popRoundedClip();
         }
+    } else if (m_textureMapping.isIdentity()
+               && (m_fractionalOffset.x() != 0 || m_fractionalOffset.y() != 0)) {
+        renderer.drawTextureF(m_texture.get(),
+                              base::RectF(absoluteGeometry).translated(m_fractionalOffset), alpha);
     } else {
         renderer.drawTextureMapped(m_texture.get(), absoluteGeometry, alpha, m_textureMapping);
     }

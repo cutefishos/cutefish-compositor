@@ -817,6 +817,7 @@ add_library(cutefish-backend STATIC
     src/backend/drm/drm_framebuffer.cpp
     src/backend/drm/drm_framebuffer.h
     src/backend/drm/drm_output.cpp
+    src/backend/drm/drm_output_frame.cpp
     src/backend/drm/drm_output.h
     src/backend/drm/drm_properties.cpp
     src/backend/drm/drm_properties.h

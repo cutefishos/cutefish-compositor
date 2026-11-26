@@ -53,6 +53,9 @@ public:
     void setTexture(std::shared_ptr<render::Texture> texture);
     std::shared_ptr<render::Texture> takeTexture();
 
+    const base::PointF &fractionalOffset() const { return m_fractionalOffset; }
+    void setFractionalOffset(const base::PointF &offset);
+
     // `shape` is surface-local; empty for the rounded rectangle.
     void setBackgroundBlur(const base::Rect &rect, int radius, const render::GlassParams &glass = {},
                            const ui::Path &shape = {});
@@ -133,6 +136,7 @@ private:
     const uint64_t m_subsurfaceBlurId = nextDamageId();
     std::shared_ptr<render::PresentationContent> m_presentationContent;
     base::AffineTransform m_textureMapping;
+    base::PointF m_fractionalOffset;
     std::shared_ptr<render::Texture> m_texture;
     std::shared_ptr<render::ScanoutBuffer> m_scanoutBuffer;
     render::SyncFence m_acquireFence;

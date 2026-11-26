@@ -26,6 +26,7 @@
 #include "compositor/menu_model.h"
 #include "render/glass.h"
 #include "render/presentation.h"
+#include "ui/bitmap.h"
 #include "ui/path.h"
 
 namespace cutefish::render {
@@ -311,6 +312,9 @@ public:
     size_t pendingFrameCallbackCount() const { return m_pending.frameCallbacks.size(); }
 
     std::shared_ptr<Buffer> buffer() const;
+    // Snapshot a SHM cursor before releasing the client's storage. The same
+    // pixels remain available to the scene if the hardware plane is dropped.
+    ui::Bitmap copyCursorImage();
     // -1x-1 without a buffer.
     base::Size bufferSize() const;
 
@@ -481,6 +485,7 @@ private:
     ExtendedState m_state;
 
     std::shared_ptr<Buffer> m_uploadBuffer;
+    ui::Bitmap m_cursorImage;
     bool m_textureDirty = false;
     // In buffer pixels.
     base::Region m_uploadDamage;
