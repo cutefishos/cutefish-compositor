@@ -37,6 +37,7 @@ cutefish_add_test(wayland_protocol_test cutefish-compositor-core cutefish-waylan
 cutefish_add_test(xkb_tracker_test cutefish-input)
 cutefish_add_test(key_translator_test cutefish-input)
 cutefish_add_test(input_test cutefish-input)
+cutefish_add_test(vt_switch_test cutefish-input)
 cutefish_add_test(computer_control_test cutefish-computer-control)
 cutefish_add_test(remembered_apps_test cutefish-computer-control)
 cutefish_add_test(touch_test cutefish-input)

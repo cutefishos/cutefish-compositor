@@ -30,6 +30,7 @@ public:
 
     int openDevice(const std::string& path, int* deviceId) override;
     void closeDevice(int deviceId) override;
+    void switchSession(int vt) override;
 
 private:
     LibseatSession() = default;

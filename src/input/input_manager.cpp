@@ -520,10 +520,35 @@ uint32_t InputManager::positionalKey(uint32_t evdevCode, KeyboardModifierLayout 
     }
 }
 
+int InputManager::vtForKey(uint32_t physicalCode) const
+{
+    const auto held = [this](uint32_t left, uint32_t right) {
+        return m_positionalKeys.contains(left) || m_positionalKeys.contains(right);
+    };
+    if (!held(KEY_LEFTCTRL, KEY_RIGHTCTRL) || !held(KEY_LEFTALT, KEY_RIGHTALT))
+        return 0;
+    if (physicalCode >= KEY_F1 && physicalCode <= KEY_F10)
+        return static_cast<int>(physicalCode - KEY_F1) + 1;
+    if (physicalCode == KEY_F11)
+        return 11;
+    if (physicalCode == KEY_F12)
+        return 12;
+    return 0;
+}
+
 void InputManager::onKey(Timestamp timestamp, uint32_t physicalCode, bool pressed,
                          KeyboardModifierLayout layout)
 {
     userActivity();
+    if (pressed && m_vtSwitch) {
+        if (const int vt = vtForKey(physicalCode)) {
+            m_vtKeys.insert(physicalCode);
+            m_vtSwitch(vt);
+            return;
+        }
+    } else if (!pressed && m_vtKeys.erase(physicalCode)) {
+        return;
+    }
     uint32_t evdevCode = physicalCode;
     if (pressed) {
         evdevCode = m_positionalKeys.try_emplace(physicalCode, positionalKey(physicalCode, layout))

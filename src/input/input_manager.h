@@ -8,6 +8,7 @@
 #ifndef CUTEFISH_INPUT_INPUT_MANAGER_H_
 #define CUTEFISH_INPUT_INPUT_MANAGER_H_
 
+#include <functional>
 #include <map>
 #include <optional>
 #include <set>
@@ -68,6 +69,10 @@ public:
     EventSink *eventSink() const { return m_eventSink; }
 
     void setGestureFilter(GestureFilter *filter) { m_gestureFilter = filter; }
+
+    // Takes Control+Alt+F1..F12 by their physical keys, whatever the
+    // convention, lock or inhibitor, and passes the terminal's number.
+    void setVtSwitchHandler(std::function<void(int)> handler) { m_vtSwitch = std::move(handler); }
 
     base::PointF pointerPosition() const { return m_pointerPosition; }
 
@@ -133,6 +138,8 @@ private:
 
     uint32_t positionalKey(uint32_t evdevCode, KeyboardModifierLayout layout) const;
 
+    int vtForKey(uint32_t physicalCode) const;
+
     void dispatchMotion(Timestamp timestamp, const RelativeMotion *relative = nullptr);
 
     void movePointer(Timestamp timestamp, base::PointF target, const RelativeMotion &relative);
@@ -150,6 +157,9 @@ private:
     // Physical key to the code it went down as, so that its release matches
     // whatever convention is in force by then.
     std::map<uint32_t, uint32_t> m_positionalKeys;
+    std::function<void(int)> m_vtSwitch;
+    // Function keys that switched the terminal; nobody saw them go down.
+    std::set<uint32_t> m_vtKeys;
     bool m_motionConsumed = false;
     std::set<uint32_t> m_heldButtons;
     bool m_synthesizePending = false;

@@ -150,6 +150,12 @@ void LibseatSession::closeDevice(int deviceId)
     }
 }
 
+void LibseatSession::switchSession(int vt)
+{
+    if (libseat_switch_session(m_seat, vt) < 0)
+        CF_WARNING(cfSession) << "Failed to switch to session" << vt << ":" << strerror(errno);
+}
+
 void LibseatSession::onEnableSeat(libseat*, void* userData)
 {
     auto* self = static_cast<LibseatSession*>(userData);

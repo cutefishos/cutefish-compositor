@@ -108,6 +108,7 @@ LibinputBackend::LibinputBackend(Session *session, input::InputManager *inputMan
         seat->addObserver(this);
         m_leds = seat->clientXkbTracker()->leds();
     }
+    m_inputManager->setVtSwitchHandler([session](int vt) { session->switchSession(vt); });
     m_settingsSubscriptions.push_back(m_mouseSettings.settingsChanged.connect([this] {
         for (auto *device : m_mice)
             applyMouseSettings(device);
@@ -129,6 +130,7 @@ LibinputBackend::LibinputBackend(Session *session, input::InputManager *inputMan
 
 LibinputBackend::~LibinputBackend()
 {
+    m_inputManager->setVtSwitchHandler(nullptr);
     if (input::Seat *seat = m_inputManager->seat()) {
         seat->setHasTouch(false);
         seat->removeObserver(this);
