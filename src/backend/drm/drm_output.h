@@ -308,6 +308,7 @@ private:
                        bool retry = false);
     void wakeup();
     void armWakeup();
+    static render::OutputScheduler::Duration framePeriod(double hz);
     // The refresh the frame begun last is drawn for, in monotonic nanoseconds.
     uint64_t aimedNs() const;
     void finishFlip(uint64_t frame, uint32_t timeMs,
