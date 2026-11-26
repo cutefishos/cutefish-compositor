@@ -5,13 +5,19 @@
 #pragma once
 
 #include <functional>
+#include <optional>
 #include <string>
 
 #include "base/geometry.h"
+#include "base/timer.h"
 #include "cursor/theme.h"
 #include "input/seat_observer.h"
 #include "render/cursor_sink.h"
 #include "scene/node.h"
+
+namespace cutefish::compositor {
+class Surface;
+}
 
 namespace cutefish::input {
 class Seat;
@@ -56,10 +62,19 @@ public:
 private:
     // Pushes the current frame to the sink; returns false to composite instead.
     bool pushToSink();
+    bool pushClientSurfaceToSink(compositor::Surface *surface, const base::Point &hotspot);
     void updatePresentation();
+
+    struct ClientImage {
+        ui::Bitmap pixels;
+        base::Size logicalSize;
+        base::Point hotspot;
+    };
 
     render::CursorSink *m_sink = nullptr;
     bool m_hardware = false;
+    std::optional<ClientImage> m_clientImage;
+    base::Timer m_clientFrameTimer;
     bool m_held = false;
     double m_scale = 1;
     std::string m_theme = "default";

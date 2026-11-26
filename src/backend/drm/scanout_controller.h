@@ -36,6 +36,7 @@ struct PlaneContent {
     uint64_t modifier = 0;
     base::Rect displayRect;
     base::Rect sourceRect;
+    base::Point hotspot;
     // Owned: a frame can be committed again after its plan is gone, and KMS
     // dups the fd on every commit.
     std::shared_ptr<render::SyncFence> acquireFence;
@@ -82,9 +83,14 @@ public:
     // ALLOW_MODESET with a non-blocking flip; `releaseFence` may be null;
     // `secure` turns off every plane not in `planes`.
     bool commit(const std::vector<PlaneContent> &planes, bool modeset, void *userData,
-                uint32_t modeBlobId, render::SyncFence *releaseFence, bool secure = false);
+                uint32_t modeBlobId, render::SyncFence *releaseFence, bool secure = false,
+                const PlaneContent *cursor = nullptr);
 
-    bool disable();
+    // Non-blocking atomic commit updating only the cursor plane.
+    // Returns zero on success, otherwise the error number.
+    int commitCursor(const PlaneContent &cursor, void *userData);
+
+    bool disable(const PlaneContent *cursor = nullptr);
 
     // Our hardware cursor uses the legacy cursor calls, so a modeset leaves
     // that plane alone.
@@ -116,7 +122,8 @@ private:
     };
 
     AtomicRequest buildRequest(const std::vector<PlaneContent> &planes, bool modeset,
-                               uint32_t modeBlobId, bool off, bool secure = false) const;
+                               uint32_t modeBlobId, bool off, bool secure = false,
+                               const PlaneContent *cursor = nullptr) const;
     void destroyBlobs(const ColorPipeline &color);
     std::vector<const DrmPlane *> allPlanes() const;
     void addPlaneProperties(AtomicRequest &request, const DrmPlane &plane,

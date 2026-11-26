@@ -157,13 +157,24 @@ void Pointer::updateCursor()
         return;
 
     const base::PointF topLeft = m_cursorPosition - base::PointF(m_hotspot);
-    const base::Point position(static_cast<int>(std::lround(topLeft.x())),
-                          static_cast<int>(std::lround(topLeft.y())));
-    if (m_cursorSurface->position() == position)
+    const base::Point integral = topLeft.toPoint();
+    const base::PointF remainder = topLeft - base::PointF(integral);
+    const bool visible = m_cursorSurface->node() && m_cursorSurface->node()->isEffectivelyVisible();
+    const bool posChanged = m_cursorSurface->position() != integral;
+    const bool fracChanged = m_cursorSurface->node()
+            && !base::fuzzyCompare(m_cursorSurface->node()->fractionalOffset(), remainder);
+    if (!posChanged && !fracChanged)
         return;
-    m_cursorSurface->setPosition(position);
-    if (compositor::Compositor *compositor = m_seat->compositor())
-        compositor->scheduleRepaint();
+    if (posChanged)
+        m_cursorSurface->setPosition(integral);
+    if (fracChanged)
+        m_cursorSurface->node()->setFractionalOffset(remainder);
+    // When the hardware cursor plane shows this surface, cursorContainer is
+    // hidden and moving the pointer must not schedule a scene repaint.
+    if (visible) {
+        if (compositor::Compositor *compositor = m_seat->compositor())
+            compositor->scheduleRepaint();
+    }
 }
 
 void Pointer::setCursorPosition(const base::PointF &position)
@@ -476,8 +487,10 @@ void Pointer::traceCursor(const char *transition) const
 
 void Pointer::onSurfaceCommit(compositor::Surface *surface)
 {
-    if (surface == m_cursorSurface)
+    if (surface == m_cursorSurface) {
         traceCursor("cursor-commit");
+        m_seat->notifyCursorChanged();
+    }
 }
 
 } // namespace cutefish::input

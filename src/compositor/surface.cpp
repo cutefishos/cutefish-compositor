@@ -12,6 +12,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstring>
 #include <optional>
 #include <utility>
 
@@ -630,6 +631,7 @@ void Surface::applyCachedState()
         m_state.buffer = std::move(m_cached.buffer);
         m_cached.buffer.reset();
         m_uploadBuffer = std::move(incoming);
+        m_cursorImage = {};
         m_textureDirty = true;
         m_movedAheadOfContent = false;
     }
@@ -1112,6 +1114,51 @@ void Surface::setPosition(const base::Point &position)
     }
 }
 
+ui::Bitmap Surface::copyCursorImage()
+{
+    if (!m_cursorImage.isNull())
+        return m_cursorImage;
+
+    const auto source = m_uploadBuffer ? m_uploadBuffer : buffer();
+    if (!source || source->retainsClientStorage() || !source->contentsInUse()
+        || !source->pixels()) {
+        return {};
+    }
+    const base::Size size = source->size();
+    if (size.isEmpty() || size.width() > source->stride() / 4)
+        return {};
+
+    ui::Bitmap image(size, ui::Bitmap::Format::Argb32Premultiplied);
+    if (image.isNull())
+        return {};
+    const bool bgr = render::pixelFormatIsBgr(source->format());
+    const bool alpha = render::pixelFormatHasAlpha(source->format());
+    source->beginPixelAccess();
+    const uint8_t *pixels = source->pixels();
+    for (int y = 0; y < size.height(); ++y) {
+        const uint8_t *src = pixels + size_t(y) * source->stride();
+        uint8_t *dst = image.scanLine(y);
+        if (bgr && alpha) {
+            std::memcpy(dst, src, size_t(size.width()) * 4);
+            continue;
+        }
+        for (int x = 0; x < size.width(); ++x, src += 4, dst += 4) {
+            dst[0] = src[bgr ? 0 : 2];
+            dst[1] = src[1];
+            dst[2] = src[bgr ? 2 : 0];
+            dst[3] = alpha ? src[3] : 255;
+        }
+    }
+    if (!source->endPixelAccess())
+        return {};
+
+    m_cursorImage = image;
+    m_uploadBuffer.reset();
+    m_textureDirty = true;
+    source->onContentsConsumed();
+    return image;
+}
+
 bool Surface::updateTexture(render::Renderer &renderer)
 {
     if (!m_textureDirty || !m_node)
@@ -1120,6 +1167,21 @@ bool Surface::updateTexture(render::Renderer &renderer)
     m_textureDirty = false;
     m_state.damage = base::Region();
     m_state.bufferDamage = base::Region();
+
+    if (!m_cursorImage.isNull()) {
+        m_uploadDamage = {};
+        m_uploadAll = true;
+        m_node->setScanoutBuffer(nullptr);
+        m_node->setAcquireFence(render::SyncFence());
+        auto texture = render::labelled(
+                renderer.createTexture(m_cursorImage.size(), m_cursorImage.constBits(),
+                                       static_cast<int>(m_cursorImage.stride()),
+                                       render::PixelFormat::Bgra8888),
+                "surface");
+        const bool uploaded = texture != nullptr;
+        m_node->setTexture(std::move(texture));
+        return uploaded;
+    }
 
     // Texture uploads run after protocol dispatch, which may destroy wl_buffer.
     auto uploadBuffer = std::move(m_uploadBuffer);

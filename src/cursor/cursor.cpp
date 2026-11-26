@@ -11,7 +11,7 @@
 #include <string>
 #include <utility>
 
-#include "base/timer.h"
+#include "compositor/surface.h"
 #include "input/seat.h"
 #include "input/types.h"
 
@@ -163,6 +163,16 @@ Cursor::Cursor(input::Seat &seat, scene::Node &container, int size)
     , m_node(static_cast<ImageNode *>(container.addChild(std::make_unique<ImageNode>(size))))
 {
     m_seat.addObserver(this);
+    m_clientFrameTimer.setSingleShot(true);
+    m_clientFrameTimer.onTimeout = [this] {
+        auto *surface = m_clientImage ? m_seat.clientCursorSurface() : nullptr;
+        if (!surface || !surface->committedFrameCallbackCount())
+            return;
+        const auto now = std::chrono::steady_clock::now().time_since_epoch();
+        surface->frameSubmitted();
+        surface->frameDrawn(static_cast<uint32_t>(
+                std::chrono::duration_cast<std::chrono::milliseconds>(now).count()));
+    };
     m_node->onFrameChanged = [this] {
         if (!m_hardware || !pushToSink())
             updatePresentation();
@@ -200,6 +210,10 @@ void Cursor::setHeld(bool held)
 
 base::RectF Cursor::captureBounds() const
 {
+    if (m_clientImage) {
+        return base::RectF(m_seat.cursorPosition() - base::PointF(m_clientImage->hotspot),
+                           base::SizeF(m_clientImage->logicalSize));
+    }
     if (!m_node->wantsDisplay())
         return {};
     const auto *frame = m_node->currentFrame();
@@ -209,6 +223,15 @@ base::RectF Cursor::captureBounds() const
 
 void Cursor::paintForCapture(render::Renderer &renderer) const
 {
+    if (m_clientImage) {
+        const auto &image = m_clientImage->pixels;
+        auto texture = renderer.createTexture(image.size(), image.constBits(),
+                                              static_cast<int>(image.stride()),
+                                              render::PixelFormat::Bgra8888);
+        if (texture)
+            renderer.drawTextureF(texture.get(), captureBounds());
+        return;
+    }
     if (!m_node->wantsDisplay())
         return;
     const auto *frame = m_node->currentFrame();
@@ -278,17 +301,77 @@ bool Cursor::pushToSink()
     return m_sink->setCursorImage(cursorImage);
 }
 
+bool Cursor::pushClientSurfaceToSink(compositor::Surface *surface, const base::Point &hotspot)
+{
+    if (!m_sink || !surface)
+        return false;
+    if (surface->subSurfaceStack().size() > 1
+        || surface->bufferTransform() != compositor::Transform::Normal
+        || surface->crop().has_value()) {
+        return false;
+    }
+    const base::Size logicalSize = surface->contentSize();
+    if (logicalSize.isEmpty())
+        return false;
+
+    ui::Bitmap image = surface->copyCursorImage();
+    if (image.isNull())
+        return false;
+
+    const base::Size deviceSize(std::max(1, int(std::lround(logicalSize.width() * m_scale))),
+                                std::max(1, int(std::lround(logicalSize.height() * m_scale))));
+    if (deviceSize != image.size())
+        image = image.scaled(deviceSize);
+    if (image.isNull())
+        return false;
+
+    render::CursorImage cursorImage;
+    cursorImage.pixels = image.constBits();
+    cursorImage.size = image.size();
+    cursorImage.stride = static_cast<int>(image.stride());
+    cursorImage.hotspot = base::Point(int(std::floor(hotspot.x() * m_scale)),
+                                      int(std::floor(hotspot.y() * m_scale)));
+    if (!m_sink->setCursorImage(cursorImage))
+        return false;
+
+    m_clientImage = ClientImage {std::move(image), logicalSize, hotspot};
+    return true;
+}
+
 void Cursor::updatePresentation()
 {
+    m_clientImage.reset();
     if (m_held) {
         m_hardware = false;
+        m_clientFrameTimer.stop();
         m_node->setVisible(false);
         return;
     }
-    // A client cursor surface composites through the seat's container, so the
-    // plane has to give the cursor back rather than draw a second one.
-    const bool wantsHardware = m_sink && m_node->wantsDisplay();
-    m_hardware = wantsHardware && pushToSink();
+    const bool touched = m_seat.cursorHiddenByTouch();
+    const bool override = m_seat.cursorOverride().has_value();
+    const bool clientShape = m_seat.clientCursorShape().has_value();
+    const bool wantsSystemHardware = m_sink && m_node->wantsDisplay();
+    if (wantsSystemHardware) {
+        m_hardware = pushToSink();
+    } else if (m_sink && !touched && !override && !clientShape && m_seat.hasClientCursorRequest()) {
+        base::Point clientHotspot;
+        compositor::Surface *clientSurface = m_seat.clientCursorSurface(&clientHotspot);
+        m_hardware = pushClientSurfaceToSink(clientSurface, clientHotspot);
+    } else {
+        m_hardware = false;
+    }
+
+    if (!m_clientImage) {
+        m_clientFrameTimer.stop();
+    } else if (!m_clientFrameTimer.isActive()) {
+        const auto *surface = m_seat.clientCursorSurface();
+        // Hardware cursor animation doesn't draw a scene frame. Give clients
+        // at most one frame callback batch per refresh of the cursor's output.
+        if (surface && surface->committedFrameCallbackCount())
+            m_clientFrameTimer.start(m_sink->frameInterval());
+    }
+    if (auto *container = m_seat.cursorContainer())
+        container->setVisible(!override && !touched && !m_clientImage);
 
     if (m_sink && !m_hardware)
         m_sink->hideCursor();
@@ -311,8 +394,6 @@ void Cursor::onCursorChanged()
     const auto client = m_seat.clientCursorShape();
     const bool touched = m_seat.cursorHiddenByTouch();
     const bool visible = !touched && (override || client || !m_seat.hasClientCursorRequest());
-    if (auto *container = m_seat.cursorContainer())
-        container->setVisible(!override && !touched);
     m_node->setShape(override.value_or(client.value_or(m_seat.compositorCursorShape())), visible);
     updatePresentation();
     onCursorPositionChanged();

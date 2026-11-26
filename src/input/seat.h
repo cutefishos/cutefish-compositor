@@ -102,6 +102,7 @@ public:
     // a hidden cursor. Only absence of an owned request permits the fallback.
     bool hasClientCursor() const;
     bool hasClientCursorRequest() const;
+    compositor::Surface *clientCursorSurface(base::Point *hotspot = nullptr) const;
     void notifyCursorChanged();
     std::optional<CursorShape> clientCursorShape() const;
 

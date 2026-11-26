@@ -18,6 +18,7 @@
 #include <drm_fourcc.h>
 #include <ext-image-capture-source-v1-client-protocol.h>
 #include <ext-image-copy-capture-v1-client-protocol.h>
+#include <cerrno>
 #include <fcntl.h>
 #include <gbm.h>
 #include <optional>
@@ -25,6 +26,7 @@
 #include <string>
 #include <sys/eventfd.h>
 #include <sys/mman.h>
+#include <utility>
 
 namespace {
 using Output = backend::DrmOutput;
@@ -370,6 +372,22 @@ protected:
         return test::runUntil([&] { return events.size() >= count; }, std::chrono::milliseconds(3000));
     }
 
+    backend::DrmPlane addAtomicCursorPlane()
+    {
+        device.maxCursor = {64, 64};
+        device.cursorWaits = true;
+        backend::DrmPlane plane;
+        plane.id = 20;
+        plane.type = DRM_PLANE_TYPE_CURSOR;
+        plane.possibleCrtcs = 2;
+        uint32_t property = 200;
+        for (const auto &name : Output::requiredPlaneProperties())
+            plane.properties.insert(name, property++, 0);
+        initialConfig.planes.push_back(plane);
+        plane.id += 2; // secondOutput() offsets its plane IDs.
+        return plane;
+    }
+
     Feedback &update()
     {
         auto &feedback = request();
@@ -566,6 +584,148 @@ TEST_F(DrmOutputTest, AWaitingDriversCursorFollowsThePointerAfterEachFlip)
     flip(events.size() - 1);
     EXPECT_EQ(device.moveCursorCalls, moves + 1);
     EXPECT_EQ(device.cursorPosition, base::Point(40, 40));
+}
+
+TEST_F(DrmOutputTest, AtomicCursorCommitsNonBlockingWhenIdleAndCoalescesDuringFlips)
+{
+    const auto cursorPlane = addAtomicCursorPlane();
+    const uint32_t planeId = cursorPlane.id;
+    const auto cursorX = [&](const auto &commit) {
+        return propertyValue(commit.request, planeId, cursorPlane.properties.id("CRTC_X"));
+    };
+    const auto cursorY = [&](const auto &commit) {
+        return propertyValue(commit.request, planeId, cursorPlane.properties.id("CRTC_Y"));
+    };
+
+    auto second = secondOutput();
+    ASSERT_TRUE(second);
+    ASSERT_TRUE(second->enable());
+    ASSERT_TRUE(waitEvents(1));
+    flip(events.size() - 1);
+
+    const std::vector<uint8_t> pixels(24 * 24 * 4, 0xFF);
+    device.commits.clear();
+    ASSERT_TRUE(second->setCursorImage({pixels.data(), {24, 24}, 24 * 4, {2, 3}}));
+    second->moveCursor({30, 30});
+    second->moveCursor({35, 40});
+    EXPECT_EQ(device.setCursorCalls, 0);
+    EXPECT_EQ(device.moveCursorCalls, 0);
+    EXPECT_TRUE(device.commits.empty());
+    ASSERT_TRUE(waitEvents(2));
+    ASSERT_EQ(device.commits.size(), 1u);
+    EXPECT_EQ(device.commits.back().flags,
+              uint32_t(DRM_MODE_ATOMIC_NONBLOCK | DRM_MODE_PAGE_FLIP_EVENT));
+    EXPECT_EQ(cursorX(device.commits.back()), 33u);
+    EXPECT_EQ(cursorY(device.commits.back()), 37u);
+
+    // Additional moves while the cursor commit is in flight are coalesced.
+    second->moveCursor({40, 45});
+    second->moveCursor({50, 60});
+    EXPECT_EQ(device.commits.size(), 1u);
+
+    // Completing the cursor flip automatically submits the coalesced latest position.
+    flip(events.size() - 1);
+    ASSERT_TRUE(waitEvents(3));
+    ASSERT_EQ(device.commits.size(), 2u);
+    EXPECT_EQ(device.commits.back().flags,
+              uint32_t(DRM_MODE_ATOMIC_NONBLOCK | DRM_MODE_PAGE_FLIP_EVENT));
+    EXPECT_EQ(cursorX(device.commits.back()), 48u);
+    EXPECT_EQ(cursorY(device.commits.back()), 57u);
+    EXPECT_EQ(device.moveCursorCalls, 0);
+
+    flip(events.size() - 1);
+    second->moveCursor({50.1, 60.2});
+    test::runFor(std::chrono::milliseconds(5));
+    EXPECT_EQ(device.commits.size(), 2u);
+
+    // Multiple busy results can outlive the last pointer report.
+    int busy = 2;
+    accept = [&](const auto &) {
+        if (busy == 0)
+            return true;
+        --busy;
+        errno = EBUSY;
+        return false;
+    };
+    second->moveCursor({60, 70});
+    const bool retried = waitEvents(4);
+    accept = {};
+    ASSERT_TRUE(retried);
+    EXPECT_EQ(device.commits.size(), 5u);
+    EXPECT_EQ(device.setCursorCalls, 0);
+    EXPECT_EQ(cursorX(device.commits.back()), 58u);
+
+    second->disable();
+    bool cursorWasDisabled = false;
+    const auto &request = device.commits.back().request;
+    EXPECT_EQ(propertyValue(request, planeId, cursorPlane.properties.id("FB_ID"),
+                            &cursorWasDisabled), 0u);
+    EXPECT_TRUE(cursorWasDisabled);
+}
+
+TEST_F(DrmOutputTest, AtomicCursorLeavesTheCommitSlotForTheNextSceneFrame)
+{
+    const auto cursorPlane = addAtomicCursorPlane();
+    auto output = secondOutput();
+    ASSERT_TRUE(output);
+    ASSERT_TRUE(output->enable());
+    ASSERT_TRUE(waitEvents(1));
+
+    const std::vector<uint8_t> pixels(24 * 24 * 4, 0xFF);
+    ASSERT_TRUE(output->setCursorImage({pixels.data(), {24, 24}, 24 * 4, {2, 3}}));
+    for (size_t presents = 1; presents <= 4; ++presents) {
+        const int x = 20 + int(presents);
+        output->moveCursor({double(x), 40});
+        Output::dispatchPageFlip(events.back(), 123, 456789, uint32_t(presents));
+        // The next damage may arrive only after the presentation event.
+        test::processPendingEvents();
+        ASSERT_EQ(events.size(), presents);
+        output->scheduleFrame();
+        ASSERT_TRUE(waitEvents(presents + 1));
+        ASSERT_EQ(events.size(), presents + 1);
+        const auto &request = device.commits.back().request;
+        EXPECT_NE(propertyValue(request, 12, initialConfig.planes.front().properties.id("FB_ID")),
+                  0u);
+        EXPECT_EQ(propertyValue(request, cursorPlane.id, cursorPlane.properties.id("CRTC_X")),
+                  uint64_t(x - 2));
+    }
+}
+
+TEST_F(DrmOutputTest, AtomicCursorStaysOffDuringSecureScanout)
+{
+    const auto cursorPlane = addAtomicCursorPlane();
+    auto output = secondOutput();
+    ASSERT_TRUE(output);
+    ASSERT_TRUE(output->enable());
+    ASSERT_TRUE(waitEvents(1));
+    flip(0);
+
+    const std::vector<uint8_t> pixels(24 * 24 * 4, 0xFF);
+    ASSERT_TRUE(output->setCursorImage({pixels.data(), {24, 24}, 24 * 4, {2, 3}}));
+    output->moveCursor({30, 40});
+    ASSERT_TRUE(waitEvents(2));
+    flip(1);
+
+    output->setSecureScanout(true);
+    ASSERT_TRUE(waitEvents(3));
+    bool planeProgrammed = false;
+    const uint32_t fbId = cursorPlane.properties.id("FB_ID");
+    EXPECT_EQ(propertyValue(device.commits.back().request, cursorPlane.id, fbId, &planeProgrammed),
+              0u);
+    EXPECT_TRUE(planeProgrammed);
+    flip(2);
+    EXPECT_TRUE(output->lastPresentedFrameWasSecure());
+
+    const auto commitCount = device.commits.size();
+    output->moveCursor({40, 50});
+    test::runFor(std::chrono::milliseconds(40));
+    EXPECT_EQ(device.commits.size(), commitCount);
+
+    output->setSecureScanout(false);
+    ASSERT_TRUE(waitEvents(4));
+    EXPECT_NE(propertyValue(device.commits.back().request, cursorPlane.id, fbId), 0u);
+    EXPECT_EQ(propertyValue(device.commits.back().request, cursorPlane.id,
+                            cursorPlane.properties.id("CRTC_X")), 38u);
 }
 
 TEST_F(DrmOutputTest, JointTestFailureDoesNotCommitOrRetireEitherRoute)

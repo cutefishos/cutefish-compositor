@@ -153,19 +153,24 @@ bool DrmDevice::atomicCommit(const AtomicRequest& request, uint32_t flags, void*
     if (!atomic)
         return false;
 
-    bool built = true;
+    int error = 0;
     for (const AtomicProperty& property : request.properties) {
-        if (drmModeAtomicAddProperty(atomic, property.objectId, property.propertyId,
-                                     property.value)
-            < 0) {
-            built = false;
+        const int index = drmModeAtomicAddProperty(atomic, property.objectId, property.propertyId,
+                                                    property.value);
+        if (index < 0) {
+            error = -index;
             break;
         }
     }
 
-    const int result = built ? drmModeAtomicCommit(m_fd, atomic, flags, userData) : -EINVAL;
+    if (!error) {
+        const int result = drmModeAtomicCommit(m_fd, atomic, flags, userData);
+        error = result == -1 && errno != 0 ? errno : -result;
+    }
     drmModeAtomicFree(atomic);
-    return result == 0;
+    if (error)
+        errno = error;
+    return error == 0;
 }
 
 bool DrmDevice::setCursor(uint32_t crtcId, uint32_t handle, const base::Size& size,

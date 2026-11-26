@@ -258,11 +258,19 @@ void Seat::onTouchFrame()
 
 bool Seat::hasClientCursor() const
 {
+    return clientCursorSurface() != nullptr;
+}
+
+compositor::Surface *Seat::clientCursorSurface(base::Point *hotspot) const
+{
     for (const Pointer *pointer : m_pointers) {
-        if (pointer->cursorSurface())
-            return true;
+        if (compositor::Surface *surface = pointer->cursorSurface()) {
+            if (hotspot)
+                *hotspot = pointer->hotspot();
+            return surface;
+        }
     }
-    return false;
+    return nullptr;
 }
 
 bool Seat::hasClientCursorRequest() const

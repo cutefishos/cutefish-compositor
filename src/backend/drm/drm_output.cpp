@@ -86,6 +86,8 @@ DrmOutput::DrmOutput(DrmDeviceApi *device, Config config, std::function<bool()> 
     m_flipTimeout.setSingleShot(true);
     m_flipTimeout.setInterval(std::chrono::seconds(1));
     m_flipTimeout.onTimeout = [this] { onFlipTimeout(); };
+    m_cursorCommitTimer.setSingleShot(true);
+    m_cursorCommitTimer.onTimeout = [this] { commitCursorIfIdle(); };
     m_scheduler.setMaxPendingFrames(2);
 }
 
@@ -248,6 +250,8 @@ void DrmOutput::setSecureScanout(bool secure)
     if (m_secureScanout == secure)
         return;
     m_secureScanout = secure;
+    if (secure)
+        m_cursorCommitTimer.stop();
     // What is on screen was composed under the old policy, so nothing is secure
     // until a new frame is presented.
     withdrawSecurePresentation();
@@ -334,12 +338,22 @@ bool DrmOutput::init(render::EglRenderer *renderer, std::unique_ptr<render::EglR
 
     m_scanout->setColorTransform(m_colorTransform);
 
-    m_cursor = DrmCursor::create(m_device, m_config.crtcId);
-    m_scanout->setHardwareCursor(m_cursor != nullptr);
+    uint32_t cursorPlaneId = 0;
+    for (const DrmPlane &plane : m_config.planes) {
+        if (plane.type == DRM_PLANE_TYPE_CURSOR && plane.canUseForCrtc(m_config.crtcIndex)) {
+            cursorPlaneId = plane.id;
+            break;
+        }
+    }
+    m_cursor = DrmCursor::create(m_device, m_config.crtcId, cursorPlaneId);
+    if (m_cursor && m_cursor->usesAtomicPlane())
+        m_cursor->setAtomicUpdateCallback([this] { scheduleCursorCommit(); });
+    m_scanout->setHardwareCursor(m_cursor != nullptr && !m_cursor->usesAtomicPlane());
 
     CF_INFO(cfDrm).printf("Render target initialized for %s: %zu overlay planes, hardware cursor %s",
                           m_config.name.c_str(), m_scanout->maxOverlays(),
-                          m_cursor ? "available" : "unavailable");
+                          !m_cursor ? "unavailable"
+                                    : (m_cursor->usesAtomicPlane() ? "atomic" : "available"));
     return true;
 }
 
@@ -488,8 +502,11 @@ bool DrmOutput::configure(const std::vector<Configuration> &configuration, bool 
         }
         // A blocked session must clear the application planes here, or a DPMS
         // wake shows the previous session's frame.
+        PlaneContent cursorOff;
+        if (output->m_cursor)
+            cursorOff.planeId = output->m_cursor->atomicPlaneId();
         const auto request = output->m_scanout->buildRequest(
-                planes, true, item->blob, !change.enabled, output->m_secureScanout);
+                planes, true, item->blob, !change.enabled, output->m_secureScanout, &cursorOff);
         batch->candidate.properties.insert(batch->candidate.properties.end(),
                                            request.properties.begin(), request.properties.end());
         auto oldPlanes = output->m_pendingFrame.planes.empty() ? output->m_scanoutFrame.planes
@@ -499,8 +516,8 @@ bool DrmOutput::configure(const std::vector<Configuration> &configuration, bool 
             disabled.planeId = output->m_config.planeId;
             oldPlanes.push_back(disabled);
         }
-        const auto previous = output->m_scanout->buildRequest(oldPlanes, true, output->m_modeBlobId,
-                                                              !output->m_enabled);
+        const auto previous = output->m_scanout->buildRequest(
+                oldPlanes, true, output->m_modeBlobId, !output->m_enabled, false, &cursorOff);
         batch->previous.properties.insert(batch->previous.properties.end(),
                                           previous.properties.begin(), previous.properties.end());
         prepared.push_back(std::move(item));
@@ -572,6 +589,7 @@ bool DrmOutput::configure(const std::vector<Configuration> &configuration, bool 
         if (!committed.succeeded && (!batch->committed || batch->restored))
             continue;
         output->m_wakeup.stop();
+        output->m_cursorCommitTimer.stop();
         output->m_scheduler.suspend();
         for (const uint64_t frame : output->dropOutstandingFrames())
             discarded.push_back({output, frame});
@@ -580,6 +598,8 @@ bool DrmOutput::configure(const std::vector<Configuration> &configuration, bool 
         output->destroyModeBlob();
         output->m_enabled = item->enabled;
         output->m_blanked = item->blanked;
+        if (output->m_cursor && output->m_cursor->usesAtomicPlane())
+            output->m_cursor->markAtomicCommitted(false);
         if (!item->enabled || item->blanked)
             output->hideCursor();
         output->m_scanout->m_activePlanes.clear();
@@ -714,6 +734,7 @@ bool DrmOutput::retireForReprobe(bool connectorExists, bool keepRoute)
     m_retiring = true;
     m_wakeup.stop();
     m_flipTimeout.stop();
+    m_cursorCommitTimer.stop();
     m_scheduler.suspend();
     hideCursor();
     if (!m_sessionActive || !m_sessionActive())
@@ -730,7 +751,10 @@ bool DrmOutput::retireForReprobe(bool connectorExists, bool keepRoute)
         });
     };
     if (m_scanout && !(keepRoute && connectorExists && !showsClientBuffer())) {
-        auto request = m_scanout->buildRequest({}, true, 0, true);
+        PlaneContent cursor;
+        if (m_cursor)
+            cursor.planeId = m_cursor->atomicPlaneId();
+        auto request = m_scanout->buildRequest({}, true, 0, true, false, &cursor);
         if (!connectorExists) {
             std::erase_if(request.properties, [this](const auto &property) {
                 return property.objectId == m_config.connectorId;
@@ -758,18 +782,25 @@ void DrmOutput::disable()
 {
     m_wakeup.stop();
     m_flipTimeout.stop();
+    m_cursorCommitTimer.stop();
     m_scheduler.suspend();
     for (const uint64_t frame : dropOutstandingFrames())
         frameDiscarded(frame);
     // An inactive session may still have old scanout references; both frames
     // are kept until their flip retires or a modeset replaces them.
-    if (m_enabled && m_sessionActive && m_sessionActive() && m_scanout && m_scanout->disable()) {
+    PlaneContent cursor;
+    if (m_cursor)
+        cursor.planeId = m_cursor->atomicPlaneId();
+    if (m_enabled && m_sessionActive && m_sessionActive() && m_scanout
+        && m_scanout->disable(&cursor)) {
+        if (cursor.planeId)
+            m_cursor->markAtomicCommitted(false);
         releaseScanoutBuffers();
         m_bufferFrame = 0;
     }
+    m_enabled = false;
     if (m_cursor)
         m_cursor->hide();
-    m_enabled = false;
     m_lastPresentedSecure = false;
     destroyModeBlob();
 }

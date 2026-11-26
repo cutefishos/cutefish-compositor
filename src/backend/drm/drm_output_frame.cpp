@@ -23,6 +23,12 @@
 
 namespace cutefish::backend {
 
+namespace {
+
+constexpr uint64_t kCursorEventFlag = 1ull << 63;
+
+} // namespace
+
 void DrmOutput::setRenderCallback(std::function<void(render::Renderer &, uint64_t)> callback)
 {
     m_renderCallback = std::move(callback);
@@ -196,6 +202,7 @@ void DrmOutput::wakeup()
         }
     }
     armWakeup();
+    scheduleCursorCommit();
 }
 
 bool DrmOutput::renderFrame(uint64_t frame, bool modeset)
@@ -319,7 +326,10 @@ bool DrmOutput::renderAttempt(uint64_t frame, bool modeset, bool allowPromotion,
             planes.front() = std::move(primary);
     }
 
-    const bool queue = !modeset && m_bufferFrame != 0;
+    // A blocking modeset can still have an event to deliver, but it has
+    // finished using the commit slot.
+    const bool cursorFlipPending = !m_events.empty() && (m_events.rbegin()->first & kCursorEventFlag);
+    const bool queue = !modeset && (m_bufferFrame != 0 || cursorFlipPending);
     if (!queue && !commit(planes, modeset, frame)) {
         clearPromotions();
         return false;
@@ -386,6 +396,10 @@ void DrmOutput::onPageFlip(uint64_t frame, uint32_t seconds, uint32_t microsecon
 {
     if (!m_events.erase(frame))
         return; // One unique kernel event per token.
+    if (frame & kCursorEventFlag) {
+        finishCursorFlip();
+        return;
+    }
     // virtio-gpu stamps every flip with sequence 0 under a made-up refresh, so
     // such an output is paced at 60 Hz.
     if (!m_unsynced && sequence == 0 && m_lastSequence == 0 && m_completions > 0
@@ -445,6 +459,9 @@ void DrmOutput::finishFlip(uint64_t frame, uint32_t timeMs,
     // A device without vblank stamps when the host finished, which is no
     // refresh to lay the slots on.
     if (m_scheduler.complete(frame, m_unsynced ? std::nullopt : presented)) {
+        // A client may request its next frame only after this one presents.
+        // Leave the KMS slot free for a refresh before treating the output as idle.
+        m_cursorOnlyAfter = m_now() + m_scheduler.period();
         std::erase(m_outstanding, frame);
         imagePresented(frame,
                               presented ? uint64_t(std::chrono::nanoseconds(
@@ -454,6 +471,7 @@ void DrmOutput::finishFlip(uint64_t frame, uint32_t timeMs,
         framePresented(timeMs, frame);
     }
     armWakeup();
+    scheduleCursorCommit();
 }
 
 void DrmOutput::onFlipTimeout()
@@ -469,6 +487,10 @@ void DrmOutput::onFlipTimeout()
                      << "ms; no longer waiting for it";
     retireEvent(std::move(oldest->second));
     m_events.erase(oldest);
+    if (frame & kCursorEventFlag) {
+        finishCursorFlip();
+        return;
+    }
     m_presentations.abandon(frame);
     const auto now = std::chrono::duration_cast<std::chrono::milliseconds>(
             m_now().time_since_epoch());
@@ -571,17 +593,27 @@ bool DrmOutput::commit(const std::vector<PlaneContent> &planes, bool modeset, ui
         m_events.emplace(frame, std::move(event));
     }
 
+    std::optional<PlaneContent> cursorContent;
+    if (m_cursor && m_cursor->usesAtomicPlane())
+        cursorContent = m_cursor->atomicPlaneContent();
+
     render::SyncFence releaseFence;
     const bool ok = m_scanout->commit(planes, modeset, token, m_modeBlobId,
-                                      modeset ? nullptr : &releaseFence, m_secureScanout);
+                                      modeset ? nullptr : &releaseFence, m_secureScanout,
+                                      cursorContent ? &*cursorContent : nullptr);
     if (!ok) {
+        const int error = errno;
         if (frame)
             m_events.erase(frame);
         CF_WARNING(cfDrm).printf("Atomic commit failed (%s): %s", modeset ? "modeset" : "flip",
-                                 strerror(errno));
+                                 strerror(error));
         return false;
     }
 
+    if (cursorContent && m_cursor) {
+        m_cursor->markAtomicCommitted(!m_secureScanout);
+        m_cursorCommitTimer.stop();
+    }
     if (frame && m_cursor)
         m_cursor->setFlipPending(true);
     if (frame && !m_flipTimeout.isActive())
@@ -593,6 +625,75 @@ bool DrmOutput::commit(const std::vector<PlaneContent> &planes, bool modeset, ui
     if (!modeset)
         ++m_flipCommits;
     return true;
+}
+
+bool DrmOutput::canCommitCursorOnly() const
+{
+    return m_enabled && !m_blanked && !m_retiring && !m_configuring && !m_secureScanout
+            && m_sessionActive && m_sessionActive() && m_scanout && m_cursor
+            && m_cursor->usesAtomicPlane() && m_cursor->hasPendingAtomicUpdate()
+            && m_scheduler.state() == render::OutputScheduler::State::Idle
+            && m_events.empty() && !m_bufferFrame && !m_queuedFrame;
+}
+
+void DrmOutput::scheduleCursorCommit()
+{
+    if (m_cursorCommitScheduled || m_cursorCommitTimer.isActive() || !canCommitCursorOnly())
+        return;
+    // Hand the latest position to KMS after this batch of input and flip events.
+    m_cursorCommitScheduled = true;
+    core::mainLoop()->post([output = weakPtr()] {
+        if (!output)
+            return;
+        output->m_cursorCommitScheduled = false;
+        output->commitCursorIfIdle();
+    });
+}
+
+void DrmOutput::commitCursorIfIdle()
+{
+    if (!canCommitCursorOnly())
+        return;
+    const auto remaining = m_cursorOnlyAfter - m_now();
+    if (remaining > render::OutputScheduler::Duration::zero()) {
+        m_cursorCommitTimer.start(remaining);
+        return;
+    }
+
+    const uint64_t frame = kCursorEventFlag | ++m_cursorCommitCount;
+    auto event = std::make_unique<FlipEvent>(FlipEvent {weakPtr(), frame});
+    FlipEvent *token = event.get();
+    m_events.emplace(frame, std::move(event));
+
+    const PlaneContent cursorContent = m_cursor->atomicPlaneContent();
+    if (const int error = m_scanout->commitCursor(cursorContent, token); error != 0) {
+        m_events.erase(frame);
+        if (error == EBUSY) {
+            m_cursorCommitTimer.start(m_scheduler.period());
+        } else {
+            m_cursor->fallbackToLegacy();
+            m_scanout->setHardwareCursor(true);
+        }
+        return;
+    }
+
+    m_cursor->markAtomicCommitted();
+    m_cursor->setFlipPending(true);
+    if (!m_flipTimeout.isActive())
+        m_flipTimeout.start();
+}
+
+void DrmOutput::finishCursorFlip()
+{
+    if (m_events.empty())
+        m_flipTimeout.stop();
+    else
+        m_flipTimeout.start();
+    if (m_cursor && m_events.empty())
+        m_cursor->setFlipPending(false);
+    if (m_events.empty() && m_queuedFrame)
+        commitQueued();
+    scheduleCursorCommit();
 }
 
 } // namespace cutefish::backend
