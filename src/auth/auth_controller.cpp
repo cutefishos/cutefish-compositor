@@ -108,8 +108,7 @@ AuthController::AuthController(Mode mode, AuthBackend *backend)
             m_backend->stopFingerprint();
             fingerprintChanged();
         }
-        if (m_fingerprintFailures >= kFingerprintPasswordAfter)
-            passwordAsked();
+        passwordAsked();
     }));
     m_backendSubscriptions.push_back(m_backend->fingerprintEnrollmentChanged.connect([this] {
         fingerprintChanged();

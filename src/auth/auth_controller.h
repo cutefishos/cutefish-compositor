@@ -97,8 +97,6 @@ public:
     // Too many fingers that did not match: only the password unlocks now.
     bool fingerprintLockedOut() const { return m_fingerprintFailures >= kFingerprintAttempts; }
 
-    // Fingers that did not match before the password field is put forward.
-    static constexpr int kFingerprintPasswordAfter = 3;
     static constexpr int kFingerprintAttempts = 5;
 
     base::Signal<> stateChanged;
@@ -107,7 +105,7 @@ public:
     base::Signal<> sessionsChanged;
     base::Signal<> usersChanged;
     base::Signal<> fingerprintChanged;
-    // A finger did not match, kFingerprintPasswordAfter times or more.
+    // A finger did not match.
     base::Signal<> passwordAsked;
     base::Signal<> authenticationFailed;
     // Emitted once.

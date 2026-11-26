@@ -407,7 +407,7 @@ TEST(AuthControllerTest, WithoutAnEnrolledFingerThePasswordLeads)
     EXPECT_FALSE(login.fingerprintOffered());
 }
 
-TEST(AuthControllerTest, ThreeMisreadFingersAskForThePasswordAndFiveEndTheReader)
+TEST(AuthControllerTest, AMisreadFingerAsksForThePasswordAndFiveEndTheReader)
 {
     FakeBackend backend;
     backend.hasReader = true;
@@ -418,17 +418,17 @@ TEST(AuthControllerTest, ThreeMisreadFingersAskForThePasswordAndFiveEndTheReader
     controller.start();
 
     backend.mismatch();
-    backend.mismatch();
-    EXPECT_EQ(asked, 0);
-    backend.mismatch();
     EXPECT_EQ(asked, 1);
     EXPECT_FALSE(controller.fingerprintLockedOut());
     backend.mismatch();
-    EXPECT_EQ(asked, 2);
+    backend.mismatch();
+    backend.mismatch();
+    EXPECT_EQ(asked, 4);
+    EXPECT_FALSE(controller.fingerprintLockedOut());
 
     const int stops = backend.fingerprintStopCount;
     backend.mismatch();
-    EXPECT_EQ(asked, 3);
+    EXPECT_EQ(asked, 5);
     EXPECT_TRUE(controller.fingerprintLockedOut());
     EXPECT_EQ(backend.fingerprintStopCount, stops + 1);
     EXPECT_TRUE(controller.fingerprintOffered());

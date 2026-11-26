@@ -1356,7 +1356,7 @@ TEST(AuthUiTest, AnEnrolledFingerLeadsAndAnyKeyBringsOutThePassword)
     seat.shutdown();
 }
 
-TEST(AuthUiTest, ThreeMisreadFingersBringOutThePassword)
+TEST(AuthUiTest, AMisreadFingerBringsOutThePassword)
 {
     scene::Node root;
     session::SecureContainer secure(&root);
@@ -1384,9 +1384,7 @@ TEST(AuthUiTest, ThreeMisreadFingersBringOutThePassword)
     ASSERT_TRUE(controller.requestLock());
     controller.notifyFramePresented();
     ui.refresh();
-    backend.mismatch();
-    backend.mismatch();
-    EXPECT_FALSE(revealed());
+    EXPECT_EQ(ui.fieldOpacity(), 0);
     backend.mismatch();
     EXPECT_TRUE(revealed());
     EXPECT_EQ(controller.state(), session::SessionState::Locked);
