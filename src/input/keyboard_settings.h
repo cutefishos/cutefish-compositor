@@ -49,6 +49,9 @@ public:
 
     // "pc" or "command".
     std::string shortcutConventionName() const;
+    CommandKey commandKey() const { return m_commandKey; }
+    // "auto", "alt", "meta" or "ctrl"; see CommandKey.
+    std::string commandKeyName() const;
 
     void setRepeatEnabled(bool enabled);
     void setRepeatDelay(int milliseconds);
@@ -57,12 +60,15 @@ public:
     bool setLayout(const std::string &name);
     // False for a name that is not a convention.
     bool setShortcutConvention(const std::string &name);
+    // False for a name that is not a key.
+    bool setCommandKey(const std::string &name);
 
     base::Signal<> repeatEnabledChanged;
     base::Signal<> repeatDelayChanged;
     base::Signal<> repeatIntervalChanged;
     base::Signal<> layoutChanged;
     base::Signal<> shortcutConventionChanged;
+    base::Signal<> commandKeyChanged;
 
 private:
     // No value removes the key.
@@ -77,6 +83,7 @@ private:
     int m_repeatInterval = 0;
     std::string m_layout;
     ShortcutConvention m_shortcutConvention = ShortcutConvention::Command;
+    CommandKey m_commandKey = CommandKey::Auto;
     std::unique_ptr<DBusExport> m_object;
 };
 
