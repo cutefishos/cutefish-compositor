@@ -5,6 +5,7 @@
 #include "shell/common/file_theme_icon.h"
 
 #include <cmath>
+#include <cstdio>
 #include <map>
 #include <set>
 
@@ -29,8 +30,15 @@ FileIcons &fileIcons()
 
 std::string keyFor(const std::string &name, int size, double scale)
 {
-    return ui::Theme::current().iconTheme + "/" + name + "@" + std::to_string(size) + "x"
-            + std::to_string(std::lround(size * scale));
+    const ui::Theme &theme = ui::Theme::current();
+    std::string suffix;
+    if (theme.tintedIcons) {
+        char buf[32];
+        snprintf(buf, sizeof(buf), "#tint%08x", theme.highlight.argb());
+        suffix = buf;
+    }
+    return theme.iconTheme + "/" + name + "@" + std::to_string(size) + "x"
+            + std::to_string(std::lround(size * scale)) + suffix;
 }
 
 // True when the raster is in the icon cache; otherwise `ready` runs once it is.

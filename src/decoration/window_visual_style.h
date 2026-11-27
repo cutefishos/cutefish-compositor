@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include <string>
 #include "base/geometry.h"
 
 #include "render/renderer.h"
@@ -13,7 +14,7 @@ namespace cutefish::decoration {
 // Every tunable lives in window_visual_style.cpp, so changing one only relinks.
 struct WindowVisualStyle {
     // `accentIndex` is the Appearance service's AccentColor setting.
-    explicit WindowVisualStyle(bool dark = false, int accentIndex = 0);
+    explicit WindowVisualStyle(bool dark = false, int accentIndex = 0, const std::string &customAccent = {});
 
     // Clamped so the corners never overlap on a small window.
     static int radiusFor(const base::Size &size);

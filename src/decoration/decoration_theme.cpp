@@ -115,6 +115,22 @@ void Theme::setAccentColor(int index)
     notifyObservers();
 }
 
+void Theme::setCustomAccentColor(const std::string& color)
+{
+    if (color == m_customAccentColor)
+        return;
+    m_customAccentColor = color;
+    notifyObservers();
+}
+
+void Theme::setTintedIcons(bool tinted)
+{
+    if (tinted == m_tintedIcons)
+        return;
+    m_tintedIcons = tinted;
+    notifyObservers();
+}
+
 void Theme::notifyObservers()
 {
     // An observer may unregister while being notified.
@@ -137,7 +153,7 @@ render::Color Theme::captionColor(bool active) const
 
 WindowVisualStyle Theme::visualStyle() const
 {
-    return WindowVisualStyle(m_darkMode, m_accentColor);
+    return WindowVisualStyle(m_darkMode, m_accentColor, m_customAccentColor);
 }
 
 render::Texture* Theme::texture(render::Renderer& renderer, const std::string& key,

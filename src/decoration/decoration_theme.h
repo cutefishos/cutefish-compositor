@@ -133,6 +133,12 @@ public:
     void setAccentColor(int index);
     int accentColor() const { return m_accentColor; }
 
+    void setCustomAccentColor(const std::string &color);
+    const std::string &customAccentColor() const { return m_customAccentColor; }
+
+    void setTintedIcons(bool tinted);
+    bool tintedIcons() const { return m_tintedIcons; }
+
     const Palette &palette() const;
 
     render::Color captionColor(bool active) const;
@@ -154,6 +160,8 @@ private:
     TextRenderer m_textRenderer;
     bool m_darkMode = false;
     int m_accentColor = 0;
+    std::string m_customAccentColor;
+    bool m_tintedIcons = false;
     bool m_reduceTransparency = false;
     bool m_coloredWindowControls = false;
     std::vector<ThemeObserver *> m_observers;

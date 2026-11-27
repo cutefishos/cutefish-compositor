@@ -50,6 +50,16 @@ ThemePreferences::ThemePreferences(Theme &theme)
                         setAccentColor(index);
                 }));
         m_signals.push_back(m_appearance.onSignal(
+                "customAccentColorChanged", [this](const base::dbus::Message &message) {
+                    std::string color;
+                    if (message.read(color))
+                        setCustomAccentColor(color);
+                }));
+        m_signals.push_back(m_appearance.onSignal(
+                "tintedIconsChanged", [this, readBool](const base::dbus::Message &message) {
+                    setTintedIcons(readBool(message));
+                }));
+        m_signals.push_back(m_appearance.onSignal(
                 "systemFontPointSizeChanged",
                 [this](const base::dbus::Message &) { reloadCaptionPointSize(); }));
     }
@@ -64,6 +74,8 @@ void ThemePreferences::reload()
     setReduceTransparency(m_settings.boolValue("Appearance/ReduceTransparency", false));
     setColoredWindowControls(m_settings.boolValue("Appearance/ColoredWindowControls", false));
     setAccentColor(int(m_settings.intValue("Appearance/AccentColor", 0)));
+    setCustomAccentColor(m_settings.stringValue("Appearance/CustomAccentColor", ""));
+    setTintedIcons(m_settings.boolValue("Appearance/TintedIcons", false));
     setCaptionPointSize(m_settings.doubleValue("Appearance/FontSize", 9));
 }
 
@@ -111,6 +123,16 @@ void ThemePreferences::setColoredWindowControls(bool colored)
 void ThemePreferences::setAccentColor(int index)
 {
     m_theme.setAccentColor(index);
+}
+
+void ThemePreferences::setCustomAccentColor(const std::string &color)
+{
+    m_theme.setCustomAccentColor(color);
+}
+
+void ThemePreferences::setTintedIcons(bool tinted)
+{
+    m_theme.setTintedIcons(tinted);
 }
 
 void ThemePreferences::setDarkMode(bool dark)

@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <iterator>
+#include <optional>
 
 namespace cutefish::decoration {
 
@@ -44,6 +45,31 @@ constexpr render::Color kSnapPreviewOutline {0, 0, 0, 0x14 / 255.f};
 constexpr render::Color kSnapPreviewHighlight {1, 1, 1, 0x28 / 255.f};
 constexpr render::Color kDarkSnapPreviewHighlight {1, 1, 1, 0x0F / 255.f};
 
+
+std::optional<render::Color> parseHexColor(const std::string &hex)
+{
+    if (hex.size() != 7 || hex.front() != '#')
+        return std::nullopt;
+    uint32_t rgb = 0;
+    for (size_t i = 1; i < 7; ++i) {
+        const char c = hex[i];
+        uint32_t nib = 0;
+        if (c >= '0' && c <= '9')
+            nib = uint32_t(c - '0');
+        else if (c >= 'a' && c <= 'f')
+            nib = uint32_t(10 + (c - 'a'));
+        else if (c >= 'A' && c <= 'F')
+            nib = uint32_t(10 + (c - 'A'));
+        else
+            return std::nullopt;
+        rgb = (rgb << 4) | nib;
+    }
+    return render::Color {((rgb >> 16) & 0xff) / 255.f,
+                          ((rgb >> 8) & 0xff) / 255.f,
+                          (rgb & 0xff) / 255.f,
+                          1.0f};
+}
+
 render::Color accentColor(int index)
 {
     if (index < 0 || index >= int(std::size(kAccentColors)))
@@ -53,7 +79,7 @@ render::Color accentColor(int index)
 
 } // namespace
 
-WindowVisualStyle::WindowVisualStyle(bool dark, int accentIndex)
+WindowVisualStyle::WindowVisualStyle(bool dark, int accentIndex, const std::string &customAccent)
     : radius(kRadius)
     , outlineWidthPx(kOutlineWidthPx)
     , activeOutline(dark ? kDarkOutlineColor : kOutlineColor)
@@ -66,7 +92,10 @@ WindowVisualStyle::WindowVisualStyle(bool dark, int accentIndex)
     , snapPreviewOutline(kSnapPreviewOutline)
     , snapPreviewHighlight(dark ? kDarkSnapPreviewHighlight : kSnapPreviewHighlight)
 {
-    snapPreviewFill = accentColor(accentIndex);
+    if (const auto custom = parseHexColor(customAccent))
+        snapPreviewFill = *custom;
+    else
+        snapPreviewFill = accentColor(accentIndex);
     snapPreviewFill.a = kSnapPreviewFillAlpha;
 }
 

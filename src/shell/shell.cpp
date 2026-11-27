@@ -21,6 +21,8 @@
 #include "shell/common/task_manager.h"
 #include "shell/common/wm_task_windows.h"
 #include "shell/shell_host.h"
+#include "shell/shell_window.h"
+#include "ui/embedded_window.h"
 #include "shell/shell_input.h"
 #include "shell/window_renderer.h"
 #include "toolkit/toolkit_host.h"
@@ -35,22 +37,26 @@ namespace cutefish::shell {
 class Shell::ThemeFollower : public decoration::ThemeObserver
 {
 public:
-    ThemeFollower(decoration::Theme *theme, base::dbus::Connection *bus,
+    ThemeFollower(Shell *shell, decoration::Theme *theme, base::dbus::Connection *bus,
                   const std::string &settingsPath)
-        : m_theme(theme)
+        : m_shell(shell)
+        , m_theme(theme)
         , m_settingsPath(settingsPath.empty() ? preferencesFile("services") : settingsPath)
     {
-        const base::Settings settings(m_settingsPath);
-        m_iconTheme = settings.stringValue("Appearance/IconTheme", "Cutefish");
-        m_fontFamily = settings.stringValue("Appearance/Font", "");
-        m_fontPointSize = settings.doubleValue("Appearance/FontSize", 9);
+        reloadPreferences(false);
         if (bus) {
             m_appearance = base::dbus::Proxy(bus, "org.cutefish.Services",
                                              "/org/cutefish/Services/Appearance",
                                              "org.cutefish.Services.Appearance");
             // The service writes services.conf before it signals.
             m_iconThemeChanged = m_appearance.onSignal(
-                    "iconThemeChanged", [this](const base::dbus::Message &) { reloadIconTheme(); });
+                    "iconThemeChanged", [this](const base::dbus::Message &) { reloadPreferences(true); });
+            m_accentChanged = m_appearance.onSignal(
+                    "accentColorChanged", [this](const base::dbus::Message &) { reloadPreferences(true); });
+            m_customAccentChanged = m_appearance.onSignal(
+                    "customAccentColorChanged", [this](const base::dbus::Message &) { reloadPreferences(true); });
+            m_tintedIconsChanged = m_appearance.onSignal(
+                    "tintedIconsChanged", [this](const base::dbus::Message &) { reloadPreferences(true); });
         }
         if (m_theme)
             m_theme->addObserver(this);
@@ -63,18 +69,43 @@ public:
             m_theme->removeObserver(this);
     }
 
-    void onThemeChanged() override { apply(); }
+    void onThemeChanged() override { reloadPreferences(true); }
 
 private:
-    void reloadIconTheme()
+    void reloadPreferences(bool triggerApply)
     {
         const base::Settings settings(m_settingsPath);
-        std::string iconTheme = settings.stringValue("Appearance/IconTheme", "Cutefish");
-        if (iconTheme == m_iconTheme)
-            return;
-        m_iconTheme = std::move(iconTheme);
-        apply();
+        m_iconTheme = settings.stringValue("Appearance/IconTheme", "Cutefish");
+        m_fontFamily = settings.stringValue("Appearance/Font", "");
+        m_fontPointSize = settings.doubleValue("Appearance/FontSize", 9);
+        m_accentIndex = int(settings.intValue("Appearance/AccentColor", 0));
+        m_customAccentColor = settings.stringValue("Appearance/CustomAccentColor", "");
+        m_tintedIcons = settings.boolValue("Appearance/TintedIcons", false);
+        if (triggerApply)
+            apply();
     }
+
+
+static std::optional<ui::Color> parseHexUiColor(const std::string &hex)
+{
+    if (hex.size() != 7 || hex.front() != '#')
+        return std::nullopt;
+    uint32_t rgb = 0;
+    for (size_t i = 1; i < 7; ++i) {
+        const char c = hex[i];
+        uint32_t nib = 0;
+        if (c >= '0' && c <= '9')
+            nib = uint32_t(c - '0');
+        else if (c >= 'a' && c <= 'f')
+            nib = uint32_t(10 + (c - 'a'));
+        else if (c >= 'A' && c <= 'F')
+            nib = uint32_t(10 + (c - 'A'));
+        else
+            return std::nullopt;
+        rgb = (rgb << 4) | nib;
+    }
+    return ui::Color::rgb(rgb);
+}
 
     void apply()
     {
@@ -84,23 +115,44 @@ private:
                                                  ui::accent::grey};
         const bool dark = m_theme && m_theme->darkMode();
         ui::Theme theme = dark ? ui::Theme::dark() : ui::Theme::light();
-        const int accent = m_theme ? m_theme->accentColor() : 0;
-        if (accent >= 0 && accent < int(std::size(kAccents)))
+        const std::string &customHex = !m_customAccentColor.empty()
+                ? m_customAccentColor
+                : (m_theme ? m_theme->customAccentColor() : std::string());
+        const int accent = m_theme ? m_theme->accentColor() : m_accentIndex;
+        if (const auto custom = parseHexUiColor(customHex))
+            theme.highlight = *custom;
+        else if (accent >= 0 && accent < int(std::size(kAccents)))
             theme.highlight = kAccents[accent];
+        theme.tintedIcons = m_tintedIcons || (m_theme && m_theme->tintedIcons());
         theme.iconTheme = m_iconTheme;
         theme.fontFamily = m_fontFamily;
         theme.fontPointSize = m_fontPointSize > 0 ? m_fontPointSize : 9;
         theme.continuousCorners = ui::Theme::current().continuousCorners;
         ui::Theme::setCurrent(theme);
+        if (m_shell) {
+            for (ShellWindow *w : m_shell->windows()) {
+                if (w && w->window())
+                    w->window()->requestPaint();
+                if (w)
+                    w->requestFrame();
+            }
+        }
     }
 
+    Shell *m_shell;
     decoration::Theme *m_theme;
     std::string m_settingsPath;
     base::dbus::Proxy m_appearance;
     base::dbus::Match m_iconThemeChanged;
+    base::dbus::Match m_accentChanged;
+    base::dbus::Match m_customAccentChanged;
+    base::dbus::Match m_tintedIconsChanged;
     std::string m_iconTheme;
     std::string m_fontFamily;
     double m_fontPointSize = 9;
+    int m_accentIndex = 0;
+    std::string m_customAccentColor;
+    bool m_tintedIcons = false;
 };
 
 Shell::Shell(const ShellEnvironment &environment)
@@ -117,7 +169,7 @@ Shell::Shell(const ShellEnvironment &environment)
     m_renderer = std::make_unique<WindowRenderer>(m_environment.compositor);
     m_input = std::make_unique<ShellInput>(this);
     m_host = std::make_unique<ShellHost>(this, m_environment.inputMethod);
-    m_theme = std::make_unique<ThemeFollower>(m_environment.theme, m_environment.bus,
+    m_theme = std::make_unique<ThemeFollower>(this, m_environment.theme, m_environment.bus,
                                               m_environment.servicesSettings);
     m_outputsChanged = windowManager()->outputsChanged.connect([this] { updateOutputs(); });
     updateOutputs();

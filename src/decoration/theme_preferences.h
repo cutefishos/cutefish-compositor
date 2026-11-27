@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include <string>
 #include <vector>
 
 #include "base/dbus.h"
@@ -28,6 +29,8 @@ public:
     void setReduceTransparency(bool reduce);
     void setColoredWindowControls(bool colored);
     void setAccentColor(int index);
+    void setCustomAccentColor(const std::string &color);
+    void setTintedIcons(bool tinted);
     void setCaptionPointSize(double points);
     // The font size signal carries no value, so it is read back from the service.
     void reloadCaptionPointSize();
