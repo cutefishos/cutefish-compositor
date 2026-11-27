@@ -29,12 +29,14 @@ DockSettings::DockSettings(std::string path)
                                  const bool iconSize = values.iconSize != m_iconSize;
                                  const bool direction = values.direction != m_direction;
                                  const bool visibility = values.visibility != m_visibility;
+                                 const bool style = values.style != m_style;
                                  const bool tint = values.glassTint != m_glassTint;
                                  const bool area = values.minimizedArea != m_minimizedArea;
                                  const bool magnifiedSize = values.magnifiedIconSize != m_magnifiedIconSize;
                                  m_iconSize = values.iconSize;
                                  m_direction = values.direction;
                                  m_visibility = values.visibility;
+                                 m_style = values.style;
                                  m_edgeMargins = values.edgeMargins;
                                  m_glassTint = values.glassTint;
                                  m_minimizedArea = values.minimizedArea;
@@ -47,6 +49,8 @@ DockSettings::DockSettings(std::string path)
                                      directionChanged();
                                  if (visibility)
                                      visibilityChanged();
+                                 if (style)
+                                     styleChanged();
                                  if (tint)
                                      glassTintChanged();
                                  if (area)
@@ -65,6 +69,8 @@ DockSettings::Values DockSettings::load(const std::string &path)
         settings.setValue("Dock/Direction", int(Bottom));
     if (!settings.contains("Dock/Visibility"))
         settings.setValue("Dock/Visibility", int(AlwaysShow));
+    if (!settings.contains("Dock/Style"))
+        settings.setValue("Dock/Style", int(Floating));
     if (!settings.contains("Dock/EdgeMargins"))
         settings.setValue("Dock/EdgeMargins", 10);
     if (!settings.contains("Dock/GlassTint"))
@@ -79,6 +85,7 @@ DockSettings::Values DockSettings::load(const std::string &path)
     values.iconSize = int(settings.intValue("Dock/IconSize", kBaseIconSize));
     values.direction = Direction(settings.intValue("Dock/Direction", Bottom));
     values.visibility = Visibility(settings.intValue("Dock/Visibility", AlwaysShow));
+    values.style = settings.intValue("Dock/Style", Floating) == int(Docked) ? Docked : Floating;
     values.edgeMargins = int(settings.intValue("Dock/EdgeMargins", 10));
     values.glassTint = std::clamp(settings.doubleValue("Dock/GlassTint", 0.5), 0.0, 1.0);
     values.minimizedArea = settings.boolValue("Dock/MinimizedArea", true);
@@ -123,6 +130,16 @@ void DockSettings::setVisibility(Visibility visibility)
     m_visibility = visibility;
     write("Dock/Visibility", visibility);
     visibilityChanged();
+}
+
+void DockSettings::setStyle(Style style)
+{
+    style = style == Docked ? Docked : Floating;
+    if (m_style == style)
+        return;
+    m_style = style;
+    write("Dock/Style", style);
+    styleChanged();
 }
 
 void DockSettings::setGlassTint(double tint)

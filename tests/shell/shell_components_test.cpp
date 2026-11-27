@@ -372,12 +372,17 @@ TEST_F(ShellComponentsTest, TheOsdAndTheDockServeTheirNames)
     const std::string dockXml = client.introspect("org.cutefish.Dock", "/Dock");
     EXPECT_NE(std::string::npos, dockXml.find("<interface name=\"org.cutefish.Dock\">")) << dockXml;
     EXPECT_NE(std::string::npos, dockXml.find("<method name=\"setMinimizedArea\">")) << dockXml;
+    EXPECT_NE(std::string::npos, dockXml.find("<method name=\"setStyle\">")) << dockXml;
 
     client.call("org.cutefish.Osd", "/Osd", "org.cutefish.Osd", "brightnessUp");
     EXPECT_EQ(69, values->m_brightness);
     EXPECT_TRUE(osd->isShown());
     client.call("org.cutefish.Dock", "/Dock", "org.cutefish.Dock", "setMinimizedArea", false);
     EXPECT_TRUE(test::runUntil([dockService] { return !dockService->settings().minimizedArea(); }));
+    client.call("org.cutefish.Dock", "/Dock", "org.cutefish.Dock", "setStyle", int32_t(shell::DockSettings::Docked));
+    EXPECT_TRUE(test::runUntil([dockService] {
+        return dockService->settings().style() == shell::DockSettings::Docked;
+    }));
 }
 
 TEST_F(ShellComponentsTest, TheDockSitsAlongTheBottomOnItsGlassAndReservesItsStrip)
@@ -447,6 +452,61 @@ TEST_F(ShellComponentsTest, TheDockSitsAlongTheBottomOnItsGlassAndReservesItsStr
     EXPECT_EQ(shell::DockIcon::Kind::Trash, icons.back()->kind());
     EXPECT_EQ(19, dock->divider().y());
     EXPECT_EQ(48, dock->divider().height());
+}
+
+TEST_F(ShellComponentsTest, TheDockedStyleSitsFlushOnEachEdgeWithInnerCornersOnly)
+{
+    auto *dock = openDock("[Dock]\nPinned=files, terminal\nStyle=1\n");
+    wm::Window *window = dock->window()->wmWindow();
+    ASSERT_NE(nullptr, window);
+    const compositor::Surface *surface = dock->window()->surface();
+
+    // Bottom: flush with the screen edge, no edge gap, blur extended below.
+    EXPECT_EQ(0, dock->edgeGap());
+    EXPECT_EQ(base::Rect(0, 960 - 86 - 3, 1440, 89), window->bounds());
+    EXPECT_EQ(base::Rect(0, kMenuBar, 1440, 960 - kMenuBar - 87), manager.workAreaFor(nullptr));
+    const base::Rect bottomPanel = dock->panelRect();
+    EXPECT_EQ(89, bottomPanel.bottom());
+    EXPECT_EQ(16, surface->backgroundBlurRadius());
+    const base::Rect bottomBlur = surface->backgroundBlurRect();
+    EXPECT_EQ(bottomPanel.left(), bottomBlur.left());
+    EXPECT_EQ(bottomPanel.right(), bottomBlur.right());
+    EXPECT_EQ(bottomPanel.top(), bottomBlur.top());
+    EXPECT_GT(bottomBlur.bottom(), bottomPanel.bottom());
+
+    // Left: flush with the left edge, blur extended past x = 0.
+    dock->dock().settings().setDirection(shell::DockSettings::Left);
+    EXPECT_EQ(0, window->bounds().x());
+    const base::Rect leftPanel = dock->panelRect();
+    EXPECT_EQ(0, leftPanel.left());
+    const base::Rect leftBlur = surface->backgroundBlurRect();
+    EXPECT_LT(leftBlur.left(), 0);
+    EXPECT_EQ(leftPanel.right(), leftBlur.right());
+    EXPECT_EQ(leftPanel.top(), leftBlur.top());
+    EXPECT_EQ(leftPanel.bottom(), leftBlur.bottom());
+
+    // Right: flush with the right edge, blur extended past the right edge.
+    dock->dock().settings().setDirection(shell::DockSettings::Right);
+    EXPECT_EQ(1440, window->bounds().right());
+    const base::Rect rightPanel = dock->panelRect();
+    EXPECT_EQ(window->bounds().width(), rightPanel.right());
+    const base::Rect rightBlur = surface->backgroundBlurRect();
+    EXPECT_EQ(rightPanel.left(), rightBlur.left());
+    EXPECT_GT(rightBlur.right(), rightPanel.right());
+    EXPECT_EQ(rightPanel.top(), rightBlur.top());
+    EXPECT_EQ(rightPanel.bottom(), rightBlur.bottom());
+
+    // Switching back to Floating restores the gap, radius, exact blur rect and
+    // work area; switching back to Docked updates the work area again.
+    dock->dock().settings().setDirection(shell::DockSettings::Bottom);
+    dock->dock().settings().setStyle(shell::DockSettings::Floating);
+    EXPECT_EQ(5, dock->edgeGap());
+    EXPECT_EQ(28, surface->backgroundBlurRadius());
+    EXPECT_EQ(dock->panelRect(), surface->backgroundBlurRect());
+    EXPECT_EQ(base::Rect(0, kMenuBar, 1440, 960 - kMenuBar - 92), manager.workAreaFor(nullptr));
+
+    dock->dock().settings().setStyle(shell::DockSettings::Docked);
+    EXPECT_EQ(base::Rect(0, kMenuBar, 1440, 960 - kMenuBar - 87), manager.workAreaFor(nullptr));
 }
 
 TEST_F(ShellComponentsTest, ALaunchingDockIconBouncesOnceIntoItsRoomWithItsTooltip)

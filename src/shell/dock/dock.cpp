@@ -53,6 +53,9 @@ bool Dock::registerService()
     object->addMethod("setVisibility",
                       [this](int32_t visibility) { m_settings.setVisibility(DockSettings::Visibility(visibility)); },
                       dbus::ArgumentNames{{"visibility"}, {}});
+    object->addMethod("setStyle",
+                      [this](int32_t style) { m_settings.setStyle(DockSettings::Style(style)); },
+                      dbus::ArgumentNames{{"style"}, {}});
     object->addMethod("setGlassTint", [this](double tint) { m_settings.setGlassTint(tint); },
                       dbus::ArgumentNames{{"tint"}, {}});
     object->addMethod("setMinimizedArea", [this](bool enabled) { m_settings.setMinimizedArea(enabled); },

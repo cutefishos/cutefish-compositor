@@ -30,6 +30,11 @@ public:
         IntellHide,
     };
 
+    enum Style {
+        Floating = 0,
+        Docked,
+    };
+
     static constexpr int kBaseIconSize = 54;
     static constexpr int kLargestMagnifiedIconSize = 128;
 
@@ -43,6 +48,8 @@ public:
     void setDirection(Direction direction);
     Visibility visibility() const { return m_visibility; }
     void setVisibility(Visibility visibility);
+    Style style() const { return m_style; }
+    void setStyle(Style style);
     int edgeMargins() const { return m_edgeMargins; }
     double glassTint() const { return m_glassTint; }
     // Clamped to 0..1; not a number is the default.
@@ -58,6 +65,7 @@ public:
     base::Signal<> iconSizeChanged;
     base::Signal<> directionChanged;
     base::Signal<> visibilityChanged;
+    base::Signal<> styleChanged;
     base::Signal<> glassTintChanged;
     base::Signal<> minimizedAreaChanged;
     base::Signal<> magnifiedIconSizeChanged;
@@ -67,6 +75,7 @@ private:
         int iconSize = kBaseIconSize;
         Direction direction = Bottom;
         Visibility visibility = AlwaysShow;
+        Style style = Floating;
         int edgeMargins = 10;
         double glassTint = 0.5;
         bool minimizedArea = true;
@@ -81,6 +90,7 @@ private:
     int m_iconSize = kBaseIconSize;
     Direction m_direction = Bottom;
     Visibility m_visibility = AlwaysShow;
+    Style m_style = Floating;
     int m_edgeMargins = 10;
     double m_glassTint = 0.5;
     bool m_minimizedArea = true;

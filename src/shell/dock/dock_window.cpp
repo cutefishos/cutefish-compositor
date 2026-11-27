@@ -325,6 +325,11 @@ DockWindow::DockWindow(Shell *shell, std::unique_ptr<Dock> dock)
         resize(false);
     }));
     m_subscriptions.push_back(settings.visibilityChanged.connect([this] { resize(false); }));
+    m_subscriptions.push_back(settings.styleChanged.connect([this] {
+        hideTooltip();
+        resize(false);
+        updateGlass();
+    }));
     m_subscriptions.push_back(settings.glassTintChanged.connect([this] { updateGlass(); }));
     m_subscriptions.push_back(settings.minimizedAreaChanged.connect([this] {
         m_sentTargets.clear();
@@ -402,9 +407,11 @@ base::Rect DockWindow::primaryGeometry() const
 
 double DockWindow::cornerRadius() const
 {
-    const bool bottom = m_dock->settings().direction() == DockSettings::Bottom;
+    const DockSettings &settings = m_dock->settings();
+    const bool bottom = settings.direction() == DockSettings::Bottom;
     const double thickness = bottom ? m_restPanelRect.height() : m_restPanelRect.width();
-    return (thickness > 0 ? thickness : m_metrics.thickness()) * 28.0 / 86.0;
+    const double baseRadius = settings.style() == DockSettings::Docked ? 16.0 : 28.0;
+    return (thickness > 0 ? thickness : m_metrics.thickness()) * baseRadius / 86.0;
 }
 
 base::Rect DockWindow::windowRect(int thickness) const
@@ -478,7 +485,7 @@ int DockWindow::windowAcross(int thickness) const
 
 int DockWindow::edgeGap() const
 {
-    return m_dock->settings().edgeMargins() / 2;
+    return m_dock->settings().style() == DockSettings::Docked ? 0 : m_dock->settings().edgeMargins() / 2;
 }
 
 render::GlassParams DockWindow::glass() const
@@ -664,9 +671,27 @@ void DockWindow::updateGlass()
         return;
     const double radius = std::min(cornerRadius(),
                                    double(std::min(m_drawnPanelRect.width(), m_drawnPanelRect.height())) / 2);
+    const render::GlassParams params = glass();
+    base::Rect blur = m_drawnPanelRect;
+    if (m_dock->settings().style() == DockSettings::Docked) {
+        // Extend past the screen edge so the glass keeps square corners and no
+        // rim or bevel along that edge; the surface clips the excess.
+        const int extend = int(std::ceil(std::max(radius, double(params.bevel))));
+        switch (m_dock->settings().direction()) {
+        case DockSettings::Left:
+            blur.setLeft(blur.left() - extend);
+            break;
+        case DockSettings::Right:
+            blur.setRight(blur.right() + extend);
+            break;
+        case DockSettings::Bottom:
+            blur.setBottom(blur.bottom() + extend);
+            break;
+        }
+    }
     m_glassDark = ui::Theme::current().darkMode;
     m_glassOpaque = render::opaqueBackdrop().has_value();
-    m_window->setBackgroundBlur(m_drawnPanelRect, int(std::lround(radius)), glass());
+    m_window->setBackgroundBlur(blur, int(std::lround(radius)), params);
 }
 
 void DockWindow::updateStrut()

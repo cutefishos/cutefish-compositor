@@ -158,6 +158,7 @@ TEST_F(DockTest, LoadsThePinsAndForgetsUninstalledOnes)
     base::Settings settings(directory.filePath("shell.conf"));
     EXPECT_EQ(settings.intValue("Dock/IconSize"), 54);
     EXPECT_EQ(settings.intValue("Dock/Direction"), 1);
+    EXPECT_EQ(settings.intValue("Dock/Style"), 0);
     EXPECT_TRUE(settings.boolValue("Dock/MinimizedArea"));
 }
 
