@@ -33,6 +33,8 @@ add_library(cutefish-shell-dock-view STATIC
     src/shell/dock/dock_tooltip.h
     src/shell/dock/dock_window.cpp
     src/shell/dock/dock_window.h
+    src/shell/dock/dock_window_interaction.cpp
+    src/shell/dock/dock_window_layout.cpp
 )
 target_link_libraries(cutefish-shell-dock-view PUBLIC cutefish-shell cutefish-shell-dock)
 target_link_libraries(cutefish-compositor PRIVATE cutefish-shell-dock-view)

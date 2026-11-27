@@ -202,7 +202,7 @@ private:
     Shell *m_shell;
     std::unique_ptr<Dock> m_dock;
     std::unique_ptr<ShellWindow> m_window;
-    Panel *m_panel = nullptr;
+    ui::View *m_panel = nullptr;
     std::unique_ptr<DockPresentation> m_applications;
     std::unique_ptr<DockPresentation> m_minimized;
     std::map<std::string, DockIcon *> m_applicationIcons;
