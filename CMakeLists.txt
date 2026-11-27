@@ -293,6 +293,7 @@ add_library(cutefish-scene STATIC
     src/scene/slide_out_node.cpp
     src/scene/slide_out_node.h
     src/scene/window_animation.cpp
+    src/scene/window_animation_render.cpp
     src/scene/window_animation.h
     src/scene/node.cpp
     src/scene/node.h
