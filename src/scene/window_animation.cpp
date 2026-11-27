@@ -204,6 +204,7 @@ void WindowAnimation::releaseRenderResources()
     m_stashedTexture.reset();
     m_belowTextures.clear();
     m_textureReusable = false;
+    m_directBackdrop = false;
     Node::releaseRenderResources();
 }
 
@@ -250,6 +251,7 @@ void WindowAnimation::start(Type type, const base::Rect &from, const base::Rect 
                 base::SizeF(double(from.width()) / to.width(), double(from.height()) / to.height());
     }
     m_textureReusable = false;
+    m_directBackdrop = false;
     m_stashedTexture.reset();
     if (isCrossFade(type) && m_texture) {
         m_oldTexture = std::move(m_texture);
@@ -348,6 +350,7 @@ void WindowAnimation::releaseHold()
     m_oldTexture.reset();
     m_landingTexture.reset();
     m_textureReusable = false;
+    m_directBackdrop = false;
     changed();
 }
 
@@ -481,6 +484,7 @@ void WindowAnimation::setPresentationScale(double scale, const base::PointF &anc
     m_scaleStarted = -1;
     m_scaleAnchor = anchor;
     m_textureReusable = false;
+    m_directBackdrop = false;
     changed();
 }
 

@@ -36,6 +36,15 @@ inline float backdropQuality(const GlassParams &glass, double scale)
     return quality;
 }
 
+inline int backdropKernelReach(const GlassParams &glass, double scale)
+{
+    const float sigma =
+            (glass.enabled ? std::max(glass.blurSigma, 0.05f) : std::max(glass.plainSigma, 0.05f))
+            * float(scale);
+    const float scaledSigma = sigma * backdropQuality(glass, scale);
+    return std::clamp(int(std::ceil(3.5f * scaledSigma)), 0, kGaussianMaxReach);
+}
+
 // In logical pixels.
 struct BackdropReach {
     int shown = 0;
@@ -45,11 +54,12 @@ struct BackdropReach {
 inline BackdropReach backdropReach(const GlassParams &glass, double scale)
 {
     const double texel = 1 / (backdropQuality(glass, scale) * scale);
+    const int reach = std::min(kGaussianMaxReach, backdropKernelReach(glass, scale) + 1);
     const double bend = glass.enabled
             ? glass.displacement / 0.45 * (1 + std::clamp(glass.chroma, 0.0f, 1.0f))
             : 0;
-    return {int(std::ceil((kGaussianMaxReach + 5) * texel + bend)),
-            int(std::ceil((2 * kGaussianMaxReach + 4) * texel))};
+    return {int(std::ceil((reach + 5) * texel + bend)),
+            int(std::ceil((2 * reach + 4) * texel))};
 }
 
 inline base::Rect physicalDamage(const base::Region &damage, const OutputRenderContext &context,

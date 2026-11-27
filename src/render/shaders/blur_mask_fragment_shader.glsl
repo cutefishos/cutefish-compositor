@@ -93,11 +93,16 @@ vec3 blend(vec3 b, vec3 s, float mode) {
 }
 
 void shade() {
-    vec2 point = vTexCoord * uSize;
-    vec2 delta = abs(point - uSize * 0.5) - (uSize * 0.5 - vec2(uRadius));
-    float distance = length(max(delta, vec2(0.0)))
-                   + min(max(delta.x, delta.y), 0.0) - uRadius;
-    float mask = mix(clamp(0.5 - distance, 0.0, 1.0), texture2D(uShape, vTexCoord).a, uHasShape);
+    float mask;
+    if (uHasShape > 0.5) {
+        mask = texture2D(uShape, vTexCoord).a;
+    } else {
+        vec2 point = vTexCoord * uSize;
+        vec2 delta = abs(point - uSize * 0.5) - (uSize * 0.5 - vec2(uRadius));
+        float distance = length(max(delta, vec2(0.0)))
+                       + min(max(delta.x, delta.y), 0.0) - uRadius;
+        mask = clamp(0.5 - distance, 0.0, 1.0);
+    }
     vec2 uv = uSampleRect.xy + vTexCoord * uSampleRect.zw;
     vec4 color = texture2D(uTexture, clamp(vec2(uv.x, 1.0 - uv.y), uClamp.xy, uClamp.zw));
     if (uFillMode > 0.5) {

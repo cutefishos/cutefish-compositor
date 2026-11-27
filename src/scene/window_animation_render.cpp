@@ -111,11 +111,13 @@ bool WindowAnimation::redrawsSubtree(const base::Rect &viewport, double scale) c
 {
     if (!isVisible() || m_closing || m_type == Type::Minimize)
         return false;
+    if (m_style == Style::None && settled() && !children().empty())
+        return false;
     const base::Rect coverage = textureCoverage();
     if (!animating() && !viewport.isEmpty() && !coverage.intersects(viewport))
         return false;
     if (textureReusable(coverage, viewport, scale))
-        return false;
+        return m_directBackdrop && m_textureDamage.hasDamage(*this, coverage, scale);
     return !drawsDirectly(m_textureDamage.hasDamage(*this, coverage, scale));
 }
 
@@ -229,8 +231,8 @@ bool WindowAnimation::textureIsCurrent(render::Renderer &renderer, const base::R
                                              return *change;
                                          return renderer.repaints(sampled) ? sampled : base::Rect();
                                      });
-    const bool valid =
-            textureReusable(coverage, outputViewport(renderer, *this), renderer.rasterScale());
+    const bool valid = !m_directBackdrop
+            && textureReusable(coverage, outputViewport(renderer, *this), renderer.rasterScale());
     *repaint = !valid ? base::Rect()
             : blurSuppressed
             ? damage.boundingRect()
@@ -253,6 +255,7 @@ void WindowAnimation::swapStashedTexture(bool blurSuppressed) const
     std::swap(m_textureMipmapped, stash.mipmapped);
     std::swap(m_textureDamage, stash.damage);
     std::swap(m_textureReusable, stash.reusable);
+    std::swap(m_directBackdrop, stash.directBackdrop);
     std::swap(m_textureScale, stash.scale);
     std::swap(m_textureViewport, stash.viewport);
     std::swap(m_textureRootRevision, stash.rootRevision);
@@ -268,6 +271,20 @@ bool WindowAnimation::hasBackgroundBlurs() const
         for (const Node *child : node.children()) {
             const auto *surface = dynamic_cast<const SurfaceNode *>(child);
             if ((surface && surface->hasBackgroundBlur()) || visit(*child))
+                return true;
+        }
+        return false;
+    };
+    return visit(*this);
+}
+
+bool WindowAnimation::readsBackgroundBlurs() const
+{
+    const std::function<bool(const Node &)> visit = [&](const Node &node) {
+        for (const Node *child : node.children()) {
+            const auto *surface = dynamic_cast<const SurfaceNode *>(child);
+            if ((surface && (surface->readsBackgroundBlur() || surface->readsSubsurfaceBlur()))
+                || visit(*child))
                 return true;
         }
         return false;
@@ -433,6 +450,15 @@ void WindowAnimation::render(render::Renderer &renderer) const
         const bool blurSuppressed =
                 renderer.suppressBackgroundBlur || presentedScaled() || m_presentedAt;
         swapStashedTexture(blurSuppressed);
+        if (m_style == Style::None && settled() && !renderer.capturing && !children().empty()
+            && !renderer.suppressBackgroundBlur) {
+            m_texture.reset();
+            m_textureReusable = false;
+            m_directBackdrop = false;
+            Node::render(renderer);
+            m_presented = {base::RectF(absoluteGeometry()), 1, 1};
+            return;
+        }
         const bool contentChanged =
                 m_textureDamage.hasDamage(*this, coverage, renderer.rasterScale());
         const bool direct = !renderer.suppressBackgroundBlur && drawsDirectly(contentChanged);
@@ -444,11 +470,26 @@ void WindowAnimation::render(render::Renderer &renderer) const
                 m_textureDrawnAt = m_now();
             m_contentChanged = contentChanged && settled() && m_texture;
         }
+        const bool liveBlur = !renderer.capturing && !renderer.suppressBackgroundBlur
+                && !blurSuppressed && settled() && !contentChanged
+                && textureReusable(coverage, outputViewport(renderer, *this), renderer.rasterScale())
+                && (m_textureBlurSuppressed == blurSuppressed || !hasBackgroundBlurs())
+                && readsBackgroundBlurs();
         base::Rect repaint;
-        if (textureIsCurrent(renderer, coverage, &repaint)) {
+        if (liveBlur && m_directBackdrop) {
+            Node::render(renderer);
+            m_presented = {base::RectF(absoluteGeometry()), 1, 1};
+            return;
+        } else if (textureIsCurrent(renderer, coverage, &repaint)) {
             recordPresentation(renderer, *this);
+        } else if (liveBlur) {
+            m_directBackdrop = true;
+            Node::render(renderer);
+            m_presented = {base::RectF(absoluteGeometry()), 1, 1};
+            return;
         } else if (direct) {
             m_textureReusable = false;
+            m_directBackdrop = false;
             Node::render(renderer);
             m_presented = {base::RectF(absoluteGeometry()), 1, 1};
             return;
@@ -472,6 +513,7 @@ void WindowAnimation::render(render::Renderer &renderer) const
                     renderer.suppressWindowOutlines = suppressed;
                 })) {
                 m_textureReusable = false;
+                m_directBackdrop = false;
                 Node::render(renderer);
                 if (std::exchange(m_running, false) && m_finished)
                     m_finished();
@@ -487,6 +529,7 @@ void WindowAnimation::render(render::Renderer &renderer) const
                                 || renderer.repaints(sampled);
                     });
             m_textureReusable = reusable && backdropCurrent;
+            m_directBackdrop = false;
             m_textureBlurSuppressed = blurSuppressed;
             m_textureMipmapped = false;
             m_textureScale = renderer.rasterScale();

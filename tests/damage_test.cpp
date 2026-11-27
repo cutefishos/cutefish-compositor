@@ -289,6 +289,72 @@ TEST(Damage, ABlurDrawnAgainWholeReadsEverythingAgain)
     EXPECT_TRUE(inner.update(*retained, viewport).isEmpty());
 }
 
+TEST(Damage, OpaqueBackdropSkipsBlurDamageUnlessExempt)
+{
+    scene::Node root;
+    auto *below = root.addChild(std::make_unique<scene::Node>());
+    below->setGeometry({20, 20, 10, 10});
+    auto *plain = static_cast<scene::SurfaceNode *>(
+            root.addChild(std::make_unique<scene::SurfaceNode>()));
+    plain->setGeometry({0, 0, 100, 100});
+    plain->setBackgroundBlur({0, 0, 100, 100}, 12);
+    auto *exempt = static_cast<scene::SurfaceNode *>(
+            root.addChild(std::make_unique<scene::SurfaceNode>()));
+    exempt->setGeometry({300, 0, 100, 100});
+    render::GlassParams dock;
+    dock.enabled = true;
+    dock.ignoresOpaqueBackdrop = true;
+    dock.blurSigma = 30.0f;
+    dock.displacement = 0;
+    dock.chroma = 0;
+    exempt->setBackgroundBlur({0, 0, 100, 100}, 12, dock);
+
+    render::setOpaqueBackdrop(render::Color {0.9f, 0.9f, 0.9f, 1});
+    scene::DamageTracker tracker;
+    const base::Rect viewport(0, 0, 500, 300);
+    tracker.update(root, viewport);
+    const auto kept = [](uint64_t) {
+        return true;
+    };
+    const int halo = render::kBackdropBlurSupport + 2;
+    EXPECT_EQ(tracker.samples(),
+              (std::vector<base::Rect> {base::Rect(300, 0, 100, 100).adjusted(-halo, -halo, halo, halo)}));
+
+    below->setPosition({30, 20});
+    EXPECT_EQ(tracker.update(root, viewport),
+              base::Region(base::Rect(20, 20, 10, 10)) + base::Rect(30, 20, 10, 10));
+    EXPECT_TRUE(tracker.samples(kept).empty());
+    EXPECT_EQ(tracker.freshBackdrops(kept),
+              (std::vector<render::KeptBackdrop> {{exempt->damageId()}}));
+
+    below->setPosition({320, 20});
+    const base::Region exemptDamage = tracker.update(root, viewport);
+    EXPECT_TRUE(exemptDamage.intersects(base::Rect(300, 0, 100, 100)));
+    EXPECT_FALSE(tracker.samples(kept).empty());
+    render::setOpaqueBackdrop(std::nullopt);
+}
+
+TEST(Damage, BackdropReachFollowsGlassSigma)
+{
+    render::GlassParams dock;
+    dock.enabled = true;
+    dock.blurSigma = 30.0f;
+    dock.displacement = 0;
+    dock.chroma = 0;
+    const auto dockReach = render::backdropReach(dock, 1);
+    EXPECT_LT(dockReach.shown, 200);
+    EXPECT_LT(dockReach.read, 300);
+
+    render::GlassParams lightGlass;
+    lightGlass.enabled = true;
+    lightGlass.blurSigma = 1.2f;
+    lightGlass.displacement = 0;
+    lightGlass.chroma = 0;
+    const auto lightReach = render::backdropReach(lightGlass, 1);
+    EXPECT_LT(lightReach.shown, 20);
+    EXPECT_LT(lightReach.read, 25);
+}
+
 TEST(Damage, AFullRepaintStaysOnTheOutputsItDrawsOn)
 {
     class Filter : public scene::Node

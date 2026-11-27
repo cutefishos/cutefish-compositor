@@ -51,6 +51,11 @@ struct ShadowLobe {
 std::optional<Color> opaqueBackdrop();
 void setOpaqueBackdrop(std::optional<Color> color);
 
+inline bool usesOpaqueBackdrop(const GlassParams &glass)
+{
+    return !glass.ignoresOpaqueBackdrop && opaqueBackdrop().has_value();
+}
+
 // A non-empty `changed` is the logical rectangle of its backdrop that changed
 // since.
 struct KeptBackdrop {

@@ -261,6 +261,26 @@ TEST_F(OverlayCandidateTest, BackgroundBlurKeepsUnderlyingSurfacesInComposition)
     EXPECT_TRUE(propose().hasDirectScanout());
 }
 
+TEST_F(OverlayCandidateTest, OpaqueBackdropBlurDoesNotBlockOverlaysUnlessExempt)
+{
+    auto *video = addSurface(m_scene.root(), {0, 0, 640, 480});
+    auto *window = addSurface(m_scene.root(), {900, 100, 300, 200}, false);
+    window->setBackgroundBlur({0, 0, 300, 200}, 12);
+    EXPECT_TRUE(propose().overlays.empty());
+
+    render::setOpaqueBackdrop(render::Color {0.9f, 0.9f, 0.9f, 1});
+    const auto opaquePlan = propose();
+    ASSERT_EQ(opaquePlan.overlays.size(), 1u);
+    EXPECT_EQ(opaquePlan.overlays[0].node, video);
+
+    render::GlassParams dock;
+    dock.enabled = true;
+    dock.ignoresOpaqueBackdrop = true;
+    window->setBackgroundBlur({0, 0, 300, 200}, 12, dock);
+    EXPECT_TRUE(propose().overlays.empty());
+    render::setOpaqueBackdrop(std::nullopt);
+}
+
 } // namespace cutefish
 
 namespace cutefish {

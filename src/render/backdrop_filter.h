@@ -114,7 +114,7 @@ private:
                          const base::Size &reduced, const base::Rect &allocatedBounds,
                          const base::Rect &texels = {});
     // False when it cannot, and nothing is drawn.
-    bool blitReduced(const std::vector<BackdropSource> &sources, const base::Rect &coverage,
+    bool blitReduced(const BackdropSource &source, const base::Rect &coverage,
                      const base::Size &reduced, unsigned int destination);
     Texture *mask(Renderer &renderer, const User &user, const ui::Path &shape, const ShapeRaster &raster);
     bool hasKept(const User &user) const;

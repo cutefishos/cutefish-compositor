@@ -228,13 +228,11 @@ void BackdropFilter::applyGlassMaterial(const GlProgram &program, const GlassPar
                 std::clamp(glass.tintAlpha, 0.0f, 1.0f));
 }
 
-bool BackdropFilter::blitReduced(const std::vector<BackdropSource> &sources, const base::Rect &coverage,
+bool BackdropFilter::blitReduced(const BackdropSource &source, const base::Rect &coverage,
                                  const base::Size &reduced, unsigned int destination)
 {
-    if (sources.size() != 1 || sources.front().transform
-        || !m_context->glVersion().starts_with("OpenGL ES 3"))
+    if (source.transform || !m_context->glVersion().starts_with("OpenGL ES 3"))
         return false;
-    const BackdropSource &source = sources.front();
     if (!base::Rect(source.offset.toPoint(), source.oriented()).contains(coverage))
         return false;
     GLint viewport[4];
@@ -277,14 +275,30 @@ bool BackdropFilter::captureBackdrop(Renderer &renderer, Scratch &textures,
                 [&] {
                     GLint destination = 0;
                     glGetIntegerv(GL_FRAMEBUFFER_BINDING, &destination);
-                    if (blitReduced(sources, coverage, reduced, destination))
-                        return;
-                    for (const auto &source : sources) {
+                    size_t first = 0;
+                    if (!sources.empty() && blitReduced(sources.front(), coverage, reduced, destination))
+                        first = 1;
+                    for (size_t i = first; i < sources.size(); ++i) {
+                        const auto &source = sources[i];
                         // A turned capture is sized by its area, which then keeps its size.
                         const base::Rect area = (source.transform ? coverage : copied).intersected(
                                 base::Rect(source.offset.toPoint(), source.oriented()));
                         if (area.isEmpty())
                             continue;
+                        if (!source.transform && source.texture) {
+                            const auto *gl = static_cast<const GlTexture *>(source.texture);
+                            const base::RectF content = gl->contentPixels.isEmpty()
+                                    ? base::RectF(base::PointF(), base::SizeF(source.size))
+                                    : gl->contentPixels;
+                            const double sx = double(reduced.width()) / coverage.width();
+                            const double sy = double(reduced.height()) / coverage.height();
+                            const base::RectF target(
+                                    (source.offset.x() + content.x() - coverage.x()) * sx,
+                                    (source.offset.y() + content.y() - coverage.y()) * sy,
+                                    content.width() * sx, content.height() * sy);
+                            renderer.drawTextureF(source.texture, target, 1);
+                            continue;
+                        }
                         const base::Rect physical = source.framebufferRect(area);
                         // A turned framebuffer is copied as it lies and drawn upright below.
                         const base::Size captureSize =
@@ -459,6 +473,11 @@ void BackdropFilter::draw(Renderer &renderer, const base::RectF &exactLens, int 
     }
     const bool reused = kept && kept->result && kept->coverage == coverage
             && kept->reduced == reduced && kept->sigma == sigma;
+    const float maxScaledSigma = sigma
+            * std::max(float(reduced.width()) / coverage.width(),
+                       float(reduced.height()) / coverage.height());
+    const int kernelReach =
+            std::clamp(int(std::ceil(3.5f * maxScaledSigma)), 0, kGaussianMaxReach);
     // Rows top-down: past the kernel's taps, a texel each for linear sampling
     // and rounding out.
     base::Rect redo;
@@ -467,7 +486,7 @@ void BackdropFilter::draw(Renderer &renderer, const base::RectF &exactLens, int 
                                   base::SizeF(kept->changed.size()) * scale);
         const double sx = double(reduced.width()) / coverage.width();
         const double sy = double(reduced.height()) / coverage.height();
-        const int reach = kGaussianMaxReach + 2;
+        const int reach = kernelReach + 2;
         redo = base::Rect::fromEdges(int(std::floor((changed.left() - coverage.left()) * sx)) - reach,
                                      int(std::floor((changed.top() - coverage.top()) * sy)) - reach,
                                      int(std::ceil((changed.right() - coverage.left()) * sx)) + reach,
@@ -519,8 +538,7 @@ void BackdropFilter::draw(Renderer &renderer, const base::RectF &exactLens, int 
     // A redo reads the captured texels the kernel reaches past what it writes,
     // across and down, the horizontal pass covering the rows the vertical reads.
     const base::Rect sampledTexels = redoing
-            ? redo.adjusted(-kGaussianMaxReach - 1, -kGaussianMaxReach - 1, kGaussianMaxReach + 1,
-                            kGaussianMaxReach + 1)
+            ? redo.adjusted(-kernelReach - 1, -kernelReach - 1, kernelReach + 1, kernelReach + 1)
                       .intersected(reducedBounds)
             : base::Rect();
     if (!opaque && (!reused || redoing)
@@ -570,7 +588,7 @@ void BackdropFilter::draw(Renderer &renderer, const base::RectF &exactLens, int 
     if (redoing) {
         // The vertical pass reads the horizontal one's rows the kernel reaches.
         const base::Rect rows =
-                redo.adjusted(0, -kGaussianMaxReach, 0, kGaussianMaxReach).intersected(reducedBounds);
+                redo.adjusted(0, -kernelReach, 0, kernelReach).intersected(reducedBounds);
         kept->coverage = base::Rect();
         if (!filter(textures->source.get(), textures->temp, true, rows)
             || !filter(textures->temp.get(), result, false, redo))

@@ -78,18 +78,21 @@ float roundedCoverage(vec2 p, vec4 bounds, vec2 radius, float inset) {
 }
 
 float windowCoverage() {
+    if (uClipCount <= 0 && uOutlineWidth <= 0.0)
+        return 1.0;
+    // Overflow fails closed rather than silently dropping an ancestor clip.
+    if (uClipCount > 16)
+        return 0.0;
     vec2 p = vec2(gl_FragCoord.x - uViewportRect.x,
                   uViewportRect.y + uViewportRect.w - gl_FragCoord.y);
     if (uOutputTransform == 1) p = vec2(uViewportRect.w - p.y, p.x);
     else if (uOutputTransform == 2) p = uViewportRect.zw - p;
     else if (uOutputTransform == 3) p = vec2(p.y, uViewportRect.z - p.x);
     float coverage = 1.0;
-    // Overflow fails closed rather than silently dropping an ancestor clip.
-    if (uClipCount > 16) return 0.0;
     for (int i = 0; i < 16; ++i) {
-        if (i < uClipCount) {
-            coverage = min(coverage, roundedCoverage(p, uClips[i], uClipRadii[i], 0.0));
-        }
+        if (i >= uClipCount)
+            break;
+        coverage = min(coverage, roundedCoverage(p, uClips[i], uClipRadii[i], 0.0));
     }
     if (uOutlineWidth > 0.0) {
         coverage = min(coverage, roundedCoverage(p, uOutlineBounds, uOutlineRadius, 0.0)

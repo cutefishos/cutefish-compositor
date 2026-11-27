@@ -192,6 +192,7 @@ private:
     bool textureIsCurrent(render::Renderer &renderer, const base::Rect &coverage,
                           base::Rect *repaint) const;
     bool hasBackgroundBlurs() const;
+    bool readsBackgroundBlurs() const;
     bool drawsDirectly(bool contentChanged) const;
     bool hasOpaqueSurface() const;
     bool settled() const;
@@ -209,6 +210,7 @@ private:
     mutable bool m_textureMipmapped = false;
     mutable DamageTracker m_textureDamage {true};
     mutable bool m_textureReusable = false;
+    mutable bool m_directBackdrop = false;
     mutable int m_directFrames = 0;
     mutable bool m_contentChanged = false;
     mutable double m_directFrameTime = -1;
@@ -222,6 +224,7 @@ private:
         bool mipmapped = false;
         DamageTracker damage {true};
         bool reusable = false;
+        bool directBackdrop = false;
         double scale = 0;
         base::Rect viewport;
         uint64_t rootRevision = 0;

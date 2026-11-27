@@ -11,6 +11,7 @@
 
 #include "render/glass.h"
 #include "render/presentation.h"
+#include "render/renderer.h"
 #include "render/scanout.h"
 #include "render/sync_fence.h"
 #include "scene/node.h"
@@ -58,6 +59,10 @@ public:
                            const ui::Path &shape = {});
 
     bool hasBackgroundBlur() const { return !m_blurRect.isEmpty(); }
+    bool readsBackgroundBlur() const
+    {
+        return hasBackgroundBlur() && !render::usesOpaqueBackdrop(m_glass);
+    }
     base::Rect backgroundBlurRect() const { return m_blurRect; }
     int backgroundBlurRadius() const { return m_blurRadius; }
     const render::GlassParams &glass() const { return m_glass; }
@@ -67,9 +72,14 @@ public:
     void setSubsurfaceBlur(const base::Rect &rect, int radius, const ui::Path &shape = {},
                            const render::GlassParams &fill = {});
     bool hasSubsurfaceBlur() const { return !m_subsurfaceBlurRect.isEmpty(); }
+    bool readsSubsurfaceBlur() const
+    {
+        return hasSubsurfaceBlur() && !render::usesOpaqueBackdrop(m_subsurfaceBlurFill);
+    }
     base::Rect subsurfaceBlurRect() const { return m_subsurfaceBlurRect; }
     int subsurfaceBlurRadius() const { return m_subsurfaceBlurRadius; }
     uint64_t subsurfaceBlurId() const { return m_subsurfaceBlurId; }
+    const render::GlassParams &subsurfaceBlurFill() const { return m_subsurfaceBlurFill; }
     // Several areas in the rect, or empty for its rounded rect alone.
     const ui::Path &subsurfaceBlurShape() const { return m_subsurfaceBlurShape; }
 

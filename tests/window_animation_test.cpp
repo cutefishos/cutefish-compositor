@@ -643,11 +643,15 @@ protected:
         blur = static_cast<scene::SurfaceNode *>(
                 window->addChild(std::make_unique<scene::SurfaceNode>()));
         blur->setGeometry({150, 100, 100, 100});
+        blur->setTexture(std::make_shared<testsupport::FakeTexture>(
+                base::Size(100, 100), pixels.data(), 100 * 4, render::PixelFormat::Rgba8888));
         blur->setBackgroundBlur({0, 0, 100, 100}, 12);
         const int halo = render::kBackdropBlurSupport + 2;
         sampled = base::Rect(250, 200, 100, 100).adjusted(-halo, -halo, halo, halo);
         scene.render(renderer);
+        renderer.repainted = base::Rect();
         scene.render(renderer);
+        renderer.repainted.reset();
         captures = renderer.captures;
     }
 
@@ -659,13 +663,65 @@ protected:
 
 TEST_F(BlurredSnapshot, IsKeptWhileNothingItsBlurReadsIsDrawnAgain)
 {
+    const int blursBefore = renderer.blurs;
     renderer.repainted = base::Rect(900, 700, 10, 10);
     scene.render(renderer);
     EXPECT_EQ(renderer.captures, captures);
+    EXPECT_EQ(renderer.blurs, blursBefore);
+
+    // Settled with unchanged content: a backdrop change draws directly instead
+    // of redrawing the offscreen window snapshot.
     renderer.repainted = base::Rect(160, 110, 10, 10);
     scene.render(renderer);
+    EXPECT_EQ(renderer.captures, captures);
+    EXPECT_EQ(renderer.blurs, blursBefore + 1);
+    EXPECT_FALSE(redrawn());
+
+    // Own content damage recaptures the whole snapshot so its backdrop stays current.
+    surface->notifyDamage(base::Rect(0, 0, 10, 10));
+    EXPECT_TRUE(redrawn());
+    renderer.repainted.reset();
+    scene.render(renderer);
     EXPECT_EQ(renderer.captures, captures + 1);
+    EXPECT_TRUE(renderer.lastRepaint.isEmpty());
+    EXPECT_FALSE(redrawn());
+
+    // Unsettled (blended) windows still redraw their snapshot on backdrop damage.
+    window->setOpacity(0.5f);
+    scene.render(renderer);
+    const int blendedCaptures = renderer.captures;
+    renderer.repainted = base::Rect(160, 110, 10, 10);
+    scene.render(renderer);
+    EXPECT_EQ(renderer.captures, blendedCaptures + 1);
     EXPECT_EQ(renderer.lastRepaint, sampled);
+}
+
+TEST_F(BlurredSnapshot, OpaqueBackdropKeepsSnapshotThroughUnderlyingRepaints)
+{
+    render::setOpaqueBackdrop(render::Color {0.9f, 0.9f, 0.9f, 1});
+    scene.root()->notifyChanged();
+    scene.render(renderer);
+    const int opaqueCaptures = renderer.captures;
+    const int opaqueBlurs = renderer.blurs;
+    renderer.repainted = base::Rect(160, 110, 10, 10);
+    for (int frame = 0; frame < 4; ++frame) {
+        scene.render(renderer);
+        EXPECT_EQ(renderer.captures, opaqueCaptures);
+        EXPECT_EQ(renderer.blurs, opaqueBlurs);
+    }
+    render::setOpaqueBackdrop(std::nullopt);
+}
+
+TEST_F(BlurredSnapshot, StyleNoneWithChildrenDrawsDirectlyWithoutSnapshot)
+{
+    window->setStyle(Animation::Style::None);
+    const int beforeCaptures = renderer.captures;
+    const int beforeBlurs = renderer.blurs;
+    renderer.repainted = base::Rect(160, 110, 10, 10);
+    scene.render(renderer);
+    EXPECT_EQ(renderer.captures, beforeCaptures);
+    EXPECT_EQ(renderer.blurs, beforeBlurs + 1);
+    EXPECT_FALSE(redrawn());
 }
 
 TEST_F(BlurredSnapshot, DrawnWholeItHasTheSceneRepaintWhatItsBlursRead)

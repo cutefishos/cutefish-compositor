@@ -38,6 +38,8 @@ struct BackdropSource {
     base::PointF offset;
     // An output's transform, 0 for an offscreen pass.
     uint32_t transform = 0;
+    // Attached texture for an offscreen render pass; null for the default framebuffer.
+    Texture *texture = nullptr;
 
     base::Size oriented() const { return transform % 2 ? size.transposed() : size; }
 
@@ -108,6 +110,7 @@ private:
     base::Size m_viewport;
     base::PointF m_offset;
     BlendMode m_blendMode = BlendMode::SourceOver;
+    Texture *m_targetTexture = nullptr;
     std::vector<BackdropSource> m_sources;
     std::vector<unsigned int> m_framebuffers;
 };

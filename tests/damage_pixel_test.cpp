@@ -542,6 +542,68 @@ TEST(DamagePixels, AWindowBlurRedoneInPartMatchesTheCompleteFrame)
     renderer->releaseTarget(target.get());
 }
 
+TEST(DamagePixels, AWindowWithOpaqueBackdropSkipsBlurRepaintAndMatchesCompleteFrame)
+{
+    auto renderer = render::EglRendererTestAccess::create();
+    ASSERT_TRUE(renderer);
+    const base::Size size(400, 400);
+    const EGLint attributes[] = {EGL_WIDTH, 400, EGL_HEIGHT, 400, EGL_NONE};
+    const auto surface =
+            eglCreatePbufferSurface(renderer->eglDisplay(), renderer->eglConfig(), attributes);
+    ASSERT_NE(surface, EGL_NO_SURFACE);
+    auto target = std::make_unique<render::EglRenderTarget>(renderer->eglDisplay(), surface,
+                                                            nullptr, size);
+    scene::Scene scene;
+    scene.setSize(size);
+    auto *video = static_cast<scene::ColorNode *>(
+            scene.root()->addChild(std::make_unique<scene::ColorNode>(render::Color {0, 1, 0, 1})));
+    video->setGeometry({20, 20, 80, 80});
+    auto *window = static_cast<scene::WindowAnimation *>(
+            scene.root()->addChild(std::make_unique<scene::WindowAnimation>()));
+    window->setGeometry({60, 60, 200, 200});
+    window->finish();
+    auto *content = static_cast<scene::SurfaceNode *>(
+            window->addChild(std::make_unique<scene::SurfaceNode>()));
+    content->setGeometry({0, 0, 200, 200});
+    content->setBackgroundBlur({0, 0, 200, 200}, 12);
+    const render::OutputRenderContext context {"test", base::Rect(base::Point(), size), size, 1};
+    renderer->setOutputContext(context);
+    ASSERT_TRUE(renderer->beginFrame(target.get()));
+    std::vector<uint8_t> pixels(200 * 200 * 4, 64);
+    content->setTexture(renderer->createTexture({200, 200}, pixels.data()));
+
+    render::setOpaqueBackdrop(render::Color {0.9f, 0.9f, 0.95f, 1});
+    scene::DamageTracker tracker;
+    const auto scope = uint64_t(reinterpret_cast<uintptr_t>(&tracker));
+    const auto kept = [&](uint64_t owner) {
+        return renderer->keepsBackdrop(scope, owner);
+    };
+    for (int frame = 0; frame < 4; ++frame) {
+        video->setColor({float(frame) / 3.0f, 1.0f - float(frame) / 3.0f, 0.2f, 1});
+        const auto damage = tracker.update(*scene.root(), context.logicalViewport, 1);
+        const base::Rect physical = render::physicalDamage(damage, context, size);
+        const base::Rect repaint = render::coverSamples(physical, tracker.samples(kept), context, size);
+        if (frame > 0)
+            EXPECT_EQ(repaint, base::Rect(20, 20, 80, 80)) << "frame=" << frame;
+        render::EglRendererTestAccess::applyRepaint(*renderer, repaint);
+        {
+            const render::BackdropPass backdrops(*renderer, scope, tracker.freshBackdrops(kept));
+            renderer->clear(scene.background());
+            scene.root()->render(*renderer);
+        }
+        ui::Bitmap partial(size, ui::Bitmap::Format::Rgba8888Premultiplied);
+        glReadPixels(0, 0, 400, 400, GL_RGBA, GL_UNSIGNED_BYTE, partial.bits());
+        partial = partial.mirrored(false, true).converted(ui::Bitmap::Format::Argb32Premultiplied);
+        const auto complete = renderer->captureFrame([&] {
+            scene.render(*renderer);
+        });
+        EXPECT_EQ(partial, complete) << "frame=" << frame;
+    }
+    render::setOpaqueBackdrop(std::nullopt);
+    renderer->cancelFrame();
+    renderer->releaseTarget(target.get());
+}
+
 TEST(DamagePixels, AWindowSnapshotNeverBlursWhatAPartialRepaintLeftBehind)
 {
     auto renderer = render::EglRendererTestAccess::create();

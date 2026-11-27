@@ -216,7 +216,8 @@ std::vector<BackdropSource> GlRenderPass::backdropSources(double scale, uint32_t
     auto sources = m_sources;
     GLint framebuffer = 0;
     glGetIntegerv(GL_FRAMEBUFFER_BINDING, &framebuffer);
-    sources.push_back({static_cast<unsigned int>(framebuffer), m_viewport, m_offset, transform});
+    sources.push_back({static_cast<unsigned int>(framebuffer), m_viewport, m_offset, transform,
+                       m_targetTexture});
     for (auto &source : sources)
         source.offset *= scale;
     return sources;
@@ -244,6 +245,8 @@ std::unique_ptr<GlTexture> GlRenderPass::captureTexture(Renderer &renderer,
         return nullptr;
     ScopedValue viewport(m_viewport);
     ScopedValue offset(m_offset);
+    ScopedValue targetTexture(m_targetTexture);
+    m_targetTexture = nullptr;
     renderer.Renderer::setOutputContext(context);
     // Letterboxed content keeps its place in the buffer, as on the display.
     const base::Rect content = context.nativeContentRect.isEmpty() ? base::Rect(base::Point(), size)
@@ -388,8 +391,10 @@ ui::Bitmap GlRenderPass::renderToImage(Renderer &renderer, const base::Size &siz
     ScopedValue sources(m_sources);
     ScopedValue viewport(m_viewport);
     ScopedValue offset(m_offset);
+    ScopedValue targetTexture(m_targetTexture);
     m_sources.push_back({static_cast<unsigned int>(previous), m_viewport, m_offset,
-                         renderer.outputContext().transform});
+                         renderer.outputContext().transform, m_targetTexture});
+    m_targetTexture = nullptr;
     auto context = renderer.outputContext();
     context.transform = 0;
     context.scale = 1;
@@ -470,8 +475,10 @@ bool GlRenderPass::render(Renderer &renderer, std::unique_ptr<Texture> &texture,
     ScopedValue sources(m_sources);
     ScopedValue viewport(m_viewport);
     ScopedValue offset(m_offset);
+    ScopedValue targetTexture(m_targetTexture);
     m_sources.push_back({static_cast<unsigned int>(previous), m_viewport, m_offset,
-                         renderer.outputContext().transform});
+                         renderer.outputContext().transform, m_targetTexture});
+    m_targetTexture = target;
     auto context = renderer.outputContext();
     context.transform = 0;
     context.scale = renderer.rasterScale();

@@ -84,9 +84,13 @@ vec3 refractedAt(vec2 p, vec2 offset, vec2 halfSize, float r, float band,
     vec2 duv = bend / uCoverage;
     vec2 sampleUv = uv + offset * texel;
     vec3 color;
-    color.r = backdrop(clamp(sampleUv + duv * (1.0 + uChroma), margin, 1.0 - margin)).r;
-    color.g = backdrop(clamp(sampleUv + duv, margin, 1.0 - margin)).g;
-    color.b = backdrop(clamp(sampleUv + duv * (1.0 - uChroma), margin, 1.0 - margin)).b;
+    if (uChroma <= 0.0) {
+        color = backdrop(clamp(sampleUv + duv, margin, 1.0 - margin));
+    } else {
+        color.r = backdrop(clamp(sampleUv + duv * (1.0 + uChroma), margin, 1.0 - margin)).r;
+        color.g = backdrop(clamp(sampleUv + duv, margin, 1.0 - margin)).g;
+        color.b = backdrop(clamp(sampleUv + duv * (1.0 - uChroma), margin, 1.0 - margin)).b;
+    }
     return color;
 }
 
@@ -100,35 +104,53 @@ void shade() {
     float band = clamp(uBevel > 0.0 ? uBevel : r, 1.0, min(halfSize.x, halfSize.y));
 
     vec2 uv = uSampleRect.xy + vTexCoord * uSampleRect.zw;
-    // Over the lip the offset changes so fast that neighbouring pixels read far
-    // apart in the backdrop, so widen the sampling footprint there.
-    vec2 texel = mix(0.75, 2.5, clamp(1.0 + sd / band, 0.0, 1.0)) / uCoverage;
     // Bilinear filtering must not reach past what was captured.
     vec2 margin = 1.2 / uBackdropSize;
-    vec3 refracted = 0.25 * (
-        refractedAt(p, vec2(0.375, -0.125), halfSize, r, band, uv, texel, margin) +
-        refractedAt(p, vec2(0.125, 0.375), halfSize, r, band, uv, texel, margin) +
-        refractedAt(p, vec2(-0.375, 0.125), halfSize, r, band, uv, texel, margin) +
-        refractedAt(p, vec2(-0.125, -0.375), halfSize, r, band, uv, texel, margin));
+    vec3 refracted;
+    if (abs(uDisplacement) < 0.0001) {
+        if (uBackdropSize.x < uCoverage.x * 0.99 || uBackdropSize.y < uCoverage.y * 0.99) {
+            refracted = backdrop(clamp(uv, margin, 1.0 - margin));
+        } else {
+            vec2 texel = mix(0.75, 2.5, clamp(1.0 + sd / band, 0.0, 1.0)) / uCoverage;
+            refracted = 0.25 * (
+                backdrop(clamp(uv + vec2(0.375, -0.125) * texel, margin, 1.0 - margin)) +
+                backdrop(clamp(uv + vec2(0.125, 0.375) * texel, margin, 1.0 - margin)) +
+                backdrop(clamp(uv + vec2(-0.375, 0.125) * texel, margin, 1.0 - margin)) +
+                backdrop(clamp(uv + vec2(-0.125, -0.375) * texel, margin, 1.0 - margin)));
+        }
+    } else {
+        // Over the lip the offset changes so fast that neighbouring pixels read far
+        // apart in the backdrop, so widen the sampling footprint there.
+        vec2 texel = mix(0.75, 2.5, clamp(1.0 + sd / band, 0.0, 1.0)) / uCoverage;
+        refracted = 0.25 * (
+            refractedAt(p, vec2(0.375, -0.125), halfSize, r, band, uv, texel, margin) +
+            refractedAt(p, vec2(0.125, 0.375), halfSize, r, band, uv, texel, margin) +
+            refractedAt(p, vec2(-0.375, 0.125), halfSize, r, band, uv, texel, margin) +
+            refractedAt(p, vec2(-0.125, -0.375), halfSize, r, band, uv, texel, margin));
+    }
 
     float luma = dot(refracted, vec3(0.2126, 0.7152, 0.0722));
     refracted = max(mix(vec3(luma), refracted, uSaturation), 0.0);
     vec3 color = mix(refracted, uTint.rgb, uTint.a);
-    float occluded = 1.0 - smoothstep(0.0, max(uAmbient.y, 0.001), -sd);
-    color *= 1.0 - occluded * uAmbient.x;
+    if (uAmbient.x > 0.0) {
+        float occluded = 1.0 - smoothstep(0.0, max(uAmbient.y, 0.001), -sd);
+        color *= 1.0 - occluded * uAmbient.x;
+    }
 
-    vec3 normal = normalAt(insideLens(p, halfSize, r), halfSize, r, band);
-    vec3 reflected = reflect(-uLight, normal);
-    float specular = pow(max(reflected.z, 0.0), max(uSpecular.y, 1.0)) * uSpecular.x;
-    float sheen = pow(max(dot(normal, uLight), 0.0), 1.65) * uSpecular.z;
+    if (uSpecular.x > 0.0 || uSpecular.z > 0.0) {
+        vec3 normal = normalAt(insideLens(p, halfSize, r), halfSize, r, band);
+        vec3 reflected = reflect(-uLight, normal);
+        float specular = pow(max(reflected.z, 0.0), max(uSpecular.y, 1.0)) * uSpecular.x;
+        float sheen = pow(max(dot(normal, uLight), 0.0), 1.65) * uSpecular.z;
 
-    // Screen blend, so light over a bright backdrop brightens towards white
-    // instead of blowing out.
-    vec3 lit = vec3(specular + sheen);
-    color = color + lit - color * lit;
-    float peak = max(color.r, max(color.g, color.b));
-    if (peak > 1.0)
-        color /= peak;
+        // Screen blend, so light over a bright backdrop brightens towards white
+        // instead of blowing out.
+        vec3 lit = vec3(specular + sheen);
+        color = color + lit - color * lit;
+        float peak = max(color.r, max(color.g, color.b));
+        if (peak > 1.0)
+            color /= peak;
+    }
 
     if (uRim.x > 0.0) {
         vec2 outward = outwardAt(insideLens(p, halfSize, r), halfSize, r);
@@ -155,6 +177,6 @@ void shade() {
 
     // The clip's coverage masks the result, so the lens does not antialias its
     // own curved silhouette.
-    float mask = mix(1.0, texture2D(uShape, vTexCoord).a, uHasShape);
+    float mask = uHasShape > 0.5 ? texture2D(uShape, vTexCoord).a : 1.0;
     gl_FragColor = vec4(max(color, vec3(0.0)), 1.0) * mask;
 }
