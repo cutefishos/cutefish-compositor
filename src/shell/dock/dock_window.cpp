@@ -39,14 +39,6 @@ namespace cutefish::shell {
 
 namespace {
 
-void callLaunchpad(base::dbus::Connection *bus, const char *method)
-{
-    if (!bus)
-        return;
-    bus->send(bus->newMethodCall("org.cutefish.Launchpad", "/Launchpad", "org.cutefish.Launchpad",
-                                 method));
-}
-
 constexpr double kPace[] = {0.000, 0.048, 0.116, 0.174, 0.249, 0.314, 0.361,
                             0.398, 0.435, 0.469, 0.500, 0.587, 0.630, 0.666,
                             0.701, 0.739, 0.781, 0.827, 0.879, 0.931, 1.000};
@@ -54,7 +46,6 @@ constexpr double kPace[] = {0.000, 0.048, 0.116, 0.174, 0.249, 0.314, 0.361,
 constexpr double kOpaqueLightShade = 1.06;
 constexpr double kOpaqueBlurSigma = 30;
 constexpr double kOpaqueTintAlpha = 0.7;
-
 
 double glassAmount(double tint)
 {
@@ -203,6 +194,14 @@ protected:
 private:
     DockWindow *m_dock;
 };
+
+void DockWindow::callLaunchpad(base::dbus::Connection *bus, const char *method)
+{
+    if (!bus)
+        return;
+    bus->send(bus->newMethodCall("org.cutefish.Launchpad", "/Launchpad", "org.cutefish.Launchpad",
+                                 method));
+}
 
 DockWindow::DockWindow(Shell *shell, std::unique_ptr<Dock> dock)
     : m_shell(shell)

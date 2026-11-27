@@ -27,6 +27,10 @@
 #include "ui/geometry.h"
 #include "shell/shell.h"
 
+namespace cutefish::base::dbus {
+class Connection;
+}
+
 namespace cutefish::compositor {
 class MenuModel;
 }
@@ -196,6 +200,7 @@ private:
     void reorderMinimized();
     void retire(DockIcon *icon);
     void prepareDockMenu(const std::string &id, const std::shared_ptr<compositor::MenuModel> &dockMenu);
+    static void callLaunchpad(base::dbus::Connection *bus, const char *method);
     static bool addDockMenuEntries(ui::Menu &menu, const std::shared_ptr<compositor::MenuModel> &model, int32_t id);
     void popupMenu(DockIcon *icon, std::unique_ptr<ui::Menu> menu);
 

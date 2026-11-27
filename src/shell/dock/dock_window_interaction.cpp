@@ -35,18 +35,8 @@ namespace cutefish::shell {
 
 namespace {
 
-void callLaunchpad(base::dbus::Connection *bus, const char *method)
-{
-    if (!bus)
-        return;
-    bus->send(bus->newMethodCall("org.cutefish.Launchpad", "/Launchpad", "org.cutefish.Launchpad",
-                                 method));
-}
-
-
 constexpr double kMenuArrowWidth = 14;
 constexpr double kMenuArrowLength = 8;
-
 
 } // namespace
 
