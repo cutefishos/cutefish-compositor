@@ -42,6 +42,9 @@ pkg_check_modules(Xkbcommon REQUIRED IMPORTED_TARGET xkbcommon)
 pkg_check_modules(Libinput REQUIRED IMPORTED_TARGET libinput)
 pkg_check_modules(Libudev REQUIRED IMPORTED_TARGET libudev)
 pkg_check_modules(WaylandProtocols REQUIRED wayland-protocols>=1.39)
+pkg_check_modules(Libcurl REQUIRED IMPORTED_TARGET libcurl)
+find_package(OpenSSL REQUIRED)
+find_package(Threads REQUIRED)
 pkg_get_variable(WAYLAND_PROTOCOLS_DATADIR wayland-protocols pkgdatadir)
 pkg_get_variable(WAYLAND_SCANNER wayland-scanner wayland_scanner)
 
@@ -990,6 +993,34 @@ if(CUTEFISH_ENABLE_XWAYLAND)
         DESTINATION ${CMAKE_INSTALL_DATADIR}/licenses/cutefish-compositor)
 endif()
 
+# Ripple's daemon: the LocalSend side of nearby sharing, apart from the
+# compositor so a transfer never runs on the thread that draws the desktop.
+add_executable(cutefish-ripple
+    src/ripple/main.cpp
+    src/ripple/protocol.cpp
+    src/ripple/config.cpp
+    src/ripple/tls.cpp
+    src/ripple/http.cpp
+    src/ripple/client.cpp
+    src/ripple/discovery.cpp
+    src/ripple/service.cpp
+)
+target_include_directories(cutefish-ripple PRIVATE src)
+target_link_libraries(cutefish-ripple PRIVATE
+    Cutefish::ToolkitBase
+    OpenSSL::SSL
+    OpenSSL::Crypto
+    PkgConfig::Libcurl
+    Threads::Threads
+)
+install(TARGETS cutefish-ripple RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+install(FILES data/systemd/cutefish-ripple.service DESTINATION lib/systemd/user)
+# Started with the session, so a receiver listens whether or not the panel is.
+# A copy rather than a symlink keeps DESTDIR packaging and the generator
+# expression simple; systemd reads units from a .wants directory either way.
+install(FILES data/systemd/cutefish-ripple.service
+    DESTINATION lib/systemd/user/graphical-session.target.wants)
+
 install(TARGETS cutefish-compositor cutefish-displayctl cutefish-screenshot RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 install(FILES
     ${CUTEFISH_PRIVATE_PROTOCOL_DIR}/input-method-unstable-v2.xml
@@ -997,7 +1028,7 @@ install(FILES
     DESTINATION ${CMAKE_INSTALL_DATADIR}/licenses/cutefish-compositor)
 install(FILES LICENSE LICENSE.chromium LICENSE.sommelier DESTINATION ${CMAKE_INSTALL_DATADIR}/licenses/cutefish-compositor)
 install(FILES ${DISPLAY_CONFIG_XML} DESTINATION ${CMAKE_INSTALL_DATADIR}/dbus-1/interfaces)
-cutefish_add_translations(cutefish-compositor SOURCES src/shell src/auth src/wm/overview
+cutefish_add_translations(cutefish-compositor SOURCES src/shell src/auth src/wm/overview src/ripple
     DESKTOP_FILES data/cutefish-screenshot.desktop)
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/cutefish-screenshot.desktop DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
 

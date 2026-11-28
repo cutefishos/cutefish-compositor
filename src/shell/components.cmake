@@ -48,6 +48,18 @@ add_library(cutefish-shell-clipboard-view STATIC
 target_link_libraries(cutefish-shell-clipboard-view PUBLIC cutefish-shell cutefish-shell-clipboard)
 target_link_libraries(cutefish-compositor PRIVATE cutefish-shell-clipboard-view)
 
+add_library(cutefish-shell-ripple STATIC
+    src/shell/ripple/ripple_client.cpp
+    src/shell/ripple/ripple_client.h
+    src/shell/ripple/ripple_view.cpp
+    src/shell/ripple/ripple_view.h
+    src/shell/ripple/ripple_window.cpp
+    src/shell/ripple/ripple_window.h
+)
+target_link_libraries(cutefish-shell-ripple PUBLIC cutefish-shell
+    cutefish-shell-controlcenter)
+target_link_libraries(cutefish-compositor PRIVATE cutefish-shell-ripple)
+
 add_library(cutefish-shell-notresponding STATIC
     src/shell/notresponding/not_responding_sheets.cpp
     src/shell/notresponding/not_responding_sheets.h
