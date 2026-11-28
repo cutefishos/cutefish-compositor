@@ -34,3 +34,4 @@ target_compile_definitions(controlcenter_test PRIVATE CUTEFISH_SOURCE_DIR="${PRO
 cutefish_add_shell_test(menubar_view_test cutefish-shell-menubar-view)
 target_compile_definitions(menubar_view_test PRIVATE CUTEFISH_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
 cutefish_add_shell_test(app_menus_test cutefish-shell-app-menus)
+cutefish_add_shell_test(search_test cutefish-search)

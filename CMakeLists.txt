@@ -200,6 +200,20 @@ target_include_directories(cutefish-core PUBLIC src)
 target_link_libraries(cutefish-core PUBLIC Cutefish::ToolkitBase)
 set_target_properties(cutefish-core PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
+# The desktop's search: the file manager's own lister for files, the
+# applications registry for apps. Kept out of the shell so it can be tested on
+# its own.
+find_package(CutefishFiles REQUIRED)
+add_library(cutefish-search STATIC
+    src/shell/search/search_model.cpp
+    src/shell/search/search_model.h
+    src/shell/search/search_answer.cpp
+    src/shell/search/search_answer.h
+)
+target_include_directories(cutefish-search PUBLIC src)
+target_link_libraries(cutefish-search PUBLIC cutefish-core Cutefish::Files)
+set_target_properties(cutefish-search PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
 add_library(cutefish-display STATIC
     src/display/callback_native_display_delegate.cpp
     src/display/callback_native_display_delegate.h

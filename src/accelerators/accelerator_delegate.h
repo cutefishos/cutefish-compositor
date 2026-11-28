@@ -26,6 +26,9 @@ public:
     // org.cutefish.ClipboardHistory.toggle.
     virtual void toggleClipboardHistory() = 0;
 
+    // org.cutefish.Search.toggle.
+    virtual void toggleSearch() = 0;
+
     // org.cutefish.MenuBar: control the current MPRIS player.
     virtual void mediaPlayPause() = 0;
     virtual void mediaPause() = 0;
@@ -56,6 +59,7 @@ public:
     void startCaptureMode() override;
     void stopScreenRecording() override;
     void toggleClipboardHistory() override;
+    void toggleSearch() override;
     void mediaPlayPause() override;
     void mediaPause() override;
     void mediaPrevious() override;

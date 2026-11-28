@@ -577,6 +577,7 @@ void WindowManager::setShellMetadata(compositor::Surface *surface,
     if (Window *window = windowForSurface(surface)) {
         if (window->rootSurface() == surface) {
             window->setRole(metadata.role);
+            window->setLaunchpadAnimation(metadata.launchpadAnimation);
             window->setFocusPolicy(metadata.focusPolicy);
             window->setPanelBehavior(metadata.panelBehavior);
             window->setProtectedFromControl(metadata.protectedFromControl);
@@ -628,6 +629,7 @@ Window *WindowManager::createWindow(compositor::Surface *rootSurface, const Wind
     // Applied before anything else looks at the window, and never deferred past windowAdded.
     if (const ShellWindowMetadata *metadata = shellMetadata(rootSurface)) {
         window->setRole(metadata->role);
+        window->setLaunchpadAnimation(metadata->launchpadAnimation);
         window->setFocusPolicy(metadata->focusPolicy);
         window->setPanelBehavior(metadata->panelBehavior);
         window->setProtectedFromControl(metadata->protectedFromControl);

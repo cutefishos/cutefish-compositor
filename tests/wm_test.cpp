@@ -537,6 +537,22 @@ TEST_F(WmTest, ASheetNeverHangsFromAShellWindow)
     EXPECT_FALSE(sheet->isModal());
 }
 
+TEST_F(WmTest, AShellWindowCanTakeTheLaunchpadOpenAndClose)
+{
+    compositor::Surface *surface = makeSurface({200, 80});
+    ShellWindowMetadata metadata;
+    metadata.role = WindowRole::Picker;
+    metadata.launchpadAnimation = true;
+    manager.setShellMetadata(surface, metadata);
+    Window *window = manager.createWindow(surface, {.requestedSize = {200, 80}});
+    auto *animation = dynamic_cast<scene::WindowAnimation *>(window->node());
+    ASSERT_NE(nullptr, animation);
+    EXPECT_EQ(scene::WindowAnimation::Style::Launchpad, animation->style());
+
+    window->setLaunchpadAnimation(false);
+    EXPECT_EQ(scene::WindowAnimation::Style::Fade, animation->style());
+}
+
 TEST_F(WmTest, ShellWindowsAreNeverPinged)
 {
     Window *panel = makeWindow(base::Rect(0, 0, 800, 30));

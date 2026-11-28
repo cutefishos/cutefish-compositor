@@ -599,7 +599,8 @@ void BackdropFilter::draw(Renderer &renderer, const base::RectF &exactLens, int 
     if (glass.enabled && !shaped) {
         clips.push_back(
                 {base::RectF(bounds),
-                 double(std::clamp(radius, 0, std::min(bounds.width(), bounds.height()) / 2))});
+                 double(std::clamp(radius, 0, std::min(bounds.width(), bounds.height()) / 2)),
+                 {1, 1}, glass.circularCorners});
     }
     const GlProgram &program = glass.enabled ? m_glassProgram : m_blurMaskProgram;
     glUseProgram(program);
@@ -613,8 +614,9 @@ void BackdropFilter::draw(Renderer &renderer, const base::RectF &exactLens, int 
                 float(bounds.height()) / coverage.height() * v);
     setGaussianClamp(program, texels, allocated);
     glUniform2f(program.uniform("uSize"), bounds.width(), bounds.height());
+    const int clampedRadius = std::clamp(radius, 0, std::min(lens.width(), lens.height()) / 2);
     glUniform1f(program.uniform("uRadius"),
-                std::clamp(radius, 0, std::min(lens.width(), lens.height()) / 2));
+                glass.enabled && glass.circularCorners ? float(-clampedRadius) : float(clampedRadius));
     if (!glass.enabled) {
         glUniform1f(program.uniform("uOpacity"), std::clamp(glass.opacity, 0.0f, 1.0f));
         glUniform4f(program.uniform("uFillTint"), glass.fillTint[0], glass.fillTint[1], glass.fillTint[2],

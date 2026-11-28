@@ -9,15 +9,20 @@ uniform float uOutlineWidth;
 // 1 for cubic superellipse corners, 0 for circular arcs; see render::continuousCorners().
 uniform float uContinuousCorners;
 
+bool isCircularRadius(vec2 radius) {
+    return uContinuousCorners < 0.5 || radius.x < 0.0 || radius.y < 0.0;
+}
+
 vec2 cornerExtent(vec2 radius, vec2 halfSize) {
-    if (uContinuousCorners < 0.5)
-        return clamp(radius, vec2(0.0), halfSize);
-    return clamp(radius * 1.5, vec2(0.0), halfSize);
+    vec2 magnitude = abs(radius);
+    if (isCircularRadius(radius))
+        return clamp(magnitude, vec2(0.0), halfSize);
+    return clamp(magnitude * 1.5, vec2(0.0), halfSize);
 }
 
 // Outward gradient of the corner's distance field at q = corner / r.
-vec2 cornerNormal(vec2 q, vec2 r) {
-    if (uContinuousCorners < 0.5)
+vec2 cornerNormal(vec2 q, vec2 r, bool circular) {
+    if (circular)
         return normalize(q / r);
     return normalize(q * q / r);
 }
@@ -30,7 +35,7 @@ float roundedDistance(vec2 p, vec4 bounds, vec2 radius) {
     if (min(r.x, r.y) <= 0.0 || min(d.x, d.y) <= 0.0)
         return max(edge.x, edge.y);
     vec2 q = d / r;
-    if (uContinuousCorners < 0.5) {
+    if (isCircularRadius(radius)) {
         // Exact for a circle; the first-order ellipse distance under scaling.
         float l = length(q);
         return (l - 1.0) * l / length(q / r);
@@ -46,7 +51,7 @@ float tangentCoverage(vec2 p, vec4 bounds, vec2 radius, float inset, float pixel
     vec2 corner = edge + r;
     vec2 normal = edge.x > edge.y ? vec2(1.0, 0.0) : vec2(0.0, 1.0);
     if (min(r.x, r.y) > 0.0 && min(corner.x, corner.y) > 0.0)
-        normal = cornerNormal(corner / r, r);
+        normal = cornerNormal(corner / r, r, isCircularRadius(radius));
     float t = -roundedDistance(p, bounds, radius) - inset;
     vec2 extent = abs(normal) * (0.5 * pixelSize);
     float a = max(extent.x, extent.y);

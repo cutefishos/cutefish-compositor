@@ -72,6 +72,8 @@ struct ShellWindowMetadata {
     uint64_t parentWindow = 0;
     bool protectedFromControl = false;
     int edgeReach = 0;
+    // Open and close as the launchpad does, scaling and fading as one surface.
+    bool launchpadAnimation = false;
 };
 
 // The app id and pid must be set here: the task list reads them only from windowAdded.

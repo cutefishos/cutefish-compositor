@@ -71,6 +71,7 @@
 #include "shell/menubar/app_menus_view.h"
 #include "shell/osd/osd.h"
 #include "shell/screenshot/screen_capture.h"
+#include "shell/search/search_window.h"
 #include "shell/screenshot/screen_grabber.h"
 #include "shell/secrets/secret_prompts.h"
 #include "shell/shell.h"
@@ -731,6 +732,7 @@ void CompositorShell::initShell()
     auto *dockWindow = m_shell->addComponent(std::make_unique<shell::DockWindow>(m_shell.get(), std::move(dock)));
     auto *clipboard = m_shell->addComponent(std::make_unique<shell::ClipboardPicker>(
             m_shell.get(), std::make_unique<shell::ClipboardHistory>(environment.bus, *m_seat.selection())));
+    auto *search = m_shell->addComponent(std::make_unique<shell::SearchWindow>(m_shell.get(), environment.bus));
     m_shell->addComponent(std::make_unique<shell::NotRespondingSheets>(m_shell.get()));
     auto *screenshot = m_shell->addComponent(std::make_unique<shell::ScreenCapture>(
             m_shell.get(), screenCaptureServices(dockWindow, wallpaper)));
@@ -787,6 +789,7 @@ void CompositorShell::initShell()
     bar->addPanels(notifications);
     if (!m_options.noDrm) {
         osd->registerService();
+        search->registerService();
         dockService->registerService();
         clipboard->history().registerService();
         screenshot->registerService();

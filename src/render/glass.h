@@ -50,6 +50,7 @@ struct GlassParams {
     float fillColor[4] = {0, 0, 0, 0};
     // The shell's own; the wire protocol never sets it.
     bool ignoresOpaqueBackdrop = false;
+    bool circularCorners = false;
 };
 
 // As the W3C compositing modes do.
@@ -86,6 +87,7 @@ inline bool operator==(const GlassParams &a, const GlassParams &b)
             && a.tintGreen == b.tintGreen && a.tintBlue == b.tintBlue && a.tintAlpha == b.tintAlpha
             && a.opacity == b.opacity && a.plainSigma == b.plainSigma && a.fillMode == b.fillMode
             && a.ignoresOpaqueBackdrop == b.ignoresOpaqueBackdrop
+            && a.circularCorners == b.circularCorners
             && std::equal(a.fillTint, a.fillTint + 4, b.fillTint)
             && std::equal(a.fillColor, a.fillColor + 4, b.fillColor);
 }

@@ -218,6 +218,11 @@ void lockScreen(const CommandContext &context)
         context.session->requestLock();
 }
 
+void openSearch(const CommandContext &context)
+{
+    context.delegate->toggleSearch();
+}
+
 void toggleAppList(const CommandContext &context)
 {
     context.delegate->toggleAppList();

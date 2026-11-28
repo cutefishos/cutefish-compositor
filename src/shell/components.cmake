@@ -48,6 +48,16 @@ add_library(cutefish-shell-clipboard-view STATIC
 target_link_libraries(cutefish-shell-clipboard-view PUBLIC cutefish-shell cutefish-shell-clipboard)
 target_link_libraries(cutefish-compositor PRIVATE cutefish-shell-clipboard-view)
 
+# The search panel: the applications registry and the file manager's lister.
+add_library(cutefish-shell-search STATIC
+    src/shell/search/search_view.cpp
+    src/shell/search/search_view.h
+    src/shell/search/search_window.cpp
+    src/shell/search/search_window.h
+)
+target_link_libraries(cutefish-shell-search PUBLIC cutefish-shell cutefish-search)
+target_link_libraries(cutefish-compositor PRIVATE cutefish-shell-search)
+
 add_library(cutefish-shell-notresponding STATIC
     src/shell/notresponding/not_responding_sheets.cpp
     src/shell/notresponding/not_responding_sheets.h

@@ -65,7 +65,8 @@ WindowVisualController::evaluate(const Window &window, const decoration::WindowV
         if (!body.intersected(content).isEmpty() && surface->backgroundBlurRadius() > 0) {
             const double radius = std::min({double(surface->backgroundBlurRadius()),
                                            body.width() / 2.0, body.height() / 2.0});
-            state.outlineShape = {base::RectF(body.translated(origin)), radius};
+            state.outlineShape = {base::RectF(body.translated(origin)), radius, {1, 1},
+                                  surface->glass().circularCorners};
             if (!content.contains(body))
                 state.outlineClip = base::RectF(content.translated(origin));
             state.drawOutline = true;

@@ -206,6 +206,12 @@ void ShellWindow::setPanelBehavior(wm::PanelBehavior behavior)
     applyMetadata();
 }
 
+void ShellWindow::setLaunchpadAnimation(bool launchpad)
+{
+    m_metadata.launchpadAnimation = launchpad;
+    applyMetadata();
+}
+
 void ShellWindow::setOutput(const std::string &name)
 {
     m_metadata.outputName = name;

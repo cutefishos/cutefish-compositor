@@ -634,11 +634,7 @@ void Window::setRole(WindowRole role)
     if (role == m_role)
         return;
     m_role = role;
-    if (auto *animation = dynamic_cast<scene::WindowAnimation *>(m_node); animation && !isPopup()) {
-        const bool anchored = m_rootSurface && m_rootSurface->placementAnchor();
-        animation->setStyle(role == WindowRole::Normal && anchored ? scene::WindowAnimation::Style::Popup
-                                                                   : animationStyleFor(role));
-    }
+    applyAnimationStyle();
     m_visual->update();
     if (m_role != WindowRole::Normal) {
         setDecorated(false);
@@ -646,6 +642,28 @@ void Window::setRole(WindowRole role)
     }
     if (m_manager)
         m_manager->onWindowStackingChanged(this);
+}
+
+void Window::setLaunchpadAnimation(bool launchpad)
+{
+    if (m_launchpadAnimation == launchpad)
+        return;
+    m_launchpadAnimation = launchpad;
+    applyAnimationStyle();
+}
+
+void Window::applyAnimationStyle()
+{
+    auto *animation = dynamic_cast<scene::WindowAnimation *>(m_node);
+    if (!animation || isPopup())
+        return;
+    if (m_launchpadAnimation) {
+        animation->setStyle(scene::WindowAnimation::Style::Launchpad);
+        return;
+    }
+    const bool anchored = m_rootSurface && m_rootSurface->placementAnchor();
+    animation->setStyle(m_role == WindowRole::Normal && anchored ? scene::WindowAnimation::Style::Popup
+                                                                : animationStyleFor(m_role));
 }
 
 void Window::setPanelBehavior(PanelBehavior behavior)
