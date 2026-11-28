@@ -355,6 +355,34 @@ TEST(Damage, BackdropReachFollowsGlassSigma)
     EXPECT_LT(lightReach.read, 25);
 }
 
+TEST(Damage, PartialSurfaceBlurSamplesOnlyItsBlurRect)
+{
+    scene::Node root;
+    auto *video = root.addChild(std::make_unique<scene::Node>());
+    video->setGeometry({600, 100, 200, 150});
+    auto *overlay = static_cast<scene::SurfaceNode *>(
+            root.addChild(std::make_unique<scene::SurfaceNode>()));
+    overlay->setGeometry({0, 0, 1200, 800});
+    overlay->setBackgroundBlur({0, 0, 200, 800}, 12);
+
+    scene::DamageTracker tracker;
+    const base::Rect viewport(0, 0, 1200, 800);
+    tracker.update(root, viewport);
+    const auto kept = [](uint64_t) {
+        return true;
+    };
+    const int halo = render::kBackdropBlurSupport + 2;
+    EXPECT_EQ(tracker.samples(),
+              (std::vector<base::Rect> {base::Rect(0, 0, 200, 800).adjusted(-halo, -halo, halo, halo)}));
+
+    video->setPosition({610, 100});
+    const base::Region damage = tracker.update(root, viewport);
+    EXPECT_EQ(damage, base::Region(base::Rect(600, 100, 200, 150)) + base::Rect(610, 100, 200, 150));
+    EXPECT_TRUE(tracker.samples(kept).empty());
+    EXPECT_EQ(tracker.freshBackdrops(kept),
+              (std::vector<render::KeptBackdrop> {{overlay->damageId()}}));
+}
+
 TEST(Damage, AFullRepaintStaysOnTheOutputsItDrawsOn)
 {
     class Filter : public scene::Node

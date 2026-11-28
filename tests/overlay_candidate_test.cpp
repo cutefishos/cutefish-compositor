@@ -264,7 +264,7 @@ TEST_F(OverlayCandidateTest, BackgroundBlurKeepsUnderlyingSurfacesInComposition)
 TEST_F(OverlayCandidateTest, OpaqueBackdropBlurDoesNotBlockOverlaysUnlessExempt)
 {
     auto *video = addSurface(m_scene.root(), {0, 0, 640, 480});
-    auto *window = addSurface(m_scene.root(), {900, 100, 300, 200}, false);
+    auto *window = addSurface(m_scene.root(), {660, 100, 300, 200}, false);
     window->setBackgroundBlur({0, 0, 300, 200}, 12);
     EXPECT_TRUE(propose().overlays.empty());
 
@@ -279,6 +279,23 @@ TEST_F(OverlayCandidateTest, OpaqueBackdropBlurDoesNotBlockOverlaysUnlessExempt)
     window->setBackgroundBlur({0, 0, 300, 200}, 12, dock);
     EXPECT_TRUE(propose().overlays.empty());
     render::setOpaqueBackdrop(std::nullopt);
+}
+
+TEST_F(OverlayCandidateTest, DisjointBackgroundBlurDoesNotBlockUnrelatedOverlay)
+{
+    auto *video = addSurface(m_scene.root(), {100, 60, 640, 360});
+    auto *dock = addSurface(m_scene.root(), {0, 920, 1920, 160}, false);
+    render::GlassParams glass;
+    glass.enabled = true;
+    glass.ignoresOpaqueBackdrop = true;
+    dock->setBackgroundBlur({400, 80, 1120, 72}, 20, glass);
+
+    const auto farPlan = propose();
+    ASSERT_EQ(farPlan.overlays.size(), 1u);
+    EXPECT_EQ(farPlan.overlays[0].node, video);
+
+    video->setGeometry({400, 560, 640, 360});
+    EXPECT_TRUE(propose().overlays.empty());
 }
 
 } // namespace cutefish

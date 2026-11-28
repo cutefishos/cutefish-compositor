@@ -14,10 +14,12 @@
 #include <cmath>
 
 
+#include "render/damage.h"
 #include "scene/node.h"
 #include "scene/surface_node.h"
 #include "scene/window_animation.h"
 #include "base/region.h"
+#include "ui/geometry_conversions.h"
 
 namespace cutefish::scene {
 
@@ -36,17 +38,41 @@ bool hasAnimation(const Node &node)
     });
 }
 
-// A blur reads the buffers under it from the composition target, so no overlay may take one away.
-bool hasBackgroundBlur(const Node &node)
+// A blur reads the buffers under its capture coverage, so no overlay inside it may leave composition.
+void collectBlurSamples(const Node &node, const base::Rect &outputRect,
+                        std::vector<base::Rect> &samples)
 {
     if (!node.isVisible())
-        return false;
-    if (const auto *surface = dynamic_cast<const SurfaceNode *>(&node);
-        surface && (surface->readsBackgroundBlur() || surface->readsSubsurfaceBlur()))
-        return true;
-    return std::any_of(node.children().begin(), node.children().end(), [](const Node *child) {
-        return hasBackgroundBlur(*child);
-    });
+        return;
+    if (const auto *surface = dynamic_cast<const SurfaceNode *>(&node)) {
+        const base::Rect absolute = node.absoluteGeometry();
+        const base::Point position = node.absolutePosition();
+        const auto add = [&](const base::Rect &rect) {
+            const base::Rect visible = rect.intersected(absolute).intersected(outputRect);
+            if (visible.isEmpty())
+                return;
+            // Match BackdropFilter::draw's edge-clamped capture coverage.
+            constexpr int halo = render::kBackdropBlurSupport + 2;
+            base::Rect coverage = visible.adjusted(-halo, -halo, halo, halo);
+            coverage.moveLeft(std::clamp(coverage.left(), outputRect.left(),
+                                         std::max(outputRect.left(),
+                                                  outputRect.right() - coverage.width())));
+            coverage.moveTop(std::clamp(coverage.top(), outputRect.top(),
+                                        std::max(outputRect.top(),
+                                                 outputRect.bottom() - coverage.height())));
+            samples.push_back(coverage.intersected(outputRect));
+        };
+        if (surface->readsBackgroundBlur()) {
+            add(surface->backgroundBlurRect().translated(position).united(
+                    ui::toBase(surface->backgroundBlurShape().boundingRect())
+                            .translated(position)
+                            .toEnclosingRect()));
+        }
+        if (surface->readsSubsurfaceBlur())
+            add(surface->subsurfaceBlurRect().translated(position));
+    }
+    for (const Node *child : node.children())
+        collectBlurSamples(*child, outputRect, samples);
 }
 
 struct SceneItem {
@@ -142,7 +168,8 @@ bool proposeFullscreen(std::vector<SceneItem> &items, const base::Rect &outputRe
     return plan.primary.isValid();
 }
 
-void proposeSingleOnTop(std::vector<SceneItem> &items, size_t maxOverlays, OverlayPlan &plan)
+void proposeSingleOnTop(std::vector<SceneItem> &items, const std::vector<base::Rect> &blurSamples,
+                        size_t maxOverlays, OverlayPlan &plan)
 {
     if (maxOverlays == 0)
         return;
@@ -156,6 +183,8 @@ void proposeSingleOnTop(std::vector<SceneItem> &items, size_t maxOverlays, Overl
         bool occluded = false;
         for (size_t above = i + 1; above < items.size() && !occluded; ++above)
             occluded = items[above].bounds.intersects(item.bounds);
+        for (const base::Rect &sample : blurSamples)
+            occluded = occluded || sample.intersects(item.bounds);
         if (occluded)
             continue;
 
@@ -205,9 +234,11 @@ OverlayPlan proposeOverlays(Node &root, const base::Size &outputSize, size_t max
 
     // Overlays are placed at their logical bounds, which only at scale one
     // are the plane's device pixels.
-    if (outputScale != 1 || hasBackgroundBlur(root))
+    if (outputScale != 1)
         return plan;
-    proposeSingleOnTop(items, maxOverlays, plan);
+    std::vector<base::Rect> blurSamples;
+    collectBlurSamples(root, outputRect, blurSamples);
+    proposeSingleOnTop(items, blurSamples, maxOverlays, plan);
     return plan;
 }
 

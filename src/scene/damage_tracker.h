@@ -192,23 +192,29 @@ private:
                 }
             }
             if (surface && surface->readsBackgroundBlur()) {
-                if (transform != 0 || scale <= 0) {
-                    filtered |= absolute.intersects(viewport);
-                } else {
-                    const int halo = render::kBackdropBlurSupport + int(std::ceil(2 / scale));
-                    const base::Rect sampled = absolute.adjusted(-halo, -halo, halo, halo);
-                    const base::Point position = node.absolutePosition();
-                    const base::Rect blurred = surface->backgroundBlurRect().translated(position).united(
-                            ui::toBase(surface->backgroundBlurShape().boundingRect()).translated(position)
-                                    .toEnclosingRect());
-                    const base::Rect outside = backdropChanged
-                            ? backdropChanged(node.damageId(), sampled).intersected(sampled)
-                            : base::Rect();
-                    steps.push_back({{}, blurred.adjusted(-1, -1, 1, 1), frame.blurs.size()});
-                    frame.blurs.push_back({sampled, node.damageId(),
-                                           changed || redrawn || outside == sampled,
-                                           render::backdropReach(surface->glass(), scale),
-                                           {}, {}, outside});
+                const base::Point position = node.absolutePosition();
+                const base::Rect blurred =
+                        surface->backgroundBlurRect()
+                                .translated(position)
+                                .united(ui::toBase(surface->backgroundBlurShape().boundingRect())
+                                                .translated(position)
+                                                .toEnclosingRect())
+                                .intersected(absolute);
+                if (!blurred.isEmpty()) {
+                    if (transform != 0 || scale <= 0) {
+                        filtered |= blurred.intersects(viewport);
+                    } else {
+                        const int halo = render::kBackdropBlurSupport + int(std::ceil(2 / scale));
+                        const base::Rect sampled = blurred.adjusted(-halo, -halo, halo, halo);
+                        const base::Rect outside = backdropChanged
+                                ? backdropChanged(node.damageId(), sampled).intersected(sampled)
+                                : base::Rect();
+                        steps.push_back({{}, blurred.adjusted(-1, -1, 1, 1), frame.blurs.size()});
+                        frame.blurs.push_back({sampled, node.damageId(),
+                                               changed || redrawn || outside == sampled,
+                                               render::backdropReach(surface->glass(), scale),
+                                               {}, {}, outside});
+                    }
                 }
             }
             steps.push_back({damage});
