@@ -14,6 +14,7 @@
 
 #include <linux/input-event-codes.h>
 #include <unistd.h>
+#include <xkbcommon/xkbcommon.h>
 #include <xkbcommon/xkbcommon-keysyms.h>
 
 #include "base/event_loop.h"
@@ -28,6 +29,7 @@
 #include "input/key_translator.h"
 #include "input/seat.h"
 #include "input/session_gate.h"
+#include "input/xkb_tracker.h"
 #include "scene/node.h"
 #include "scene/surface_node.h"
 #include "scene/window_animation.h"
@@ -1695,6 +1697,45 @@ bool WindowManager::onPointerButton(input::Timestamp timestamp, const base::Poin
     return m_consumedButtons.erase(code) > 0 || consumed;
 }
 
+bool WindowManager::beginModifierDrag(const base::PointF &location, uint32_t button)
+{
+    if ((button != BTN_LEFT && button != BTN_RIGHT) || !m_seat || !allowsActivation()
+        || !m_popupGrabs.empty() || m_seat->shortcutsInhibition()->isActive()
+        || m_seat->pointerConstraints()->active())
+        return false;
+
+    const auto *xkb = m_seat->xkbTracker();
+    if (!xkb->modifierPressed(XKB_MOD_NAME_LOGO) || xkb->modifierPressed(XKB_MOD_NAME_CTRL)
+        || xkb->modifierPressed(XKB_MOD_NAME_ALT) || xkb->modifierPressed(XKB_MOD_NAME_SHIFT)
+        || xkb->modifierPressed("Mod5"))
+        return false;
+
+    compositor::Surface *hit = nullptr;
+    Window *window = frameAt(location);
+    if (!window)
+        window = windowAt(location, &hit);
+    if (!window || window->role() != WindowRole::Normal || isPopupSurface(hit)
+        || window->state()->isFullscreen() || (button == BTN_RIGHT && !window->isResizable()))
+        return false;
+
+    activateForPress(window);
+    if (!hasWindow(window))
+        return true;
+    window->ping();
+
+    ResizeEdge edge = ResizeEdge::None;
+    if (button == BTN_RIGHT) {
+        const base::Rect bounds = window->bounds().translated(window->presentationOffset());
+        const bool left = location.x() < bounds.x() + bounds.width() / 2.0;
+        const bool top = location.y() < bounds.y() + bounds.height() / 2.0;
+        if (top)
+            edge = left ? ResizeEdge::TopLeft : ResizeEdge::TopRight;
+        else
+            edge = left ? ResizeEdge::BottomLeft : ResizeEdge::BottomRight;
+    }
+    return m_eventHandler->beginPointerDrag(window, edge, location, button);
+}
+
 bool WindowManager::handlePointerButton(input::Timestamp timestamp, const base::PointF &location,
                                         uint32_t code, bool pressed)
 {
@@ -1703,7 +1744,7 @@ bool WindowManager::handlePointerButton(input::Timestamp timestamp, const base::
                                 << "frame-capture" << windowTrackingFramePress() << "hit-frame"
                                 << frameAt(location);
     if (m_eventHandler->isDragging())
-        return pressed ? true : m_eventHandler->onPointerButtonReleased();
+        return pressed ? true : m_eventHandler->onPointerButtonReleased(code);
 
     if (Window *tracking = windowTrackingFramePress())
         return tracking->frame()->onPointerButton(timestamp, location, pressed);
@@ -1741,6 +1782,9 @@ bool WindowManager::handlePointerButton(input::Timestamp timestamp, const base::
             return true;
         }
     }
+
+    if (beginModifierDrag(location, code))
+        return true;
 
     ResizeEdge edge = ResizeEdge::None;
     if (Window *window = resizeHandleAt(location, false, &edge)) {

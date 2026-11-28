@@ -73,16 +73,24 @@ bool ToplevelEventHandler::beginResize(Window *window, ResizeEdge edge,
                                        const base::PointF &pointerPosition,
                                        std::optional<int32_t> touchId)
 {
-    if (edge == ResizeEdge::None || !window || !window->isResizable())
+    if (edge == ResizeEdge::None)
         return false;
     return beginDrag(window, edge, pointerPosition, touchId);
 }
 
+bool ToplevelEventHandler::beginPointerDrag(Window *window, ResizeEdge edge,
+                                            const base::PointF &pointerPosition, uint32_t button)
+{
+    return beginDrag(window, edge, pointerPosition, std::nullopt, button);
+}
+
 bool ToplevelEventHandler::beginDrag(Window *window, ResizeEdge edge,
                                      const base::PointF &pointerPosition,
-                                     std::optional<int32_t> touchId)
+                                     std::optional<int32_t> touchId,
+                                     std::optional<uint32_t> pointerButton)
 {
-    if (!window || window->isPopup() || m_resizer)
+    if (!window || window->isPopup() || m_resizer
+        || (edge != ResizeEdge::None && !window->isResizable()))
         return false;
 
     WindowState *state = window->state();
@@ -100,6 +108,7 @@ bool ToplevelEventHandler::beginDrag(Window *window, ResizeEdge edge,
                                                 m_manager->workAreaFor(window), restoreBounds,
                                                 m_manager->visibleAreaFor(window));
     m_touchId = touchId;
+    m_pointerButton = pointerButton;
     CF_DEBUG(cfInputTransitions) << "drag begin target" << window << "edge" << toString(edge)
                                 << (touchId ? "touch point" : "pointer") << touchId.value_or(-1);
     window->setDraggedInternal(true);
@@ -232,11 +241,11 @@ void ToplevelEventHandler::applyMotion(const base::PointF &location)
         m_snapController->update(location);
 }
 
-bool ToplevelEventHandler::onPointerButtonReleased()
+bool ToplevelEventHandler::onPointerButtonReleased(std::optional<uint32_t> button)
 {
     if (!m_resizer)
         return false;
-    if (m_touchId)
+    if (m_touchId || (m_pointerButton && m_pointerButton != button))
         return true;
     CF_DEBUG(cfInputTransitions) << "drag terminating release target" << draggedWindow();
     completeDrag(DragResult::Success);
@@ -321,6 +330,7 @@ void ToplevelEventHandler::completeDrag(DragResult result)
     // Out of the member first: callbacks below may start another drag or destroy the window.
     std::unique_ptr<WindowResizer> resizer = std::move(m_resizer);
     m_touchId.reset();
+    m_pointerButton.reset();
     const base::Rect initialRestoreBounds = std::exchange(m_initialRestoreBounds, base::Rect());
     CF_DEBUG(cfInputTransitions) << "drag capture cleared";
     const SnapType snapped = m_snapController->end();
